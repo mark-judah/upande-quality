@@ -1,0 +1,140 @@
+import { api } from '@/src/core/api/client';
+
+/** One row from /fetchAllocatedBuckets — a single bucket awaiting transfer
+ *  out of a remote farm into the central facility. */
+export type RawAllocationItem = {
+  // OPL info
+  opl_name?: string;
+  customer?: string;
+  order_name?: string;
+  consignee?: string;
+  sales_order?: string;
+  opl_status?: string;
+  // Pick list item
+  pick_list_item_id?: string;
+  item_code?: string;
+  item_name?: string;
+  qty?: number;
+  uom?: string;
+  stem_length?: string;
+  // Location
+  shelf_location?: string;
+  warehouse?: string;
+  // Bucket
+  bucket_id?: string;
+  harvest_date?: string;
+  harvest_time?: string;
+};
+
+export type RawAllocationResponse = {
+  message?: string;
+  data?: RawAllocationItem[];
+  vehicles?: string[];
+  http_status_code?: number;
+  error?: string;
+};
+
+/** Item that appears inside a saved trolley row. The schema is slightly
+ *  flatter than RawAllocationItem because the server normalises it before
+ *  emitting (no OPL metadata, no harvest date — those live on the OPL). */
+export type RawSavedTrolleyBucket = {
+  opl_name?: string;
+  bucket_id?: string;
+  item_code?: string;
+  item_name?: string;
+  shelf_location?: string;
+  stem_length?: string;
+  qty?: number;
+  uom?: string;
+  truck?: string;
+  warehouse?: string;
+};
+
+export type RawSavedTrolley = {
+  trolley_id?: string;
+  truck_id?: string;
+  buckets?: RawSavedTrolleyBucket[];
+};
+
+/** The server wraps these endpoints' payloads inside `{ message: { status, ...} }`
+ *  because they return via `frappe.response["message"] = {...}`. */
+export type RawSavedTrolleysResponse = {
+  message?: { status?: string; data?: RawSavedTrolley[]; message?: string };
+};
+
+export type RawTrolleyActionResponse = {
+  message?: {
+    status?: 'success' | 'error' | string;
+    message?: string;
+    updated_count?: number;
+    shelf_removed_count?: number;
+    cleared_count?: number;
+    skipped_loaded?: string[];
+    errors?: { bucket_id?: string; error?: string }[];
+  };
+};
+
+export const karenBucketRequestsApi = {
+  /** Pull every bucket currently awaiting transfer for `farm`, plus the
+   *  vehicle list the operator can later load each trolley into. */
+  fetchAllocatedBuckets(farm: string): Promise<RawAllocationResponse> {
+    return api<RawAllocationResponse>({
+      method: 'POST',
+      url: '/api/method/fetchAllocatedBuckets',
+      data: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Persist a trolley's bucket assignments and clear the buckets from their
+   *  shelves. */
+  saveTrolleyData(payload: {
+    trolley_id: string;
+    buckets: { opl_name: string; bucket_id: string }[];
+  }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/saveTrolleyData',
+      data: { data: payload },
+      validateStatus: () => true,
+    });
+  },
+
+  /** List saved (already-persisted) trolleys for a farm. */
+  getSavedTrolleys(farm: string): Promise<RawSavedTrolleysResponse> {
+    return api<RawSavedTrolleysResponse>({
+      method: 'GET',
+      url: '/api/method/getSavedTrolleys',
+      params: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Mark every bucket in a trolley as in_transit on the given truck. */
+  loadTrolleyInTruck(payload: {
+    trolley_id: string;
+    truck_id: string;
+  }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/loadTrolleyInTruck',
+      data: { data: payload },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Undo saved trolleys on the server (clears the grouping; does NOT re-shelve).
+   *  `trolley_ids` is a "|~|"-joined string (the Server Script is safe_exec and
+   *  cannot parse JSON). */
+  deleteSavedTrolleys(payload: {
+    trolley_ids: string;
+    farm: string;
+  }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/deleteSavedTrolleys',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+};
