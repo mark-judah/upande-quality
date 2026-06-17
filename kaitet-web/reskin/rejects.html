@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rejects | Quality Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+            --accent-teal: #2d9ea0;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; line-height: 1.5; background: var(--bg-page); color: var(--text-primary); min-height: 100vh; width: 100%; }
+        .top-nav { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); padding: 0 16px; display: flex; align-items: center; position: sticky; top: 0; z-index: 200; height: 44px; }
+        .nav-brand { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 14px 0 0; margin-right: 6px; border-right: 1px solid var(--border-default); white-space: nowrap; }
+        .nav-link { padding: 12px 14px; font-size: 12px; font-weight: 500; color: var(--text-secondary); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 150ms ease; }
+        .nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-default); }
+        .nav-link.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 600; }
+        @media (max-width: 640px) { .top-nav { overflow-x: auto; padding: 0 12px; } .nav-link { padding: 12px 12px; font-size: 11px; } }
+        .page-head { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; position: sticky; top: 44px; z-index: 100; flex-wrap: wrap; }
+        .page-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+        .refresh-btn, .reset-filters-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+        .refresh-btn:hover, .reset-filters-btn:hover { background: var(--bg-input); }
+        .active-filter-badge { background: var(--accent-blue-light); color: var(--accent-blue); padding: 3px 8px; border-radius: 16px; font-size: 10px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
+        .clear-badge { cursor: pointer; font-size: 11px; opacity: 0.7; }
+        .clear-badge:hover { opacity: 1; }
+        .filter-bar { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); padding: 8px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: 78px; z-index: 99; }
+        .filter-group { display: flex; align-items: center; gap: 5px; background: var(--bg-input); padding: 3px 10px 3px 8px; border-radius: 20px; border: 1px solid var(--border-default); }
+        .filter-label { font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-control { height: 28px; padding: 3px 8px; font-size: 11px; font-family: inherit; background: transparent; border: none; color: var(--text-primary); min-width: 90px; }
+        .form-control:focus { outline: none; }
+        select.form-control { cursor: pointer; }
+        .clear-dates-btn { font-size: 10px; font-weight: 600; color: var(--accent-blue); background: none; border: none; cursor: pointer; padding: 5px 10px; }
+        .container { padding: 16px 20px; width: 100%; max-width: 100%; margin: 0; }
+        .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+        .kpi-card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
+        .kpi-icon { width: 32px; height: 32px; min-width: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .kpi-icon svg { width: 16px; height: 16px; }
+        .kpi-content { flex: 1; }
+        .kpi-label { font-size: 9px; font-weight: 600; color: var(--text-secondary); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .kpi-value { font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+        @media (max-width: 1200px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 640px)  { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+        .panel-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+        .panel { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; width: 100%; }
+        .panel-heading { padding: 12px 16px 10px; border-bottom: 1px solid var(--border-light); }
+        .panel-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .panel-subtitle { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+        .panel-body { padding: 12px 16px 16px; min-height: 260px; overflow-x: auto; }
+        .panel-body canvas { max-height: 260px; width: auto; min-width: 100%; }
+        .panel-body canvas { max-height: 260px; width: auto; min-width: 100%; }
+        .ftr-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .ftr-table thead th { padding: 8px 10px; text-align: left; font-size: 9px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border-default); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ftr-table thead th.num { text-align: right; }
+        .ftr-table tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border-light); }
+        .ftr-table tbody td.num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .ftr-table tbody tr:hover td { background: var(--bg-hover); }
+        .table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+        .pill { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+        .pill-ok { background: rgba(41,205,66,0.12); color: var(--accent-green); }
+        .pill-warn { background: rgba(252,156,48,0.12); color: var(--accent-orange); }
+        .pill-bad { background: rgba(230,55,87,0.12); color: var(--accent-red); }
+        .empty-state { text-align: center; padding: 30px 16px; color: var(--text-muted); }
+    /* ── shared multiselect (farm etc.) ── */
+.ms{position:relative;display:inline-block;min-width:172px;font-size:12px;vertical-align:middle}
+.ms-control{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:30px;padding:3px 24px 3px 6px;border:1px solid var(--border-default,#d8dde3);border-radius:5px;background:var(--bg-input,#fff);cursor:pointer;position:relative}
+.ms-control:after{content:"\25BE";position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#8895a7;font-size:10px;pointer-events:none}
+.ms.open .ms-control{border-color:var(--accent-blue,#2490ef);box-shadow:0 0 0 2px rgba(36,144,239,.15)}
+.ms-ph{color:#8895a7}
+.ms-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-blue,#2490ef);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;line-height:1.6;max-width:130px}
+.ms-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-chip b{cursor:pointer;font-weight:700;opacity:.85}
+.ms-chip b:hover{opacity:1}
+.ms-count{background:rgba(36,144,239,.12);color:var(--accent-blue,#2490ef);border-radius:10px;padding:1px 9px;font-size:11px;font-weight:600}
+.ms-panel{position:absolute;z-index:200;top:calc(100% + 4px);left:0;min-width:210px;background:var(--bg-surface,#fff);border:1px solid var(--border-default,#d8dde3);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.16);display:none;flex-direction:column;max-height:300px}
+.ms.open .ms-panel{display:flex}
+.ms-search{margin:7px;padding:5px 8px;border:1px solid var(--border-default,#d8dde3);border-radius:5px;font-size:12px;outline:none}
+.ms-actions{display:flex;gap:12px;padding:0 10px 6px;border-bottom:1px solid var(--border-default,#eef2f7)}
+.ms-actions a{color:var(--accent-blue,#2490ef);cursor:pointer;font-size:11px;font-weight:500}
+.ms-list{overflow-y:auto;padding:4px 0}
+.ms-opt{display:flex;align-items:center;gap:7px;padding:5px 11px;cursor:pointer}
+.ms-opt:hover{background:rgba(36,144,239,.07)}
+.ms-opt input{margin:0;cursor:pointer}
+.ms-opt.hidden{display:none}
+.ms-empty{padding:9px 11px;color:#8895a7}
+
+</style>
+</head>
+<body>
+<nav class="top-nav">
+    <span class="nav-brand">QC DASHBOARD</span>
+    <a href="app/qc" class="nav-link">Home</a>
+    <a href="intake-ftr-overview" class="nav-link">Intake FTR</a>
+    <a href="rejects" class="nav-link active">Rejects</a>
+    <a href="solution-mixing-overview" class="nav-link">Solution Mixing</a>
+    <a href="coldroom-overview" class="nav-link">Coldroom Ops</a>
+    <a href="quality-trends" class="nav-link">Trends</a>
+    <a href="quality-raw-data" class="nav-link">Raw Data</a>
+</nav>
+
+<div class="page-head">
+    <div class="page-title">Rejects</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div id="activeFilters" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        <button class="reset-filters-btn" id="resetFiltersBtn">Reset</button>
+        <button class="refresh-btn" onclick="loadData()">⟳ Refresh</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group"><span class="filter-label">Year</span><select class="form-control" id="filterYear"><option value="">All</option></select></div>
+    <div class="filter-group"><span class="filter-label">Week</span><select class="form-control" id="filterWeek"><option value="">All</option></select></div>
+    <div class="filter-group"><span class="filter-label">Farm</span><div id="filterFarm"></div></div>
+</div>
+
+<div class="container">
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:#fff3e0;color:var(--accent-orange);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Intake Rejects</div><div class="kpi-value" id="kpiIntake">—</div></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:rgba(230,55,87,0.12);color:var(--accent-red);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8l-8 8M8 8l8 8"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Field Rejects</div><div class="kpi-value" id="kpiField">—</div></div>
+        </div>
+    </div>
+
+    <div class="panel-grid">
+        <div class="panel">
+            <div class="panel-heading"><div class="panel-title">Intake Rejects</div><div class="panel-subtitle">Quality Reporting · rejected at intake</div></div>
+            <div class="panel-body" style="padding:0;"><div class="table-scroll"><table class="ftr-table">
+                <thead><tr><th>Captured By</th><th>Date</th><th>Farm</th><th>Greenhouse</th><th>Variety</th><th>Issues</th></tr></thead>
+                <tbody id="intakeRows"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
+            </table></div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><div class="panel-title">Field Rejects</div><div class="panel-subtitle">Rejected in the field before intake</div></div>
+            <div class="panel-body" style="padding:0;"><div class="table-scroll"><table class="ftr-table">
+                <thead><tr><th>Captured By</th><th>Date</th><th>Farm</th><th>Greenhouse</th><th>Variety</th><th>Issues</th><th class="num">Stems</th></tr></thead>
+                <tbody id="fieldRows"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+            </table></div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><div class="panel-title">Grading Rejects</div><div class="panel-subtitle">Coming soon</div></div>
+            <div class="panel-body"><div class="empty-state">🚧 Grading rejects — coming soon.</div></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><div class="panel-title">Packhouse Rejects</div><div class="panel-subtitle">Coming soon</div></div>
+            <div class="panel-body"><div class="empty-state">🚧 Packhouse rejects — coming soon.</div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let farmMS = null;
+function el(id){ return document.getElementById(id); }
+function num(v, d=0){ if(v===null||v===undefined||v==='') return '—'; const n=Number(v); if(!isFinite(n)) return '—'; return n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ── shared multiselect factory (chips + search + select-all) ── */
+function createMultiSelect(mountId, opts) {
+    opts = opts || {};
+    var root = document.getElementById(mountId);
+    if (!root) return null;
+    root.classList.add('ms');
+    var ph = opts.placeholder || 'All';
+    var items = [];        // [{value,label}]
+    var selected = {};     // value -> true
+    var changeCb = null;
+    function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    root.innerHTML =
+        '<div class="ms-control"><span class="ms-body"></span></div>' +
+        '<div class="ms-panel">' +
+          '<input class="ms-search" type="text" placeholder="Search…">' +
+          '<div class="ms-actions"><a class="ms-all">Select all</a><a class="ms-clear">Clear</a></div>' +
+          '<div class="ms-list"></div>' +
+        '</div>';
+    var control = root.querySelector('.ms-control');
+    var body = root.querySelector('.ms-body');
+    var search = root.querySelector('.ms-search');
+    var list = root.querySelector('.ms-list');
+    function renderBody(){
+        var keys = Object.keys(selected);
+        if(!keys.length){ body.innerHTML = '<span class="ms-ph">'+esc(ph)+'</span>'; return; }
+        if(keys.length <= 2){
+            body.innerHTML = keys.map(function(v){
+                var it = items.find(function(i){return i.value===v;});
+                return '<span class="ms-chip"><span>'+esc(it?it.label:v)+'</span><b data-v="'+esc(v)+'">×</b></span>';
+            }).join('');
+        } else {
+            body.innerHTML = '<span class="ms-count">'+keys.length+' selected</span>';
+        }
+    }
+    function renderList(){
+        var q = (search.value||'').toLowerCase();
+        if(!items.length){ list.innerHTML = '<div class="ms-empty">No options</div>'; return; }
+        list.innerHTML = items.map(function(it){
+            var hide = q && it.label.toLowerCase().indexOf(q)===-1;
+            return '<label class="ms-opt'+(hide?' hidden':'')+'"><input type="checkbox" data-v="'+esc(it.value)+'"'+(selected[it.value]?' checked':'')+'><span>'+esc(it.label)+'</span></label>';
+        }).join('');
+    }
+    function fire(){ renderBody(); if(changeCb) changeCb(); }
+    control.addEventListener('click', function(e){
+        if(e.target.tagName==='B' && e.target.dataset.v){ delete selected[e.target.dataset.v]; renderList(); fire(); e.stopPropagation(); return; }
+        root.classList.toggle('open'); if(root.classList.contains('open')) search.focus();
+    });
+    list.addEventListener('change', function(e){
+        var v = e.target.dataset.v; if(v===undefined) return;
+        if(e.target.checked) selected[v]=true; else delete selected[v];
+        fire();
+    });
+    search.addEventListener('input', renderList);
+    search.addEventListener('click', function(e){ e.stopPropagation(); });
+    root.querySelector('.ms-all').addEventListener('click', function(e){ e.stopPropagation(); var q=(search.value||'').toLowerCase(); items.forEach(function(it){ if(!q||it.label.toLowerCase().indexOf(q)!==-1) selected[it.value]=true; }); renderList(); fire(); });
+    root.querySelector('.ms-clear').addEventListener('click', function(e){ e.stopPropagation(); selected={}; renderList(); fire(); });
+    document.addEventListener('click', function(e){ if(!root.contains(e.target)) root.classList.remove('open'); });
+    var api = {
+        setOptions: function(arr){ items=(arr||[]).map(function(x){ return (x&&typeof x==='object')?{value:String(x.value),label:String(x.label)}:{value:String(x),label:String(x)}; }); var valid={}; items.forEach(function(i){valid[i.value]=1;}); Object.keys(selected).forEach(function(v){ if(!valid[v]) delete selected[v]; }); renderList(); renderBody(); },
+        getValue: function(){ return Object.keys(selected).join(','); },
+        setValue: function(csv){ selected={}; String(csv||'').split(',').forEach(function(v){ v=v.trim(); if(v) selected[v]=true; }); renderList(); renderBody(); },
+        onChange: function(cb){ changeCb = cb; }
+    };
+    renderBody(); renderList();
+    return api;
+}
+/* Format an adaptive-period key for axis labels: YYYY-MM-DD -> "Sun 08", YYYY-MM -> "Jun", MM -> "Jun", YYYY-Www kept. */
+function formatPeriodLabel(k){
+    k = String(k);
+    var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var m;
+    if((m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(k))){ var dt=new Date(+m[1],+m[2]-1,+m[3]); return DOW[dt.getDay()]+' '+m[3]; }
+    if((m=/^(\d{4})-(\d{2})$/.exec(k))){ return MON[+m[2]-1]+' '+m[1]; }
+    if((m=/^(\d{1,2})$/.exec(k))){ var i=+m[1]; if(i>=1&&i<=12) return MON[i-1]; }
+    return k;
+}
+
+
+function fillSelect(sel, items, current){
+    const def = sel.querySelector('option[value=""]');
+    sel.innerHTML = ''; if(def) sel.appendChild(def);
+    items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; if(current && String(current)===String(v)) o.selected=true; sel.appendChild(o); });
+}
+function setBadges(filters){
+    const wrap = el('activeFilters'); wrap.innerHTML='';
+    Object.entries(filters||{}).forEach(([k,v]) => { if(!v) return; const span=document.createElement('span'); span.className='active-filter-badge'; span.innerHTML=k+': '+v+' <span class="clear-badge" data-k="'+k+'">×</span>'; wrap.appendChild(span); });
+    wrap.querySelectorAll('.clear-badge').forEach(c => { c.onclick=()=>{ const k=c.dataset.k; if(k==='farm'){ if(farmMS) farmMS.setValue(''); } else { const id={year:'filterYear',week:'filterWeek'}[k]; if(id) el(id).value=''; } loadData(); }; });
+}
+function renderIntake(rows){
+    const tb=el('intakeRows');
+    if(!rows || !rows.length){ tb.innerHTML='<tr><td colspan="6" class="empty-state">No intake rejects for these filters.</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => '<tr><td>'+esc(r.captured_by)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.farm)+'</td><td>'+esc(r.greenhouse)+'</td><td>'+esc(r.variety)+'</td><td>'+esc(r.issues||'—')+'</td></tr>').join('');
+}
+function renderField(rows){
+    const tb=el('fieldRows');
+    if(!rows || !rows.length){ tb.innerHTML='<tr><td colspan="7" class="empty-state">No field rejects for these filters.</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => '<tr><td>'+esc(r.captured_by)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.farm)+'</td><td>'+esc(r.greenhouse)+'</td><td>'+esc(r.variety)+'</td><td>'+esc(r.issues||'—')+'</td><td class="num">'+num(r.stems,0)+'</td></tr>').join('');
+}
+function loadData(){
+    const params = new URLSearchParams({ year: el('filterYear').value, week: el('filterWeek').value, farm: farmMS ? farmMS.getValue() : '' });
+    fetch('/api/method/fetchRejects?'+params.toString(), { headers:{ 'X-Frappe-CSRF-Token': frappe.csrf_token || 'token' }, credentials:'include' })
+        .then(r => r.json()).then(j => {
+            const d = (j && j.message) || {};
+            if(!d.success){ el('intakeRows').innerHTML='<tr><td colspan="6" class="empty-state">Failed to load: '+(d.error||'unknown error')+'</td></tr>'; return; }
+            el('kpiIntake').textContent = num((d.kpi||{}).intake, 0);
+            el('kpiField').textContent  = num((d.kpi||{}).field, 0);
+            const opts = d.filter_options || {};
+            fillSelect(el('filterYear'), (opts.years||[]).map(String), el('filterYear').value);
+            fillSelect(el('filterWeek'), (opts.weeks||[]).map(String), el('filterWeek').value);
+            if(farmMS) farmMS.setOptions(opts.farms||[]);
+            setBadges(d.active_filters||{});
+            renderIntake(d.intake_rejects||[]);
+            renderField(d.field_rejects||[]);
+        }).catch(e => { el('intakeRows').innerHTML='<tr><td colspan="6" class="empty-state">Failed to load: '+e.message+'</td></tr>'; });
+}
+['filterYear','filterWeek'].forEach(id => el(id).addEventListener('change', loadData));
+farmMS = createMultiSelect('filterFarm', { placeholder: 'All farms' });
+if(farmMS) farmMS.onChange(loadData);
+el('resetFiltersBtn').addEventListener('click', () => { el('filterYear').value=''; el('filterWeek').value=''; if(farmMS) farmMS.setValue(''); loadData(); });
+loadData();
+</script>
+</body>
+</html>

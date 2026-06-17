@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quality Trends | Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
+<style>
+/* ── Topbar filter bar (year/week/production-date) restyled into aph chrome ── */
+.aph .filter-group{display:flex;align-items:center;gap:5px;background:var(--bg-card);padding:0 8px;border-radius:7px;border:1px solid var(--border-2);height:32px}
+.aph .filter-label{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.aph .form-control{height:28px;padding:0 6px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;border:none;color:var(--text);min-width:78px;outline:0;font-weight:500}
+.aph select.form-control{cursor:pointer}
+.aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
+  border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
+.aph .live-badge:hover{background:var(--bg-hover)}
+.aph .refresh-dot{width:7px;height:7px;background:var(--good);border-radius:50%}
+
+/* ── Section labels between chart rows ── */
+.aph .section-label{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin:6px 0 10px;padding-left:2px}
+
+/* ── Chart wrappers inside aph-card bodies (definite height; do NOT cap canvas) ── */
+.aph .chart-box{position:relative;height:300px}
+.aph .chart-box.tall{height:360px}
+
+/* ── Loading / error states (render output) ── */
+.aph .loading-state{text-align:center;padding:40px 20px;color:var(--text-3)}
+.aph .error-state{background:#fde8ec;color:var(--bad);padding:12px 16px;border-radius:8px;border-left:3px solid var(--bad);font-size:11px}
+
+@media(max-width:900px){
+  .aph .filter-group{height:auto;min-height:32px}
+}
+</style>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Quality</small></div>
+    </div>
+    <a class="home-link" href="app/qc">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Quality</div>
+      <a class="nav-item" href="intake-ftr-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        Intake FTR
+      </a>
+      <a class="nav-item" href="rejects">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Rejects
+      </a>
+      <a class="nav-item" href="solution-mixing-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.58 16.5h12.85"/></svg>
+        Solution Mixing
+      </a>
+      <a class="nav-item" href="coldroom-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m19.07 4.93-14.14 14.14"/></svg>
+        Coldroom Ops
+      </a>
+
+      <div class="group-lbl">Analytics</div>
+      <a class="nav-item active" href="quality-trends">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Trends
+      </a>
+      <a class="nav-item" href="quality-raw-data">
+        <svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+        Raw Data
+      </a>
+      <a class="nav-item" href="transit-time">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Transit Time
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Quality Trends</h1>
+      <span class="crumb">Analytics</span>
+      <div class="right">
+        <div class="filter-group"><span class="filter-label">Year</span><select class="form-control" id="filterYear"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Week</span><select class="form-control" id="filterWeek"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Production Date</span><input type="date" class="form-control" id="filterDate"></div>
+        <button class="live-badge refresh-btn" onclick="loadData()"><span class="refresh-dot"></span>Refresh</button>
+      </div>
+    </div>
+
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Quality Trends</div>
+        <div class="sub">Diseases, other quality concerns &amp; pest trends by farm with Pareto cumulative %</div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div><div class="lbl">Total Reports</div><div class="v" id="kpiReports">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <div><div class="lbl">Stems Checked</div><div class="v" id="kpiChecked">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 22c1-3 6-6 6-10a6 6 0 1 0-12 0c0 4 5 7 6 10z"/></svg></div>
+          <div><div class="lbl">Total Pests</div><div class="v" id="kpiPests">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <div><div class="lbl">Total Diseases</div><div class="v" id="kpiDiseases">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div><div class="lbl">Other Concerns</div><div class="v" id="kpiOthers">--</div></div>
+        </div>
+      </div>
+
+      <!-- ── Diseases ─────────────────────────────────────────────── -->
+      <div class="section-label">Diseases</div>
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Diseases (Sum of Stems)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartDiseasesSum"></canvas></div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Diseases (Count)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartDiseasesCount"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- ── Other Quality Concerns ───────────────────────────────── -->
+      <div class="section-label">Other Quality Concerns</div>
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Other Quality Concerns (Sum of Stems)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartOthersSum"></canvas></div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Other Quality Concerns (Count)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartOthersCount"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- ── Pests ────────────────────────────────────────────────── -->
+      <div class="section-label">Pests</div>
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Pests (Sum of Stems)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartPestsSum"></canvas></div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Pests (Count)</div></div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="chartPestsCount"></canvas></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+    "use strict";
+
+    var chartInstances = {};
+
+    Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = "#6c7178";
+    Chart.defaults.plugins.legend.display = false;
+
+    // ── Color palettes per group ───────────────────────────────────────
+    var DISEASE_COLORS = ["#1a6e7e","#f0a73a","#7c5cfc","#4dc9c9","#8e44ad","#2490ef","#e63757"];
+    var OTHER_COLORS = [
+        "#2490ef","#d4c77f","#e63757","#4dc9c9","#c0c0c0","#29cd42",
+        "#fc9c30","#7c5cfc","#1a6e7e","#f0a73a","#8e44ad","#3498db",
+        "#e74c3c","#2ecc71","#9b59b6","#1abc9c","#d35400","#c0392b",
+        "#27ae60","#2980b9","#f39c12","#8e44ad","#16a085","#d35400",
+        "#c0392b","#7f8c8d","#2c3e50"
+    ];
+    var PEST_COLORS = [
+        "#1a6e7e","#88c4a8","#e63757","#6ecfcf","#d4c77f","#3a7d44",
+        "#f0a73a","#6b4fa0","#4dc9c9","#c0392b","#2980b9","#8e44ad",
+        "#16a085","#d35400","#f39c12","#27ae60","#e74c3c","#9b59b6",
+        "#1abc9c","#2c3e50"
+    ];
+
+    // ── Init ───────────────────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", function(){
+        ["filterYear","filterWeek","filterDate"].forEach(function(id){
+            document.getElementById(id).addEventListener("change", loadData);
+        });
+        setTimeout(loadData, 300);
+    });
+
+    function getFilters(){
+        return {
+            year:            document.getElementById("filterYear").value,
+            week:            document.getElementById("filterWeek").value,
+            production_date: document.getElementById("filterDate").value
+        };
+    }
+
+    // ── Load Data ──────────────────────────────────────────────────────
+    window.loadData = function(){
+        frappe.call({
+            method: "fetchTrendsData",
+            args: getFilters(),
+            callback: function(r){
+                var msg = r.message || {};
+                if(!msg.success){
+                    console.error(msg.error);
+                    return;
+                }
+                renderKPIs(msg.kpi || {});
+                renderBar("chartDiseasesSum",   msg.diseases_sum   || [], DISEASE_COLORS, "total_count");
+                renderBar("chartDiseasesCount", msg.diseases_count || [], DISEASE_COLORS, "occurrence_count");
+                renderBar("chartOthersSum",     msg.others_sum     || [], OTHER_COLORS,   "total_count");
+                renderBar("chartOthersCount",   msg.others_count   || [], OTHER_COLORS,   "occurrence_count");
+                renderBar("chartPestsSum",      msg.pests_sum      || [], PEST_COLORS,    "total_count");
+                renderBar("chartPestsCount",    msg.pests_count    || [], PEST_COLORS,    "occurrence_count");
+                populateFilters(msg.filter_options || {});
+            },
+            error: function(e){ console.error(e); }
+        });
+    };
+
+    // ── Populate filters ───────────────────────────────────────────────
+    function populateFilters(opts){
+        fillSelect("filterYear", opts.years || [], "", "All");
+        fillSelect("filterWeek", opts.weeks || [], "", "All");
+    }
+
+    function fillSelect(id, items, defaultVal, defaultLabel){
+        var sel = document.getElementById(id);
+        var cur = sel.value;
+        sel.innerHTML = '<option value="' + (defaultVal || "") + '">' + (defaultLabel || "All") + '</option>';
+        items.forEach(function(item){
+            var o = document.createElement("option");
+            o.value = item;
+            o.textContent = item;
+            if(String(item) === cur) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    // ── KPIs ───────────────────────────────────────────────────────────
+    function renderKPIs(kpi){
+        document.getElementById("kpiReports").textContent  = num(kpi.total_reports);
+        document.getElementById("kpiChecked").textContent   = num(kpi.total_stems_checked);
+        document.getElementById("kpiPests").textContent     = num(kpi.total_pests);
+        document.getElementById("kpiDiseases").textContent  = num(kpi.total_diseases);
+        document.getElementById("kpiOthers").textContent    = num(kpi.total_others);
+    }
+
+    // ── Stacked bar (by farm) + Pareto cumulative-% line ───────────────
+    // data rows: [{parameter_name, farm, <valueKey>}]
+    function renderBar(canvasId, data, colors, valueKey){
+        if(chartInstances[canvasId]){
+            chartInstances[canvasId].destroy();
+            chartInstances[canvasId] = null;
+        }
+        data = data || [];
+
+        var totals = {}, farmsSet = {}, lut = {};
+        data.forEach(function(d){
+            var p = d.parameter_name || "--", f = d.farm || "—", v = Number(d[valueKey] || 0);
+            totals[p] = (totals[p] || 0) + v;
+            farmsSet[f] = true;
+            lut[p + "||" + f] = (lut[p + "||" + f] || 0) + v;
+        });
+        // parameters sorted by total descending (Pareto order)
+        var params = Object.keys(totals).sort(function(a, b){ return totals[b] - totals[a]; });
+        var farms = Object.keys(farmsSet).sort();
+        var labels = params.map(function(p){ return truncate(p, 14); });
+
+        var datasets = farms.map(function(f, i){
+            return {
+                type: "bar", label: f, stack: "s", yAxisID: "y",
+                data: params.map(function(p){ return lut[p + "||" + f] || 0; }),
+                backgroundColor: colors[i % colors.length], borderWidth: 0, maxBarThickness: 40
+            };
+        });
+        // cumulative %
+        var grand = params.reduce(function(s, p){ return s + totals[p]; }, 0) || 1;
+        var cum = 0;
+        var cumPct = params.map(function(p){ cum += totals[p]; return Math.round(cum / grand * 1000) / 10; });
+        datasets.push({
+            type: "line", label: "Cumulative %", data: cumPct, yAxisID: "yPct",
+            borderColor: "#1a1a1a", backgroundColor: "transparent", borderWidth: 2,
+            pointRadius: 3, tension: 0.2
+        });
+
+        var ctx = document.getElementById(canvasId).getContext("2d");
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: "bar",
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: "bottom", labels: { boxWidth: 10, padding: 6, font: { size: 9 } } },
+                    tooltip: {
+                        backgroundColor: "#1a1a1a", cornerRadius: 6, padding: 10,
+                        callbacks: {
+                            label: function(ctx){
+                                return ctx.dataset.type === "line"
+                                    ? (ctx.dataset.label + ": " + ctx.parsed.y + "%")
+                                    : (ctx.dataset.label + ": " + num(ctx.parsed.y));
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0, font: { size: 9 } } },
+                    y: { stacked: true, beginAtZero: true, position: "left", grid: { color: "rgba(0,0,0,0.04)" }, ticks: { font: { size: 10 }, callback: function(v){ return shortNum(v); } } },
+                    yPct: { beginAtZero: true, max: 100, position: "right", grid: { drawOnChartArea: false }, ticks: { font: { size: 9 }, callback: function(v){ return v + "%"; } } }
+                }
+            }
+        });
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+    function num(n){
+        if(n === null || n === undefined) return "--";
+        return Number(n).toLocaleString();
+    }
+
+    function shortNum(v){
+        if(v >= 1000000) return (v / 1000000).toFixed(1) + "M";
+        if(v >= 1000) return (v / 1000).toFixed(1) + "k";
+        return v;
+    }
+
+    function truncate(s, maxLen){
+        s = String(s || "");
+        return s.length > maxLen ? s.substring(0, maxLen) + "..." : s;
+    }
+
+})();
+</script>
+
+<script>
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        var av = document.getElementById('aph-foot-av'), nm = document.getElementById('aph-foot-nm'), em = document.getElementById('aph-foot-em');
+        if (av) av.textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        if (nm) nm.textContent = fullName;
+        if (em) em.textContent = u;
+    }
+    tryFill();
+})();
+</script>

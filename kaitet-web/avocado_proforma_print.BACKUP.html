@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; color: #000; background: #fff; }
+  .page { padding: 19px 19px 19px 19px; }
+  .hdr { display: table; width: 100%; margin-bottom: 3px; }
+  .hdr-left  { display: table-cell; vertical-align: top; width: 62%; }
+  .hdr-right { display: table-cell; vertical-align: top; width: 38%; text-align: right; }
+  .co-name { font-size: 17pt; font-weight: bold; line-height: 1.1; margin-bottom: 3px; }
+  .co-sub  { font-size: 8pt; line-height: 1.6; }
+  .co-reg  { font-size: 8pt; line-height: 1.6; }
+  .affa { font-size: 7.8pt; margin: 4px 0 2px 0; }
+  .inv-title { text-align: center; font-size: 10.5pt; font-weight: bold; margin: 4px 0 3px 0; }
+  table.outer { width: 100%; border-collapse: collapse; border: 1px solid #000; }
+  table.outer td, table.outer th { border: 1px solid #000; padding: 2px 4px; font-size: 8.5pt; vertical-align: top; }
+  .col-hdr th { font-weight: bold; font-size: 8pt; background: #fff; }
+  .r { text-align: right; }
+  .b { font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="page">
+
+{# Load export settings #}
+{%- set cfg_name = doc.export_settings or 'KAITET TEA ESTATE(1977) LTD' -%}
+{%- set cfg_row = frappe.db.sql("""
+    SELECT company_display_name, incorporated_in, pin_no, vat_no,
+        exporter_code, customs_no, po_box, city, country, phone, email,
+        affa_hcd_license, certification_status, ggn, authorized_by,
+        default_customs_tariff, default_place_of_receipt,
+        default_port_of_loading, default_port_of_entry
+    FROM `tabAvocado Export Settings` WHERE name = %(name)s LIMIT 1
+""", {'name': cfg_name}, as_dict=True) -%}
+{%- set cfg = cfg_row[0] if cfg_row else {} -%}
+
+{# Load notify party directly from Avocado Consignee #}
+{%- set consignee_ref = doc.avo_consignee or '' -%}
+{%- set notify_row = frappe.db.sql("""
+    SELECT notify_name, notify_address
+    FROM `tabAvocado Consignee` WHERE name = %(name)s LIMIT 1
+""", {'name': consignee_ref}, as_dict=True) if consignee_ref else [] -%}
+{%- set notify = notify_row[0] if notify_row else {} -%}
+{%- set notify_name    = notify.notify_name    or doc.notify_name    or '' -%}
+{%- set notify_address = notify.notify_address or doc.notify_address or '' -%}
+
+{# Calculate totals #}
+{%- set total_fob      = (doc.total_fob or 0) | float -%}
+{%- set freight_val    = (doc.freight_value or 0) | float -%}
+{%- set insurance_val  = (doc.insurance_cost or 0) | float -%}
+{%- set grand_total    = total_fob + freight_val + insurance_val -%}
+
+{% set items = doc.items | list %}
+{% set n     = items | length %}
+{% set tspan = (n * 2) + 9 %}
+
+{% macro fmt_date(d) %}
+  {%- if d -%}
+    {%- set s2 = d | string -%}
+    {%- if '-' in s2 and s2 | length >= 10 -%}
+      {%- set p = s2[:10].split('-') -%}{{ p[2] }}.{{ p[1] }}.{{ p[0] }}
+    {%- else -%}{{ s2 }}{%- endif -%}
+  {%- endif -%}
+{% endmacro %}
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="co-name">{{ cfg.company_display_name or '' }}</div>
+    <div class="co-sub">
+      ({{ cfg.incorporated_in or '' }})<br>
+      Pin No. {{ cfg.pin_no or '' }}<br>
+      Vat No. {{ cfg.vat_no or '' }}<br>
+      Exporter Code No. {{ cfg.exporter_code or '' }}<br>
+      Customs No.: {{ cfg.customs_no or '' }}
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="co-reg">
+      <b>Registered Office:</b><br>
+      {{ cfg.po_box or '' }}<br>
+      {{ cfg.city or '' }}, {{ cfg.country or '' }}<br>
+      Tel: {{ cfg.phone or '' }}<br>
+      E-mail: {{ cfg.email or '' }}
+    </div>
+  </div>
+</div>
+
+<div class="affa">AFFA HCD Export License No. {{ cfg.affa_hcd_license or '' }}.Status: {{ cfg.certification_status or '' }} GGN. {{ cfg.ggn or '' }}</div>
+<div class="inv-title">PROFORMA INVOICE NO. {{ doc.invoice_no }}</div>
+
+<table class="outer" cellspacing="0" cellpadding="0">
+
+  <!-- Row 1: Consignee | Notify | Shipping -->
+  <tr>
+    <td style="width:30%;" colspan="2" valign="top">
+      <b>Consignee:</b><br>
+      <b>{{doc.avo_consignee}}</b><br>
+      {% if doc.consignee_address %}{{ doc.consignee_address | replace('\n','<br>') | safe }}{% else %}{{ doc.avo_consignee or doc.consignee }}{% endif %}
+      {% if doc.consignee_vat %}<br>VAT {{ doc.consignee_vat }}{% endif %}
+      {% if doc.consignee_eori %}<br>EORI NUMBER: {{ doc.consignee_eori }}{% endif %}
+    </td>
+    <td style="width:24%;" valign="top">
+      {% if notify_name or notify_address %}
+      <b>Notify</b><br>
+      {% if notify_name %}<b>{{ notify_name }}</b><br>{% endif %}
+      {% if notify_address %}{{ notify_address | replace('\n','<br>') | safe }}{% endif %}
+      {% endif %}
+    </td>
+    <td style="width:46%;" valign="top">
+      <b>Shipping Line: </b>{{ doc.shipping_line or '' }}<br>
+      <b>Ship name: </b>{{ doc.ship_name or '' }}<br>
+      <b>Voyage No: </b>{{ doc.voyage_no or '' }}<br>
+      <b>EUR.1 No: </b>{{ doc.eur1_no or 'TBA' }}<br>
+      <b>Phytosanitary No: </b>{{ doc.phytosanitary_no or 'TBA' }}<br>
+      <b>Booking No: </b>{{ doc.booking_no or '' }}<br>
+      <b>ETD MSA: </b>{{ fmt_date(doc.etd_msa) }}<br>
+      <b>ETA POD: </b>{{ fmt_date(doc.eta_pod) }}
+    </td>
+  </tr>
+
+  <!-- Column headers -->
+  <tr class="col-hdr">
+    <th style="width:92px;">CUSTOMS TARIFF NO.</th>
+    <th style="text-align:left;">DESCRIPTION OF GOODS</th>
+    <th style="width:74px; text-align:right;">QUANTITY</th>
+    <th style="width:90px; text-align:right;">UNI&nbsp;T<br>PRICE /Carton<br>Euro</th>
+    <th style="width:88px; text-align:right;">Euro</th>
+  </tr>
+
+  <!-- Items -->
+  {% for item in items %}
+  <tr>
+    {% if loop.first %}
+    <td rowspan="{{ tspan }}" valign="top" style="width:92px; font-size:8pt;">
+      {{ cfg.default_customs_tariff or doc.customs_tariff_no or '' }}<br><br>
+      <b>SA &amp; LF Ref Nos.</b><br>
+      <b>{{ doc.sa_lf_ref_nos or doc.invoice_no }}</b>
+    </td>
+    {% endif %}
+    <td>{{ item.description }}&nbsp;{% if loop.first %}<br>{{ doc.container_type or '' }}&nbsp;<b>CT.NO.</b><b>{{ doc.container_no or '' }}</b>{% endif %}</td>
+    <td></td><td></td><td></td>
+  </tr>
+  <tr>
+    <td>{{ item.carton_size }} Cartons</td>
+    <td class="r">{{ '{:,.2f}'.format(item.quantity | float) }}</td>
+    <td class="r">&euro;&nbsp;{{ '{:,.2f}'.format(item.unit_price | float) }}</td>
+    <td class="r">&euro;&nbsp;{{ '{:,.2f}'.format(item.amount | float) }}</td>
+  </tr>
+  {% endfor %}
+
+  <tr><td><b>Total Cartons</b></td><td class="r b">{{ '{:,.2f}'.format(doc.total_cartons | float) }}</td><td></td><td></td></tr>
+  <tr><td>Net Kgs</td><td class="r">{{ '{:,.2f}'.format(doc.net_kgs | float) }}</td><td></td><td></td></tr>
+  <tr><td>Gross Kgs</td><td class="r">{{ '{:,.2f}'.format(doc.gross_kgs | float) }}</td><td></td><td></td></tr>
+  <tr><td>Place of Receipt: {{ cfg.default_place_of_receipt or doc.place_of_receipt or '' }}</td><td colspan="3"></td></tr>
+  <tr><td>Port Of loading: {{ cfg.default_port_of_loading or doc.port_of_loading or '' }}</td><td colspan="3"></td></tr>
+  <tr>
+    <td>Port of Entry&nbsp;:&nbsp;<b>{{ cfg.default_port_of_entry or doc.port_of_entry or '' }}</b></td>
+    <td></td>
+    <td style="text-align:right;">Total FOB</td>
+    <td class="r">&euro;&nbsp;{{ '{:,.2f}'.format(total_fob) }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"></td>
+    <td style="text-align:right;">Freight value</td>
+    <td class="r">{% if freight_val %}&euro;&nbsp;{{ '{:,.2f}'.format(freight_val) }}{% endif %}</td>
+  </tr>
+  <tr>
+    <td colspan="2"></td>
+    <td style="text-align:right;">Insurance cost</td>
+    <td class="r">{% if insurance_val %}&euro;&nbsp;{{ '{:,.2f}'.format(insurance_val) }}{% endif %}</td>
+  </tr>
+
+  <!-- TOTAL VALUE = FOB + Freight + Insurance -->
+  <tr>
+    <td colspan="3" style="text-align:right;"><b>TOTAL VALUE</b></td>
+    <td class="r b">&euro;&nbsp;{{ '{:,.2f}'.format(grand_total) }}</td>
+  </tr>
+
+  <!-- Words + Authorized -->
+  <tr>
+    <td colspan="2" style="font-size:8pt;">
+      In words: Total Value in EUR&nbsp;&nbsp;<b>{{ frappe.utils.money_in_words(grand_total, 'EUR') | replace('EUR ', '') | replace(' only', ' only') }}</b>
+    </td>
+    <td style="font-size:8pt;">Invoice date: {{ fmt_date(doc.invoice_date) }}&nbsp;&nbsp;Authorized By :</td>
+    <td style="font-size:8pt;">{{ cfg.authorized_by or '' }}</td>
+  </tr>
+
+</table>
+</div>
+</body>
+</html>

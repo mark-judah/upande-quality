@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text)}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">PH</div>
+      <div class="name">Post Harvest<small>Avocado · Kaitet</small></div>
+    </div>
+    <a class="home-link" href="/app/avocado-harvest-%26-post-harvest">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav" id="aph-nav">
+
+      <div class="group-lbl">Summary</div>
+      <div class="nav-item active" data-tab="overview" data-group="summary">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Overview
+      </div>
+
+      <div class="group-lbl">Field</div>
+      <div class="nav-item" data-tab="harvesting" data-group="field">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 6.4c2.92 2.5 4.69 9.07-2.2 14.6"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>
+        Harvesting<span class="badge" id="bd-harvesting"></span>
+      </div>
+      <div class="nav-item" data-tab="delivery_notes" data-group="field">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M5 18H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10v12h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/><path d="M13 6h5l4 4v7a1 1 0 0 1-1 1h-2"/></svg>
+        Delivery Notes
+      </div>
+
+      <div class="group-lbl">Pack-house</div>
+      <div class="nav-item" data-tab="receiving" data-group="pack">
+        <svg class="ic" viewBox="0 0 24 24"><path d="m16 16 2 2 4-4"/><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="M3.29 7 12 12l9-5"/><path d="M12 22V12"/></svg>
+        Receiving
+      </div>
+      <div class="nav-item" data-tab="quality" data-group="pack">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>
+        Quality
+      </div>
+      <div class="nav-item stub" data-tab="non_export" data-group="pack">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6m0-6 6 6"/></svg>
+        Non-Export
+      </div>
+
+      <div class="group-lbl">Stock</div>
+      <div class="nav-item" data-tab="grn" data-group="stock">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        GRN
+      </div>
+      <div class="nav-item" data-tab="pallets" data-group="stock">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+        Pallets<span class="badge" id="bd-pallets"></span>
+      </div>
+      <div class="nav-item" data-tab="pallet_allocation" data-group="stock">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Pallet Allocation
+      </div>
+
+      <div class="group-lbl">Sales</div>
+      <div class="nav-item" data-tab="proforma" data-group="sales">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/></svg>
+        Proforma
+      </div>
+      <div class="nav-item" data-tab="non_export_invoices" data-group="sales">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        Non-Export Invoices
+      </div>
+      <div class="nav-item" data-tab="dispatch" data-group="sales">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>
+        Dispatch<span class="badge" id="bd-dispatch"></span>
+      </div>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1 id="aph-ttl">Overview</h1>
+      <span class="crumb" id="aph-crumb">Summary</span>
+      <div class="right">
+        <div class="presets" id="aph-presets">
+          <span class="p" data-preset="yesterday">Yesterday</span>
+          <span class="p active" data-preset="today">Today</span>
+          <span class="p" data-preset="week">Week</span>
+          <span class="p" data-preset="month">Month</span>
+          <span class="p" data-preset="ytd">YTD</span>
+        </div>
+        <div class="date-pill">
+          <input type="date" id="aph-from">
+          <span class="sep">→</span>
+          <input type="date" id="aph-to">
+          <span class="clear" id="aph-clear">×</span>
+        </div>
+        <button class="btn" id="aph-reload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="aph-content" id="aph-content">
+      <div class="aph-loading">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var state = { tab: 'overview', from: null, to: null, preset: 'today', charts: {} };
+
+  var TITLES = {
+    overview: 'Overview', harvesting: 'Harvesting', delivery_notes: 'Delivery Notes', receiving: 'Receiving',
+    quality: 'Quality', non_export: 'Non-Export', non_export_invoices: 'Non-Export Invoices',
+    grn: 'GRN', pallets: 'Pallets', pallet_allocation: 'Pallet Allocation',
+    proforma: 'Proforma', dispatch: 'Dispatch'
+  };
+  var GROUPS = {
+    summary: { label: 'Summary', tabs: ['overview'] },
+    field:   { label: 'Field', tabs: ['harvesting','delivery_notes'] },
+    pack:    { label: 'Pack-house', tabs: ['receiving','quality','non_export'] },
+    stock:   { label: 'Stock', tabs: ['grn','pallets','pallet_allocation'] },
+    sales:   { label: 'Sales', tabs: ['proforma','non_export_invoices','dispatch'] }
+  };
+
+  var CDN_CHARTJS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';
+  var CDN_DATALABELS = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js';
+  function loadScript(url){
+    return new Promise(function(resolve, reject){
+      if (document.querySelector('script[data-cdn="'+url+'"]')) return resolve();
+      var s = document.createElement('script');
+      s.src = url; s.dataset.cdn = url;
+      s.onload = resolve; s.onerror = function(){ reject(new Error('failed: '+url)); };
+      document.head.appendChild(s);
+    });
+  }
+  var chartsReady = loadScript(CDN_CHARTJS).then(function(){ return loadScript(CDN_DATALABELS); }).then(function(){
+    if (window.Chart && window.ChartDataLabels) Chart.register(ChartDataLabels);
+  });
+
+  var ICONS = {
+    crates: '<svg viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 6.4c2.92 2.5 4.69 9.07-2.2 14.6"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>',
+    sum: '<svg viewBox="0 0 24 24"><path d="M4 4h16l-7 8 7 8H4"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    grid: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    pallet: '<svg viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>',
+    box: '<svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>',
+    send: '<svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4z"/></svg>',
+    circle: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>',
+    truck: '<svg viewBox="0 0 24 24"><path d="M5 18H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10v12h-3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/><path d="M13 6h5l4 4v7a1 1 0 0 1-1 1h-2"/></svg>',
+    file: '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+    money: '<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    wallet: '<svg viewBox="0 0 24 24"><path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><circle cx="16" cy="14" r="1"/></svg>',
+    weight: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"/><path d="M6.5 8h11l1.5 12H5z"/></svg>'
+  };
+
+  function tabGroup(tab){
+    for (var g in GROUPS) if (GROUPS[g].tabs.indexOf(tab) >= 0) return g;
+    return 'summary';
+  }
+  function ymd(d){ var p=function(n){return n<10?'0'+n:''+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+  function fmt(n){ if(n==null||isNaN(n)) return '—'; return Number(n).toLocaleString(undefined,{maximumFractionDigits:0}); }
+  function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function timepart(ts){ if(!ts) return '—'; var s=String(ts); return s.length>10?s.substring(0,16):s; }
+  function dayShort(s){ if(!s) return ''; var p=String(s).split('-'); return p.length===3?p[1]+'/'+p[2]:s; }
+
+  function applyPreset(name){
+    var today=new Date(); var from=new Date(today); var to=new Date(today);
+    if(name==='yesterday'){ from.setDate(today.getDate()-1); to.setDate(today.getDate()-1); }
+    else if(name==='week'){ var dow=(today.getDay()+6)%7; from.setDate(today.getDate()-dow); }
+    else if(name==='month'){ from=new Date(today.getFullYear(),today.getMonth(),1); }
+    else if(name==='ytd'){ from=new Date(today.getFullYear(),0,1); }
+    state.from=ymd(from); state.to=ymd(to);
+    document.getElementById('aph-from').value=state.from;
+    document.getElementById('aph-to').value=state.to;
+  }
+  applyPreset('today');
+
+  function apiCall(method, args){
+    return new Promise(function(resolve, reject){
+      function tryCall(){
+        if(!window.frappe || !window.frappe.call || !window.frappe.csrf_token){ setTimeout(tryCall, 100); return; }
+        frappe.call({ method: method, args: args || {}, callback: function(r){ resolve(r ? r.message : null); }, error: reject });
+      }
+      tryCall();
+    });
+  }
+
+  // Quick-link pills removed — navigation is via the sidebar only.
+  // This now just keeps the group breadcrumb in the topbar up to date.
+  function renderPillbar(){
+    var g = tabGroup(state.tab);
+    document.getElementById('aph-crumb').textContent = GROUPS[g].label;
+  }
+
+  function switchTab(tab){
+    state.tab = tab;
+    Array.prototype.forEach.call(document.querySelectorAll('.aph-side .nav-item'), function(x){
+      x.classList.toggle('active', x.getAttribute('data-tab') === tab);
+    });
+    renderPillbar();
+    fetchData();
+  }
+
+  function fetchData(){
+    var content = document.getElementById('aph-content');
+    content.innerHTML = '<div class="aph-loading">Loading…</div>';
+    apiCall('upande_avocado.post_harvest_dashboard', { tab: state.tab, from_date: state.from, to_date: state.to }).then(function(msg){
+      if (!msg) { content.innerHTML='<div class="aph-err">No response</div>'; return; }
+      if (msg.error) { content.innerHTML='<div class="aph-err">'+escapeHtml(msg.error)+'</div>'; return; }
+      render(msg);
+    }).catch(function(e){
+      content.innerHTML = '<div class="aph-err">'+escapeHtml(String(e))+'</div>';
+    });
+  }
+
+  function render(d){
+    var content = document.getElementById('aph-content');
+    document.getElementById('aph-ttl').textContent = TITLES[state.tab] || state.tab;
+    if (d.stub) {
+      content.innerHTML = '<div class="aph-stub"><div class="ttl">'+escapeHtml(TITLES[state.tab])+' — coming soon</div><div class="sub">'+escapeHtml(d.message||'')+'</div></div>';
+      return;
+    }
+    if (state.tab === 'overview')   return renderOverview(d, content);
+    if (state.tab === 'harvesting') return renderHarvesting(d, content);
+    if (state.tab === 'pallets')    return renderPallets(d, content);
+    if (state.tab === 'dispatch')   return renderDispatch(d, content);
+    if (state.tab === 'proforma')             return renderProforma(d, content);
+    if (state.tab === 'non_export_invoices')  return renderNonExportInvoices(d, content);
+    if (TAB_CONFIGS[state.tab])     return renderGeneric(TAB_CONFIGS[state.tab], d, content);
+    content.innerHTML = '<div class="aph-empty">No view for '+escapeHtml(state.tab)+'</div>';
+  }
+
+  function kpi(lbl, v, sub, icon){
+    var ic = icon ? '<div class="ic-wrap">'+ICONS[icon]+'</div>' : '';
+    return '<div class="aph-kpi">'+ic+'<div><div class="lbl">'+lbl+'</div><div class="v">'+v+'</div></div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';
+  }
+
+  // ─── Variance color: actual vs target ───
+  function varColor(actual, target){
+    if (!target) return '#9a9a9a';
+    var pct = (actual||0) / target * 100;
+    if (pct >= 90) return '#16a34a';   // green
+    if (pct >= 60) return '#d97706';   // amber
+    return '#dc2626';                  // red
+  }
+
+  // ─── Overview ───
+  function renderOverview(d, content){
+    var k = d.kpis || {};
+    var plannedKg = Number(k.planned_kg||0), actualKg = Number(k.actual_export_kg||0);
+    var pct = plannedKg ? Math.round(actualKg*100/plannedKg) : 0;
+    var kpis = ''+
+      kpi('Export Kg — Planned vs Actual', '<strong>'+fmt(actualKg)+'</strong> kg', 'of '+fmt(plannedKg)+' kg planned · '+pct+'% · packed export pallets', 'pallet')+
+      kpi('Containers to date', fmt(k.containers_to_date), 'Distinct containers · all dispatch forms', 'send')+
+      kpi('Pallets in storage', fmt(k.pallets_in_storage), '<strong>'+fmt(k.pallets_in_storage_kg)+'</strong> kg', 'pallet')+
+      kpi('Pallets dispatched', fmt(k.pallets_dispatched), '<strong>'+fmt(k.pallets_dispatched_kg)+'</strong> kg', 'send')+
+      kpi('Proforma invoices', fmt(k.proforma_count), '<strong>USD '+fmt(k.proforma_value)+'</strong> total value', 'file')+
+      kpi('Non-export invoices', fmt(k.non_export_invoices_count), '<strong>KES '+fmt(k.non_export_invoices_total)+'</strong> total', 'money');
+
+    var te=0, ta=0; (d.estimate_vs_actual||[]).forEach(function(r){ te+=Number(r.estimate||0); ta+=Number(r.actual||0); });
+    var estPct = te ? Math.round(ta*100/te) : 0;
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Overview</div><div class="sub">Director snapshot — harvest performance, stock, and sales</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">Crop Estimate vs Actual</div><div class="sub">YTD crates per block · '+estPct+'% of estimate · inner = estimate, outer = actual</div></div><div class="aph-card-body"><div style="height:340px;width:100%"><canvas id="ov-chart-est"></canvas></div></div></div>'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">Dispatch</div><div class="sub">By destination · inner = containers, outer = net kg</div></div><div class="aph-card-body"><div style="height:340px;width:100%"><canvas id="ov-chart-dispatch"></canvas></div></div></div>'+
+      '</div>'+
+      '<div class="aph-grid col-1"><div class="aph-card"><div class="aph-card-hd"><div class="ttl">Dispatch Summary</div><div class="sub">Week × destination · responds to the date filter above</div></div><div class="aph-card-body padless" id="ov-dispatch-summary"></div></div></div>';
+
+    chartsReady.then(function(){
+      buildEstDonut(d.estimate_vs_actual || []);
+      buildDispatchDonut(d.dispatch_by_destination || []);
+      renderDispatchSummary(d.dispatch_summary || []);
+    });
+  }
+
+  var DONUT_COLORS = ['#16a34a','#2563eb','#d97706','#7c3aed','#dc2626','#0891b2','#ca8a04','#db2777','#65a30d','#4f46e5','#ea580c','#0d9488','#9ca3af'];
+
+  function buildEstDonut(rows){
+    var ctx = document.getElementById('ov-chart-est'); if (!ctx) return;
+    if (state.charts.est) state.charts.est.destroy();
+    var sorted = (rows||[]).slice().sort(function(a,b){ return Number(b.estimate||0)-Number(a.estimate||0); });
+    var top = sorted.slice(0,12), rest = sorted.slice(12);
+    var labels=[], est=[], act=[];
+    top.forEach(function(r){ labels.push(r.block); est.push(Number(r.estimate||0)); act.push(Number(r.actual||0)); });
+    if (rest.length){ var oe=0,oa=0; rest.forEach(function(r){oe+=Number(r.estimate||0);oa+=Number(r.actual||0);}); labels.push('Others ('+rest.length+')'); est.push(oe); act.push(oa); }
+    var cols = labels.map(function(_,i){ return DONUT_COLORS[i % DONUT_COLORS.length]; });
+    state.charts.est = new Chart(ctx, {
+      type:'doughnut',
+      data:{ labels:labels, datasets:[
+        { label:'Estimate', data:est, backgroundColor:cols.map(function(c){return c+'66';}), borderColor:'#fff', borderWidth:1 },
+        { label:'Actual',   data:act, backgroundColor:cols, borderColor:'#fff', borderWidth:1 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, animation:false, cutout:'30%',
+        plugins:{
+          legend:{ position:'right', labels:{ boxWidth:10, font:{size:10}, color:'#6b6b6b' } },
+          datalabels:{ display:false },
+          tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+' · '+c.label+': '+Number(c.raw).toLocaleString()+' crates'; } } }
+        } }
+    });
+  }
+
+  function buildDispatchDonut(rows){
+    var ctx = document.getElementById('ov-chart-dispatch'); if (!ctx) return;
+    if (state.charts.dispatch) state.charts.dispatch.destroy();
+    rows = rows||[];
+    if (!rows.length){ var p=ctx.parentNode; if(p) p.innerHTML='<div class="aph-empty" style="padding:40px;text-align:center;color:#9a9a9a">No dispatches in selected range</div>'; return; }
+    var labels = rows.map(function(r){ return r.destination; });
+    var cont = rows.map(function(r){ return Number(r.containers||0); });
+    var kg = rows.map(function(r){ return Number(r.net_kg||0); });
+    var cols = labels.map(function(_,i){ return DONUT_COLORS[i % DONUT_COLORS.length]; });
+    state.charts.dispatch = new Chart(ctx, {
+      type:'doughnut',
+      data:{ labels:labels, datasets:[
+        { label:'Containers', data:cont, backgroundColor:cols.map(function(c){return c+'66';}), borderColor:'#fff', borderWidth:1 },
+        { label:'Net kg',     data:kg,   backgroundColor:cols, borderColor:'#fff', borderWidth:1 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, animation:false, cutout:'30%',
+        plugins:{
+          legend:{ position:'right', labels:{ boxWidth:10, font:{size:10}, color:'#6b6b6b' } },
+          datalabels:{ display:false },
+          tooltip:{ callbacks:{ label:function(c){ var u=c.datasetIndex===0?' containers':' kg'; return c.dataset.label+' · '+c.label+': '+Number(c.raw).toLocaleString()+u; } } }
+        } }
+    });
+  }
+
+  function renderDispatchSummary(rows){
+    var el = document.getElementById('ov-dispatch-summary'); if (!el) return;
+    rows = rows||[];
+    if (!rows.length){ el.innerHTML='<div class="aph-empty" style="padding:40px;text-align:center;color:#9a9a9a">No dispatches in selected range</div>'; return; }
+    var head='<table class="aph-tbl"><thead><tr>'+
+      '<th>Week</th><th>Destination</th><th class="num">Sum of 4kg</th><th class="num">Sum of 10kg</th>'+
+      '<th class="num">Total Boxes</th><th class="num">Net Weight</th><th class="num">Cont No</th></tr></thead><tbody>';
+    var body='';
+    var gt={c4:0,c10:0,tb:0,kg:0,ct:0};
+    var i=0;
+    while (i<rows.length){
+      var wk=rows[i].week_no;
+      var st={c4:0,c10:0,tb:0,kg:0,ct:0}; var first=true;
+      while (i<rows.length && rows[i].week_no===wk){
+        var r=rows[i];
+        body+='<tr><td class="dim">'+(first?('WK '+wk):'')+'</td><td>'+escapeHtml(r.destination||'—')+'</td>'+
+          '<td class="num">'+fmt(r.c4kg)+'</td><td class="num">'+fmt(r.c10kg)+'</td>'+
+          '<td class="num">'+fmt(r.total_boxes)+'</td><td class="num">'+fmt(Math.round(r.net_kg))+'</td>'+
+          '<td class="num">'+fmt(r.containers)+'</td></tr>';
+        st.c4+=Number(r.c4kg||0); st.c10+=Number(r.c10kg||0); st.tb+=Number(r.total_boxes||0); st.kg+=Number(r.net_kg||0); st.ct+=Number(r.containers||0);
+        first=false; i++;
+      }
+      body+='<tr style="background:var(--bg-card)"><td class="strong">WK '+wk+' Total</td><td></td>'+
+        '<td class="num strong">'+fmt(st.c4)+'</td><td class="num strong">'+fmt(st.c10)+'</td>'+
+        '<td class="num strong">'+fmt(st.tb)+'</td><td class="num strong">'+fmt(Math.round(st.kg))+'</td>'+
+        '<td class="num strong">'+fmt(st.ct)+'</td></tr>';
+      gt.c4+=st.c4; gt.c10+=st.c10; gt.tb+=st.tb; gt.kg+=st.kg; gt.ct+=st.ct;
+    }
+    body+='<tr style="background:var(--bg-hover)"><td class="strong">Grand Total</td><td></td>'+
+      '<td class="num strong">'+fmt(gt.c4)+'</td><td class="num strong">'+fmt(gt.c10)+'</td>'+
+      '<td class="num strong">'+fmt(gt.tb)+'</td><td class="num strong">'+fmt(Math.round(gt.kg))+'</td>'+
+      '<td class="num strong">'+fmt(gt.ct)+'</td></tr>';
+    el.innerHTML=head+body+'</tbody></table>';
+  }
+
+  // Set the chart inner width explicitly: fill the card, never below minW.
+  function sizeChartInner(id, minW){
+    var inner = document.getElementById(id);
+    if (!inner) return 0;
+    var scroll = inner.parentElement;                 // .aph-chart-scroll
+    var avail = scroll.clientWidth - 32;              // minus 16px padding each side
+    var w = Math.max(avail, minW);
+    inner.style.width = w + 'px';
+    return w;
+  }
+
+  // Re-measure on window resize so charts grow/shrink with the page
+  var resizeTmr = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTmr);
+    resizeTmr = setTimeout(function(){
+      if (state.tab !== 'overview') return;
+      if (sizeChartInner('ov-plan-wrap', 680) && state.charts.plan) state.charts.plan.resize();
+      if (sizeChartInner('ov-est-wrap', 560) && state.charts.est) state.charts.est.resize();
+    }, 150);
+  });
+
+  function buildPlanChart(rows){
+    var ctx = document.getElementById('ov-chart-plan');
+    if (!ctx) return;
+    if (state.charts.plan) state.charts.plan.destroy();
+    var labels = rows.map(function(r){ return dayShort(r.date); });
+    var planned = rows.map(function(r){ return Number(r.planned||0); });
+    var actual = rows.map(function(r){ return Number(r.actual||0); });
+    var actualColors = rows.map(function(r){ return varColor(r.actual, r.planned); });
+
+    state.charts.plan = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Planned', data: planned, backgroundColor: '#d4d4d4', borderRadius: 3 },
+          { label: 'Actual',  data: actual,  backgroundColor: actualColors, borderRadius: 3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 20 } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font:{size:11}, color:'#6b6b6b' } },
+          y: { grid: { color:'#ececec' }, ticks: { font:{size:10}, color:'#9a9a9a', callback: function(v){ return Number(v).toLocaleString(); } } }
+        },
+        plugins: {
+          legend: { position:'top', align:'end', labels:{ boxWidth:10, font:{size:11, weight:'500'}, color:'#6b6b6b' } },
+          tooltip: { callbacks: { label: function(c){ return c.dataset.label + ': ' + Number(c.raw).toLocaleString(); } } },
+          datalabels: {
+            anchor:'end', align:'top', offset:2,
+            font:{ size:10, weight:'600' },
+            color: function(c){ return c.datasetIndex === 0 ? '#9a9a9a' : '#000'; },
+            formatter: function(v){ return v ? Number(v).toLocaleString() : ''; }
+          }
+        }
+      }
+    });
+  }
+
+  function buildEstChart(rows){
+    var ctx = document.getElementById('ov-chart-est');
+    if (!ctx) return;
+    if (state.charts.est) state.charts.est.destroy();
+    var wrap = document.getElementById('ov-est-wrap');
+    var rowH = 26;
+    if (wrap) wrap.style.height = Math.max(400, rows.length * rowH + 80) + 'px';
+
+    var labels = rows.map(function(r){ return r.block; });
+    var est = rows.map(function(r){ return Number(r.estimate||0); });
+    var actual = rows.map(function(r){ return Number(r.actual||0); });
+    var actualColors = rows.map(function(r){ return varColor(r.actual, r.estimate); });
+
+    state.charts.est = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Estimate', data: est, backgroundColor: '#d4d4d4', borderRadius: 2 },
+          { label: 'Actual',   data: actual, backgroundColor: actualColors, borderRadius: 2 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { right: 60 } },
+        scales: {
+          x: { grid: { color:'#ececec' }, ticks: { font:{size:10}, color:'#9a9a9a', callback:function(v){return Number(v).toLocaleString();} } },
+          y: { grid: { display:false }, ticks: { font:{size:11}, color:'#6b6b6b', autoSkip:false } }
+        },
+        plugins: {
+          legend: { position:'top', align:'end', labels:{ boxWidth:10, font:{size:11, weight:'500'}, color:'#6b6b6b' } },
+          tooltip: { callbacks: { label:function(c){ return c.dataset.label+': '+Number(c.raw).toLocaleString(); } } },
+          datalabels: {
+            anchor:'end', align:'end', offset:4,
+            font:{ size:10, weight:'600' },
+            color: function(c){ return c.datasetIndex === 0 ? '#9a9a9a' : '#000'; },
+            formatter: function(v){ return v ? Number(v).toLocaleString() : ''; }
+          }
+        }
+      }
+    });
+  }
+
+  // ─── Harvesting (custom) ───
+  function renderHarvesting(d, content){
+    var k = d.kpis || {};
+    var rangeTxt = state.from===state.to ? state.from : state.from+' → '+state.to;
+    var kpis = ''+
+      kpi('Period crates', fmt(k.period_crates), rangeTxt, 'crates')+
+      kpi('Approx kg', fmt(k.approx_kg), 'At 18 kg / crate', 'weight')+
+      kpi('YTD crates', fmt(k.ytd_crates), 'Season to date', 'sum')+
+      kpi('Teams active', fmt(k.teams), null, 'users')+
+      kpi('Blocks', fmt(k.blocks), null, 'grid');
+    document.getElementById('bd-harvesting').textContent = fmt(k.period_crates);
+
+    var blocks = d.by_block || [], teams = d.by_team || [];
+
+    var blocksTbl = blocks.length === 0 ? '<div class="aph-empty">No crates in this range</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Block</th><th class="num">Crates</th><th class="num">Approx kg</th><th class="num">In Field</th><th class="num">On Road</th><th class="num">At Pack</th><th class="num">Teams</th></tr></thead><tbody>'+
+      blocks.map(function(b){
+        return '<tr><td class="strong">'+escapeHtml(b.block)+'</td><td class="num strong">'+fmt(b.crates)+'</td><td class="num">'+fmt(b.approx_kg)+'</td><td class="num dim">'+fmt(b.in_field)+'</td><td class="num dim">'+fmt(b.on_road)+'</td><td class="num">'+fmt(b.at_pack)+'</td><td class="num dim">'+fmt(b.teams)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var teamsTbl = teams.length === 0 ? '<div class="aph-empty">No teams active</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Team</th><th>Leader</th><th class="num">Crates</th><th class="num">Approx kg</th><th class="num">Blocks</th></tr></thead><tbody>'+
+      teams.map(function(t){
+        return '<tr><td class="mono">'+escapeHtml(t.team_number||t.team_id||'')+'</td><td>'+escapeHtml(t.leader||'—')+'</td><td class="num strong">'+fmt(t.crates)+'</td><td class="num">'+fmt(t.approx_kg)+'</td><td class="num dim">'+fmt(t.blocks)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Harvesting</div><div class="sub">Crate scans by block and team</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div class="aph-grid">'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By block</div><div class="sub">'+blocks.length+' blocks active</div></div><div class="aph-card-body padless">'+blocksTbl+'</div></div>'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By team</div><div class="sub">Top 50 by crates</div></div><div class="aph-card-body padless">'+teamsTbl+'</div></div>'+
+      '</div>';
+  }
+
+  // ─── Pallets (custom) ───
+  function renderPallets(d, content){
+    var k = d.kpis || {};
+    document.getElementById('bd-pallets').textContent = fmt(k.in_storage);
+    var kpis = ''+
+      kpi('In storage', fmt(k.in_storage), '<strong>'+fmt(k.in_storage_kg) + '</strong> kg · <strong>'+fmt(k.in_storage_boxes)+'</strong> boxes', 'box')+
+      kpi('Dispatched', fmt(k.dispatched), '<strong>'+fmt(k.dispatched_kg) + '</strong> kg', 'send')+
+      kpi('Available', fmt(k.available), 'Empty pallets', 'circle');
+
+    var byWh = d.by_warehouse || [];
+    var byWhTbl = byWh.length === 0 ? '<div class="aph-empty">No storage data</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Cold room</th><th class="num">Pallets</th><th class="num">Boxes</th><th class="num">Net kg</th></tr></thead><tbody>'+
+      byWh.map(function(w){
+        return '<tr><td class="strong">'+escapeHtml(w.warehouse)+'</td><td class="num strong">'+fmt(w.pallets)+'</td><td class="num dim">'+fmt(w.boxes)+'</td><td class="num">'+fmt(w.kg)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var sizes = d.size_mix || [];
+    var max = 1; sizes.forEach(function(s){ if (s.boxes > max) max = s.boxes; });
+    var sizesHtml = sizes.length === 0 ? '<div class="aph-empty">No pallets in storage</div>' :
+      sizes.map(function(s){
+        var pct = s.boxes ? (s.boxes*100/max) : 0;
+        return '<div class="aph-bar-row"><div class="lbl">'+escapeHtml(s.size)+'</div><div class="bar"><div class="fill" style="width:'+pct+'%"></div></div><div class="val">'+fmt(s.boxes)+' boxes · '+fmt(s.pallets)+' plt</div></div>';
+      }).join('');
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Pallets</div><div class="sub">Pallet Record snapshot</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div class="aph-grid">'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By cold room</div><div class="sub">In storage</div></div><div class="aph-card-body padless">'+byWhTbl+'</div></div>'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">Size mix</div><div class="sub">In storage</div></div><div class="aph-card-body">'+sizesHtml+'</div></div>'+
+      '</div>';
+  }
+
+  // ─── Dispatch (custom) ───
+  function renderDispatch(d, content){
+    var k = d.kpis || {};
+    document.getElementById('bd-dispatch').textContent = fmt(k.total);
+    var kpis = ''+
+      kpi('Dispatch forms', fmt(k.total), '<strong>'+fmt(k.total_pallets)+'</strong> pallets', 'send')+
+      kpi('Total cartons', fmt(k.total_cartons), '<strong>'+fmt(k.cartons_4kg)+'</strong> × 4kg · <strong>'+fmt(k.cartons_10kg)+'</strong> × 10kg', 'box')+
+      kpi('Total net kg', fmt(k.total_net_kg), null, 'sum')+
+      kpi('Period forms', fmt(k.period_forms), '<strong>'+fmt(k.period_pallets)+'</strong> plt · <strong>'+fmt(k.period_net_kg)+'</strong> kg', 'clock');
+
+    var kg = function(n){ return n==null||isNaN(n)?'—':fmt(n)+' kg'; };
+    var dest = d.by_destination || [];
+    var destTbl = dest.length === 0 ? '<div class="aph-empty">No destinations</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Destination</th><th class="num">Forms</th><th class="num">Pallets</th><th class="num">Net kg</th></tr></thead><tbody>'+
+      dest.map(function(r){ return '<tr><td class="strong">'+escapeHtml(r.destination)+'</td><td class="num">'+fmt(r.forms)+'</td><td class="num">'+fmt(r.pallets)+'</td><td class="num strong">'+kg(r.net_kg)+'</td></tr>'; }).join('')+'</tbody></table>';
+
+    var imp = d.by_importer || [];
+    var impTbl = imp.length === 0 ? '<div class="aph-empty">No importers</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Importer</th><th class="num">Forms</th><th class="num">Pallets</th><th class="num">Net kg</th></tr></thead><tbody>'+
+      imp.map(function(r){ return '<tr><td class="strong">'+escapeHtml(r.importer)+'</td><td class="num">'+fmt(r.forms)+'</td><td class="num">'+fmt(r.pallets)+'</td><td class="num strong">'+kg(r.net_kg)+'</td></tr>'; }).join('')+'</tbody></table>';
+
+    var forms = d.forms || [];
+    var formsTbl = forms.length === 0 ? '<div class="aph-empty">No dispatch forms</div>' :
+      '<table class="aph-tbl" style="width:auto;min-width:100%"><thead><tr><th>Form</th><th>Issue</th><th>Container</th><th>Vehicle</th><th>Transporter</th><th>Importer</th><th>Destination</th><th>Shipping line</th><th class="num">Plt</th><th class="num">Ctn</th><th class="num">Net kg</th><th>ETD</th><th>ETA</th></tr></thead><tbody>'+
+      forms.map(function(r){
+        return '<tr><td class="mono">'+escapeHtml(r.name||'')+'</td><td class="mono dim">'+escapeHtml(r.issue_date||'—')+'</td><td class="mono">'+escapeHtml(r.container_no||'—')+'</td><td class="mono dim">'+escapeHtml(r.vehicle_no||'—')+'</td><td class="dim">'+escapeHtml(r.transporter||'—')+'</td><td>'+escapeHtml(r.importer||'—')+'</td><td class="dim">'+escapeHtml(r.destination||'—')+'</td><td class="dim">'+escapeHtml(r.shipping_line||'—')+'</td><td class="num">'+fmt(r.total_pallets)+'</td><td class="num">'+fmt(r.total_cartons)+'</td><td class="num strong">'+kg(r.total_net_kg)+'</td><td class="mono dim">'+escapeHtml(r.etd_mombasa||'—')+'</td><td class="mono dim">'+escapeHtml(r.eta_destination||'—')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Dispatch</div><div class="sub">Avocado Dispatch Forms</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div class="aph-grid">'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By destination</div></div><div class="aph-card-body padless">'+destTbl+'</div></div>'+
+      '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By importer</div></div><div class="aph-card-body padless">'+impTbl+'</div></div>'+
+      '</div>'+
+      '<div class="aph-grid col-1"><div class="aph-card"><div class="aph-card-hd"><div class="ttl">Dispatch forms</div><div class="sub">'+forms.length+' forms — latest 30</div></div><div class="aph-card-body padless aph-tbl-scroll">'+formsTbl+'</div></div></div>';
+  }
+
+  // ─── Generic renderer ───
+  var fmtKg = function(n){ return n==null||isNaN(n)?'—':fmt(n)+' kg'; };
+  var fmtUsd = function(n){ return n==null||isNaN(n)?'—':'USD '+fmt(n); };
+  var fmtKes = function(n){ return n==null||isNaN(n)?'—':'KES '+fmt(n); };
+
+  // ─── Proforma — bespoke renderer with wide-table scrolling ───
+  function renderProforma(d, content){
+    var k = d.kpis || {};
+    var kpis = ''+
+      kpi('Total PIs', fmt(k.total), null, 'file')+
+      kpi('Total cartons', fmt(k.cartons), null, 'box')+
+      kpi('Net kg', fmtKg(k.net_kg), null, 'weight')+
+      kpi('FOB value', fmtUsd(k.fob), null, 'money')+
+      kpi('Freight', fmtUsd(k.freight), null, 'truck')+
+      kpi('Total value', fmtUsd(k.value), null, 'wallet');
+
+    var cust = d.by_customer || [];
+    var custTbl = cust.length === 0 ? '<div class="aph-empty">No customers</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Customer</th><th class="num">PIs</th><th class="num">Cartons</th><th class="num">Net kg</th><th class="num">Value (USD)</th></tr></thead><tbody>'+
+      cust.map(function(r){
+        return '<tr><td class="strong">'+escapeHtml(r.customer||'—')+'</td><td class="num">'+fmt(r.pis)+'</td><td class="num dim">'+fmt(r.cartons)+'</td><td class="num">'+fmtKg(r.net_kg)+'</td><td class="num strong">'+fmtUsd(r.value)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var ship = d.by_shipping_line || [];
+    var shipTbl = ship.length === 0 ? '<div class="aph-empty">No shipping lines</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Shipping line</th><th class="num">PIs</th><th class="num">Net kg</th></tr></thead><tbody>'+
+      ship.map(function(r){
+        return '<tr><td class="strong">'+escapeHtml(r.shipping_line||'—')+'</td><td class="num strong">'+fmt(r.pis)+'</td><td class="num">'+fmtKg(r.net_kg)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var inv = d.invoices || [];
+    var invTbl = inv.length === 0 ? '<div class="aph-empty">No invoices</div>' :
+      '<table class="aph-tbl" style="width:auto;min-width:100%"><thead><tr><th>PI</th><th>Invoice #</th><th>Date</th><th>Customer</th><th>Container</th><th>Shipping</th><th>Voyage</th><th>POL</th><th>POE</th><th class="num">Cartons</th><th class="num">Net kg</th><th class="num">FOB (USD)</th><th class="num">Freight (USD)</th><th class="num">Value (USD)</th><th>ETD</th><th>ETA</th></tr></thead><tbody>'+
+      inv.map(function(r){
+        return '<tr><td class="mono">'+escapeHtml(r.name||'')+'</td><td class="mono">'+escapeHtml(r.invoice_no||'')+'</td><td class="mono dim">'+escapeHtml(r.invoice_date||'—')+'</td><td>'+escapeHtml(r.customer||'—')+'</td><td class="mono">'+escapeHtml(r.container_no||'—')+'</td><td class="dim">'+escapeHtml(r.shipping_line||'—')+'</td><td class="mono dim">'+escapeHtml(r.voyage_no||'—')+'</td><td class="dim">'+escapeHtml(r.port_of_loading||'—')+'</td><td class="dim">'+escapeHtml(r.port_of_entry||'—')+'</td><td class="num">'+fmt(r.total_cartons)+'</td><td class="num">'+fmtKg(r.net_kgs)+'</td><td class="num">'+fmtUsd(r.total_fob)+'</td><td class="num dim">'+fmtUsd(r.freight_value)+'</td><td class="num strong">'+fmtUsd(r.total_value)+'</td><td class="mono dim">'+escapeHtml(r.etd_msa||'—')+'</td><td class="mono dim">'+escapeHtml(r.eta_pod||'—')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Proforma Invoice</div><div class="sub">Avocado Proforma Invoices — shipments, FOB, freight (USD)</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div class="aph-grid">'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By customer</div><div class="sub">Top 20 by value</div></div><div class="aph-card-body padless">'+custTbl+'</div></div>'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By shipping line</div></div><div class="aph-card-body padless">'+shipTbl+'</div></div>'+
+      '</div>'+
+      '<div class="aph-grid col-1"><div class="aph-card"><div class="aph-card-hd"><div class="ttl">Invoices</div><div class="sub">Latest 30 · amounts in USD · scroll horizontally for more columns</div></div><div class="aph-tbl-scroll">'+invTbl+'</div></div></div>';
+  }
+
+  // ─── Non-Export Invoices — bespoke ───
+  function renderNonExportInvoices(d, content){
+    var k = d.kpis || {};
+    var kpis = ''+
+      kpi('Invoices', fmt(k.invoices), null, 'file')+
+      kpi('Total amount', fmtKes(k.total_amount), null, 'money')+
+      kpi('Paid', fmtKes(k.paid), null, 'wallet')+
+      kpi('Outstanding', fmtKes(k.outstanding), null, 'clock');
+
+    var cust = d.by_customer || [];
+    var custTbl = cust.length === 0 ? '<div class="aph-empty">No customers</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Customer</th><th class="num">Invoices</th><th class="num">Qty</th><th class="num">Total (KES)</th><th class="num">Outstanding (KES)</th></tr></thead><tbody>'+
+      cust.map(function(r){
+        return '<tr><td class="strong">'+escapeHtml(r.customer_name||'—')+'</td><td class="num">'+fmt(r.invoices)+'</td><td class="num dim">'+fmt(r.qty)+'</td><td class="num strong">'+fmtKes(r.total)+'</td><td class="num dim">'+fmtKes(r.outstanding)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var stat = d.by_status || [];
+    var statTbl = stat.length === 0 ? '<div class="aph-empty">No data</div>' :
+      '<table class="aph-tbl"><thead><tr><th>Status</th><th class="num">Invoices</th><th class="num">Total (KES)</th><th class="num">Outstanding (KES)</th></tr></thead><tbody>'+
+      stat.map(function(r){
+        return '<tr><td><span class="aph-tag">'+escapeHtml(r.status||'—')+'</span></td><td class="num strong">'+fmt(r.invoices)+'</td><td class="num">'+fmtKes(r.total)+'</td><td class="num dim">'+fmtKes(r.outstanding)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    var inv = d.invoices || [];
+    var invTbl = inv.length === 0 ? '<div class="aph-empty">No invoices</div>' :
+      '<table class="aph-tbl" style="width:auto;min-width:100%"><thead><tr><th>Invoice</th><th>Customer</th><th>Posted</th><th>Due</th><th>Status</th><th class="num">Qty</th><th class="num">Total (KES)</th><th class="num">Paid (KES)</th><th class="num">Outstanding (KES)</th><th>Currency</th></tr></thead><tbody>'+
+      inv.map(function(r){
+        return '<tr><td class="mono">'+escapeHtml(r.name||'')+'</td><td class="strong">'+escapeHtml(r.customer_name||'—')+'</td><td class="mono dim">'+escapeHtml(r.posting_date||'—')+'</td><td class="mono dim">'+escapeHtml(r.due_date||'—')+'</td><td><span class="aph-tag">'+escapeHtml(r.status||'—')+'</span></td><td class="num dim">'+fmt(r.qty)+'</td><td class="num strong">'+fmtKes(r.grand_total)+'</td><td class="num dim">'+fmtKes(r.paid_amount)+'</td><td class="num">'+fmtKes(r.outstanding_amount)+'</td><td class="dim">'+escapeHtml(r.currency||'—')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+
+    content.innerHTML =
+      '<div class="aph-page-hd"><div class="ttl">Non-Export Invoices</div><div class="sub">Sales Invoices with item = Avocado (KES)</div></div>'+
+      '<div class="aph-kpis">'+kpis+'</div>'+
+      '<div class="aph-grid">'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By customer</div><div class="sub">Top 20 by amount</div></div><div class="aph-card-body padless">'+custTbl+'</div></div>'+
+        '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">By status</div></div><div class="aph-card-body padless">'+statTbl+'</div></div>'+
+      '</div>'+
+      '<div class="aph-grid col-1"><div class="aph-card"><div class="aph-card-hd"><div class="ttl">Invoices</div><div class="sub">Latest 30 · amounts in KES · scroll horizontally for more columns</div></div><div class="aph-tbl-scroll">'+invTbl+'</div></div></div>';
+  }
+
+  function renderGeneric(cfg, d, content){
+    var k = d.kpis || {};
+    var kpis = cfg.kpis.map(function(spec){
+      var v = k[spec.key];
+      var val = spec.fmt ? spec.fmt(v) : fmt(v);
+      var sub = null;
+      if (spec.sub) sub = (typeof spec.sub === 'function') ? spec.sub(k) : spec.sub;
+      return kpi(spec.lbl, val, sub, spec.icon);
+    }).join('');
+
+    var cards = cfg.cards.map(function(c){
+      var rows = d[c.data] || [];
+      var inner;
+      if (rows.length === 0){ inner = '<div class="aph-empty">'+(c.empty||'No data')+'</div>'; }
+      else {
+        var headHtml = '<thead><tr>'+c.cols.map(function(col){ return '<th'+(col.num?' class="num"':'')+'>'+escapeHtml(col.h)+'</th>'; }).join('')+'</tr></thead>';
+        var bodyHtml = '<tbody>'+rows.map(function(r){
+          return '<tr>'+c.cols.map(function(col){
+            var raw = r[col.key];
+            var v;
+            if (col.tag) v = '<span class="aph-tag">'+escapeHtml(raw||'—')+'</span>';
+            else if (col.time) v = escapeHtml(timepart(raw));
+            else if (col.fmt) v = col.fmt(raw, r);
+            else if (col.num) v = fmt(raw);
+            else v = escapeHtml(raw==null||raw===''?'—':String(raw));
+            var classes = [];
+            if (col.num) classes.push('num');
+            if (col.mono) classes.push('mono');
+            if (col.dim) classes.push('dim');
+            if (col.strong) classes.push('strong');
+            return '<td'+(classes.length?' class="'+classes.join(' ')+'"':'')+'>'+v+'</td>';
+          }).join('')+'</tr>';
+        }).join('')+'</tbody>';
+        inner = '<table class="aph-tbl"'+(c.scrollX?' style="width:auto;min-width:100%"':'')+'>'+headHtml+bodyHtml+'</table>';
+      }
+      var sub = c.sub ? (typeof c.sub === 'function' ? c.sub(rows, d) : c.sub) : '';
+      var bodyCls = 'aph-card-body padless' + (c.scrollX ? ' aph-tbl-scroll' : '');
+      return '<div class="aph-card"><div class="aph-card-hd"><div class="ttl">'+c.title+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div><div class="'+bodyCls+'">'+inner+'</div></div>';
+    });
+
+    var html = '<div class="aph-page-hd"><div class="ttl">'+cfg.title+'</div><div class="sub">'+cfg.subtitle+'</div></div>'+
+               '<div class="aph-kpis">'+kpis+'</div>';
+
+    var i = 0;
+    while (i < cards.length){
+      if (cfg.cards[i].full || cards.length - i === 1){
+        html += '<div class="aph-grid col-1">'+cards[i]+'</div>';
+        i += 1;
+      } else {
+        html += '<div class="aph-grid">'+cards[i]+cards[i+1]+'</div>';
+        i += 2;
+      }
+    }
+    content.innerHTML = html;
+  }
+
+  // ─── Per-tab configs ───
+  var TAB_CONFIGS = {
+    delivery_notes: {
+      title: 'Delivery Notes',
+      subtitle: 'Harvest Delivery Notes — crates and approximate weight',
+      kpis: [
+        { lbl:'Delivery Notes', key:'dns', icon:'truck' },
+        { lbl:'Crates', key:'crates', icon:'crates' },
+        { lbl:'Approx kg', key:'approx_kg', fmt: fmtKg, sub:'At 18 kg / crate', icon:'weight' },
+        { lbl:'Blocks active', key:'blocks', icon:'grid' }
+      ],
+      cards: [
+        { title:'By status', data:'by_status', cols:[
+          { h:'Status', key:'status', tag:true },
+          { h:'DNs', key:'dns', num:true, strong:true },
+          { h:'Crates', key:'crates', num:true },
+          { h:'Approx kg', key:'approx_kg', num:true, dim:true }
+        ]},
+        { title:'By block', sub:'Top 30 by crates', data:'by_block', cols:[
+          { h:'Block', key:'block', strong:true },
+          { h:'DNs', key:'dns', num:true, dim:true },
+          { h:'Crates', key:'crates', num:true, strong:true },
+          { h:'Approx kg', key:'approx_kg', num:true }
+        ]}
+      ]
+    },
+
+    receiving: {
+      title: 'Receiving',
+      subtitle: 'Goods Receipt Notes (intake at packhouse) — crates derived from allocations',
+      kpis: [
+        { lbl:'GRNs in period', key:'grns', icon:'file' },
+        { lbl:'Crates received', key:'crates', icon:'box' },
+        { lbl:'Approx kg', key:'approx_kg', fmt: fmtKg, sub:'At 18 kg / crate', icon:'weight' },
+        { lbl:'Blocks', key:'blocks', icon:'grid' },
+        { lbl:'YTD crates', key:'ytd_crates', icon:'sum' }
+      ],
+      cards: [
+        { title:'By status', data:'by_status', cols:[
+          { h:'Status', key:'status', tag:true },
+          { h:'GRNs', key:'grns', num:true, strong:true },
+          { h:'Crates', key:'crates', num:true },
+          { h:'Approx kg', key:'approx_kg', num:true, dim:true }
+        ]},
+        { title:'By block', sub:'Top 30 by crates', data:'by_block', cols:[
+          { h:'Block', key:'block', strong:true },
+          { h:'GRNs', key:'grns', num:true, dim:true },
+          { h:'Crates', key:'crates', num:true, strong:true },
+          { h:'Approx kg', key:'approx_kg', num:true }
+        ]}
+      ]
+    },
+
+    grn: {
+      title: 'GRN',
+      subtitle: 'Goods Receipt Note ledger',
+      kpis: [
+        { lbl:'GRNs in period', key:'grns', icon:'file' },
+        { lbl:'Crates', key:'crates', icon:'box' },
+        { lbl:'Approx kg', key:'approx_kg', fmt: fmtKg, icon:'weight' },
+        { lbl:'Blocks', key:'blocks', icon:'grid' },
+        { lbl:'YTD GRNs', key:'ytd_grns', icon:'sum' }
+      ],
+      cards: [
+        { title:'By status', data:'by_status', cols:[
+          { h:'Status', key:'status', tag:true },
+          { h:'GRNs', key:'grns', num:true, strong:true },
+          { h:'Crates', key:'crates', num:true }
+        ]},
+        { title:'By block', sub:'Top 30 by crates', data:'by_block', cols:[
+          { h:'Block', key:'block', strong:true },
+          { h:'GRNs', key:'grns', num:true },
+          { h:'Crates', key:'crates', num:true, strong:true }
+        ]}
+      ]
+    },
+
+    quality: {
+      title: 'Quality',
+      subtitle: 'Avocado Quality Inspections — sampling and rejection rate',
+      kpis: [
+        { lbl:'Inspections', key:'inspections', icon:'circle' },
+        { lbl:'Fruits sampled', key:'fruits', icon:'sum' },
+        { lbl:'Rejects', key:'rejects', icon:'box' },
+        { lbl:'Rejection rate', key:'rej_rate', fmt: function(v){ return v==null?'—':v+'%'; }, icon:'clock' },
+        { lbl:'Reject kg', key:'reject_kg', fmt: fmtKg, icon:'weight' }
+      ],
+      cards: [
+        { title:'By inspector', data:'by_inspector', cols:[
+          { h:'Inspector', key:'inspector' },
+          { h:'Inspections', key:'inspections', num:true, strong:true },
+          { h:'Fruits', key:'fruits', num:true, dim:true },
+          { h:'Rejects', key:'rejects', num:true }
+        ]},
+        { title:'By block', sub:'Top 30 by rejects', data:'by_block', cols:[
+          { h:'Block', key:'block', strong:true },
+          { h:'Inspections', key:'inspections', num:true },
+          { h:'Fruits', key:'fruits', num:true, dim:true },
+          { h:'Rejects', key:'rejects', num:true, strong:true }
+        ]}
+      ]
+    },
+
+    pallet_allocation: {
+      title: 'Pallet Allocation',
+      subtitle: 'Pre-dispatch pallet allocations by consignee',
+      kpis: [
+        { lbl:'Total allocations', key:'total', icon:'grid' },
+        { lbl:'Consignees', key:'consignees', icon:'users' },
+        { lbl:'In period', key:'period', icon:'clock' }
+      ],
+      cards: [
+        { title:'By consignee', sub:'Top 20', data:'by_consignee', cols:[
+          { h:'Consignee', key:'consignee', strong:true },
+          { h:'Allocations', key:'allocations', num:true, strong:true }
+        ]},
+        { title:'Allocations', sub:'Latest 30 with pallet counts', full:true, scrollX:true, data:'allocations', cols:[
+          { h:'Name', key:'allocation', mono:true },
+          { h:'Consignee', key:'consignee', strong:true },
+          { h:'Status', key:'status', tag:true },
+          { h:'Pallets', key:'pallet_count', num:true, strong:true },
+          { h:'Allocated', key:'allocated_at', time:true, mono:true, dim:true },
+          { h:'By', key:'allocated_by', dim:true }
+        ]}
+      ]
+    },
+
+    proforma: {
+      title: 'Proforma Invoice',
+      subtitle: 'Avocado Proforma Invoices — shipments, FOB, freight (USD)',
+      kpis: [
+        { lbl:'Total PIs', key:'total', icon:'file' },
+        { lbl:'Total cartons', key:'cartons', icon:'box' },
+        { lbl:'Net kg', key:'net_kg', fmt: fmtKg, icon:'weight' },
+        { lbl:'FOB value', key:'fob', fmt: function(v){ return 'USD '+fmt(v); }, icon:'money' },
+        { lbl:'Freight', key:'freight', fmt: function(v){ return 'USD '+fmt(v); }, icon:'truck' },
+        { lbl:'Total value', key:'value', fmt: function(v){ return 'USD '+fmt(v); }, icon:'wallet' }
+      ],
+      cards: [
+        { title:'By customer', sub:'Top 20 by value', data:'by_customer', cols:[
+          { h:'Customer', key:'customer', strong:true },
+          { h:'PIs', key:'pis', num:true },
+          { h:'Cartons', key:'cartons', num:true, dim:true },
+          { h:'Net kg', key:'net_kg', num:true, fmt: fmtKg },
+          { h:'Value (USD)', key:'value', num:true, strong:true, fmt: fmtUsd }
+        ]},
+        { title:'By shipping line', data:'by_shipping_line', cols:[
+          { h:'Shipping line', key:'shipping_line', strong:true },
+          { h:'PIs', key:'pis', num:true, strong:true },
+          { h:'Net kg', key:'net_kg', num:true, fmt: fmtKg }
+        ]},
+        { title:'Invoices', sub:'Latest 30 · amounts in USD', full:true, scrollX:true, data:'invoices', cols:[
+          { h:'PI', key:'name', mono:true },
+          { h:'Invoice #', key:'invoice_no', mono:true },
+          { h:'Date', key:'invoice_date', mono:true, dim:true },
+          { h:'Customer', key:'customer' },
+          { h:'Container', key:'container_no', mono:true },
+          { h:'Shipping', key:'shipping_line', dim:true },
+          { h:'Voyage', key:'voyage_no', mono:true, dim:true },
+          { h:'POL', key:'port_of_loading', dim:true },
+          { h:'POE', key:'port_of_entry', dim:true },
+          { h:'Cartons', key:'total_cartons', num:true },
+          { h:'Net kg', key:'net_kgs', num:true, fmt: fmtKg },
+          { h:'FOB (USD)', key:'total_fob', num:true, fmt: fmtUsd },
+          { h:'Freight (USD)', key:'freight_value', num:true, dim:true, fmt: fmtUsd },
+          { h:'Value (USD)', key:'total_value', num:true, strong:true, fmt: fmtUsd },
+          { h:'ETD', key:'etd_msa', mono:true, dim:true },
+          { h:'ETA', key:'eta_pod', mono:true, dim:true }
+        ]}
+      ]
+    },
+
+    non_export_invoices: {
+      title: 'Non-Export Invoices',
+      subtitle: 'Sales Invoices with item = Avocado (KES)',
+      kpis: [
+        { lbl:'Invoices', key:'invoices', icon:'file' },
+        { lbl:'Total amount', key:'total_amount', fmt: function(v){ return 'KES '+fmt(v); }, icon:'money' },
+        { lbl:'Paid', key:'paid', fmt: function(v){ return 'KES '+fmt(v); }, icon:'wallet' },
+        { lbl:'Outstanding', key:'outstanding', fmt: function(v){ return 'KES '+fmt(v); }, icon:'clock' }
+      ],
+      cards: [
+        { title:'By customer', sub:'Top 20 by amount', data:'by_customer', cols:[
+          { h:'Customer', key:'customer_name', strong:true },
+          { h:'Invoices', key:'invoices', num:true },
+          { h:'Qty', key:'qty', num:true, dim:true },
+          { h:'Total (KES)', key:'total', num:true, strong:true, fmt: fmtKes },
+          { h:'Outstanding (KES)', key:'outstanding', num:true, dim:true, fmt: fmtKes }
+        ]},
+        { title:'By status', data:'by_status', cols:[
+          { h:'Status', key:'status', tag:true },
+          { h:'Invoices', key:'invoices', num:true, strong:true },
+          { h:'Total (KES)', key:'total', num:true, fmt: fmtKes },
+          { h:'Outstanding (KES)', key:'outstanding', num:true, dim:true, fmt: fmtKes }
+        ]},
+        { title:'Invoices', sub:'Latest 30 · amounts in KES', full:true, scrollX:true, data:'invoices', cols:[
+          { h:'Invoice', key:'name', mono:true },
+          { h:'Customer', key:'customer_name', strong:true },
+          { h:'Posted', key:'posting_date', mono:true, dim:true },
+          { h:'Due', key:'due_date', mono:true, dim:true },
+          { h:'Status', key:'status', tag:true },
+          { h:'Qty', key:'qty', num:true, dim:true },
+          { h:'Total (KES)', key:'grand_total', num:true, strong:true, fmt: fmtKes },
+          { h:'Paid (KES)', key:'paid_amount', num:true, dim:true, fmt: fmtKes },
+          { h:'Outstanding (KES)', key:'outstanding_amount', num:true, fmt: fmtKes },
+          { h:'Currency', key:'currency', dim:true }
+        ]}
+      ]
+    }
+  };
+
+  // ─── Wire up ───
+  Array.prototype.forEach.call(document.querySelectorAll('.aph-side .nav-item'), function(el){
+    el.addEventListener('click', function(){ switchTab(el.getAttribute('data-tab')); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.aph-topbar .presets .p'), function(p){
+    p.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.aph-topbar .presets .p'), function(x){ x.classList.remove('active'); });
+      p.classList.add('active');
+      state.preset = p.getAttribute('data-preset');
+      applyPreset(state.preset);
+      fetchData();
+    });
+  });
+  document.getElementById('aph-from').addEventListener('change', function(e){ state.from=e.target.value; fetchData(); });
+  document.getElementById('aph-to').addEventListener('change', function(e){ state.to=e.target.value; fetchData(); });
+  document.getElementById('aph-clear').addEventListener('click', function(){
+    Array.prototype.forEach.call(document.querySelectorAll('.aph-topbar .presets .p'), function(x){ x.classList.remove('active'); });
+    document.querySelector('.aph-topbar .presets .p[data-preset="today"]').classList.add('active');
+    applyPreset('today'); fetchData();
+  });
+  document.getElementById('aph-reload').addEventListener('click', fetchData);
+
+  (function fillFooter(){
+    function tryFill(){
+      if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+      var u = frappe.session.user || '';
+      var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+      document.getElementById('aph-foot-av').textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+      document.getElementById('aph-foot-nm').textContent = fullName;
+      document.getElementById('aph-foot-em').textContent = u;
+    }
+    tryFill();
+  })();
+
+  renderPillbar();
+  fetchData();
+})();
+</script>

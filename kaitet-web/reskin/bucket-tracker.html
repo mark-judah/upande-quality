@@ -1,0 +1,1693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Traceability</title>
+<!-- v20260505-093417 -->
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<style>
+:root {
+    --bg-page: #f4f5f6;
+    --bg-surface: #ffffff;
+    --bg-input: #f4f5f6;
+    --bg-hover: #f8f9fa;
+    --bg-tab-group: #f4f5f6;
+    --text-primary: #1a1a1a;
+    --text-secondary: #6c7178;
+    --text-muted: #98a1a9;
+    --text-on-dark: #ffffff;
+    --border-default: #e2e4e7;
+    --border-light: #f0f0f0;
+    --accent-blue: #2490ef;
+    --accent-blue-light: #e8f0fe;
+    --accent-green: #29cd42;
+    --accent-red: #e63757;
+    --accent-orange: #fc9c30;
+    --accent-purple: #7c5cfc;
+    --btn-dark: #1a1a1a;
+    --btn-dark-hover: #333333;
+    --tint-blue: #e8f0fe;
+    --tint-purple: #f0ecfe;
+    --tint-green: #e6f9ee;
+    --tint-orange: #fff3e0;
+    --tint-gray: #f4f5f6;
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px; line-height: 1.5;
+    background: var(--bg-page); color: var(--text-primary); min-height: 100vh;
+}
+
+/* ── Top Nav ── */
+.top-nav {
+    background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+    padding: 0 16px; display: flex; align-items: center;
+    position: sticky; top: 0; z-index: 200; height: 44px;
+}
+.nav-brand {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 0 14px 0 0; margin-right: 6px;
+    border-right: 1px solid var(--border-default); white-space: nowrap;
+}
+.nav-link {
+    padding: 12px 14px; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); text-decoration: none;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 150ms, border-color 150ms;
+}
+.nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-default); }
+.nav-link.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 600; }
+@media(max-width:600px){ .nav-brand{display:none} .top-nav{overflow-x:auto} }
+
+/* ── Page Head ── */
+.page-head {
+    background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+    padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 10px; position: sticky; top: 44px; z-index: 100;
+}
+.page-title { font-size: 18px; font-weight: 700; }
+
+/* ── Mode Switcher ── */
+.mode-switch {
+    display: flex; background: var(--bg-tab-group); border-radius: 8px; padding: 3px;
+}
+.mode-btn {
+    padding: 7px 16px; font-size: 13px; font-weight: 500; background: transparent;
+    border: none; border-radius: 6px; cursor: pointer; color: var(--text-secondary);
+    transition: background 150ms, color 150ms; display: flex; align-items: center; gap: 6px;
+}
+.mode-btn.active { background: var(--btn-dark); color: var(--text-on-dark); }
+
+/* ── Search Group ── */
+.search-group {
+    display: flex; align-items: center;
+    border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden;
+    background: var(--bg-surface);
+}
+.search-group input {
+    height: 34px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+    font-variant-numeric: tabular-nums; background: var(--bg-input);
+    border: none; color: var(--text-primary); width: 200px; letter-spacing: 1px;
+}
+.search-group input::placeholder { letter-spacing: 0; color: var(--text-muted); }
+.search-group input:focus { outline: none; background: var(--bg-surface); }
+.search-group .btn { border-radius: 0; border-left: 1px solid var(--border-default); padding: 8px 14px; }
+
+/* ── Buttons ── */
+.btn {
+    padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit;
+    border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+    transition: background 150ms, color 150ms, border-color 150ms;
+}
+.btn-primary { background: var(--btn-dark); color: var(--text-on-dark); border: none; }
+.btn-primary:hover { background: var(--btn-dark-hover); }
+.btn-secondary { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-default); }
+.btn-secondary:hover { background: var(--bg-input); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-warning { background: var(--accent-orange); color: #fff; border: none; }
+.btn-warning:hover { background: #e88a20; }
+.btn-danger { background: var(--accent-red); color: #fff; border: none; }
+
+/* ── Live Badge ── */
+.live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--text-primary);
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 8px; padding: 6px 14px;
+}
+.live-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; }
+
+/* ── Container ── */
+.container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+/* ── Alert ── */
+.alert-danger {
+    padding: 12px 16px; margin-bottom: 16px; border-radius: 8px;
+    border: 1px solid #f5c6ce; color: var(--accent-red);
+    background: #fde8ec; font-size: 13px; display: none;
+}
+.alert-danger.show { display: block; }
+
+/* ── Summary Well ── */
+.well {
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 10px; padding: 20px; box-shadow: var(--shadow-card);
+    margin-bottom: 16px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.id-display {
+    font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--text-primary); background: var(--bg-input);
+    border: 1px solid var(--border-default); padding: 6px 12px; border-radius: 6px;
+    letter-spacing: 2px; text-transform: uppercase;
+}
+.bucket-meta { display: flex; gap: 20px; flex-wrap: wrap; }
+.bm-item { display: flex; flex-direction: column; }
+.bm-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.bm-value { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
+/* ── Labels ── */
+.label {
+    display: inline-flex; align-items: center; padding: 3px 8px;
+    font-size: 11px; font-weight: 600; border-radius: 4px; letter-spacing: 0.3px;
+}
+.label-success { background: var(--tint-green); color: #1a8a3a; }
+.label-warning { background: var(--tint-orange); color: #9a5a00; }
+.label-danger  { background: #fde8ec; color: var(--accent-red); }
+.label-default { background: var(--bg-input); color: var(--text-secondary); }
+.label-info    { background: var(--tint-purple); color: var(--accent-purple); }
+.label-primary { background: var(--tint-blue); color: var(--accent-blue); }
+
+/* ── Filter Bar ── */
+.filter-bar {
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    box-shadow: var(--shadow-card);
+}
+.filter-bar-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.filter-field-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.form-control {
+    height: 32px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+    background: var(--bg-input); border: 1px solid transparent;
+    border-radius: 6px; color: var(--text-primary);
+    transition: border-color 150ms, background 150ms;
+}
+.form-control:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+select.form-control { cursor: pointer; }
+.filter-showing { font-size: 12px; color: var(--text-secondary); margin-left: auto; white-space: nowrap; }
+
+/* ── Journey Tabs ── */
+.nav-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px;
+    background: var(--bg-tab-group); border-radius: 8px; padding: 3px;
+    width: fit-content;
+}
+.nav-tab {
+    padding: 8px 16px; font-size: 13px; font-weight: 500; background: transparent;
+    border: none; border-radius: 6px; cursor: pointer; color: var(--text-secondary);
+    transition: background 150ms, color 150ms;
+}
+.nav-tab:hover { background: var(--bg-hover); }
+.nav-tab.active { background: var(--btn-dark); color: var(--text-on-dark); }
+.nav-tab .tab-sub { font-size: 10px; opacity: 0.7; display: block; font-weight: 400; margin-top: 2px; }
+
+/* ── Panel ── */
+.panel {
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 8px; box-shadow: var(--shadow-card); margin-bottom: 16px;
+}
+.panel-heading { padding: 14px 20px; border-bottom: 1px solid var(--border-default); }
+.panel-heading-inner { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.panel-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.panel-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+.panel-body { padding: 20px; }
+
+/* ── Status Well ── */
+.status-well {
+    padding: 12px 16px; margin-bottom: 16px; border-radius: 8px;
+    border: 1px solid var(--border-default); background: var(--bg-input);
+    display: flex; align-items: flex-start; gap: 10px; font-size: 13px;
+}
+.status-well.sw-issued  { border-color: #c5e8cd; background: var(--tint-green); color: #1a8a3a; }
+.status-well.sw-pending { border-color: #f5deb3; background: var(--tint-orange); color: #9a5a00; }
+.status-well.sw-onshelf { border-color: #c5d8f0; background: var(--tint-blue); color: var(--accent-blue); }
+.status-well.sw-recv    { border-color: #d5cef0; background: var(--tint-purple); color: var(--accent-purple); }
+.status-well.sw-graded  { border-color: #d5cef0; background: var(--tint-purple); color: var(--accent-purple); }
+.status-well.sw-hvst    { border-color: #c5e8cd; background: var(--tint-green); color: #1a8a3a; }
+.status-well.sw-packed  { border-color: #c5e8cd; background: var(--tint-green); color: #1a8a3a; }
+.status-well.sw-infield { border-color: #f5deb3; background: var(--tint-orange); color: #9a5a00; }
+
+/* ── Section Label ── */
+.section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border-default);
+}
+
+/* ── Journey Path ── */
+.journey-path {
+    display: grid; grid-template-columns: repeat(6, 1fr);
+    margin-bottom: 16px; border: 1px solid var(--border-default);
+    border-radius: 8px; overflow: hidden;
+}
+@media(max-width:700px){ .journey-path { grid-template-columns: repeat(3,1fr); } }
+@media(max-width:400px){ .journey-path { grid-template-columns: repeat(2,1fr); } }
+.journey-path-7 { grid-template-columns: repeat(7, 1fr); }
+@media(max-width:700px){ .journey-path-7 { grid-template-columns: repeat(4,1fr); } }
+
+.path-stage { padding: 12px 10px; border-right: 1px solid var(--border-default); }
+.path-stage:last-child { border-right: none; }
+.path-stage.ps-done   { background: var(--bg-hover); }
+.path-stage.ps-pending { background: var(--bg-surface); }
+.ps-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+.ps-stat { font-size: 12px; font-weight: 700; }
+.ps-done-t  { color: #1a8a3a; }
+.ps-pend-t  { color: var(--text-muted); }
+.ps-det { font-size: 11px; color: var(--text-primary); margin-top: 3px; line-height: 1.4; }
+.ps-date { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+/* ── Detail Grid ── */
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.dc { background: var(--bg-input); border-radius: 6px; padding: 8px 10px; }
+.dc .dk { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; font-weight: 600; }
+.dc .dv { font-size: 12px; font-weight: 700; color: var(--text-primary); word-break: break-all; }
+
+/* ── Data Cards Grid ── */
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.data-card {
+    background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 8px; padding: 16px; box-shadow: var(--shadow-card);
+    cursor: pointer; transition: background 150ms;
+}
+.data-card:hover { background: var(--bg-hover); }
+.dc-void { opacity: 0.55; }
+.dcard-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.dcard-title { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.dcard-body { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5; }
+.dcard-stats { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.ds { background: var(--bg-input); padding: 6px 8px; border-radius: 6px; text-align: center; }
+.ds-l { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; }
+.ds-v { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+
+/* ── Progress Bar ── */
+.pb-wrap { margin-top: 6px; }
+.pb-lbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600; }
+.pb-lbl span:last-child { color: var(--text-primary); font-weight: 700; }
+.pb-track { background: var(--bg-input); border-radius: 4px; height: 4px; overflow: hidden; }
+.pb-fill { height: 100%; background: var(--accent-blue); border-radius: 4px; }
+
+/* ── Bunch Journey Chain ── */
+.bunch-chain {
+    display: flex; flex-direction: column; gap: 0; margin-bottom: 16px;
+}
+.chain-step {
+    display: flex; gap: 12px; position: relative;
+}
+.chain-step:not(:last-child)::before {
+    content: ''; position: absolute; left: 15px; top: 36px;
+    width: 2px; bottom: -8px; background: var(--border-default); z-index: 0;
+}
+.chain-icon {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; z-index: 1; margin-top: 4px;
+}
+.ci-harvest  { background: var(--tint-green);  color: #1a8a3a; border: 2px solid #c5e8cd; }
+.ci-grading  { background: var(--tint-purple); color: var(--accent-purple); border: 2px solid #d5cef0; }
+.ci-receiving{ background: var(--tint-blue);   color: var(--accent-blue);  border: 2px solid #c5d8f0; }
+.ci-shelf    { background: var(--tint-orange); color: #9a5a00; border: 2px solid #f5deb3; }
+.ci-opl      { background: var(--bg-input);    color: var(--text-secondary); border: 2px solid var(--border-default); }
+.ci-pack     { background: var(--tint-green);  color: #1a8a3a; border: 2px solid #c5e8cd; }
+.ci-issue    { background: #1a1a1a;            color: #fff;    border: 2px solid #333; }
+
+.chain-content {
+    flex: 1; background: var(--bg-surface); border: 1px solid var(--border-default);
+    border-radius: 8px; padding: 12px 14px; margin-bottom: 8px;
+}
+.chain-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.chain-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+.chain-meta strong { color: var(--text-primary); }
+
+/* ── Hint / Loading / Empty ── */
+.empty-state, .loading-state, .hint-state {
+    text-align: center; padding: 40px 20px; color: var(--text-secondary);
+}
+.hint-state h4 { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.hint-state p  { font-size: 13px; line-height: 1.7; }
+.hint-state small { font-size: 12px; color: var(--text-muted); margin-top: 10px; display: block; }
+.empty-state p, .loading-state p { font-size: 13px; margin-top: 10px; }
+
+/* ── Correction Modal ── */
+.modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4); z-index: 500;
+    justify-content: center; align-items: flex-start;
+    padding: 60px 20px 20px; overflow-y: auto;
+}
+.modal-overlay.show { display: flex; }
+.modal-dialog {
+    background: var(--bg-surface); border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    width: 100%; max-width: 560px; animation: modalIn 200ms ease;
+}
+@keyframes modalIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+.modal-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border-default);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.modal-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.modal-close {
+    background: none; border: none; cursor: pointer; padding: 4px;
+    color: var(--text-muted); border-radius: 6px;
+    transition: background 150ms, color 150ms;
+}
+.modal-close:hover { background: var(--bg-input); color: var(--text-primary); }
+.modal-body { padding: 20px; }
+.modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--border-default);
+    display: flex; justify-content: flex-end; gap: 8px;
+}
+.correction-form-group { margin-bottom: 16px; }
+.correction-form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+.form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.correction-input {
+    width: 100%; height: 36px; padding: 8px 12px; font-size: 13px; font-family: inherit;
+    background: var(--bg-input); border: 1px solid var(--border-default);
+    border-radius: 8px; color: var(--text-primary);
+    transition: border-color 150ms, background 150ms;
+}
+.correction-input:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+
+.affected-docs { margin-top: 16px; }
+.affected-docs-title {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border-default);
+}
+.affected-doc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px; margin-bottom: 4px;
+    font-size: 12px; background: var(--bg-input);
+}
+.adr-icon { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.adr-type { font-weight: 600; color: var(--text-primary); min-width: 80px; }
+.adr-name { color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adr-current { margin-left: auto; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+.correction-log { margin-top: 12px; max-height: 200px; overflow-y: auto; }
+.correction-log-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 3px;
+}
+.correction-log-item.log-ok   { background: var(--tint-green); color: #1a8a3a; }
+.correction-log-item.log-fail { background: #fde8ec; color: var(--accent-red); }
+.correction-log-item.log-skip { background: var(--bg-input); color: var(--text-muted); }
+
+/* ── Autocomplete ── */
+.autocomplete-dropdown {
+    position: absolute; z-index: 600; background: var(--bg-surface);
+    border: 1px solid var(--border-default); border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 180px; overflow-y: auto; display: none;
+}
+.autocomplete-dropdown.show { display: block; }
+.autocomplete-item { padding: 8px 12px; font-size: 13px; cursor: pointer; color: var(--text-primary); transition: background 100ms; }
+.autocomplete-item:hover, .autocomplete-item.highlighted { background: var(--bg-hover); }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">Packhouse</span>
+    <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+    <a href="packhouse-dashboard" class="nav-link">Workflow</a>
+    <a href="sales-allocation-planning" class="nav-link">Allocation Planning</a>
+    <a href="traceability" class="nav-link active">Traceability</a>
+    <a href="cold-room" class="nav-link">Cold Room</a>
+    <a href="stock-visibility" class="nav-link">Stock Visibility</a>
+    <a href="order-summary" class="nav-link">Order Summary</a>
+</nav>
+
+<div class="page-head">
+    <span class="page-title">Traceability</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="mode-switch">
+            <button class="mode-btn active" id="modeBucket" onclick="setMode('bucket')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 6V4h12v2M8 6v14h8V6"/></svg>
+                Bucket
+            </button>
+            <button class="mode-btn" id="modeBunch" onclick="setMode('bunch')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 7v6M8 9.5C8 9.5 5 11 5 14c0 2.5 3 4 7 4s7-1.5 7-4c0-3-3-4.5-3-4.5"/><path d="M9 13h6"/></svg>
+                Bunch
+            </button>
+        </div>
+        <div class="search-group">
+            <input type="text" id="trackInput" placeholder="Enter Bucket ID" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none">
+            <button class="btn btn-primary" id="searchBtn" onclick="track()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Track
+            </button>
+        </div>
+        <button class="btn btn-warning btn-sm" id="correctBtn" style="display:none" onclick="openCorrectionModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Correct Details
+        </button>
+        <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    </div>
+</div>
+
+<!-- Correction Modal -->
+<div class="modal-overlay" id="correctionModal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <span class="modal-title">Correct Bucket Details</span>
+            <button class="modal-close" onclick="closeCorrectionModal()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div style="padding:10px 12px;border-radius:8px;background:var(--tint-orange);border:1px solid #f5deb3;color:#9a5a00;font-size:12px;margin-bottom:16px;line-height:1.6">
+                <strong>Bulk correction</strong> &mdash; Updates stem length and/or variety across all related documents for this journey (Harvest, Grading, Receiving, Shelf records). Only fill fields you want to correct.
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+                <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Bucket</span>
+                <span class="id-display" id="modalBucketId" style="font-size:13px;padding:4px 10px"></span>
+                <span style="font-size:12px;color:var(--text-secondary)" id="modalJourneyLabel"></span>
+            </div>
+            <div class="correction-form-group">
+                <label for="correctStemLength">Correct Stem Length</label>
+                <input type="text" id="correctStemLength" class="correction-input" placeholder="e.g. 50cm, 60cm">
+                <div class="form-hint">Current: <span id="currentStemLength">--</span></div>
+            </div>
+            <div class="correction-form-group" style="position:relative">
+                <label for="correctVariety">Correct Variety</label>
+                <input type="text" id="correctVariety" class="correction-input" placeholder="Start typing variety name..."
+                       autocomplete="off" oninput="onVarietyInput(this.value)" onkeydown="onVarietyKeydown(event)">
+                <div class="autocomplete-dropdown" id="varietyDropdown"></div>
+                <div class="form-hint">Current: <span id="currentVariety">--</span></div>
+            </div>
+            <div class="affected-docs" id="affectedDocsSection">
+                <div class="affected-docs-title">Documents to be updated</div>
+                <div id="affectedDocsList"></div>
+            </div>
+            <div class="correction-log" id="correctionLog" style="display:none"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCorrectionModal()" id="modalCancelBtn">Cancel</button>
+            <button class="btn btn-primary" id="modalApplyBtn" onclick="applyCorrectionForCurrentJourney()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Apply Corrections
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="alert-danger" id="errorBox"></div>
+
+    <!-- Bucket summary well -->
+    <div id="bucketSummary" style="display:none" class="well">
+        <span class="id-display" id="summaryId"></span>
+        <div class="bucket-meta">
+            <div class="bm-item"><span class="bm-label">Journeys</span><span class="bm-value" id="summaryJourneys">--</span></div>
+            <div class="bm-item"><span class="bm-label">First Use</span><span class="bm-value" id="summaryFirst">--</span></div>
+            <div class="bm-item"><span class="bm-label">Latest Activity</span><span class="bm-value" id="summaryLatest">--</span></div>
+        </div>
+        <span class="label" id="summaryStatus" style="margin-left:auto;">--</span>
+    </div>
+
+    <!-- Bunch summary well -->
+    <div id="bunchSummary" style="display:none" class="well">
+        <span class="id-display" id="bunchSummaryId"></span>
+        <div class="bucket-meta">
+            <div class="bm-item"><span class="bm-label">Variety</span><span class="bm-value" id="bunchSumVariety">--</span></div>
+            <div class="bm-item"><span class="bm-label">Farm</span><span class="bm-value" id="bunchSumFarm">--</span></div>
+            <div class="bm-item"><span class="bm-label">Graded</span><span class="bm-value" id="bunchSumDate">--</span></div>
+            <div class="bm-item"><span class="bm-label">Stem Length</span><span class="bm-value" id="bunchSumLength">--</span></div>
+        </div>
+        <span class="label" id="bunchSummaryStatus" style="margin-left:auto;">--</span>
+    </div>
+
+    <!-- Bucket filter + tabs -->
+    <div id="filterBar" style="display:none" class="filter-bar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted)"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <span class="filter-bar-label">Filter</span>
+        <div class="filter-group">
+            <label class="filter-field-label">From</label>
+            <input type="date" id="filterFrom" class="form-control" style="width:130px" onchange="applyDateFilter()">
+        </div>
+        <div class="filter-group">
+            <label class="filter-field-label">To</label>
+            <input type="date" id="filterTo" class="form-control" style="width:130px" onchange="applyDateFilter()">
+        </div>
+        <div class="filter-group">
+            <label class="filter-field-label">Show</label>
+            <select id="filterLimit" class="form-control" style="width:90px" onchange="applyDateFilter()">
+                <option value="5">Last 5</option>
+                <option value="10">Last 10</option>
+                <option value="20">Last 20</option>
+                <option value="50">Last 50</option>
+                <option value="0">All</option>
+            </select>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="resetFilter()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Reset
+        </button>
+        <span class="filter-showing" id="filterShowing"></span>
+    </div>
+
+    <div id="journeyTabs" style="display:none" class="nav-tabs"></div>
+    <div id="journeyPanel"></div>
+
+    <!-- Hint panel -->
+    <div class="panel" id="hintSection">
+        <div class="panel-body hint-state">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <h4>Traceability</h4>
+            <p>Track a <strong>Bucket</strong> from harvest through grading, receiving, shelving, allocation and issue.</p>
+            <p style="margin-top:8px">Track a <strong>Bunch</strong> from greenhouse grading through to the packed box.</p>
+            <p style="margin-top:10px"><strong>Spray roses:</strong> Harvest + Grading &rarr; Receiving &rarr; Shelving &rarr; Allocation &rarr; Issue<br>
+            <strong>Standard roses:</strong> Harvest &rarr; Receiving &rarr; Shelving &rarr; Grading &rarr; Allocation &rarr; Issue<br>
+            <strong>Bunch:</strong> Grading &rarr; Receiving &rarr; Shelf &rarr; OPL &rarr; Issue &rarr; Packing</p>
+            <small id="hintExamples">Bucket examples: 5c8f60 &middot; E0DE9D &middot; 7D1BF6</small>
+        </div>
+    </div>
+    <div class="panel" id="loadingSection" style="display:none">
+        <div class="panel-body loading-state">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px"><circle cx="12" cy="12" r="10"/></svg>
+            <p id="loadingMsg">Tracing journey...</p>
+        </div>
+    </div>
+    <div class="panel" id="emptySection" style="display:none">
+        <div class="panel-body empty-state">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <p><strong>Not Found</strong></p>
+            <p id="emptyMsg">No records found for this ID.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════ */
+let G = {};
+let currentMode = 'bucket';
+let currentJourneyForCorrection = null;
+let varietySearchTimeout = null;
+let varietyHighlightIdx = -1;
+let varietyResults = [];
+
+/* ═══════════════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════════════ */
+function q(id) { return document.getElementById(id); }
+function fmtDate(d) {
+    if (!d) return '';
+    try { return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }); }
+    catch { return d; }
+}
+function fmtDateTime(d) {
+    if (!d) return '';
+    try { return new Date(d).toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch { return d; }
+}
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function openDoc(doctype, name) {
+    if (typeof frappe !== 'undefined' && frappe.set_route) frappe.set_route('Form', doctype, name);
+    else window.open('/app/' + doctype.toLowerCase().replace(/ /g,'- ') + '/' + encodeURIComponent(name), '_blank');
+}
+function showError(msg) {
+    const el = q('errorBox'); el.textContent = msg; el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 7000);
+}
+function clearError() { q('errorBox').classList.remove('show'); }
+
+function setState(state) {
+    q('hintSection').style.display    = state === 'hint'    ? '' : 'none';
+    q('loadingSection').style.display = state === 'loading' ? '' : 'none';
+    q('emptySection').style.display   = state === 'empty'   ? '' : 'none';
+    if (state !== 'results') {
+        q('bucketSummary').style.display = 'none';
+        q('bunchSummary').style.display  = 'none';
+        q('journeyTabs').style.display   = 'none';
+        q('filterBar').style.display     = 'none';
+        q('journeyPanel').innerHTML      = '';
+        q('correctBtn').style.display    = 'none';
+    }
+    if (state !== 'loading') q('searchBtn').disabled = false;
+}
+
+const PAGE_SIZE = 500;
+async function flP(doctype, filters, fields, _limit, orderBy) {
+    const all = []; let start = 0;
+    while (true) {
+        const args = { doctype, filters, fields, limit_page_length: PAGE_SIZE, limit_start: start, ignore_permissions: 1 };
+        if (orderBy) args.order_by = orderBy;
+        const page = await new Promise(resolve => {
+            frappe.call({ method: 'frappe.client.get_list', args,
+                callback(r) { resolve(r.message || []); },
+                error(e) { console.warn('[flP]', doctype, e); resolve([]); }
+            });
+        });
+        all.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        start += PAGE_SIZE;
+    }
+    return all;
+}
+function fgP(doctype, name) {
+    return new Promise(resolve => {
+        frappe.call({ method: 'frappe.client.get', args: { doctype, name, ignore_permissions: 1 },
+            callback(r) { resolve(r.message || null); },
+            error(e) { console.warn('[fgP]', doctype, name, e); resolve(null); }
+        });
+    });
+}
+function fSetValueSingle(doctype, name, fieldname, value) {
+    return new Promise((resolve, reject) => {
+        frappe.call({
+            method: 'frappe.client.set_value',
+            args: { doctype, name, fieldname, value },
+            callback(r) { resolve(r.message || true); },
+            error(e) { reject(e); }
+        });
+    });
+}
+async function fSetValue(doctype, name, fieldsOrFieldname, value) {
+    if (typeof fieldsOrFieldname === 'object') {
+        for (const [field, val] of Object.entries(fieldsOrFieldname))
+            await fSetValueSingle(doctype, name, field, val);
+        return true;
+    }
+    return fSetValueSingle(doctype, name, fieldsOrFieldname, value);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODE
+═══════════════════════════════════════════════════════ */
+function setMode(mode) {
+    currentMode = mode;
+    q('modeBucket').classList.toggle('active', mode === 'bucket');
+    q('modeBunch').classList.toggle('active',  mode === 'bunch');
+    q('trackInput').placeholder = mode === 'bucket' ? 'Enter Bucket ID' : 'Enter Bunch ID';
+    q('trackInput').value = '';
+    q('hintExamples').innerHTML = mode === 'bucket'
+        ? 'Bucket examples: 5c8f60 &middot; E0DE9D &middot; 7D1BF6'
+        : 'Enter a Bunch QR Code ID (e.g. BQ-001-ABC)';
+    setState('hint');
+}
+
+q('trackInput').addEventListener('keydown', e => { if (e.key === 'Enter') track(); });
+q('correctionModal').addEventListener('click', function(e) { if (e.target === this) closeCorrectionModal(); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && q('correctionModal').classList.contains('show')) closeCorrectionModal();
+});
+
+function track() {
+    if (currentMode === 'bucket') trackBucket();
+    else trackBunch();
+}
+
+/* ═══════════════════════════════════════════════════════
+   BUCKET TRACKING  (original logic, preserved)
+═══════════════════════════════════════════════════════ */
+function seDt(se)   { return (se.posting_date||'') + ' ' + (se.posting_time||'00:00:00'); }
+function seDtMs(se) {
+    try {
+        const s = (se.posting_date||'') + 'T' + (se.posting_time||'00:00:00').split('.')[0];
+        const t = new Date(s).getTime();
+        return isNaN(t) ? 0 : t;
+    } catch { return 0; }
+}
+function parseBatch(batchNo) {
+    if (!batchNo) return { sessionKey:'', batchNo:'', farm:'', variety:'', date:'' };
+    const p = batchNo.split('-');
+    const farm=p[1]||'', variety=p[2]||'', yyyy=p[3]||'', mm=p[4]||'', dd=(p[5]||'').split(' ')[0];
+    const sessionKey = `${p[0]}-${farm}-${variety}-${yyyy}-${mm}-${dd}`.toLowerCase();
+    return { sessionKey, batchNo, farm, variety, date:`${yyyy}-${mm}-${dd}` };
+}
+function sumStems(seList) {
+    let total=0;
+    for (const se of seList) total += G.seQtyMap?.get(se.name)||0;
+    return total||null;
+}
+function stemLengthOf(seList) {
+    for (const se of seList) { if (se.custom_stem_length) return se.custom_stem_length; }
+    return null;
+}
+function fmtStems(n) {
+    if (!n) return null;
+    return (Number.isInteger(n) ? n : Math.round(n*10)/10) + ' stems';
+}
+
+async function trackBucket() {
+    const id = q('trackInput').value.trim();
+    if (!id) { showError('Please enter a Bucket ID.'); return; }
+    clearError();
+    setState('loading');
+    q('loadingMsg').textContent = 'Tracing bucket journeys...';
+    q('searchBtn').disabled = true;
+    q('correctBtn').style.display = 'none';
+
+    try {
+        const [harvestSEs, receiveSEs, shelves, allocRows, oplParents] = await Promise.all([
+            flP('Stock Entry',
+                [['custom_bucket_id','=',id],['stock_entry_type','=','Harvesting']],
+                ['name','posting_date','posting_time','custom_farm','custom_greenhouse',
+                 'custom_stem_length','custom_harvester','custom_harvester_payroll_number',
+                 'custom_harvest_batch_no','to_warehouse','custom_scanned','docstatus'],
+                2000,'posting_date asc, posting_time asc'),
+            flP('Stock Entry',
+                [['custom_received_bucket_id','=',id],['stock_entry_type','in',['Receiving','Late Receipt']]],
+                ['name','posting_date','posting_time','custom_farm','custom_greenhouse',
+                 'custom_stem_length','custom_harvest_batch_no','custom_received_bucket_id',
+                 'to_warehouse','from_warehouse','stock_entry_type','custom_scanned','docstatus'],
+                2000,'posting_date asc, posting_time asc'),
+            flP('Shelf',[['Shelf Item','bucket_id','=',id]],['name','shelf_id','farm'],20),
+            flP('Bucket Allocation Status',[['bucket_id','=',id]],
+                ['name','bucket_id','item_code','warehouse','farm','stem_length',
+                 'shelf_location','shelf_farm','harvest_date','total_quantity',
+                 'allocated_quantity','available_quantity'],1),
+            flP('Order Pick List',[['Pick List Item','custom_bucket','=',id]],['name'],100),
+        ]);
+
+        const batchNos = [...new Set(harvestSEs.map(se => se.custom_harvest_batch_no).filter(Boolean))];
+        let gradingSEs = [];
+        if (batchNos.length) {
+            const CHUNK=50, chunks=[];
+            for (let i=0;i<batchNos.length;i+=CHUNK) chunks.push(batchNos.slice(i,i+CHUNK));
+            const results = await Promise.all(chunks.map(chunk =>
+                flP('Stock Entry',
+                    [['custom_harvest_batch_no','in',chunk],['stock_entry_type','=','Grading']],
+                    ['name','posting_date','posting_time','custom_farm','custom_graded_by',
+                     'custom_grader_payroll_number','custom_bunch_id','custom_stem_length',
+                     'custom_harvest_batch_no','custom_opl_scanned','custom_scanned_grading',
+                     'custom_scanned_packing','custom_bunched_by','to_warehouse','from_warehouse','docstatus'],
+                    2000,'posting_date asc, posting_time asc')
+            ));
+            gradingSEs = results.flat().sort((a,b) => seDt(a).localeCompare(seDt(b)));
+        }
+
+        let shelfData = [];
+        for (const shelf of shelves) {
+            const doc = await fgP('Shelf', shelf.name);
+            if (!doc) continue;
+            (doc.items||[]).filter(i => (i.bucket_id||'').toLowerCase()===id.toLowerCase())
+                .forEach(i => shelfData.push({...i,shelf_name:doc.name,shelf_farm:doc.farm}));
+        }
+
+        const allocData = allocRows[0]||null;
+        const allocFull = allocData ? await fgP('Bucket Allocation Status', allocData.name) : null;
+
+        let oplData = [];
+        if (oplParents.length) {
+            const docs = await Promise.all(oplParents.map(o => fgP('Order Pick List', o.name)));
+            for (const doc of docs) {
+                if (!doc) continue;
+                (doc.locations||[]).filter(r => (r.custom_bucket||'').toLowerCase()===id.toLowerCase())
+                    .forEach(r => oplData.push({
+                        ...r, parent:doc.name, opl_customer:doc.customer,
+                        opl_order_name:doc.custom_order_name, opl_team:doc.custom_team,
+                        opl_status:doc.custom_status, opl_issuing_pct:doc.custom_issuing_percentage,
+                        opl_date:doc.date_created, opl_sales_order:doc.sales_order,
+                        opl_consignee:doc.custom_consignee,
+                    }));
+            }
+        }
+
+        const sessionRepMap = new Map();
+        for (const se of [...harvestSEs,...gradingSEs]) {
+            const key = se.posting_date||'unknown';
+            if (!sessionRepMap.has(key)) sessionRepMap.set(key, se.name);
+        }
+        const repNamesUniq = [...new Set([...receiveSEs.map(s=>s.name), ...[...sessionRepMap.values()]])];
+        const repQtyMap = new Map();
+        if (repNamesUniq.length) {
+            const BATCH=10;
+            for (let i=0;i<repNamesUniq.length;i+=BATCH) {
+                const docs = await Promise.all(repNamesUniq.slice(i,i+BATCH).map(name => fgP('Stock Entry',name)));
+                for (const doc of docs) {
+                    if (!doc) continue;
+                    const stems = (doc.items||[]).reduce((sum,row)=>sum+parseFloat(row.transfer_qty||row.qty||0),0);
+                    repQtyMap.set(doc.name, stems);
+                }
+            }
+        }
+        const seQtyMap = new Map();
+        for (const se of receiveSEs) seQtyMap.set(se.name, repQtyMap.get(se.name)||0);
+        for (const se of [...harvestSEs,...gradingSEs]) {
+            const repName = sessionRepMap.get(se.posting_date);
+            seQtyMap.set(se.name, repQtyMap.get(repName)||0);
+        }
+
+        const hasData = harvestSEs.length||gradingSEs.length||receiveSEs.length
+                     ||shelfData.length||allocData||oplData.length;
+        if (!hasData) { q('emptyMsg').textContent = 'No records found for this Bucket ID.'; setState('empty'); return; }
+
+        G = { id, harvestSEs, gradingSEs, receiveSEs, shelfData, allocData, allocFull, oplData, seQtyMap };
+        buildJourneys();
+
+    } catch (err) {
+        console.error(err);
+        showError('Error loading data — check console for details.');
+        setState('hint');
+    } finally { q('searchBtn').disabled = false; }
+}
+
+function buildJourneys() {
+    const { id, harvestSEs, gradingSEs, receiveSEs, shelfData, allocData, allocFull, oplData } = G;
+    const jmap = {};
+
+    function getOrCreate(sessionKey, farm, variety) {
+        if (!jmap[sessionKey]) jmap[sessionKey] = {
+            sessionKey, farm, variety,
+            harvestSEs:[], gradingSEs:[], receivingSEs:[],
+            flowerType:null, earliestDate:'', latestDate:''
+        };
+        return jmap[sessionKey];
+    }
+    for (const se of gradingSEs)  { const p=parseBatch(se.custom_harvest_batch_no); const key=p.sessionKey||('grading||'+se.name); const j=getOrCreate(key,p.farm,p.variety); j.gradingSEs.push(se); if(!j.farm)j.farm=p.farm; if(!j.variety)j.variety=p.variety; }
+    for (const se of receiveSEs)  { const p=parseBatch(se.custom_harvest_batch_no); const key=p.sessionKey||('receiving||'+se.name); const j=getOrCreate(key,p.farm,p.variety); j.receivingSEs.push(se); if(!j.farm)j.farm=p.farm; if(!j.variety)j.variety=p.variety; }
+    for (const se of harvestSEs)  { const p=parseBatch(se.custom_harvest_batch_no); const key=p.sessionKey||('harvest||'+se.name); const j=getOrCreate(key,p.farm,p.variety); j.harvestSEs.push(se); if(!j.farm)j.farm=p.farm; if(!j.variety)j.variety=p.variety; }
+    for (const j of Object.values(jmap)) {
+        j.harvestSEs.sort((a,b)=>seDtMs(a)-seDtMs(b));
+        j.gradingSEs.sort((a,b)=>seDtMs(a)-seDtMs(b));
+        j.receivingSEs.sort((a,b)=>seDtMs(a)-seDtMs(b));
+    }
+    for (const j of Object.values(jmap)) {
+        const hasGrading=j.gradingSEs.length>0, hasHarvest=j.harvestSEs.length>0;
+        const gradingBatches=new Set(j.gradingSEs.map(se=>(se.custom_harvest_batch_no||'').toLowerCase()));
+        const harvestMatchesGrading=j.harvestSEs.some(se=>gradingBatches.has((se.custom_harvest_batch_no||'').toLowerCase()));
+        if (hasGrading&&hasHarvest&&harvestMatchesGrading) j.flowerType='spray';
+        else if (hasGrading&&hasHarvest&&!harvestMatchesGrading) j.flowerType='standard';
+        else if (hasGrading&&!hasHarvest) j.flowerType='standard';
+        else j.flowerType='standard';
+    }
+    for (const j of Object.values(jmap)) {
+        const all=[...j.harvestSEs,...j.gradingSEs,...j.receivingSEs].map(se=>se.posting_date||'').filter(Boolean).sort();
+        j.earliestDate=all[0]||''; j.latestDate=all[all.length-1]||'';
+    }
+    const journeys = Object.values(jmap)
+        .sort((a,b)=>a.earliestDate.localeCompare(b.earliestDate)||a.sessionKey.localeCompare(b.sessionKey));
+    journeys.forEach((j,i)=>{ j.number=i+1; j.isLatest=i===journeys.length-1; });
+
+    function matchJourney(eventDateStr, varietyLower, candidates) {
+        if (!candidates.length) return null;
+        if (candidates.length===1) return candidates[0];
+        const evMs = eventDateStr ? new Date(eventDateStr).getTime() : Infinity;
+        let best=null, bestMs=-Infinity;
+        for (const j of candidates) {
+            const jMs=j.earliestDate?new Date(j.earliestDate).getTime():-Infinity;
+            if (jMs<=evMs&&jMs>bestMs){bestMs=jMs;best=j;}
+        }
+        return best||candidates[0];
+    }
+    journeys.forEach(j=>{j.shelfData=[];j.allocData=null;j.allocFull=null;j.oplData=[];});
+    const varietyIndex={};
+    for (const j of journeys){const v=(j.variety||'').toLowerCase();if(!varietyIndex[v])varietyIndex[v]=[];varietyIndex[v].push(j);}
+    for (const row of shelfData){const v=(row.variety||'').toLowerCase();const j=matchJourney(row.date_added?.split(' ')[0]||'',v,varietyIndex[v]||[]);if(j)j.shelfData.push(row);}
+
+    // OPL matching: buckets are reused across trips.
+    // Only assign an OPL row to a journey whose harvest started ON OR BEFORE the OPL date.
+    // Among eligible journeys pick the one with the latest start date (closest preceding journey).
+    for (const row of oplData) {
+        const v = (row.item_code||'').toLowerCase();
+        const candidates = (varietyIndex[v]||[]);
+        if (!candidates.length) continue;
+        const oplMs = row.opl_date ? new Date(row.opl_date).getTime() : Infinity;
+        const eligible = candidates.filter(j => {
+            const jMs = j.earliestDate ? new Date(j.earliestDate).getTime() : 0;
+            return jMs <= oplMs;
+        });
+        if (!eligible.length) continue;
+        const best = eligible.reduce((a,b) =>
+            new Date(a.earliestDate).getTime() > new Date(b.earliestDate).getTime() ? a : b
+        );
+        best.oplData.push(row);
+    }
+
+    if (allocData){const v=(allocData.item_code||'').toLowerCase();const j=matchJourney(allocData.harvest_date||'',v,varietyIndex[v]||[]);if(j){j.allocData=allocData;j.allocFull=allocFull;}}
+
+    G.allJourneys = journeys;
+    const allDates=[...harvestSEs,...gradingSEs,...receiveSEs].map(s=>s.posting_date).filter(Boolean).sort();
+    q('bucketSummary').style.display='';
+    q('summaryId').textContent=id.toUpperCase();
+    q('summaryJourneys').textContent=journeys.length;
+    q('summaryFirst').textContent=fmtDate(allDates[0]||'');
+    q('summaryLatest').textContent=fmtDate(allDates[allDates.length-1]||'');
+    const lj=journeys[journeys.length-1];
+    const st=journeyStatus(lj);
+    const statusEl=q('summaryStatus');
+    statusEl.textContent=st.label; statusEl.className='label '+st.labelCls;
+    q('correctBtn').style.display='';
+    q('filterBar').style.display='';
+    renderJourneyTabs(journeys,5);
+    setState('results');
+}
+
+function journeyStartDate(j) {
+    return j.harvestSEs[0]?.posting_date||j.gradingSEs[0]?.posting_date||j.receivingSEs[0]?.posting_date||'';
+}
+function renderJourneyTabs(all, limit) {
+    const shown=limit>0?all.slice(-limit):all;
+    G.shownJourneys=shown;
+    const el=q('filterShowing');
+    if(el)el.textContent=`Showing ${shown.length} of ${all.length} journey${all.length!==1?'s':''}`;
+    q('journeyTabs').style.display=shown.length?'':'none';
+    q('journeyTabs').innerHTML=shown.map(j=>`
+        <div class="nav-tab" id="tab-${j.number}" onclick="selectJourney(${j.number})">
+            Journey ${j.number}
+            <span class="tab-sub">${j.variety||'Unknown'} &middot; ${fmtDate(journeyStartDate(j))}</span>
+        </div>`).join('');
+    if(shown.length){
+        const latest=shown[shown.length-1];
+        q('tab-'+latest.number)?.classList.add('active');
+        renderJourney(latest);
+    } else {
+        q('journeyPanel').innerHTML='<div class="panel"><div class="panel-body empty-state"><p>No journeys match the selected filter.</p></div></div>';
+    }
+}
+function selectJourney(num) {
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    q('tab-'+num)?.classList.add('active');
+    const j=(G.allJourneys||[]).find(j=>j.number===num);
+    if(j) renderJourney(j);
+}
+function applyDateFilter() {
+    if (!G.allJourneys) return;
+    const from=q('filterFrom')?.value||'', to=q('filterTo')?.value||'';
+    const limit=parseInt(q('filterLimit')?.value)||0;
+    const filtered=G.allJourneys.filter(j=>{
+        const d=journeyStartDate(j); if(!d) return true;
+        if(from&&d<from) return false;
+        if(to&&d>to) return false;
+        return true;
+    });
+    renderJourneyTabs(filtered,(from||to)?0:limit);
+}
+function resetFilter() {
+    if(q('filterFrom'))q('filterFrom').value='';
+    if(q('filterTo'))q('filterTo').value='';
+    if(q('filterLimit'))q('filterLimit').value='5';
+    if(G.allJourneys)renderJourneyTabs(G.allJourneys,5);
+}
+
+function journeyStatus(j) {
+    const onShelf=j.shelfData?.length>0, onOPL=j.oplData?.length>0;
+    const issued=onOPL&&j.oplData.some(r=>r.custom_issued==1);
+    if (issued) return {label:'Issued',labelCls:'label-success',cls:'sw-issued'};
+    if (onOPL&&!issued) return {label:'Pending Issue',labelCls:'label-warning',cls:'sw-pending'};
+    if (onShelf) return {label:'On Shelf',labelCls:'label-primary',cls:'sw-onshelf'};
+    if (j.receivingSEs?.length) return {label:'Received',labelCls:'label-info',cls:'sw-recv'};
+    if (j.gradingSEs?.length) return {label:'Graded',labelCls:'label-info',cls:'sw-graded'};
+    return {label:'Harvested',labelCls:'label-success',cls:'sw-hvst'};
+}
+
+const STAGES_SPRAY    = [{key:'Harvest',lbl:'Harvest'},{key:'Grading',lbl:'Grading'},{key:'Receiving',lbl:'Receiving'},{key:'Shelving',lbl:'Shelving'},{key:'Allocation',lbl:'Allocation'},{key:'Issue',lbl:'Issue'}];
+const STAGES_STANDARD = [{key:'Harvest',lbl:'Harvest'},{key:'Receiving',lbl:'Receiving'},{key:'Shelving',lbl:'Shelving'},{key:'Grading',lbl:'Grading'},{key:'Allocation',lbl:'Allocation'},{key:'Issue',lbl:'Issue'}];
+
+function renderJourney(j) {
+    currentJourneyForCorrection = j;
+    const { harvestSEs, gradingSEs, receivingSEs, shelfData, allocData, allocFull, oplData, flowerType } = j;
+    const onShelf=shelfData?.length>0, shelfRow=shelfData?.[0]||null, shelfId=shelfRow?.shelf_name||allocData?.shelf_location||'';
+    const onOPL=oplData?.length>0, issued=onOPL&&oplData.some(r=>r.custom_issued==1);
+    const hasAllocs=allocFull?.bucket_allocations?.length>0;
+    const st=journeyStatus(j);
+    const wasOnShelf=onShelf||issued;
+    const startDate=journeyStartDate(j);
+    const allEvtDates=[...harvestSEs,...gradingSEs,...receivingSEs,...(shelfData||[]),...(oplData||[])]
+        .map(e=>e?.posting_date||e?.date_added?.split(' ')[0]||e?.creation?.split(' ')[0]||'').filter(Boolean).sort();
+    const endDate=allEvtDates[allEvtDates.length-1]||'';
+    const done={Harvest:harvestSEs.length>0,Grading:gradingSEs.length>0,Receiving:receivingSEs.length>0,Shelving:wasOnShelf,Allocation:hasAllocs,Issue:issued};
+
+    function stageMeta(key) {
+        switch(key){
+            case 'Harvest':   return {stems:sumStems(harvestSEs),stemLength:stemLengthOf(harvestSEs)};
+            case 'Grading':   return {stems:sumStems(gradingSEs),stemLength:stemLengthOf(gradingSEs)};
+            case 'Receiving': return {stems:sumStems(receivingSEs),stemLength:stemLengthOf(receivingSEs)};
+            case 'Shelving':  return {stems:shelfRow?.stem_qty?parseFloat(shelfRow.stem_qty):null,stemLength:shelfRow?.stem_length||stemLengthOf(receivingSEs)};
+            case 'Allocation':return {stems:allocData?.allocated_quantity?parseFloat(allocData.allocated_quantity):null,stemLength:allocData?.stem_length||null};
+            case 'Issue':     {const ir=oplData.find(r=>r.custom_issued==1)||oplData[0];return {stems:ir?.stock_qty?parseFloat(ir.stock_qty):null,stemLength:null};}
+        }
+        return {stems:null,stemLength:null};
+    }
+    function stageDetail(key) {
+        switch(key){
+            case 'Harvest':   return harvestSEs[0]?(harvestSEs[0].custom_greenhouse||harvestSEs[0].custom_farm||'').split(' - ')[0]:'';
+            case 'Grading':   return gradingSEs[0]?(gradingSEs[0].custom_bunch_id?gradingSEs[0].custom_bunch_id:''):'';
+            case 'Receiving': return receivingSEs[0]?`${receivingSEs[0].stock_entry_type==='Late Receipt'?'Late \u00b7 ':''}${(receivingSEs[0].to_warehouse||'').split(' - ')[0]}`:'';
+            case 'Shelving':  return shelfId||(issued?'Removed (issued)':'');
+            case 'Allocation':return hasAllocs?`${allocData.allocated_quantity} / ${allocData.total_quantity} stems`:'';
+            case 'Issue':     return issued?(oplData.find(r=>r.custom_issued==1)?.parent||oplData[0]?.parent||''):onOPL?'On OPL — not issued':'';
+        }
+        return '';
+    }
+    function stageDate(key) {
+        switch(key){
+            case 'Harvest':   return harvestSEs[0]?.posting_date||'';
+            case 'Grading':   return gradingSEs[0]?.posting_date||'';
+            case 'Receiving': return receivingSEs[0]?.posting_date||'';
+            case 'Shelving':  return shelfRow?.date_added?.split(' ')[0]||'';
+            case 'Allocation':return allocFull?.modified?.split(' ')[0]||'';
+            case 'Issue':     return oplData?.[0]?.creation?.split(' ')[0]||'';
+        }
+        return '';
+    }
+
+    const stages=flowerType==='standard'?STAGES_STANDARD:STAGES_SPRAY;
+    const batchNo=gradingSEs[0]?.custom_harvest_batch_no||receivingSEs[0]?.custom_harvest_batch_no||harvestSEs[0]?.custom_harvest_batch_no||'--';
+    let statusMsg=
+        issued?`Issued — OPL <strong>${oplData.find(r=>r.custom_issued==1)?.parent||oplData[0]?.parent||''}</strong>`:
+        onOPL&&!issued?`On OPL <strong>${oplData[0]?.parent||''}</strong> — awaiting issue`:
+        onShelf?`Currently on shelf <strong>${shelfId}</strong>`:
+        done.Receiving?`Received into <strong>${(receivingSEs[0]?.to_warehouse||'').split(' - ')[0]}</strong>`:
+        done.Grading?(flowerType==='spray'?'Graded — awaiting receiving':'Graded — awaiting allocation'):
+        done.Harvest?'Harvested — awaiting next stage':'No stage data';
+
+    let html=`<div class="panel">
+        <div class="panel-heading">
+            <div class="panel-heading-inner">
+                <div>
+                    <div class="panel-title">Journey ${j.number} &nbsp;&middot;&nbsp; ${j.variety||'Unknown Variety'} ${j.isLatest?'<span class="label label-success" style="vertical-align:middle;margin-left:6px">Latest</span>':''}</div>
+                    <div class="panel-sub">${j.farm||''}${j.isLatest?' &middot; Most Recent':''}<br><span style="font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-muted)">${batchNo.length>52?batchNo.slice(0,52)+'...':batchNo}</span></div>
+                </div>
+                <div style="text-align:right;font-size:12px;color:var(--text-secondary);flex-shrink:0">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;color:var(--text-muted)">Started</div>
+                    <div style="font-weight:600;color:var(--text-primary)">${fmtDate(startDate)||'--'}</div>
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;font-weight:600;color:var(--text-muted)">Last Event</div>
+                    <div style="font-weight:600;color:var(--text-primary)">${fmtDate(endDate)||'--'}</div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="status-well ${st.cls}"><strong>${st.label}</strong> — <span>${statusMsg}</span></div>
+            <div class="section-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Journey Path</div>
+            <div class="journey-path">
+                ${stages.map(s=>{
+                    const isDone=done[s.key], det=stageDetail(s.key), dt=stageDate(s.key);
+                    const meta=isDone?stageMeta(s.key):{stems:null,stemLength:null};
+                    return `<div class="path-stage ${isDone?'ps-done':'ps-pending'}">
+                        <div class="ps-lbl">${s.lbl}</div>
+                        <div class="ps-stat ${isDone?'ps-done-t':'ps-pend-t'}">${isDone?'Done':'--'}</div>
+                        ${meta.stems?`<div class="ps-det">${fmtStems(meta.stems)}</div>`:''}
+                        ${meta.stemLength?`<div class="ps-det">${meta.stemLength}</div>`:''}
+                        ${det?`<div class="ps-det" style="opacity:.7">${det}</div>`:''}
+                        ${dt?`<div class="ps-date">${fmtDate(dt)}</div>`:''}
+                    </div>`;
+                }).join('')}
+            </div>`;
+
+    if (harvestSEs.length) { const h=harvestSEs[0]; html+=secLbl('Harvest')+`<div class="detail-grid">${dc('Farm',h.custom_farm)}${dc('Greenhouse',(h.custom_greenhouse||'').split(' - ')[0])}${dc('Stem Length',h.custom_stem_length)}${dc('Harvester',h.custom_harvester_payroll_number||h.custom_harvester)}${dc('Date',h.posting_date)}${dc('To Warehouse',(h.to_warehouse||'').split(' - ')[0])}${dc('Batch No',h.custom_harvest_batch_no,true)}${dc('Stock Entry',h.name)}</div>`; }
+    if (gradingSEs.length) { const g=gradingSEs[0]; html+=secLbl(`Grading (${gradingSEs.length} SE${gradingSEs.length>1?'s':''})`)+`<div class="detail-grid">${dc('Variety',j.variety)}${dc('Graded By',g.custom_graded_by)}${dc('Payroll No',g.custom_grader_payroll_number)}${dc('Stem Length',g.custom_stem_length)}${dc('Bunch ID',g.custom_bunch_id)}${dc('Bunched By',g.custom_bunched_by)}${dc('Packing Scanned',g.custom_scanned_packing?'Yes':'No')}${dc('Date',g.posting_date)}${dc('Stock Entry',g.name)}</div>`; }
+    if (receivingSEs.length){ const r=receivingSEs[0]; const late=r.stock_entry_type==='Late Receipt'?' (Late Receipt)':''; html+=secLbl('Receiving'+late)+`<div class="detail-grid">${dc('Type',r.stock_entry_type)}${dc('From',(r.from_warehouse||'').split(' - ')[0])}${dc('To',(r.to_warehouse||'').split(' - ')[0])}${dc('Stem Length',r.custom_stem_length)}${dc('Farm',r.custom_farm)}${dc('Date',r.posting_date)}${dc('Bucket Field',r.custom_received_bucket_id||'--')}${dc('Stock Entry',r.name)}</div>`; }
+    if (wasOnShelf) { html+=secLbl('Shelving')+`<div class="detail-grid">${dc('Shelf',shelfRow?.shelf_name||(issued?'Removed on issue':'--'))}${dc('Farm',shelfRow?.shelf_farm||'--')}${dc('Variety',shelfRow?.variety||j.variety||'--')}${dc('Greenhouse',(shelfRow?.greenhouse||'').split(' - ')[0]||'--')}${dc('Stem Length',shelfRow?.stem_length||'--')}${dc('Stem Qty',shelfRow?.stem_qty||'--')}${dc('Date Added',(shelfRow?.date_added||'').split(' ')[0]||'--')}${dc('Status',issued?'Removed (issued)':onShelf?'On shelf now':'--')}</div>`; }
+    if (allocData) { html+=secLbl('Allocation')+`<div class="detail-grid">${dc('Variety',allocData.item_code)}${dc('Total Stems',allocData.total_quantity)}${dc('Allocated',allocData.allocated_quantity)}${dc('Available',allocData.available_quantity)}${dc('Shelf',allocData.shelf_location)}${dc('Farm',allocData.shelf_farm)}</div>`; }
+
+    if (hasAllocs) {
+        const total=allocData.total_quantity||0;
+        html+=secLbl(`Sales Orders (${allocFull.bucket_allocations.length})`)+`<div class="cards-grid">${allocFull.bucket_allocations.map(a=>{
+            const pct=total>0?Math.round((a.quantity_allocated/total)*100):0;
+            return `<div class="data-card ${a.cancelled?'dc-void':''}" onclick="openDoc('Sales Order','${a.sales_order}')">
+                <div class="dcard-header"><div class="dcard-title">${a.sales_order}</div><span class="label ${a.cancelled?'label-danger':'label-success'}">${a.cancelled?'Cancelled':'Active'}</span></div>
+                <div class="dcard-body">${a.quantity_allocated} stems allocated</div>
+                <div class="pb-wrap"><div class="pb-lbl"><span>Share of bucket</span><span>${pct}%</span></div><div class="pb-track"><div class="pb-fill" style="width:${pct}%"></div></div></div>
+            </div>`;
+        }).join('')}</div>`;
+    }
+
+    if (onOPL) {
+        const uopls=[...new Map(oplData.map(r=>[r.parent,r])).values()];
+        html+=secLbl(`Order Pick Lists (${uopls.length})`)+`<div class="cards-grid">${uopls.map(row=>{
+            const rowIssued=row.custom_issued==1;
+            const pct=parseFloat(row.opl_issuing_pct)||(rowIssued?100:0);
+            const bCls=rowIssued?'label-success':pct>0?'label-warning':'label-default';
+            const bTxt=rowIssued?'Issued':pct>0?Math.round(pct)+'% Issued':'Pending';
+            return `<div class="data-card" onclick="openDoc('Order Pick List','${row.parent}')">
+                <div class="dcard-header"><div class="dcard-title">${row.opl_order_name||row.parent}</div><span class="label ${bCls}">${bTxt}</span></div>
+                <div class="dcard-body"><strong>${row.opl_customer||'--'}</strong>${row.opl_consignee?' &middot; '+row.opl_consignee:''}<br>SO: ${row.opl_sales_order||row.sales_order||'--'} &middot; Team: ${row.opl_team||'--'}</div>
+                <div class="dcard-stats">
+                    <div class="ds"><div class="ds-l">Shelf</div><div class="ds-v">${row.custom_shelf||'--'}</div></div>
+                    <div class="ds"><div class="ds-l">Stems</div><div class="ds-v">${row.stock_qty||'--'}</div></div>
+                    <div class="ds"><div class="ds-l">Box</div><div class="ds-v">${row.custom_box_id||'--'}</div></div>
+                    <div class="ds"><div class="ds-l">Issued</div><div class="ds-v">${rowIssued?'Yes':'No'}</div></div>
+                </div>
+            </div>`;
+        }).join('')}</div>`;
+    }
+
+    html+='</div></div>';
+    q('journeyPanel').innerHTML=html;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BUNCH TRACKING
+═══════════════════════════════════════════════════════ */
+async function trackBunch() {
+    const bunchId = q('trackInput').value.trim();
+    if (!bunchId) { showError('Please enter a Bunch ID.'); return; }
+    clearError();
+    setState('loading');
+    q('loadingMsg').textContent = 'Tracing bunch journey...';
+    q('searchBtn').disabled = true;
+
+    try {
+        // ── 1. Grading SE for this bunch ──
+        const gradingSEs = await flP('Stock Entry',
+            [['custom_bunch_id','=',bunchId],['stock_entry_type','=','Grading']],
+            ['name','posting_date','posting_time','creation','custom_farm','custom_graded_by',
+             'custom_grader_payroll_number','custom_bunch_id','custom_stem_length',
+             'custom_harvest_batch_no','custom_bunched_by','custom_scanned_grading',
+             'custom_scanned_packing','custom_opl_scanned','to_warehouse','from_warehouse','docstatus'],
+            100,'posting_date asc, posting_time asc');
+
+        // ── 2. Harvest SE linked via batch no (for spray roses: bucket info) ──
+        const batchNos = [...new Set(gradingSEs.map(se=>se.custom_harvest_batch_no).filter(Boolean))];
+        let harvestSEs = [];
+        if (batchNos.length) {
+            harvestSEs = await flP('Stock Entry',
+                [['custom_harvest_batch_no','in',batchNos],['stock_entry_type','=','Harvesting']],
+                ['name','posting_date','custom_bucket_id','custom_farm','custom_greenhouse',
+                 'custom_stem_length','custom_harvest_batch_no','custom_harvester','to_warehouse'],
+                200,'posting_date asc');
+        }
+
+        // ── 3. Receiving SE(s) linked via batch no ──
+        let receivingSEs = [];
+        if (batchNos.length) {
+            receivingSEs = await flP('Stock Entry',
+                [['custom_harvest_batch_no','in',batchNos],['stock_entry_type','in',['Receiving','Late Receipt']]],
+                ['name','posting_date','stock_entry_type','custom_farm','custom_stem_length',
+                 'custom_harvest_batch_no','custom_received_bucket_id','to_warehouse','from_warehouse'],
+                200,'posting_date asc');
+        }
+
+        // ── 4. Shelf records for the bucket(s) referenced in harvest SEs ──
+        const bucketIds = [...new Set(harvestSEs.map(se=>se.custom_bucket_id).filter(Boolean))];
+        let shelfItems = [];
+        for (const bucketId of bucketIds) {
+            const shelves = await flP('Shelf',[['Shelf Item','bucket_id','=',bucketId]],['name','farm'],10);
+            for (const shelf of shelves) {
+                const doc = await fgP('Shelf', shelf.name);
+                if (!doc) continue;
+                (doc.items||[]).filter(i=>(i.bucket_id||'').toLowerCase()===bucketId.toLowerCase())
+                    .forEach(i=>shelfItems.push({...i,shelf_name:doc.name,shelf_farm:doc.farm,bucket_id:bucketId}));
+            }
+        }
+
+        // ── 5. OPL lookup ──
+        // PRIMARY: grading SE stores custom_opl_scanned = the exact OPL name for this bunch.
+        // This is set when the packing scan happens in the field.
+        // FALLBACK: if not set, look up via bucket ID but filter by creation >= grading date.
+        const gradingSE = gradingSEs[0];
+        let oplRows = [];
+        const gradingCreation = gradingSE?.creation || gradingSE?.posting_date || null;
+
+        // Collect OPL names to fetch: prefer custom_opl_scanned, else bucket-based lookup
+        const directOplNames = [...new Set(
+            gradingSEs.map(se => se.custom_opl_scanned).filter(Boolean)
+        )];
+
+        let oplNamesToFetch = [];
+
+        if (directOplNames.length) {
+            // Direct link — most reliable, use only these
+            oplNamesToFetch = directOplNames;
+        } else if (bucketIds.length) {
+            // Fallback: find OPLs via bucket, then filter by creation date
+            const oplParents = await flP('Order Pick List',
+                [['Pick List Item','custom_bucket','in',bucketIds]], ['name','creation'], 50);
+            if (oplParents.length && gradingCreation) {
+                const gradingMs = new Date(gradingCreation).getTime();
+                oplNamesToFetch = oplParents
+                    .filter(o => new Date(o.creation || 0).getTime() >= gradingMs)
+                    .map(o => o.name);
+            } else {
+                oplNamesToFetch = oplParents.map(o => o.name);
+            }
+        }
+
+        if (oplNamesToFetch.length) {
+            const docs = await Promise.all(oplNamesToFetch.map(n => fgP('Order Pick List', n)));
+            for (const doc of docs) {
+                if (!doc) continue;
+                // For direct OPL, include all rows for this bunch's bucket IDs
+                // For fallback, also guard by creation date
+                const docCreationMs = new Date(doc.creation || 0).getTime();
+                const gradingMs = gradingCreation ? new Date(gradingCreation).getTime() : 0;
+                if (!directOplNames.length && docCreationMs < gradingMs) continue;
+
+                (doc.locations || [])
+                    .filter(r => !bucketIds.length || bucketIds.map(b=>b.toLowerCase()).includes((r.custom_bucket||'').toLowerCase()))
+                    .forEach(r => oplRows.push({
+                        ...r, parent: doc.name, opl_customer: doc.customer,
+                        opl_order_name: doc.custom_order_name, opl_team: doc.custom_team,
+                        opl_status: doc.custom_status, opl_date: doc.date_created,
+                        opl_modified: doc.modified, opl_creation: doc.creation,
+                        opl_sales_order: doc.sales_order, opl_consignee: doc.custom_consignee,
+                    }));
+            }
+        }
+
+        // ── 6. Farm Pack List entries for this bunch ──
+        // Strategy: fetch Farm Pack List docs linked to the OPL(s) we already found,
+        // then also try any linked to the grading SE's batch/farm, and filter child rows client-side.
+        // We avoid a child-table doctype filter because the child DocType name may differ per install.
+        let packRows = [];
+        try {
+            // Collect candidate Farm Pack List names via OPL linkage
+            const oplNames = [...new Set(oplRows.map(r=>r.parent).filter(Boolean))];
+            const gradingSE = gradingSEs[0];
+            const packListFilters = [];
+
+            // Try by OPL
+            if (oplNames.length) {
+                const byOpl = await flP('Farm Pack List',
+                    [['custom_order_pick_list','in',oplNames]],
+                    ['name','custom_farm','custom_sales_order','custom_customer','custom_order_pick_list'],50);
+                packListFilters.push(...byOpl);
+            }
+
+            // Also try by farm + sales order (if we can derive it)
+            const soNames = [...new Set(oplRows.map(r=>r.opl_sales_order||r.sales_order).filter(Boolean))];
+            if (soNames.length) {
+                const bySO = await flP('Farm Pack List',
+                    [['custom_sales_order','in',soNames]],
+                    ['name','custom_farm','custom_sales_order','custom_customer','custom_order_pick_list'],50);
+                packListFilters.push(...bySO);
+            }
+
+            // Deduplicate
+            const seen = new Set();
+            const uniquePLs = packListFilters.filter(pl => { if (seen.has(pl.name)) return false; seen.add(pl.name); return true; });
+
+            // Fetch full docs and scan child rows for matching bunch_id
+            for (const pl of uniquePLs) {
+                const doc = await fgP('Farm Pack List', pl.name);
+                if (!doc) continue;
+                const childRows = doc.pack_list_item || doc.items || [];
+                childRows
+                    .filter(r => (r.bunch_id || '') === bunchId || (r.bunch_id || '').toLowerCase() === bunchId.toLowerCase())
+                    .forEach(r => packRows.push({
+                        ...r, pack_list_name: doc.name, pack_farm: doc.custom_farm,
+                        pack_sales_order: doc.custom_sales_order, pack_customer: doc.custom_customer,
+                        pack_opl: doc.custom_order_pick_list,
+                    }));
+            }
+        } catch (packErr) {
+            console.warn('Pack list lookup failed (non-fatal):', packErr);
+        }
+
+        const hasData = gradingSEs.length||harvestSEs.length||receivingSEs.length
+                     ||shelfItems.length||oplRows.length||packRows.length;
+
+        if (!hasData) {
+            q('emptyMsg').textContent = 'No records found for this Bunch ID.';
+            setState('empty'); return;
+        }
+
+        // ── Bunch QR Code doc for extra metadata (optional - may not exist) ──
+        let bunchQR = null;
+        try {
+            const qrList = await flP('Bunch QR Code',[['name','=',bunchId]],['name','farm','item_code','stem_length','bunch_size'],1);
+            if (qrList.length) bunchQR = await fgP('Bunch QR Code', bunchId);
+        } catch (e) { console.warn('Bunch QR Code lookup skipped:', e); }
+
+        G.bunch = { bunchId, gradingSEs, harvestSEs, receivingSEs, shelfItems, oplRows, packRows, bunchQR };
+        renderBunchJourney();
+
+    } catch (err) {
+        console.error('trackBunch error:', err);
+        const msg = err && err.message ? err.message : String(err);
+        showError('Error loading bunch data — ' + (msg.includes('not found') || msg.includes('Not found') ? msg : 'check console for details.'));
+        setState('hint');
+    } finally { q('searchBtn').disabled = false; }
+}
+
+function renderBunchJourney() {
+    const { bunchId, gradingSEs, harvestSEs, receivingSEs, shelfItems, oplRows, packRows, bunchQR } = G.bunch;
+    const se = gradingSEs[0];
+    const harvest = harvestSEs[0];
+    const recv = receivingSEs[0];
+    const shelf = shelfItems[0];
+    const opl = oplRows[0];
+    const pack = packRows[0];
+
+    // Determine status
+    const isPacked = packRows.length > 0;
+    const isOnOPL  = oplRows.length > 0;
+    const isOnShelf= shelfItems.length > 0;
+    const isRecv   = receivingSEs.length > 0;
+    const isGraded = gradingSEs.length > 0;
+    const isHarvested = harvestSEs.length > 0;
+    const isIssued = isOnOPL && oplRows.some(r=>r.custom_issued==1);
+
+    let statusLabel, statusCls, statusLabelCls;
+    // Order: OPL → Issue → Packing  (issue happens on OPL screen, packing on farm after)
+    if (isPacked)                { statusLabel='Packed';   statusCls='sw-packed';  statusLabelCls='label-success'; }
+    else if (isIssued)           { statusLabel='Issued';   statusCls='sw-issued';  statusLabelCls='label-success'; }
+    else if (isOnOPL)            { statusLabel='On OPL';   statusCls='sw-pending'; statusLabelCls='label-warning'; }
+    else if (isOnShelf)          { statusLabel='On Shelf'; statusCls='sw-onshelf'; statusLabelCls='label-primary'; }
+    else if (isRecv)             { statusLabel='Received'; statusCls='sw-recv';    statusLabelCls='label-info'; }
+    else if (isGraded)           { statusLabel='Graded';   statusCls='sw-graded';  statusLabelCls='label-info'; }
+    else                         { statusLabel='In Field'; statusCls='sw-infield'; statusLabelCls='label-warning'; }
+
+    const variety = se?.custom_stem_length ? '' : '';
+    const actualVariety = bunchQR?.item_code || (harvest?.name ? (gradingSEs[0]?.from_warehouse||'') : '') || '--';
+    const farm = se?.custom_farm || harvest?.custom_farm || bunchQR?.farm || '--';
+    const stemLength = se?.custom_stem_length || bunchQR?.stem_length || '--';
+    const gradingDate = se?.posting_date || '--';
+
+    // Summary well
+    q('bunchSummary').style.display = '';
+    q('bunchSummaryId').textContent = bunchId.toUpperCase();
+    q('bunchSumVariety').textContent = bunchQR?.item_code || actualVariety;
+    q('bunchSumFarm').textContent = farm;
+    q('bunchSumDate').textContent = fmtDate(gradingDate);
+    q('bunchSumLength').textContent = stemLength;
+    const bStatusEl = q('bunchSummaryStatus');
+    bStatusEl.textContent = statusLabel; bStatusEl.className = 'label '+statusLabelCls;
+
+    // Bunch stages: Greenhouse → Grading → Receiving → Shelf → OPL → Issue → Packing
+    const bunchStages = [
+        { key:'Greenhouse', lbl:'Greenhouse', done:isHarvested||isGraded },
+        { key:'Grading',    lbl:'Grading',    done:isGraded },
+        { key:'Receiving',  lbl:'Receiving',  done:isRecv },
+        { key:'Shelf',      lbl:'Shelf',      done:isOnShelf },
+        { key:'OPL',        lbl:'Pick List',  done:isOnOPL },
+        { key:'Issue',      lbl:'Issue',      done:isIssued },
+        { key:'Packing',    lbl:'Packing',    done:isPacked },
+    ];
+    function bunchStageDetail(key) {
+        switch(key){
+            case 'Greenhouse': return harvest?(harvest.custom_greenhouse||harvest.custom_farm||'').split(' - ')[0]:(bunchQR?.farm||'');
+            case 'Grading':   return se?`${se.custom_graded_by||''}${se.custom_bunch_id?' · Bunch '+se.custom_bunch_id:''}`:'';
+            case 'Receiving': return recv?(recv.stock_entry_type==='Late Receipt'?'Late · ':'')+(recv.to_warehouse||'').split(' - ')[0]:'';
+            case 'Shelf':     return shelf?shelf.shelf_name:'';
+            case 'OPL':       return opl?opl.parent:'';
+            case 'Packing':   return pack?`Pack List ${pack.pack_list_name}`:'';
+            case 'Issue':     { const ir=oplRows.find(r=>r.custom_issued==1)||opl; return ir?ir.opl_order_name||ir.parent:''; }
+        }
+        return '';
+    }
+    function bunchStageDate(key) {
+        switch(key){
+            case 'Greenhouse': return harvest?.posting_date||'';
+            case 'Grading':    return se?.posting_date||'';
+            case 'Receiving':  return recv?.posting_date||'';
+            case 'Shelf':      return shelf?.date_added?.split(' ')[0]||'';
+            case 'OPL':        return opl?.opl_date?.split(' ')[0]||'';
+            case 'Issue':      { const ir=oplRows.find(r=>r.custom_issued==1); return ir?.opl_modified?.split(' ')[0]||ir?.opl_date?.split(' ')[0]||''; }
+            case 'Packing':    return pack?.creation?.split(' ')[0]||pack?.modified?.split(' ')[0]||''
+        }
+        return '';
+    }
+    function bunchStageStemLength(key) {
+        switch(key){
+            case 'Grading':   return se?.custom_stem_length||bunchQR?.stem_length||'';
+            case 'Receiving': return recv?.custom_stem_length||'';
+            case 'Shelf':     return shelf?.stem_length||'';
+            case 'OPL':       return opl?.custom_stem_length||'';
+        }
+        return '';
+    }
+
+    let statusMsg =
+        isPacked            ? `Packed — box <strong>${pack?.box_id||'--'}</strong> on OPL <strong>${opl?.opl_order_name||opl?.parent||''}</strong>` :
+        isIssued            ? `Issued on OPL <strong>${opl?.opl_order_name||opl?.parent||''}</strong> — awaiting packing` :
+        isOnOPL             ? `On OPL <strong>${opl?.parent||''}</strong> — awaiting issue` :
+        isOnShelf           ? `On shelf <strong>${shelf?.shelf_name||''}</strong>` :
+        isRecv              ? `Received — in <strong>${(recv?.to_warehouse||'').split(' - ')[0]}</strong>` :
+        isGraded            ? 'Graded — awaiting receiving' :
+        'In the field — not yet graded';
+
+    let html = `<div class="panel">
+        <div class="panel-heading">
+            <div class="panel-heading-inner">
+                <div>
+                    <div class="panel-title">Bunch Journey &nbsp;&middot;&nbsp; ${bunchId}</div>
+                    <div class="panel-sub">
+                        ${farm !== '--' ? farm+' &middot; ' : ''}${bunchQR?.item_code||''}
+                        ${stemLength !== '--' ? ' &middot; '+stemLength : ''}
+                        ${se?.custom_bunched_by ? ' &middot; Bunched: '+se.custom_bunched_by : ''}
+                    </div>
+                </div>
+                <div style="text-align:right;font-size:12px;color:var(--text-secondary);flex-shrink:0">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;color:var(--text-muted)">Graded</div>
+                    <div style="font-weight:600;color:var(--text-primary)">${fmtDate(gradingDate)}</div>
+                    ${isPacked ? `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;font-weight:600;color:var(--text-muted)">Packed</div>
+                    <div style="font-weight:600;color:var(--text-primary)">${fmtDate(bunchStageDate('Packing'))}</div>` : ''}
+                </div>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="status-well ${statusCls}"><strong>${statusLabel}</strong> — <span>${statusMsg}</span></div>
+
+            <div class="section-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Bunch Journey Path</div>
+            <div class="journey-path journey-path-7">
+                ${bunchStages.map(s=>{
+                    const det=bunchStageDetail(s.key), dt=bunchStageDate(s.key), sl=bunchStageStemLength(s.key);
+                    return `<div class="path-stage ${s.done?'ps-done':'ps-pending'}">
+                        <div class="ps-lbl">${s.lbl}</div>
+                        <div class="ps-stat ${s.done?'ps-done-t':'ps-pend-t'}">${s.done?'Done':'--'}</div>
+                        ${sl?`<div class="ps-det">${sl}</div>`:''}
+                        ${det?`<div class="ps-det" style="opacity:.7">${det}</div>`:''}
+                        ${dt?`<div class="ps-date">${fmtDate(dt)}</div>`:''}
+                    </div>`;
+                }).join('')}
+            </div>
+
+            <div class="section-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Detailed Timeline</div>
+
+            <div class="bunch-chain">`;
+
+    /* ── Chain: Greenhouse / Harvest ── */
+    if (isHarvested) {
+        html += chainStep('ci-harvest','H','Greenhouse / Harvest',
+            `<strong>Farm:</strong> ${harvest.custom_farm||'--'} &nbsp;&middot;&nbsp; <strong>Greenhouse:</strong> ${(harvest.custom_greenhouse||'').split(' - ')[0]||'--'}<br>
+             <strong>Bucket ID:</strong> ${harvest.custom_bucket_id||'--'} &nbsp;&middot;&nbsp; <strong>Harvester:</strong> ${harvest.custom_harvester||'--'}<br>
+             <strong>Batch:</strong> ${harvest.custom_harvest_batch_no||'--'}<br>
+             <strong>Date:</strong> ${fmtDate(harvest.posting_date)} &nbsp;&middot;&nbsp; <a href="#" onclick="openDoc('Stock Entry','${harvest.name}');return false" style="color:var(--accent-blue);text-decoration:none">${harvest.name}</a>`,
+             harvest.posting_date);
+    } else if (bunchQR) {
+        html += chainStep('ci-harvest','H','Bunch QR Code (Source)',
+            `<strong>Farm:</strong> ${bunchQR.farm||'--'} &nbsp;&middot;&nbsp; <strong>Variety:</strong> ${bunchQR.item_code||'--'}<br>
+             <strong>Stem Length:</strong> ${bunchQR.stem_length||'--'} &nbsp;&middot;&nbsp; <strong>Bunch Size:</strong> ${bunchQR.bunch_size||'--'}`,
+             null);
+    }
+
+    /* ── Chain: Grading ── */
+    for (const g of gradingSEs) {
+        html += chainStep('ci-grading','G','Grading Stock Entry',
+            `<strong>Graded By:</strong> ${g.custom_graded_by||'--'} (${g.custom_grader_payroll_number||'--'})<br>
+             <strong>Stem Length:</strong> ${g.custom_stem_length||'--'} &nbsp;&middot;&nbsp; <strong>Bunched By:</strong> ${g.custom_bunched_by||'--'}<br>
+             <strong>From:</strong> ${(g.from_warehouse||'--').split(' - ')[0]} &rarr; <strong>To:</strong> ${(g.to_warehouse||'--').split(' - ')[0]}<br>
+             <strong>Packing Scanned:</strong> ${g.custom_scanned_packing?'Yes':'No'} &nbsp;&middot;&nbsp; <strong>Batch:</strong> ${g.custom_harvest_batch_no||'--'}<br>
+             <strong>Date:</strong> ${fmtDate(g.posting_date)} &nbsp;&middot;&nbsp; <a href="#" onclick="openDoc('Stock Entry','${g.name}');return false" style="color:var(--accent-blue);text-decoration:none">${g.name}</a>`,
+             g.posting_date);
+    }
+
+    /* ── Chain: Receiving ── */
+    for (const r of receivingSEs) {
+        const late = r.stock_entry_type==='Late Receipt';
+        html += chainStep('ci-receiving','R',`Receiving${late?' (Late Receipt)':''}`,
+            `<strong>Bucket:</strong> ${r.custom_received_bucket_id||'--'}<br>
+             <strong>From:</strong> ${(r.from_warehouse||'--').split(' - ')[0]} &rarr; <strong>To:</strong> ${(r.to_warehouse||'--').split(' - ')[0]}<br>
+             <strong>Stem Length:</strong> ${r.custom_stem_length||'--'} &nbsp;&middot;&nbsp; <strong>Farm:</strong> ${r.custom_farm||'--'}<br>
+             <strong>Date:</strong> ${fmtDate(r.posting_date)} &nbsp;&middot;&nbsp; <a href="#" onclick="openDoc('Stock Entry','${r.name}');return false" style="color:var(--accent-blue);text-decoration:none">${r.name}</a>`,
+             r.posting_date);
+    }
+
+    /* ── Chain: Shelf ── */
+    for (const s of shelfItems) {
+        html += chainStep('ci-shelf','S','Shelved',
+            `<strong>Shelf:</strong> ${s.shelf_name||'--'} &nbsp;&middot;&nbsp; <strong>Farm:</strong> ${s.shelf_farm||'--'}<br>
+             <strong>Variety:</strong> ${s.variety||'--'} &nbsp;&middot;&nbsp; <strong>Stem Length:</strong> ${s.stem_length||'--'}<br>
+             <strong>Qty:</strong> ${s.stem_qty||'--'} stems &nbsp;&middot;&nbsp; <strong>Bucket:</strong> ${s.bucket_id||'--'}<br>
+             <strong>Date Added:</strong> ${fmtDateTime(s.date_added)||'--'}`,
+             s.date_added?.split(' ')[0]||null);
+    }
+
+    /* ── Chain: OPL rows ── */
+    const uniqueOPLs = [...new Map(oplRows.map(r=>[r.parent,r])).values()];
+    for (const o of uniqueOPLs) {
+        const rowIssued = o.custom_issued==1;
+        html += chainStep('ci-opl','P','Order Pick List',
+            `<strong>OPL:</strong> <a href="#" onclick="openDoc('Order Pick List','${o.parent}');return false" style="color:var(--accent-blue);text-decoration:none">${o.opl_order_name||o.parent}</a><br>
+             <strong>Customer:</strong> ${o.opl_customer||'--'}${o.opl_consignee?' &middot; '+o.opl_consignee:''}<br>
+             <strong>Sales Order:</strong> ${o.opl_sales_order||o.sales_order||'--'} &nbsp;&middot;&nbsp; <strong>Team:</strong> ${o.opl_team||'--'}<br>
+             <strong>Shelf:</strong> ${o.custom_shelf||'--'} &nbsp;&middot;&nbsp; <strong>Box ID:</strong> ${o.custom_box_id||'--'} &nbsp;&middot;&nbsp; <strong>Stems:</strong> ${o.stock_qty||'--'}<br>
+             <strong>Status:</strong> <span class="label ${rowIssued?'label-success':'label-warning'}" style="font-size:10px">${rowIssued?'Issued':'Pending'}</span>`,
+             o.opl_date?.split(' ')[0]||null);
+    }
+
+    /* ── Chain: Issue (OPL marked issued) ── */
+    const issuedRow = oplRows.find(r=>r.custom_issued==1);
+    if (issuedRow) {
+        const issueDate = issuedRow.opl_modified?.split(' ')[0]||issuedRow.opl_date?.split(' ')[0]||null;
+        html += chainStep('ci-issue','I','Issued',
+            `<strong>OPL:</strong> ${issuedRow.opl_order_name||issuedRow.parent}<br>
+             <strong>Customer:</strong> ${issuedRow.opl_customer||'--'}${issuedRow.opl_consignee?' &middot; '+issuedRow.opl_consignee:''}<br>
+             <strong>Sales Order:</strong> ${issuedRow.opl_sales_order||issuedRow.sales_order||'--'}`,
+             issueDate);
+    }
+
+    /* ── Chain: Packing (Farm Pack List — created after issue) ── */
+    const uniquePacks = [...new Map(packRows.map(r=>[r.pack_list_name,r])).values()];
+    for (const p of uniquePacks) {
+        html += chainStep('ci-pack','K','Packed into Box',
+            `<strong>Pack List:</strong> <a href="#" onclick="openDoc('Farm Pack List','${p.pack_list_name}');return false" style="color:var(--accent-blue);text-decoration:none">${p.pack_list_name}</a><br>
+             <strong>Box ID:</strong> ${p.box_id||'--'} &nbsp;&middot;&nbsp; <strong>Farm:</strong> ${p.pack_farm||'--'}<br>
+             <strong>Item:</strong> ${p.item_code||'--'} &nbsp;&middot;&nbsp; <strong>Stem Length:</strong> ${p.stem_length||'--'}<br>
+             <strong>Bunch UOM:</strong> ${p.bunch_uom||'--'} &nbsp;&middot;&nbsp; <strong>Bunch Qty:</strong> ${p.bunch_qty||'--'}<br>
+             <strong>Stems:</strong> ${p.custom_number_of_stems||'--'} &nbsp;&middot;&nbsp; <strong>Sales Order:</strong> ${p.pack_sales_order||'--'}`,
+             p.creation?.split(' ')[0]||null);
+    }
+
+    html += `</div>`; // close bunch-chain
+
+    /* ── Bucket cross-reference ── */
+    const linkedBuckets = [...new Set(harvestSEs.map(se=>se.custom_bucket_id).filter(Boolean))];
+    if (linkedBuckets.length) {
+        html += secLbl('Linked Buckets');
+        html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">`;
+        for (const bid of linkedBuckets) {
+            html += `<button class="btn btn-secondary btn-sm" onclick="trackLinkedBucket('${bid}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 6V4h12v2M8 6v14h8V6"/></svg>
+                Track Bucket ${bid}
+            </button>`;
+        }
+        html += `</div>`;
+    }
+
+    html += `</div></div>`; // close panel-body + panel
+    q('journeyPanel').innerHTML = html;
+    setState('results');
+}
+
+function chainStep(iconCls, iconLetter, title, metaHtml, dateStr) {
+    return `<div class="chain-step">
+        <div class="chain-icon ${iconCls}">${iconLetter}</div>
+        <div class="chain-content">
+            <div class="chain-title">
+                ${title}
+                ${dateStr ? `<span style="font-size:11px;font-weight:400;color:var(--text-muted);margin-left:auto">${fmtDate(dateStr)}</span>` : ''}
+            </div>
+            <div class="chain-meta">${metaHtml}</div>
+        </div>
+    </div>`;
+}
+
+function trackLinkedBucket(bucketId) {
+    setMode('bucket');
+    q('trackInput').value = bucketId;
+    trackBucket();
+}
+
+/* ═══════════════════════════════════════════════════════
+   CORRECTION MODAL  (bucket mode only)
+═══════════════════════════════════════════════════════ */
+function getActiveJourney() {
+    const activeTab = document.querySelector('.nav-tab.active');
+    if (!activeTab) return G.allJourneys?.[G.allJourneys.length-1]||null;
+    const num = parseInt(activeTab.id.replace('tab-',''));
+    return (G.allJourneys||[]).find(j=>j.number===num)||null;
+}
+
+function openCorrectionModal() {
+    const j = getActiveJourney();
+    if (!j) { showError('No journey selected.'); return; }
+    currentJourneyForCorrection = j;
+    q('correctStemLength').value = '';
+    q('correctVariety').value = '';
+    q('correctionLog').style.display = 'none';
+    q('correctionLog').innerHTML = '';
+    q('modalApplyBtn').disabled = false;
+    q('modalApplyBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Apply Corrections';
+    q('varietyDropdown').classList.remove('show');
+    const currentSL = stemLengthOf(j.harvestSEs)||stemLengthOf(j.gradingSEs)||stemLengthOf(j.receivingSEs)||j.shelfData?.[0]?.stem_length||j.allocData?.stem_length||'--';
+    const currentVar = j.variety||j.shelfData?.[0]?.variety||j.allocData?.item_code||'--';
+    q('currentStemLength').textContent = currentSL;
+    q('currentVariety').textContent = currentVar;
+    q('modalBucketId').textContent = G.id.toUpperCase();
+    q('modalJourneyLabel').textContent = `Journey ${j.number} · ${j.variety||'Unknown'} · ${fmtDate(journeyStartDate(j))}`;
+    buildAffectedDocsList(j);
+    q('correctionModal').classList.add('show');
+    q('correctStemLength').focus();
+}
+function closeCorrectionModal() {
+    q('correctionModal').classList.remove('show');
+    q('varietyDropdown').classList.remove('show');
+}
+function buildAffectedDocsList(j) {
+    const list = q('affectedDocsList');
+    let html = '';
+    const dotColor = t => ({Harvest:'var(--accent-green)',Grading:'var(--accent-purple)',Receiving:'var(--accent-blue)',Shelf:'var(--accent-orange)',Allocation:'var(--text-muted)'}[t]||'var(--text-muted)');
+    for (const se of j.harvestSEs)   html+=`<div class="affected-doc-row"><span class="adr-icon" style="background:${dotColor('Harvest')}"></span><span class="adr-type">Harvest</span><span class="adr-name">${se.name}</span><span class="adr-current">${se.custom_stem_length||'--'}</span></div>`;
+    for (const se of j.gradingSEs)   html+=`<div class="affected-doc-row"><span class="adr-icon" style="background:${dotColor('Grading')}"></span><span class="adr-type">Grading</span><span class="adr-name">${se.name}</span><span class="adr-current">${se.custom_stem_length||'--'}</span></div>`;
+    for (const se of j.receivingSEs) html+=`<div class="affected-doc-row"><span class="adr-icon" style="background:${dotColor('Receiving')}"></span><span class="adr-type">Receiving</span><span class="adr-name">${se.name}</span><span class="adr-current">${se.custom_stem_length||'--'}</span></div>`;
+    for (const row of (j.shelfData||[])) html+=`<div class="affected-doc-row"><span class="adr-icon" style="background:${dotColor('Shelf')}"></span><span class="adr-type">Shelf Item</span><span class="adr-name">${row.shelf_name}/${row.name}</span><span class="adr-current">${row.stem_length||'--'} · ${row.variety||'--'}</span></div>`;
+    if (j.allocData) html+=`<div class="affected-doc-row"><span class="adr-icon" style="background:${dotColor('Allocation')}"></span><span class="adr-type">Allocation</span><span class="adr-name">${j.allocData.name}</span><span class="adr-current">${j.allocData.stem_length||'--'} · ${j.allocData.item_code||'--'}</span></div>`;
+    if (!html) html='<div style="padding:10px;font-size:12px;color:var(--text-muted);text-align:center">No documents found for this journey.</div>';
+    list.innerHTML = html;
+}
+function onVarietyInput(val) {
+    clearTimeout(varietySearchTimeout);
+    if (!val||val.length<2){q('varietyDropdown').classList.remove('show');return;}
+    varietySearchTimeout=setTimeout(()=>searchVariety(val),250);
+}
+function searchVariety(query) {
+    frappe.call({
+        method:'frappe.client.get_list',
+        args:{doctype:'Item',filters:[['item_name','like','%'+query+'%']],fields:['name','item_name'],limit_page_length:15,order_by:'item_name asc'},
+        callback(r){
+            varietyResults=r.message||''; varietyHighlightIdx=-1;
+            const dd=q('varietyDropdown');
+            if(!varietyResults.length){dd.classList.remove('show');return;}
+            dd.innerHTML=varietyResults.map((item,i)=>`<div class="autocomplete-item" data-idx="${i}" onmousedown="selectVariety(${i})">${escHtml(item.item_name||item.name)}</div>`).join('');
+            dd.classList.add('show');
+            dd.style.width=q('correctVariety').offsetWidth+'px';
+        }
+    });
+}
+function onVarietyKeydown(e) {
+    const dd=q('varietyDropdown');
+    if(!dd.classList.contains('show'))return;
+    if(e.key==='ArrowDown'){e.preventDefault();varietyHighlightIdx=Math.min(varietyHighlightIdx+1,varietyResults.length-1);updateVarietyHighlight();}
+    else if(e.key==='ArrowUp'){e.preventDefault();varietyHighlightIdx=Math.max(varietyHighlightIdx-1,0);updateVarietyHighlight();}
+    else if(e.key==='Enter'){e.preventDefault();if(varietyHighlightIdx>=0)selectVariety(varietyHighlightIdx);else if(varietyResults.length)selectVariety(0);}
+    else if(e.key==='Escape')dd.classList.remove('show');
+}
+function updateVarietyHighlight() {
+    q('varietyDropdown').querySelectorAll('.autocomplete-item').forEach((el,i)=>el.classList.toggle('highlighted',i===varietyHighlightIdx));
+}
+function selectVariety(idx) {
+    const item=varietyResults[idx]; if(!item)return;
+    q('correctVariety').value=item.name; q('varietyDropdown').classList.remove('show');
+}
+
+async function applyCorrectionForCurrentJourney() {
+    const j=currentJourneyForCorrection; if(!j)return;
+    const newStemLength=q('correctStemLength').value.trim();
+    const newVariety=q('correctVariety').value.trim();
+    if(!newStemLength&&!newVariety){showError('Please enter at least one field to correct.');return;}
+    q('modalApplyBtn').disabled=true;
+    q('modalApplyBtn').innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/></svg> Updating...';
+    const logEl=q('correctionLog'); logEl.style.display='block'; logEl.innerHTML='';
+    let successCount=0,failCount=0;
+    function addLog(msg,type){logEl.innerHTML+=`<div class="correction-log-item log-${type}">${msg}</div>`;logEl.scrollTop=logEl.scrollHeight;}
+
+    for (const se of j.harvestSEs){try{if(newStemLength){await fSetValue('Stock Entry',se.name,'custom_stem_length',newStemLength);addLog(`Harvest ${se.name} — updated`,'ok');successCount++;}else addLog(`Harvest ${se.name} — no fields`,'skip');}catch(e){addLog(`Harvest ${se.name} — failed: ${e.message||e}`,'fail');failCount++;}}
+    for (const se of j.gradingSEs){try{if(newStemLength){await fSetValue('Stock Entry',se.name,'custom_stem_length',newStemLength);addLog(`Grading ${se.name} — updated`,'ok');successCount++;}else addLog(`Grading ${se.name} — no fields`,'skip');}catch(e){addLog(`Grading ${se.name} — failed: ${e.message||e}`,'fail');failCount++;}}
+    for (const se of j.receivingSEs){try{if(newStemLength){await fSetValue('Stock Entry',se.name,'custom_stem_length',newStemLength);addLog(`Receiving ${se.name} — updated`,'ok');successCount++;}else addLog(`Receiving ${se.name} — no fields`,'skip');}catch(e){addLog(`Receiving ${se.name} — failed: ${e.message||e}`,'fail');failCount++;}}
+    for (const row of (j.shelfData||[])){try{const upd={};if(newStemLength)upd.stem_length=newStemLength;if(newVariety)upd.variety=newVariety;if(Object.keys(upd).length){for(const[f,v]of Object.entries(upd))await fSetValueSingle('Shelf Item',row.name,f,v);addLog(`Shelf Item ${row.shelf_name}/${row.name} — updated`,'ok');successCount++;}else addLog(`Shelf Item ${row.name} — no fields`,'skip');}catch(e){addLog(`Shelf ${row.name} — failed: ${e.message||e}`,'fail');failCount++;}}
+    if(j.allocData){try{const upd={};if(newStemLength)upd.stem_length=newStemLength;if(newVariety)upd.item_code=newVariety;if(Object.keys(upd).length){await fSetValue('Bucket Allocation Status',j.allocData.name,upd);addLog(`Allocation ${j.allocData.name} — updated`,'ok');successCount++;}else addLog(`Allocation ${j.allocData.name} — no fields`,'skip');}catch(e){addLog(`Allocation ${j.allocData.name} — failed: ${e.message||e}`,'fail');failCount++;}}
+
+    const summary=failCount===0?`All done — ${successCount} document${successCount!==1?'s':''} updated.`:`Completed with ${failCount} error${failCount!==1?'s':''}. ${successCount} updated.`;
+    addLog(`<strong>${summary}</strong>`,failCount?'fail':'ok');
+    q('modalApplyBtn').innerHTML=failCount===0?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Done':'Done (with errors)';
+    q('modalCancelBtn').textContent='Close';
+    setTimeout(()=>{closeCorrectionModal();trackBucket();},2000);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SHARED UI HELPERS
+═══════════════════════════════════════════════════════ */
+function secLbl(txt) {
+    return `<div class="section-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>${txt}</div>`;
+}
+function dc(label,value,small){return `<div class="dc"><div class="dk">${label}</div><div class="dv"${small?' style="font-size:10px"':''}>${value||'--'}</div></div>`;}
+
+setState('hint');
+</script>
+</body>
+</html>

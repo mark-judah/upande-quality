@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Production Dashboard</title>
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+:root{
+--bg-page:#f4f5f6;--bg-surface:#fff;--bg-input:#f4f5f6;--bg-hover:#f8f9fa;
+--text-primary:#1a1a1a;--text-secondary:#6c7178;--text-muted:#98a1a9;
+--border:#e2e4e7;--border-light:#f0f0f0;
+--blue:#2490ef;--blue-light:#e8f0fe;
+--green:#29cd42;--green-light:#e6f9ee;
+--red:#e63757;--red-light:#fde8ec;
+--orange:#fc9c30;--orange-light:#fff3e0;
+--purple:#7c5cfc;--purple-light:#f0ecfe;
+--teal:#0ea5e9;--teal-light:#e0f2fe;
+--shadow:0 1px 3px rgba(0,0,0,0.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.5;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
+.pd-loader{display:none;position:fixed;inset:0;z-index:9999;background:rgba(255,255,255,0.65);backdrop-filter:blur(2px);justify-content:center;align-items:center}
+.pd-loader.active{display:flex}
+.pd-spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.top-nav{background:var(--bg-surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;height:44px;position:sticky;top:0;z-index:200;gap:2px}
+.nav-brand{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding-right:14px;margin-right:6px;border-right:1px solid var(--border);white-space:nowrap;flex-shrink:0}
+.nav-brand a{color:var(--text-muted);text-decoration:none;display:flex;align-items:center;gap:5px}
+.nav-link{padding:12px 14px;font-size:13px;font-weight:500;color:var(--text-secondary);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap}
+.nav-link:hover{color:var(--text-primary)}
+.nav-link.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.page-head{background:var(--bg-surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:44px;z-index:100}
+.page-title{font-size:18px;font-weight:700}
+.date-badge{font-size:12px;font-weight:600;color:var(--text-secondary);background:var(--bg-input);padding:4px 12px;border-radius:6px}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.fc{height:32px;padding:0 10px;font-size:12px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);transition:border-color .15s}
+.fc:focus{outline:none;border-color:var(--blue);background:#fff}
+select.fc{cursor:pointer}
+.btn-refresh{height:32px;padding:0 14px;font-size:12px;font-weight:600;font-family:inherit;background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
+.btn-refresh:hover{background:var(--bg-input)}
+.live-dot{width:7px;height:7px;background:var(--green);border-radius:50%;flex-shrink:0}
+.container{padding:16px 20px;max-width:1800px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.filter-bar{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ms-wrap{position:relative}
+.ms-btn{height:32px;min-width:140px;padding:0 10px;font-size:12px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;white-space:nowrap}
+.ms-dd{position:absolute;top:calc(100% + 4px);left:0;min-width:200px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:500;display:none}
+.ms-dd.open{display:block}
+.ms-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12px;transition:background .1s}
+.ms-item:hover{background:var(--bg-hover)}
+.sl-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.sl-pill{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--bg-input);color:var(--text-secondary);cursor:pointer;transition:all .15s;white-space:nowrap}
+.sl-pill:hover{border-color:var(--blue);color:var(--blue)}
+.sl-pill.active{background:var(--blue-light);border-color:var(--blue);color:var(--blue)}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.kpi-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
+.kpi-icon{width:36px;height:36px;min-width:36px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.kpi-icon svg{width:16px;height:16px}
+.kpi-label{font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px}
+.kpi-value{font-size:20px;font-weight:700;line-height:1}
+.panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.panel-title{font-size:13px;font-weight:700}
+.panel-sub{font-size:11px;color:var(--text-muted)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.tab-group{display:inline-flex;background:var(--bg-input);border-radius:8px;padding:3px;gap:2px}
+.tab-btn{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.tab-btn.active{background:#fff;color:var(--text-primary);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.harv-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.icon-btn{height:28px;padding:0 8px;font-size:11px;font-weight:600;font-family:inherit;background:var(--bg-input);border:1px solid var(--border-light);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-secondary);transition:background .15s;white-space:nowrap}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.icon-btn.on{background:var(--blue-light);color:var(--blue);border-color:var(--blue)}
+.harv-scroll{max-height:420px;overflow-y:auto}
+.farm-table{width:100%;border-collapse:collapse;font-size:12px}
+.farm-table th{text-align:left;padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.farm-table td{padding:10px 14px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+.farm-table tr:last-child td{border-bottom:none}
+.farm-table tbody tr:hover td{background:var(--bg-hover)}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tg{background:var(--green-light);color:#1a7a2a}.tb{background:var(--blue-light);color:#1565c0}.to{background:var(--orange-light);color:#9a5a00}.tr{background:var(--red-light);color:#b71c1c}
+.rank-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border-light);transition:background .1s}
+.rank-item:last-child{border-bottom:none}
+.rank-item:hover{background:var(--bg-hover)}
+.rank-badge{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.r1{background:#fff3e0;color:#e65100}.r2{background:#f3f4f6;color:#374151}.r3{background:#fff8e1;color:#b45309}.rn{background:var(--bg-input);color:var(--text-muted)}
+.rank-info{flex:1;min-width:0}
+.rank-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-meta{font-size:11px;color:var(--text-muted)}
+.rank-val{font-size:13px;font-weight:700;white-space:nowrap;color:var(--text-primary)}
+.rank-rejected{font-size:10px;font-weight:600;color:#b71c1c;background:var(--red-light);padding:1px 6px;border-radius:3px;white-space:nowrap;margin-left:4px}
+.chart-wrap{padding:16px;height:300px;position:relative}
+.chart-wrap canvas{width:100%!important}
+.chart-legend{display:flex;gap:16px;padding:0 16px 14px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.empty{text-align:center;padding:32px;color:var(--text-muted);font-size:12px}
+.loading-state{text-align:center;padding:24px;color:var(--text-muted);font-size:13px}
+
+/* ============================================================
+   UNRECEIVED SECTION
+   ============================================================ */
+.ur-panel{border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);overflow:hidden;background:var(--bg-surface)}
+.ur-header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);transition:background .15s}
+.ur-header:hover{background:var(--bg-hover)}
+.ur-header-left{display:flex;align-items:center;gap:10px}
+.ur-chevron{width:18px;height:18px;transition:transform .25s ease;flex-shrink:0;color:var(--text-muted)}
+.ur-chevron.open{transform:rotate(90deg)}
+.ur-title{font-size:14px;font-weight:700;color:var(--text-primary)}
+.ur-title-count{font-size:12px;font-weight:700;color:#b71c1c;background:var(--red-light);padding:2px 10px;border-radius:12px;margin-left:6px}
+.ur-body{display:none}
+.ur-body.open{display:block}
+.ur-tree{overflow-x:auto}
+.ur-row{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .1s;user-select:none}
+.ur-row:hover{background:var(--bg-hover)}
+.ur-row-farm{padding-left:16px;font-weight:700;background:var(--bg-page)}
+.ur-row-sup{padding-left:38px;font-weight:600}
+.ur-row-gh{padding-left:60px;cursor:default;font-size:12px}
+.ur-expand{width:16px;height:16px;flex-shrink:0;transition:transform .2s ease;color:var(--text-muted)}
+.ur-expand.open{transform:rotate(90deg)}
+.ur-expand.leaf{visibility:hidden}
+.ur-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.ur-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.ur-stems{font-size:12px;font-weight:700;white-space:nowrap}
+.ur-bkt-count{font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap}
+.ur-aging-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.ur-aging-green{background:var(--green-light);color:#1a7a2a}
+.ur-aging-orange{background:var(--orange-light);color:#9a5a00}
+.ur-aging-red{background:var(--red-light);color:#b71c1c}
+.ur-bucket-detail{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11px;color:var(--text-secondary)}
+.ur-bucket-tag{padding:1px 6px;border-radius:3px;background:var(--bg-input);font-size:10px;font-weight:600}
+.ur-children{display:none}
+.ur-children.open{display:block}
+.ur-summary-strip{display:flex;gap:14px;align-items:center}
+.ur-ss-item{display:flex;flex-direction:column;align-items:flex-end}
+.ur-ss-val{font-size:16px;font-weight:700;line-height:1;color:var(--text-primary)}
+.ur-ss-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text-muted)}
+.q-issue-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--orange-light);color:#9a5a00;white-space:nowrap}
+.q-issue-tag.reject{background:var(--red-light);color:#b71c1c}
+.q-variety-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--purple-light);color:var(--purple);white-space:nowrap}
+.q-gh-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--bg-input);color:var(--text-secondary);white-space:nowrap}
+.q-date-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--teal-light);color:#0369a1;white-space:nowrap}
+
+@media(max-width:1400px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+@media(max-width:600px){.top-nav{overflow-x:auto}.ur-row-gh{padding-left:40px}.ur-row-sup{padding-left:24px}.ur-row-farm{padding-left:12px}}
+</style>
+</head>
+<body>
+
+<div class="pd-loader" id="pdLoader"><div class="pd-spinner"></div></div>
+
+<nav class="top-nav">
+  <span class="nav-brand"><a href="/app/roses-production"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</a></span>
+  <a href="/production-dashboard" class="nav-link active">Overview</a>
+  <a href="/production-planning" class="nav-link">Planning</a>
+  <a href="/production-forecast" class="nav-link">Forecast</a>
+  <a href="/crop-cycle-dashboard" class="nav-link">Crop Cycles</a>
+</nav>
+
+<div class="page-head">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="page-title">Production Overview</span>
+    <span class="date-badge" id="pdDateBadge">Today</span>
+  </div>
+  <div class="controls">
+    <div class="fg"><span class="fl">From</span><input type="date" class="fc" id="pdFrom" style="width:130px"></div>
+    <div class="fg"><span class="fl">To</span><input type="date" class="fc" id="pdTo" style="width:130px"></div>
+    <div class="fg"><span class="fl">Farm</span><select class="fc" id="pdFarm" style="width:130px"><option value="">All Farms</option></select></div>
+    <button class="btn-refresh" onclick="pd.load()"><span class="live-dot"></span>Refresh</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="filter-bar">
+    <div class="fg"><span class="fl">Item Group</span><select class="fc" id="pdItemGroup" style="width:150px"><option value="">All Groups</option></select></div>
+    <div class="fg"><span class="fl">Greenhouse</span><select class="fc" id="pdGreenhouse" style="width:160px"><option value="">All Greenhouses</option></select></div>
+    <div class="fg">
+      <span class="fl">Varieties</span>
+      <div class="ms-wrap">
+        <button class="ms-btn" id="pdVarBtn" onclick="pd.toggleMs('pdVarDD')">All Varieties <span>&#9662;</span></button>
+        <div class="ms-dd" id="pdVarDD"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <span class="fl">Stem Length</span>
+      <div id="slPills" class="sl-pills"><span style="font-size:11px;color:var(--text-muted)">Loading...</span></div>
+    </div>
+  </div>
+
+  <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--green-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><div><div class="kpi-label">Harvested</div><div class="kpi-value" id="kHarvested">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--blue-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/></svg></div><div><div class="kpi-label">Received</div><div class="kpi-value" id="kReceived">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--red-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#e63757" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div><div><div class="kpi-label">Recv. Variance</div><div class="kpi-value" id="kRecvVariance" style="color:var(--red)">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--teal-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-label">Good Stems</div><div class="kpi-value" id="kGoodStems">&mdash;</div></div></div>
+  </div>
+  <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--orange-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><div class="kpi-label">Quarantined</div><div class="kpi-value" id="kQuarantined">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--orange-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-label">Quar. Pending</div><div class="kpi-value" id="kQPending" style="color:var(--orange)">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:var(--red-light)"><svg viewBox="0 0 24 24" fill="none" stroke="#e63757" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><div><div class="kpi-label">Quar. Rejects</div><div class="kpi-value" id="kQRejects">&mdash;</div></div></div>
+    <div class="kpi-card"><div class="kpi-icon" style="background:#fff0f0"><svg viewBox="0 0 24 24" fill="none" stroke="#e63757" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-label">Field Rejects</div><div class="kpi-value" id="kFRejects">&mdash;</div></div></div>
+  </div>
+
+  <!-- UNRECEIVED SECTION -->
+  <div class="ur-panel" id="urPanel">
+    <div class="ur-header" id="urHeader" onclick="pd.toggleUR()">
+      <div class="ur-header-left">
+        <svg class="ur-chevron" id="urChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="ur-title">Harvested but Not Received</span>
+        <span class="ur-title-count" id="urTitleCount" style="display:none">0</span>
+      </div>
+      <div class="ur-summary-strip" id="urSummaryStrip">
+        <div class="ur-ss-item"><span class="ur-ss-val" id="urSSGreenhouses">&mdash;</span><span class="ur-ss-label">Greenhouses</span></div>
+        <div class="ur-ss-item"><span class="ur-ss-val" id="urSSSupervisors">&mdash;</span><span class="ur-ss-label">Supervisors</span></div>
+        <div class="ur-ss-item"><span class="ur-ss-val" id="urSSStems" style="color:var(--red)">&mdash;</span><span class="ur-ss-label">Variance</span></div>
+      </div>
+    </div>
+    <div class="ur-body" id="urBody">
+      <div class="ur-tree" id="urTree"><div class="loading-state">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- QUARANTINE PENDING REWORK -->
+  <div class="ur-panel" id="qPanel">
+    <div class="ur-header" id="qHeader" onclick="pd.toggleQ()">
+      <div class="ur-header-left">
+        <svg class="ur-chevron" id="qChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <span class="ur-title">Quarantined &mdash; Pending Rework</span>
+        <span class="ur-title-count" id="qTitleCount" style="display:none;background:var(--orange-light);color:#9a5a00">0</span>
+      </div>
+      <div class="ur-summary-strip" id="qSummaryStrip">
+        <div class="ur-ss-item"><span class="ur-ss-val" id="qSSBuckets">&mdash;</span><span class="ur-ss-label">Buckets</span></div>
+        <div class="ur-ss-item"><span class="ur-ss-val" id="qSSHarvesters">&mdash;</span><span class="ur-ss-label">Harvesters</span></div>
+        <div class="ur-ss-item"><span class="ur-ss-val" id="qSSStems" style="color:var(--orange)">&mdash;</span><span class="ur-ss-label">Stems</span></div>
+      </div>
+    </div>
+    <div class="ur-body" id="qBody">
+      <div class="ur-tree" id="qTree"><div class="loading-state">Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Per Farm Breakdown</span><span class="panel-sub" id="farmSub">Harvested stems by farm</span></div>
+    <div style="overflow-x:auto">
+      <table class="farm-table">
+        <thead><tr><th>Farm</th><th>Harvested</th><th>Received</th><th>Variance</th><th>Quarantined</th><th>Quar. Pending</th><th>Quar. Rejects</th><th>Field Rejects</th><th>Start Time</th><th>End Time</th></tr></thead>
+        <tbody id="farmBody"><tr><td colspan="10" class="loading-state">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">Per Greenhouse Breakdown</span>
+      <span class="panel-sub" id="ghSub">All greenhouses &middot; stems vs budget</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="farm-table">
+        <thead><tr>
+          <th>Greenhouse</th><th>Budget</th><th>Harvested</th><th>Received</th>
+          <th>Variance</th><th>Rejects</th><th>Reject %</th><th>Ach %</th>
+        </tr></thead>
+        <tbody id="ghBody"><tr><td colspan="8" class="loading-state">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Top Varieties</span><span class="panel-sub">By harvested stems</span></div>
+      <div id="topVarBody"><div class="loading-state">Loading...</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head" style="gap:6px">
+        <span class="panel-title">Top Harvesters</span>
+        <div class="harv-controls">
+          <div class="tab-group">
+            <button class="tab-btn active" id="hTab0" onclick="pd.switchHarvTab(0)">Harvesting</button>
+            <button class="tab-btn" id="hTab1" onclick="pd.switchHarvTab(1)">Receiving</button>
+            <button class="tab-btn" id="hTab2" onclick="pd.switchHarvTab(2)">Quarantine</button>
+            <button class="tab-btn" id="hTab3" onclick="pd.switchHarvTab(3)">Rejects</button>
+          </div>
+          <button class="icon-btn" id="btnSort" onclick="pd.toggleSort()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><line x1="12" y1="5" x2="12" y2="19"/><polyline id="sortArrow" points="19 12 12 19 5 12"/></svg>
+            <span id="sortLabel">Top</span>
+          </button>
+          <button class="icon-btn" id="btnShowAll" onclick="pd.toggleShowAll()">
+            <span id="showAllLabel">Show all</span>
+          </button>
+        </div>
+      </div>
+      <div class="harv-scroll" id="topHarvBody"><div class="loading-state">Loading...</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span class="panel-title">Today&#39;s Activity</span><span class="panel-sub">Hourly distribution</span></div>
+    <div class="chart-wrap"><canvas id="pdChart"></canvas></div>
+    <div class="chart-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#7c5cfc"></span>Harvested</div>
+      <div class="legend-item"><span class="legend-dot" style="background:rgba(36,144,239,.7)"></span>Received</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var pd = (function(){
+  var chart = null;
+  var selVar = [];
+  var selSL = [];
+  var harvTab = 0;
+  var harvSortDesc = true;
+  var harvShowAll = false;
+  var allHarvesters = [];
+  var debounceTimer = null;
+  var urOpen = false;
+  var urExpandState = {};
+  var qOpen = false;
+  var qExpandState = {};
+
+  var TAB_KEYS = ['harvesting_stems','receiving_stems','quarantined_stems','quarantine_rejects_stems'];
+  var TAB_IDS  = ['hTab0','hTab1','hTab2','hTab3'];
+
+  function fmt(n){ if(!n && n!==0) return '0'; return Number(n).toLocaleString(); }
+
+  function fmtTime(ts){
+    if(!ts) return '&mdash;';
+    var d = new Date(ts); if(isNaN(d)) return ts;
+    return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function agingLabel(mins){
+    if(mins < 60) return mins + 'm';
+    var h = Math.floor(mins/60);
+    var m = mins % 60;
+    return h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+  }
+
+  function el(id){ return document.getElementById(id); }
+  function loader(show){ el('pdLoader').classList.toggle('active', show); }
+  function debounce(fn, ms){ clearTimeout(debounceTimer); debounceTimer = setTimeout(fn, ms); }
+
+  function init(){
+    var today = new Date().toISOString().split('T')[0];
+    el('pdFrom').value = today; el('pdTo').value = today;
+    updateBadge();
+    var autoFields = ['pdFrom','pdTo','pdFarm','pdItemGroup','pdGreenhouse'];
+    autoFields.forEach(function(id){
+      el(id).addEventListener('change', function(){
+        if(id==='pdFrom'||id==='pdTo') updateBadge();
+        debounce(function(){ load(); }, 400);
+      });
+    });
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.ms-wrap')) document.querySelectorAll('.ms-dd').forEach(function(d){ d.classList.remove('open'); });
+    });
+    load();
+  }
+
+  function updateBadge(){
+    var from = el('pdFrom').value, to = el('pdTo').value;
+    var today = new Date().toISOString().split('T')[0];
+    if(from===today && to===today){ el('pdDateBadge').textContent='Today'; return; }
+    if(from===to){ el('pdDateBadge').textContent=new Date(from+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}); return; }
+    el('pdDateBadge').textContent = from+' \u2192 '+to;
+  }
+
+  function toggleMs(ddId){
+    var dd = el(ddId);
+    document.querySelectorAll('.ms-dd').forEach(function(d){ if(d.id!==ddId) d.classList.remove('open'); });
+    dd.classList.toggle('open');
+  }
+
+  function buildVarDD(list){
+    var dd = el('pdVarDD'); dd.innerHTML = '';
+    if(!list||!list.length){ dd.innerHTML='<div class="ms-item" style="color:var(--text-muted)">No varieties</div>'; return; }
+    list.forEach(function(v){
+      var row = document.createElement('div'); row.className='ms-item';
+      var cb = document.createElement('input'); cb.type='checkbox'; cb.value=v.value;
+      cb.checked = selVar.indexOf(v.value)>-1;
+      cb.addEventListener('change', function(){
+        var i=selVar.indexOf(v.value);
+        if(cb.checked && i===-1) selVar.push(v.value);
+        else if(!cb.checked && i>-1) selVar.splice(i,1);
+        updateVarBtn(); debounce(function(){ load(); }, 400);
+      });
+      var lbl=document.createElement('span'); lbl.textContent=v.label;
+      row.appendChild(cb); row.appendChild(lbl); dd.appendChild(row);
+    });
+  }
+
+  function updateVarBtn(){
+    el('pdVarBtn').innerHTML=(selVar.length?selVar.length+' selected':'All Varieties')+' <span>&#9662;</span>';
+  }
+
+  function buildSLPills(lengths){
+    var wrap = el('slPills'); wrap.innerHTML='';
+    if(!lengths||!lengths.length){ wrap.innerHTML='<span style="font-size:11px;color:var(--text-muted)">None</span>'; return; }
+    lengths.forEach(function(sl){
+      var btn = document.createElement('button');
+      btn.className = 'sl-pill' + (selSL.indexOf(sl)>-1?' active':'');
+      btn.textContent = sl;
+      btn.addEventListener('click', function(){
+        var i=selSL.indexOf(sl);
+        if(i>-1){ selSL.splice(i,1); btn.classList.remove('active'); }
+        else { selSL.push(sl); btn.classList.add('active'); }
+        debounce(function(){ load(); }, 400);
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function populateSel(selId, list, curVal){
+    var sel=el(selId); if(!list||!list.length) return;
+    var first=sel.options[0].outerHTML; sel.innerHTML=first;
+    list.forEach(function(v){
+      var o=document.createElement('option'); o.value=v; o.textContent=v;
+      if(v===curVal) o.selected=true; sel.appendChild(o);
+    });
+  }
+
+  function switchHarvTab(tab){
+    harvTab=tab;
+    TAB_IDS.forEach(function(id,i){ el(id).classList.toggle('active',i===tab); });
+    renderHarvesters();
+  }
+
+  function toggleSort(){
+    harvSortDesc=!harvSortDesc;
+    el('sortLabel').textContent=harvSortDesc?'Top':'Bottom';
+    el('btnSort').classList.toggle('on',!harvSortDesc);
+    el('sortArrow').setAttribute('points', harvSortDesc?'19 12 12 19 5 12':'5 12 12 5 19 12');
+    renderHarvesters();
+  }
+
+  function toggleShowAll(){
+    harvShowAll=!harvShowAll;
+    el('showAllLabel').textContent=harvShowAll?'Top 10':'Show all';
+    el('btnShowAll').classList.toggle('on',harvShowAll);
+    renderHarvesters();
+  }
+
+  function renderHarvesters(){
+    var sortKey=TAB_KEYS[harvTab];
+    var sorted=allHarvesters.slice().sort(function(a,b){
+      var av=a[sortKey]||0, bv=b[sortKey]||0;
+      return harvSortDesc?bv-av:av-bv;
+    });
+    var list=harvShowAll?sorted:sorted.slice(0,10);
+    if(!list.length){ el('topHarvBody').innerHTML='<div class="empty">No data</div>'; return; }
+    el('topHarvBody').innerHTML=list.map(function(h,i){
+      var rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+      var stems=h[sortKey]||0;
+      var rejected=h.rejected_stems||0;
+      var rejBadge=rejected>0?'<span class="rank-rejected">'+fmt(rejected)+' rej</span>':'';
+      return '<div class="rank-item">'+
+        '<div class="rank-badge '+rc+'">'+(i+1)+'</div>'+
+        '<div class="rank-info">'+
+          '<div class="rank-name">'+(h.harvester||'Unknown')+'</div>'+
+          '<div class="rank-meta">'+(h.farm||'')+(h.budget?' &middot; budget '+fmt(h.budget)+(h.achievement_pct?' ('+h.achievement_pct+'%)':''):'')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:4px">'+
+          '<div class="rank-val">'+fmt(stems)+'</div>'+rejBadge+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  /* ============================================================
+     UNRECEIVED — Farm → Supervisor → Greenhouse
+     ============================================================ */
+  function toggleUR(){
+    urOpen = !urOpen;
+    el('urChevron').classList.toggle('open', urOpen);
+    el('urBody').classList.toggle('open', urOpen);
+  }
+
+  function toggleTreeNode(nodeId){
+    var ch = document.getElementById('ur-ch-'+nodeId);
+    var exp = document.getElementById('ur-exp-'+nodeId);
+    if(!ch) return;
+    var isOpen = ch.classList.toggle('open');
+    if(exp) exp.classList.toggle('open', isOpen);
+    urExpandState[nodeId] = isOpen;
+  }
+
+  function renderUnreceived(data){
+    if(!data){
+      el('urTitleCount').style.display='none';
+      el('urSSGreenhouses').textContent='0';
+      el('urSSSupervisors').textContent='0';
+      el('urSSStems').textContent='0';
+      el('urTree').innerHTML='<div class="empty">No data</div>';
+      return;
+    }
+    var summary = data.summary || {};
+    var tree = data.tree || [];
+    var totalVariance = summary.total_variance_stems || 0;
+    var netVariance = summary.net_variance_stems || 0;
+    var totalGH = summary.total_greenhouses || 0;
+    var totalSup = summary.total_supervisors || 0;
+
+    if(netVariance > 0){
+      el('urTitleCount').textContent = fmt(netVariance) + ' stems';
+      el('urTitleCount').style.display = 'inline-flex';
+    } else {
+      el('urTitleCount').style.display = 'none';
+    }
+    el('urSSGreenhouses').textContent = fmt(totalGH);
+    el('urSSSupervisors').textContent = fmt(totalSup);
+    el('urSSStems').textContent = fmt(netVariance);
+
+    if(!tree.length || totalVariance === 0){
+      el('urTree').innerHTML = '<div class="empty" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" width="20" height="20" style="vertical-align:middle;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>All harvested stems have been received</div>';
+      return;
+    }
+
+    var html = '';
+    tree.forEach(function(farm, fi){
+      var fid = 'f'+fi;
+      var fOpen = urExpandState[fid] ? true : false;
+      html += '<div class="ur-row ur-row-farm" onclick="pd.toggleTreeNode(\''+fid+'\')" id="ur-row-'+fid+'">'+
+        '<svg id="ur-exp-'+fid+'" class="ur-expand'+(fOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+        '<div class="ur-name" style="font-size:13px">'+(farm.farm||'Unknown')+'</div>'+
+        '<div class="ur-meta">'+
+          '<span class="ur-bkt-count">'+farm.supervisors.length+' supervisor'+(farm.supervisors.length!==1?'s':'')+'</span>'+
+          '<span class="ur-stems" style="color:var(--red)">'+fmt(farm.total_variance)+' stems</span>'+
+        '</div></div>';
+      html += '<div class="ur-children'+(fOpen?' open':'')+'" id="ur-ch-'+fid+'">';
+
+      (farm.supervisors||[]).forEach(function(sup, si){
+        var sid = fid+'s'+si;
+        var sOpen = urExpandState[sid] ? true : false;
+        var supDisplay = sup.supervisor || 'Unknown';
+        if(supDisplay.indexOf('@') > 0) supDisplay = supDisplay.split('@')[0].replace(/\./g,' ');
+        supDisplay = supDisplay.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+
+        html += '<div class="ur-row ur-row-sup" onclick="pd.toggleTreeNode(\''+sid+'\')" id="ur-row-'+sid+'">'+
+          '<svg id="ur-exp-'+sid+'" class="ur-expand'+(sOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+          '<div class="ur-name"><span style="display:inline-flex;align-items:center;gap:5px">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+            supDisplay+'</span></div>'+
+          '<div class="ur-meta">'+
+            '<span class="ur-bkt-count">'+sup.greenhouses.length+' GH'+(sup.greenhouses.length!==1?'s':'')+'</span>'+
+            '<span class="ur-stems" style="color:var(--red)">'+fmt(sup.total_variance)+' stems</span>'+
+          '</div></div>';
+        html += '<div class="ur-children'+(sOpen?' open':'')+'" id="ur-ch-'+sid+'">';
+
+        (sup.greenhouses||[]).forEach(function(gh){
+          var agingText = '';
+          var agingClass = '';
+          if(gh.aging_minutes > 0){
+            agingText = agingLabel(gh.aging_minutes) + ' ago';
+            if(gh.aging_minutes < 60) agingClass = 'ur-aging-green';
+            else if(gh.aging_minutes < 120) agingClass = 'ur-aging-orange';
+            else agingClass = 'ur-aging-red';
+          }
+          var received = gh.harvested_stems - gh.variance_stems;
+          var completionPct = gh.harvested_stems > 0
+            ? Math.round((received / gh.harvested_stems) * 100)
+            : 0;
+
+          html += '<div class="ur-row ur-row-gh">'+
+            '<svg class="ur-expand leaf" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'+
+            '<div class="ur-bucket-detail" style="flex:1;min-width:0">'+
+              '<span style="font-weight:600;color:var(--text-primary)">'+(gh.greenhouse_name||gh.greenhouse)+'</span>'+
+              '<span class="ur-bucket-tag">'+fmt(gh.harvested_stems)+' harvested</span>'+
+              '<span class="ur-bucket-tag">'+fmt(received)+' received</span>'+
+              '<span class="ur-bucket-tag" style="background:var(--blue-light);color:#1565c0">'+completionPct+'%</span>'+
+              (gh.bucket_count > 0 ? '<span style="color:var(--text-muted)">'+gh.bucket_count+' buckets</span>' : '')+
+            '</div>'+
+            '<div class="ur-meta" style="gap:6px">'+
+              (agingText ? '<span class="ur-aging-pill '+agingClass+'">'+agingText+'</span>' : '')+
+              '<span class="ur-stems" style="color:var(--red)">'+fmt(gh.variance_stems)+' missing</span>'+
+            '</div></div>';
+        });
+
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    el('urTree').innerHTML = html;
+  }
+
+  /* ============================================================
+     QUARANTINE PENDING REWORK — Farm → Harvester → Buckets
+     ============================================================ */
+  function toggleQ(){
+    qOpen = !qOpen;
+    el('qChevron').classList.toggle('open', qOpen);
+    el('qBody').classList.toggle('open', qOpen);
+  }
+
+  function toggleQNode(nodeId){
+    var ch = document.getElementById('q-ch-'+nodeId);
+    var exp = document.getElementById('q-exp-'+nodeId);
+    if(!ch) return;
+    var isOpen = ch.classList.toggle('open');
+    if(exp) exp.classList.toggle('open', isOpen);
+    qExpandState[nodeId] = isOpen;
+  }
+
+  function renderQuarantine(data){
+    if(!data){
+      el('qTitleCount').style.display='none';
+      el('qSSBuckets').textContent='0';
+      el('qSSHarvesters').textContent='0';
+      el('qSSStems').textContent='0';
+      el('qTree').innerHTML='<div class="empty">No data</div>';
+      return;
+    }
+    var summary = data.summary || {};
+    var tree = data.tree || [];
+    var totalStems = summary.total_stems || 0;
+    var totalBuckets = summary.total_buckets || 0;
+    var totalHarvesters = summary.total_harvesters || 0;
+
+    if(totalStems > 0){
+      el('qTitleCount').textContent = fmt(totalStems) + ' stems';
+      el('qTitleCount').style.display = 'inline-flex';
+    } else {
+      el('qTitleCount').style.display = 'none';
+    }
+    el('qSSBuckets').textContent = fmt(totalBuckets);
+    el('qSSHarvesters').textContent = fmt(totalHarvesters);
+    el('qSSStems').textContent = fmt(totalStems);
+
+    if(!tree.length || totalStems === 0){
+      el('qTree').innerHTML = '<div class="empty" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" width="20" height="20" style="vertical-align:middle;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>No buckets pending rework</div>';
+      return;
+    }
+
+    var html = '';
+    tree.forEach(function(farm, fi){
+      var fid = 'qf'+fi;
+      var fOpen = qExpandState[fid] ? true : false;
+      html += '<div class="ur-row ur-row-farm" onclick="pd.toggleQNode(\''+fid+'\')" id="q-row-'+fid+'">'+
+        '<svg id="q-exp-'+fid+'" class="ur-expand'+(fOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+        '<div class="ur-name" style="font-size:13px">'+(farm.farm||'Unknown')+'</div>'+
+        '<div class="ur-meta">'+
+          '<span class="ur-bkt-count">'+farm.harvesters.length+' harvester'+(farm.harvesters.length!==1?'s':'')+'</span>'+
+          '<span class="ur-stems" style="color:var(--orange)">'+fmt(farm.total_stems)+' stems</span>'+
+        '</div></div>';
+      html += '<div class="ur-children'+(fOpen?' open':'')+'" id="q-ch-'+fid+'">';
+
+      (farm.harvesters||[]).forEach(function(harv, hi){
+        var hid = fid+'h'+hi;
+        var hOpen = qExpandState[hid] ? true : false;
+        var harvDisplay = harv.harvester || 'Unknown';
+
+        html += '<div class="ur-row ur-row-sup" onclick="pd.toggleQNode(\''+hid+'\')" id="q-row-'+hid+'">'+
+          '<svg id="q-exp-'+hid+'" class="ur-expand'+(hOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+          '<div class="ur-name"><span style="display:inline-flex;align-items:center;gap:5px">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+            harvDisplay+'</span></div>'+
+          '<div class="ur-meta">'+
+            '<span class="ur-bkt-count">'+harv.buckets.length+' bucket'+(harv.buckets.length!==1?'s':'')+'</span>'+
+            '<span class="ur-stems" style="color:var(--orange)">'+fmt(harv.total_stems)+' stems</span>'+
+          '</div></div>';
+        html += '<div class="ur-children'+(hOpen?' open':'')+'" id="q-ch-'+hid+'">';
+
+        (harv.buckets||[]).forEach(function(bkt){
+          var agingText = '';
+          var agingClass = '';
+          if(bkt.aging_minutes > 0){
+            agingText = agingLabel(bkt.aging_minutes);
+            if(bkt.aging_minutes < 120) agingClass = 'ur-aging-green';
+            else if(bkt.aging_minutes < 1440) agingClass = 'ur-aging-orange';
+            else agingClass = 'ur-aging-red';
+          }
+
+          // Build issue tags
+          var issueHtml = '';
+          if(bkt.issues && bkt.issues.length){
+            bkt.issues.forEach(function(iss){
+              var cls = iss.action === 'Rejected' ? 'q-issue-tag reject' : 'q-issue-tag';
+              issueHtml += '<span class="'+cls+'">'+(iss.parameter||'Issue');
+              if(iss.count > 0) issueHtml += ' ('+iss.count+')';
+              issueHtml += '</span>';
+            });
+          }
+
+          html += '<div class="ur-row ur-row-gh" style="cursor:default">'+
+            '<svg class="ur-expand leaf" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'+
+            '<div class="ur-bucket-detail" style="flex:1;min-width:0">'+
+              '<span class="q-variety-tag">'+(bkt.variety||'Unknown')+'</span>'+
+              '<span class="q-gh-tag">'+(bkt.greenhouse_name||'')+'</span>'+
+              '<span class="ur-bucket-tag">'+fmt(bkt.stems)+' stems</span>'+
+              (bkt.posting_date ? '<span class="q-date-tag">'+bkt.posting_date+'</span>' : '')+
+              issueHtml+
+            '</div>'+
+            '<div class="ur-meta" style="gap:6px">'+
+              (agingText ? '<span class="ur-aging-pill '+agingClass+'">'+agingText+' in quarantine</span>' : '')+
+            '</div></div>';
+        });
+
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    el('qTree').innerHTML = html;
+  }
+
+  /* ============================================================
+     DATA LOADING
+     ============================================================ */
+  function load(){
+    loader(true);
+    frappe.call({
+      method:'get_production_dashboard_data',
+      args:{
+        from_date:el('pdFrom').value, to_date:el('pdTo').value,
+        farm:el('pdFarm').value, item_group:el('pdItemGroup').value,
+        greenhouse:el('pdGreenhouse').value,
+        varieties:selVar.join(','),
+        stem_lengths:selSL.join(','),
+      },
+      callback:function(r){ loader(false); if(r.message) render(r.message); },
+      error:function(){ loader(false); }
+    });
+  }
+
+  function render(data){
+    var opts=data.filter_options||{};
+    populateSel('pdFarm',opts.farms,el('pdFarm').value);
+    populateSel('pdItemGroup',opts.item_groups,el('pdItemGroup').value);
+    populateSel('pdGreenhouse',opts.greenhouses,el('pdGreenhouse').value);
+    if(opts.varieties) buildVarDD(opts.varieties);
+    if(opts.stem_lengths) buildSLPills(opts.stem_lengths);
+
+    var kpi=data.kpi||{};
+    el('kHarvested').textContent   = fmt(kpi.harvested);
+    el('kReceived').textContent    = fmt(kpi.received);
+    el('kRecvVariance').textContent = fmt(kpi.recv_variance);
+    el('kGoodStems').textContent   = fmt(kpi.good_stems);
+    el('kQuarantined').textContent = fmt(kpi.quarantined);
+    el('kQPending').textContent    = fmt(kpi.quarantine_pending);
+    el('kQRejects').textContent    = fmt(kpi.quarantine_rejects);
+    el('kFRejects').textContent    = fmt(kpi.field_rejects);
+
+    var farms=data.farm_kpi||[];
+    if(!farms.length){
+      el('farmBody').innerHTML='<tr><td colspan="10" class="empty">No data for this period</td></tr>';
+    } else {
+      el('farmSub').textContent=farms.length+' farm'+(farms.length!==1?'s':'')+' active';
+      el('farmBody').innerHTML=farms.map(function(f){
+        var rv = (f.harvested||0) - (f.received||0);
+        var rvClass = rv > 0 ? 'tr' : (rv < 0 ? 'to' : 'tg');
+        var qp = f.quarantine_pending || 0;
+        var qpClass = qp > 0 ? 'to' : 'tg';
+        return '<tr>'+
+          '<td style="font-weight:600">'+(f.farm||'&mdash;')+'</td>'+
+          '<td><span class="tag tg">'+fmt(f.harvested)+'</span></td>'+
+          '<td><span class="tag tb">'+fmt(f.received)+'</span></td>'+
+          '<td><span class="tag '+rvClass+'">'+fmt(rv)+'</span></td>'+
+          '<td><span class="tag to">'+fmt(f.quarantined)+'</span></td>'+
+          '<td><span class="tag '+qpClass+'">'+fmt(qp)+'</span></td>'+
+          '<td><span class="tag tr">'+fmt(f.quarantine_rejects)+'</span></td>'+
+          '<td><span class="tag tr">'+fmt(f.field_rejects)+'</span></td>'+
+          '<td style="color:var(--text-secondary);font-size:11px">'+fmtTime(f.start_time)+'</td>'+
+          '<td style="color:var(--text-secondary);font-size:11px">'+fmtTime(f.end_time)+'</td>'+
+          '</tr>';
+      }).join('');
+    }
+
+    var ghs = data.greenhouse_data || [];
+    if (!ghs.length) {
+      el('ghBody').innerHTML = '<tr><td colspan="8" class="empty">No data for this period</td></tr>';
+    } else {
+      el('ghSub').textContent = ghs.length + ' greenhouse' + (ghs.length !== 1 ? 's' : '') + ' active';
+      el('ghBody').innerHTML = ghs.map(function(g) {
+        var harvested = g.Harvesting || 0;
+        var received = (g.Receiving || 0) + (g['Late Receipt'] || 0);
+        var variance = g.variance || 0;
+        var vClass = variance > 0 ? 'tr' : (variance < 0 ? 'to' : 'tg');
+        var rejects = g.total_rejects || 0;
+        return '<tr>' +
+          '<td style="font-weight:600">' + (g.greenhouse_name || g.greenhouse || '&mdash;') + '</td>' +
+          '<td>' + fmt(g.budget) + '</td>' +
+          '<td><span class="tag tg">' + fmt(harvested) + '</span></td>' +
+          '<td><span class="tag tb">' + fmt(received) + '</span></td>' +
+          '<td><span class="tag ' + vClass + '">' + fmt(variance) + '</span></td>' +
+          '<td><span class="tag tr">' + fmt(rejects) + '</span></td>' +
+          '<td>' + (g.reject_pct || 0) + '%</td>' +
+          '<td>' + (g.budget_achievement_pct || 0) + '%</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    var vars=data.top_varieties||[];
+    el('topVarBody').innerHTML=!vars.length?'<div class="empty">No data</div>'
+      :vars.slice(0,10).map(function(v,i){
+        var rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+        return '<div class="rank-item">'+
+          '<div class="rank-badge '+rc+'">'+(i+1)+'</div>'+
+          '<div class="rank-info">'+
+            '<div class="rank-name">'+(v.item_name||v.item_code)+'</div>'+
+            '<div class="rank-meta">'+fmt(v.received||0)+' received</div>'+
+          '</div>'+
+          '<div class="rank-val">'+fmt(v.harvested)+' stems</div>'+
+        '</div>';
+      }).join('');
+
+    allHarvesters=data.all_harvesters||[];
+    renderHarvesters();
+
+    // Unreceived
+    renderUnreceived(data.unreceived_buckets);
+
+    // Quarantine pending rework
+    renderQuarantine(data.quarantine_pending);
+
+    var hourly=data.hourly_data||{};
+    if(chart) chart.destroy();
+    if(hourly.labels && hourly.labels.length){
+      chart=new Chart(el('pdChart'),{
+        type:'bar',
+        data:{labels:hourly.labels,datasets:[
+          {label:'Harvested',data:hourly.harvested,backgroundColor:'rgba(124,92,252,.75)',borderRadius:4,stack:'a'},
+          {label:'Received', data:hourly.received, backgroundColor:'rgba(36,144,239,.6)', borderRadius:4,stack:'a'}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+          plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,23,42,.9)',padding:12,cornerRadius:8,
+            callbacks:{label:function(c){return ' '+c.dataset.label+': '+c.raw.toLocaleString()+' stems';}}}},
+          scales:{
+            x:{grid:{display:false},ticks:{font:{size:11},color:'#98a1a9'}},
+            y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#98a1a9'}}
+          }}
+      });
+    }
+  }
+
+  return {
+    init:init, load:load, toggleMs:toggleMs,
+    switchHarvTab:switchHarvTab, toggleSort:toggleSort, toggleShowAll:toggleShowAll,
+    toggleUR:toggleUR, toggleTreeNode:toggleTreeNode,
+    toggleQ:toggleQ, toggleQNode:toggleQNode
+  };
+})();
+
+document.addEventListener('DOMContentLoaded',function(){ pd.init(); });
+</script>
+</body>
+</html>

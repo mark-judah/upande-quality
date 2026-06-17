@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Allocation Planning</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --bg-tab-group: #f4f5f6;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --text-on-dark: #ffffff;
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+            --btn-dark: #1a1a1a;
+            --btn-dark-hover: #333333;
+            --tint-blue: #e8f0fe;
+            --tint-purple: #f0ecfe;
+            --tint-green: #e6f9ee;
+            --tint-orange: #fff3e0;
+            --tint-gray: #f4f5f6;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 13px; line-height: 1.5; background: var(--bg-page); color: var(--text-primary); min-height: 100vh; }
+        .top-nav { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); padding: 0 16px; display: flex; align-items: center; position: sticky; top: 0; z-index: 200; height: 44px; }
+        .nav-brand { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 0 14px 0 0; margin-right: 6px; border-right: 1px solid var(--border-default); white-space: nowrap; }
+        .nav-link { padding: 12px 14px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 150ms ease, border-color 150ms ease; }
+        .nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-default); }
+        .nav-link.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 600; }
+        @media(max-width:600px) { .nav-brand { display: none; } .top-nav { overflow-x: auto; } }
+        .page-head { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); padding: 10px 20px; position: sticky; top: 44px; z-index: 100; }
+        .page-head-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .page-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+        .page-head-right { display: flex; align-items: center; gap: 10px; }
+        .btn { padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit; border-radius: 8px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; transition: background 150ms ease, color 150ms ease, border-color 150ms ease; }
+        .btn-primary { background: var(--btn-dark); color: var(--text-on-dark); border: none; }
+        .btn-primary:hover { background: var(--btn-dark-hover); }
+        .btn-secondary { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-default); }
+        .btn-secondary:hover { background: var(--bg-input); }
+        .btn-success-action { background: var(--tint-green); color: #1a8a3a; border: 1px solid #c5e8cd; }
+        .btn-success-action:hover { background: #d4f0da; }
+        .btn-danger-action { background: #fde8ec; color: var(--accent-red); border: 1px solid #f5c6ce; }
+        .btn-danger-action:hover { background: #fbd5dc; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 6px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .form-control { height: 32px; padding: 6px 12px; font-size: 13px; font-family: inherit; background: var(--bg-input); border: 1px solid transparent; border-radius: 6px; color: var(--text-primary); transition: border-color 150ms ease, background 150ms ease; }
+        .form-control:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+        .form-control::placeholder { color: var(--text-muted); }
+        .form-control.has-value { border-color: var(--accent-blue); background: var(--bg-surface); }
+        select.form-control { cursor: pointer; }
+        .location-wrap { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-surface); }
+        .location-wrap.confirmed { border-color: var(--accent-green); background: var(--tint-green); }
+        .location-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+        .location-wrap select { border: none; background: transparent; font-size: 13px; font-weight: 600; color: var(--text-primary); font-family: inherit; cursor: pointer; }
+        .location-wrap select:focus { outline: none; }
+        .live-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-primary); background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: inherit; transition: background 150ms ease; }
+        .live-badge:hover { background: var(--bg-input); }
+        .live-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; }
+        .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; padding-top: 10px; }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+        .filter-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+        .filter-actions { display: flex; gap: 6px; align-items: flex-end; }
+        .custom-select { position: relative; }
+        .custom-select input { width: 100%; }
+        .select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-default); border-top: none; border-radius: 0 0 6px 6px; max-height: 180px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+        .select-dropdown.show { display: block; }
+        .select-option { padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--text-primary); border-bottom: 1px solid var(--border-light); transition: background 150ms ease; }
+        .select-option:last-child { border-bottom: none; }
+        .select-option:hover { background: var(--bg-hover); }
+        .select-option.selected { background: var(--accent-blue-light); color: var(--accent-blue); font-weight: 600; }
+        .select-option.no-results { color: var(--text-muted); cursor: default; }
+        .select-option.no-results:hover { background: var(--bg-surface); }
+        .active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+        .filter-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; background: var(--bg-input); border-radius: 6px; color: var(--text-primary); }
+        .filter-tag-remove { cursor: pointer; color: var(--text-muted); display: inline-flex; transition: color 150ms ease; }
+        .filter-tag-remove:hover { color: var(--accent-red); }
+        .spinner-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.7); display: none; justify-content: center; align-items: center; z-index: 9999; }
+        .spinner-overlay.show { display: flex; }
+        .spinner { width: 28px; height: 28px; border: 2px solid var(--border-default); border-top: 2px solid var(--text-primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast { position: fixed; top: 80px; right: 20px; background: var(--bg-surface); border: 1px solid var(--border-default); color: var(--text-primary); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 10000; transform: translateX(200%); transition: transform 0.25s ease; }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: var(--tint-green); border-color: #c5e8cd; color: #1a8a3a; }
+        .toast.error { background: #fde8ec; border-color: #f5c6ce; color: var(--accent-red); }
+        .container { padding: 20px; max-width: 100%; margin: 0 auto; }
+        .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .kpi-card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 10px; box-shadow: var(--shadow-card); padding: 14px; display: flex; align-items: flex-start; gap: 10px; }
+        .kpi-icon { width: 36px; height: 36px; min-width: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .kpi-icon svg { width: 16px; height: 16px; }
+        .kpi-content { flex: 1; min-width: 0; }
+        .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; line-height: 1.3; }
+        .kpi-value { font-size: 20px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+        @media(max-width:992px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        @media(max-width:600px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+        .panel { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; box-shadow: var(--shadow-card); margin-bottom: 20px; }
+        .panel-heading { padding: 14px 20px; border-bottom: 1px solid var(--border-default); display: flex; justify-content: space-between; align-items: center; }
+        .panel-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .panel-body { padding: 0; }
+        .label { display: inline-flex; align-items: center; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; letter-spacing: 0.3px; }
+        .label-success { background: var(--tint-green); color: #1a8a3a; }
+        .label-warning { background: var(--tint-orange); color: #9a5a00; }
+        .label-danger { background: #fde8ec; color: var(--accent-red); }
+        .label-default { background: var(--bg-input); color: var(--text-secondary); }
+        .label-info { background: var(--tint-purple); color: var(--accent-purple); }
+        .label-primary { background: var(--tint-blue); color: var(--accent-blue); }
+        .table-container { width: 100%; overflow: auto; max-height: calc(100vh - 260px); }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1200px; }
+        .data-table thead { background: var(--bg-surface); border-bottom: 1px solid var(--border-default); }
+        .data-table th { padding: 10px 8px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; border-bottom: 1px solid var(--border-default); background: var(--bg-surface); position: sticky; top: 0; z-index: 2; }
+        .data-table td { padding: 8px 8px; border-bottom: 1px solid var(--border-light); white-space: nowrap; font-size: 13px; color: var(--text-primary); vertical-align: middle; }
+        .data-table tbody tr:hover { background: var(--bg-hover); }
+        .data-table tbody tr.no-stock { background: #fffbfb; }
+        .data-table tbody tr.confirmed { background: #fafffe; }
+        .data-table tbody tr.gap-row td { padding: 2px; border: none; background: transparent; }
+        .cell-customer { font-weight: 700; color: var(--text-primary); }
+        .cell-variety { font-weight: 600; }
+        .cell-order { font-weight: 600; color: var(--text-primary); font-size: 12px; }
+        .cell-number { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .cell-balance { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .cell-pos { color: #1a8a3a; }
+        .cell-neg { color: var(--accent-red); }
+        .cell-farm-ok { font-size: 12px; font-weight: 600; color: #1a8a3a; }
+        .cell-farm-bad { font-size: 12px; font-weight: 600; color: var(--accent-red); }
+        .cell-pct-high { color: #1a8a3a; font-weight: 600; }
+        .cell-pct-mid { color: var(--accent-orange); font-weight: 600; }
+        .cell-pct-low { color: var(--accent-red); font-weight: 600; }
+        .cell-confirm-wrap { text-align: center; white-space: nowrap; }
+        .doc-link { color: var(--accent-blue); text-decoration: none; font-weight: 600; cursor: pointer; }
+        .doc-link:hover { text-decoration: underline; }
+        .confirm-input-wrap { display: inline-flex; align-items: center; gap: 4px; }
+        .confirm-input-wrap input[type="number"] { width: 70px; height: 28px; padding: 4px 8px; font-size: 12px; font-variant-numeric: tabular-nums; background: var(--bg-input); border: 1px solid transparent; border-radius: 6px; text-align: right; color: var(--text-primary); font-family: inherit; }
+        .confirm-input-wrap input[type="number"]:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+        .confirmed-chips { display: flex; flex-wrap: wrap; gap: 4px; max-width: 220px; }
+        .confirmed-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--tint-green); color: #1a8a3a; }
+        .confirmed-chip.is-mine { background: var(--tint-blue); color: var(--accent-blue); }
+        .confirmed-chip-remove { cursor: pointer; display: inline-flex; transition: color 150ms ease; }
+        .confirmed-chip-remove:hover { color: var(--accent-red); }
+        .stems-progress { display: flex; align-items: center; gap: 6px; min-width: 100px; }
+        .stems-progress-bar { flex: 1; height: 4px; background: var(--bg-input); border-radius: 4px; overflow: hidden; min-width: 50px; }
+        .stems-progress-fill { height: 100%; border-radius: 4px; transition: width 150ms ease; }
+        .stems-progress-fill.full { background: var(--accent-green); }
+        .stems-progress-fill.partial { background: var(--accent-orange); }
+        .stems-progress-fill.empty { background: var(--border-default); }
+        .stems-progress-text { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-secondary); }
+        .empty-state { text-align: center; padding: 32px 20px; color: var(--text-secondary); }
+        .empty-state p { font-size: 13px; margin-top: 10px; }
+        .loading-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+        .error-msg { background: #fde8ec; border: 1px solid #f5c6ce; color: var(--accent-red); padding: 12px 16px; border-radius: 8px; font-size: 13px; margin: 20px; }
+    </style>
+</head>
+<body>
+    <div class="spinner-overlay" id="spinnerOverlay"><div class="spinner"></div></div>
+    <div class="toast" id="toast"></div>
+
+    <nav class="top-nav">
+        <span class="nav-brand">Packhouse</span>
+        <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+        <a href="packhouse-dashboard" class="nav-link">Workflow</a>
+        <a href="sales-allocation-planning" class="nav-link active">Allocation Planning</a>
+        <a href="bucket-tracker" class="nav-link">Bucket Journey</a>
+        <a href="cold-room" class="nav-link">Cold Room</a>
+        <a href="stock-visibility" class="nav-link">Stock Visibility</a>
+        <a href="order-summary" class="nav-link">Order Summary</a>
+    </nav>
+
+    <div class="page-head">
+        <div class="page-head-top">
+            <span class="page-title">Sales Allocation Planning</span>
+            <div class="page-head-right">
+                <div class="location-wrap" id="locationWrap">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span class="location-label">My Farm:</span>
+                    <select id="processingLocation" onchange="updateLocation()">
+                        <option value="">Select farm</option>
+                    </select>
+                </div>
+                <button class="live-badge" id="refreshBtn">
+                    <span class="live-dot"></span>LIVE
+                </button>
+            </div>
+        </div>
+        <div id="filtersRow" class="filters-row">
+            <div class="filter-group">
+                <label class="filter-group-label">Delivery Date</label>
+                <input type="date" class="form-control" id="deliveryDate">
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Customer</label>
+                <div class="custom-select">
+                    <input type="text" class="form-control" id="customerFilter" placeholder="Search..." autocomplete="off">
+                    <div class="select-dropdown" id="customerDropdown"></div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Sales Order</label>
+                <div class="custom-select">
+                    <input type="text" class="form-control" id="orderFilter" placeholder="Search..." autocomplete="off">
+                    <div class="select-dropdown" id="orderDropdown"></div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Variety</label>
+                <div class="custom-select">
+                    <input type="text" class="form-control" id="varietyFilter" placeholder="Search..." autocomplete="off">
+                    <div class="select-dropdown" id="varietyDropdown"></div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Length</label>
+                <div class="custom-select">
+                    <input type="text" class="form-control" id="lengthFilter" placeholder="Search..." autocomplete="off">
+                    <div class="select-dropdown" id="lengthDropdown"></div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Stock Farm</label>
+                <div class="custom-select">
+                    <input type="text" class="form-control" id="farmFilter" placeholder="Search..." autocomplete="off">
+                    <div class="select-dropdown" id="farmDropdown"></div>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label class="filter-group-label">Confirmed By</label>
+                <select class="form-control" id="confirmedByFilter">
+                    <option value="">All</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-secondary btn-sm" id="clearBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    Clear
+                </button>
+            </div>
+        </div>
+        <div class="active-filters" id="activeFilters"></div>
+    </div>
+
+    <div class="container">
+        <div class="kpi-row" id="kpiRow">
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="kpi-content"><div class="kpi-label">Customers</div><div class="kpi-value" id="statCustomers">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-purple)"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="kpi-content"><div class="kpi-label">Order Lines</div><div class="kpi-value" id="statOrderLines">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-green)"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="kpi-content"><div class="kpi-label">Stock Entries</div><div class="kpi-value" id="statFarmEntries">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-orange)"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><div class="kpi-content"><div class="kpi-label">Total Boxes</div><div class="kpi-value" id="statTotalBoxes">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-green)"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div class="kpi-content"><div class="kpi-label">Confirmed Stems</div><div class="kpi-value" id="statConfirmedStems">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="kpi-content"><div class="kpi-label">My Confirmed</div><div class="kpi-value" id="statMyConfirmed">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-purple)"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div><div class="kpi-content"><div class="kpi-label">Ordered Stems</div><div class="kpi-value" id="statTotalStems">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-green)"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div class="kpi-content"><div class="kpi-label">Available Stock</div><div class="kpi-value" id="statStockStems">0</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-orange)"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="kpi-content"><div class="kpi-label">Confirmed %</div><div class="kpi-value" id="statAllocated">0%</div></div></div>
+        </div>
+
+        <div class="panel" id="ordersSection">
+            <div class="panel-heading"><span class="panel-title">Farm-wise Stock &amp; Partial Confirmation</span></div>
+            <div class="panel-body">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Customer</th><th>Order Date</th><th>Deliv Date</th>
+                            <th>Order</th><th>Order Name</th><th>Ln</th>
+                            <th>Variety</th><th>Len</th><th>Ordered</th><th>Boxes</th>
+                            <th>Stock Farm</th><th>Stock</th><th>Status</th><th>%</th>
+                            <th>Confirmed</th><th>Action</th><th>Balance</th>
+                        </tr></thead>
+                        <tbody id="ordersTableBody">
+                            <tr><td colspan="17" class="loading-state">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allOrdersData = [];
+        let currentLocation = '';
+        let availableFarms = new Set();
+        let filterData = { customers:[], orders:[], varieties:[], lengths:[], farms:[] };
+        let selectedFilters = { customer:'', order:'', variety:'', length:'', farm:'', confirmedBy:'' };
+        let filterTimeout = null;
+        let isLoading = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initFilters();
+            setTimeout(loadData, 500);
+            setInterval(() => { if (!isLoading) loadData(); }, 60000);
+        });
+
+        function showSpinner(v) { document.getElementById('spinnerOverlay').classList.toggle('show', v); }
+        function showToast(msg, type='success') {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.className = 'toast ' + type;
+            t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function updateLocation() {
+            currentLocation = document.getElementById('processingLocation').value;
+            document.getElementById('locationWrap').classList.toggle('confirmed', !!currentLocation);
+            if (currentLocation) localStorage.setItem('selectedLocation', currentLocation);
+            else localStorage.removeItem('selectedLocation');
+            if (allOrdersData.length) applyFilters();
+        }
+
+        function populateLocationSelector() {
+            const sel = document.getElementById('processingLocation');
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">Select farm</option>';
+            Array.from(availableFarms).sort().forEach(f => {
+                const o = document.createElement('option'); o.value = f; o.textContent = f;
+                if (f === cur) o.selected = true; sel.appendChild(o);
+            });
+        }
+
+        function populateConfirmedByFilter() {
+            const sel = document.getElementById('confirmedByFilter');
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">All</option>';
+            Array.from(availableFarms).sort().forEach(f => { const o = document.createElement('option'); o.value = f; o.textContent = f; sel.appendChild(o); });
+            const u = document.createElement('option'); u.value = 'Unconfirmed'; u.textContent = 'Unconfirmed'; sel.appendChild(u);
+            const p = document.createElement('option'); p.value = 'Partial'; p.textContent = 'Partial'; sel.appendChild(p);
+            if (Array.from(sel.options).map(o=>o.value).includes(cur)) sel.value = cur;
+        }
+
+        function initFilters() {
+            const saved = localStorage.getItem('selectedLocation');
+            if (saved) currentLocation = saved;
+            document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('deliveryDate').addEventListener('change', () => { showSpinner(true); loadData(); });
+            document.getElementById('confirmedByFilter').addEventListener('change', () => { showSpinner(true); applyFiltersDelay(); });
+            document.getElementById('refreshBtn').addEventListener('click', loadData);
+            document.getElementById('clearBtn').addEventListener('click', clearAllFilters);
+            initCustomSelect('customer', 'customerFilter', 'customerDropdown');
+            initCustomSelect('order', 'orderFilter', 'orderDropdown');
+            initCustomSelect('variety', 'varietyFilter', 'varietyDropdown');
+            initCustomSelect('length', 'lengthFilter', 'lengthDropdown');
+            initCustomSelect('farm', 'farmFilter', 'farmDropdown');
+            document.addEventListener('click', e => { if (!e.target.closest('.custom-select')) document.querySelectorAll('.select-dropdown').forEach(d => d.classList.remove('show')); });
+        }
+
+        function initCustomSelect(key, inputId, dropdownId) {
+            const input = document.getElementById(inputId), dropdown = document.getElementById(dropdownId);
+            const dataKey = { customer:'customers', order:'orders', variety:'varieties', length:'lengths', farm:'farms' }[key];
+            input.addEventListener('focus', () => { buildDropdown(dataKey, input, dropdown, key); dropdown.classList.add('show'); });
+            input.addEventListener('input', function() {
+                buildDropdown(dataKey, input, dropdown, key);
+                if (!this.value) { selectedFilters[key]=''; this.classList.remove('has-value'); showSpinner(true); applyFiltersDelay(); }
+            });
+            input.addEventListener('keydown', e => { if (e.key==='Enter') { const f=dropdown.querySelector('.select-option:not(.no-results)'); if(f) pickOption(key,f.dataset.value,input,dropdown); } });
+        }
+
+        function buildDropdown(dataKey, input, dropdown, filterKey) {
+            const term = input.value.toLowerCase();
+            const items = (filterData[dataKey]||[]).filter(i=>i.toLowerCase().includes(term));
+            const currentVal = selectedFilters[filterKey]||'';
+            dropdown.innerHTML = items.length
+                ? items.map(i => `<div class="select-option${currentVal===i?' selected':''}" data-value="${i.replace(/"/g,'&quot;')}">${i}</div>`).join('')
+                : '<div class="select-option no-results">No results</div>';
+            dropdown.querySelectorAll('.select-option:not(.no-results)').forEach(opt => {
+                opt.addEventListener('click', () => { pickOption(filterKey, opt.dataset.value, input, dropdown); dropdown.classList.remove('show'); });
+            });
+        }
+
+        function pickOption(key, value, input, dropdown) {
+            input.value = value; input.classList.add('has-value');
+            selectedFilters[key] = value;
+            showSpinner(true); applyFiltersDelay();
+            dropdown.classList.remove('show');
+        }
+
+        function clearAllFilters() {
+            showSpinner(true);
+            document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+            ['customerFilter','orderFilter','varietyFilter','lengthFilter','farmFilter','confirmedByFilter'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+            document.querySelectorAll('.form-control').forEach(el => el.classList.remove('has-value'));
+            selectedFilters = { customer:'', order:'', variety:'', length:'', farm:'', confirmedBy:'' };
+            applyFiltersDelay();
+        }
+
+        function applyFiltersDelay() { if(filterTimeout) clearTimeout(filterTimeout); filterTimeout = setTimeout(applyFilters, 300); }
+
+        function applyFilters() {
+            if (!allOrdersData.length) { ordersEmpty(); showSpinner(false); return; }
+            selectedFilters.confirmedBy = document.getElementById('confirmedByFilter').value;
+            let filtered = allOrdersData;
+            if (selectedFilters.customer) filtered = filtered.filter(r => r.customer === selectedFilters.customer);
+            if (selectedFilters.order) filtered = filtered.filter(r => r.sales_order === selectedFilters.order);
+            if (selectedFilters.variety) filtered = filtered.filter(r => r.item_code === selectedFilters.variety);
+            if (selectedFilters.length) filtered = filtered.filter(r => r.length === selectedFilters.length);
+            if (selectedFilters.farm) filtered = filtered.filter(r => r.farm_name === selectedFilters.farm);
+            if (selectedFilters.confirmedBy) {
+                if (selectedFilters.confirmedBy === 'Unconfirmed') filtered = filtered.filter(r => getConfirmedTotal(r) === 0);
+                else if (selectedFilters.confirmedBy === 'Partial') filtered = filtered.filter(r => { const ct = getConfirmedTotal(r); return ct > 0 && ct < (r.stems_ordered || 0); });
+                else filtered = filtered.filter(r => (r.custom_confirmed_stems_table || []).some(e => e.farm === selectedFilters.confirmedBy));
+            }
+            renderOrdersData(filtered);
+            updateStats(filtered);
+            renderActiveFilters();
+            showSpinner(false);
+        }
+
+        function renderActiveFilters() {
+            const keys = { customer:'Customer', order:'Order', variety:'Variety', length:'Length', farm:'Farm', confirmedBy:'Confirmed' };
+            const x = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+            document.getElementById('activeFilters').innerHTML = Object.entries(selectedFilters).filter(([k,v]) => v).map(([k,v]) => `<span class="filter-tag">${keys[k]}: ${v} <span class="filter-tag-remove" onclick="clearFilter('${k}')">${x}</span></span>`).join('');
+        }
+
+        function clearFilter(key) {
+            showSpinner(true); selectedFilters[key] = '';
+            const input = document.getElementById(key+'Filter');
+            if (input) { input.value=''; input.classList.remove('has-value'); }
+            if (key==='confirmedBy') document.getElementById('confirmedByFilter').value='';
+            applyFiltersDelay();
+        }
+
+        function populateFilterData(data) {
+            if (!data?.length) return;
+            const sets = { customers:new Set(), orders:new Set(), varieties:new Set(), lengths:new Set(), farms:new Set() };
+            data.forEach(r => {
+                if(r.customer) sets.customers.add(r.customer);
+                if(r.sales_order) sets.orders.add(r.sales_order);
+                if(r.item_code) sets.varieties.add(r.item_code);
+                if(r.length) sets.lengths.add(r.length);
+                if(r.farm_name && r.farm_name!=='No Stock Available') sets.farms.add(r.farm_name);
+                if(r.farm_name && r.farm_name!=='Unknown') availableFarms.add(r.farm_name);
+                (r.custom_confirmed_stems_table || []).forEach(e => { if(e.farm) availableFarms.add(e.farm); });
+            });
+            Object.keys(sets).forEach(k => filterData[k] = Array.from(sets[k]).sort());
+            populateLocationSelector();
+            populateConfirmedByFilter();
+            const saved = localStorage.getItem('selectedLocation');
+            if (saved && availableFarms.has(saved)) { document.getElementById('processingLocation').value=saved; updateLocation(); }
+        }
+
+        function getConfirmedEntries(row) { return row.custom_confirmed_stems_table || []; }
+        function getConfirmedTotal(row) { return getConfirmedEntries(row).reduce((s, e) => s + (e.stems || 0), 0); }
+        function getMyConfirmedStems(row) { if (!currentLocation) return 0; const entry = getConfirmedEntries(row).find(e => e.farm === currentLocation); return entry ? (entry.stems || 0) : 0; }
+        function getRemainingStems(row) { return Math.max(0, (row.stems_ordered || 0) - getConfirmedTotal(row)); }
+
+        function loadData() {
+            if (isLoading) return; isLoading = true; showSpinner(true);
+            frappe.call({
+                method: 'fetchSalesAllocationPlanningData',
+                args: { delivery_date: document.getElementById('deliveryDate').value, farm: selectedFilters.farm||'' },
+                callback: r => { isLoading = false; showSpinner(false); if (r.message?.success) { allOrdersData = r.message.data; populateFilterData(allOrdersData); applyFilters(); } else ordersEmpty(); },
+                error: err => { isLoading = false; showSpinner(false); ordersError('Failed to load data'); console.error(err); }
+            });
+        }
+
+        function ordersEmpty() { document.getElementById('ordersTableBody').innerHTML='<tr><td colspan="17" class="empty-state"><p>No orders available</p></td></tr>'; }
+        function ordersError(m) { document.getElementById('ordersTableBody').innerHTML=`<tr><td colspan="17" class="error-msg">${m}</td></tr>`; }
+
+        function updateStats(filtered) {
+            const customers = new Set(filtered.map(r=>r.customer)).size;
+            const lineKeys = new Set(filtered.map(r=>`${r.sales_order}-${r.line_no}`));
+            let totalConfirmedStems = 0, myConfirmedStems = 0, stems = 0, boxes = 0, stock = 0;
+            const seen = new Set();
+            filtered.forEach(r => {
+                const k = `${r.sales_order}-${r.line_no}`;
+                if (!seen.has(k)) { stems += r.stems_ordered || 0; boxes += r.boxes_ordered || 0; totalConfirmedStems += getConfirmedTotal(r); myConfirmedStems += getMyConfirmedStems(r); seen.add(k); }
+                stock += r.stock_total || 0;
+            });
+            document.getElementById('statCustomers').textContent = customers;
+            document.getElementById('statOrderLines').textContent = lineKeys.size;
+            document.getElementById('statFarmEntries').textContent = filtered.length;
+            document.getElementById('statTotalBoxes').textContent = boxes.toLocaleString();
+            document.getElementById('statConfirmedStems').textContent = totalConfirmedStems.toLocaleString();
+            document.getElementById('statMyConfirmed').textContent = myConfirmedStems.toLocaleString();
+            document.getElementById('statTotalStems').textContent = stems.toLocaleString();
+            document.getElementById('statStockStems').textContent = stock.toLocaleString();
+            document.getElementById('statAllocated').textContent = stems > 0 ? Math.round((totalConfirmedStems / stems) * 100) + '%' : '0%';
+        }
+
+        function renderOrdersData(data) {
+            if (!data?.length) { ordersEmpty(); return; }
+            const dismissSvg = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+            let html = '', curKey = null;
+            data.forEach(row => {
+                const k = `${row.sales_order}-${row.line_no}`;
+                const isNew = curKey !== k;
+                if (isNew) { if (curKey) html += '<tr class="gap-row"><td colspan="17"></td></tr>'; curKey = k; }
+                const balance = (row.stock_total||0) - (row.stems_ordered||0);
+                const status = row.stock_status || 'No Stock';
+                const statusLabel = status==='Sufficient' ? 'label-success' : status==='Partial' ? 'label-warning' : 'label-danger';
+                const pct = row.fulfillment_percentage || 0;
+                const pctCls = pct >= 100 ? 'cell-pct-high' : pct >= 50 ? 'cell-pct-mid' : 'cell-pct-low';
+                const farm = row.farm_name || 'Unknown';
+                const farmCls = (farm !== 'No Stock Available' && farm !== 'Unknown') ? 'cell-farm-ok' : 'cell-farm-bad';
+                const confirmedEntries = getConfirmedEntries(row);
+                const confirmedTotal = getConfirmedTotal(row);
+                const stemsOrdered = row.stems_ordered || 0;
+                const remaining = getRemainingStems(row);
+                const myStems = getMyConfirmedStems(row);
+                const rowCls = farm === 'No Stock Available' ? 'no-stock' : (confirmedTotal >= stemsOrdered && stemsOrdered > 0 ? 'confirmed' : '');
+                let confirmedHtml = '';
+                if (isNew) {
+                    let chipsHtml = '';
+                    confirmedEntries.forEach(entry => {
+                        const isMine = entry.farm === currentLocation;
+                        chipsHtml += `<span class="confirmed-chip ${isMine ? 'is-mine' : ''}" title="${entry.farm}: ${entry.stems} stems">${entry.farm}: ${(entry.stems||0).toLocaleString()}${isMine ? ` <span class="confirmed-chip-remove" onclick="removeConfirmation('${row.sales_order}',${row.line_no},'${entry.farm}')">${dismissSvg}</span>` : ''}</span>`;
+                    });
+                    const pctC = stemsOrdered > 0 ? Math.min(100, Math.round((confirmedTotal / stemsOrdered) * 100)) : 0;
+                    const fillCls = pctC >= 100 ? 'full' : pctC > 0 ? 'partial' : 'empty';
+                    confirmedHtml = `<div class="confirmed-chips">${chipsHtml || '<span style="font-size:11px;color:var(--text-muted)">None</span>'}</div><div class="stems-progress"><div class="stems-progress-bar"><div class="stems-progress-fill ${fillCls}" style="width:${pctC}%"></div></div><span class="stems-progress-text">${confirmedTotal.toLocaleString()}/${stemsOrdered.toLocaleString()}</span></div>`;
+                }
+                let actionHtml = '';
+                if (isNew) {
+                    if (!currentLocation) actionHtml = '<span style="font-size:11px;color:var(--text-muted)">Select farm</span>';
+                    else if (remaining > 0 || myStems > 0) {
+                        const defaultVal = myStems > 0 ? myStems : Math.min(remaining, stemsOrdered);
+                        const maxVal = remaining + myStems;
+                        actionHtml = `<div class="confirm-input-wrap"><input type="number" id="stems_${row.sales_order}_${row.line_no}" min="0" max="${maxVal}" step="1" value="${defaultVal}" title="Max ${maxVal.toLocaleString()}"><button class="btn btn-xs btn-success-action" onclick="confirmPartial('${row.sales_order}',${row.line_no})">${myStems > 0 ? 'Update' : 'Confirm'}</button>`;
+                        if (myStems > 0) actionHtml += `<button class="btn btn-xs btn-danger-action" onclick="removeConfirmation('${row.sales_order}',${row.line_no},'${currentLocation}')">${dismissSvg}</button>`;
+                        actionHtml += '</div>';
+                    } else if (confirmedTotal >= stemsOrdered && stemsOrdered > 0) actionHtml = '<span class="label label-success">Fully Confirmed</span>';
+                }
+                html += `<tr class="${rowCls}">
+                    <td class="cell-customer">${isNew ? (row.customer||'') : ''}</td>
+                    <td>${isNew ? (row.transaction_date||'') : ''}</td>
+                    <td>${isNew ? (row.delivery_date||'') : ''}</td>
+                    <td>${isNew ? (row.sales_order ? `<a class="doc-link" onclick="openDoc('Sales Order','${row.sales_order}')">${row.sales_order}</a>` : '--') : ''}</td>
+                    <td class="cell-order">${isNew ? (row.order_name||'--') : ''}</td>
+                    <td>${isNew ? (row.line_no||'') : ''}</td>
+                    <td class="cell-variety">${isNew ? (row.item_code||'') : ''}</td>
+                    <td>${isNew ? (row.length||'') : ''}</td>
+                    <td class="cell-number">${isNew ? (row.stems_ordered||0).toLocaleString() : ''}</td>
+                    <td class="cell-number">${isNew ? (row.boxes_ordered||0).toLocaleString() : ''}</td>
+                    <td class="${farmCls}">${farm}</td>
+                    <td class="cell-number">${row.stock_total != null ? row.stock_total.toLocaleString() : '--'}</td>
+                    <td><span class="label ${statusLabel}">${status}</span></td>
+                    <td class="${pctCls}">${pct}%</td>
+                    <td>${confirmedHtml}</td>
+                    <td class="cell-confirm-wrap">${actionHtml}</td>
+                    <td class="cell-balance ${balance>=0?'cell-pos':'cell-neg'}">${balance.toLocaleString()}</td>
+                </tr>`;
+            });
+            document.getElementById('ordersTableBody').innerHTML = html;
+        }
+
+        function confirmPartial(salesOrder, lineNo) {
+            if (!currentLocation) { showToast('Please select your farm first', 'error'); return; }
+            const input = document.getElementById(`stems_${salesOrder}_${lineNo}`);
+            if (!input) { showToast('Input not found', 'error'); return; }
+            const stemsVal = parseInt(input.value, 10);
+            if (isNaN(stemsVal) || stemsVal < 0) { showToast('Enter a valid number of stems', 'error'); return; }
+            const row = allOrdersData.find(r => r.sales_order === salesOrder && r.line_no == lineNo);
+            if (row) { const max = getRemainingStems(row) + getMyConfirmedStems(row); if (stemsVal > max) { showToast(`Maximum ${max.toLocaleString()} stems`, 'error'); return; } }
+            showSpinner(true);
+            frappe.call({
+                method: 'confimSalesOrderItem',
+                args: { sales_order: salesOrder, line_no: lineNo, processing_location: currentLocation, action: 'confirm', stems: stemsVal },
+                callback: r => {
+                    showSpinner(false);
+                    if (r.message?.success) {
+                        showToast(`${stemsVal.toLocaleString()} stems confirmed for ${currentLocation}`);
+                        const serverEntries = r.message.data?.confirmed_entries;
+                        allOrdersData.forEach(row => {
+                            if (row.sales_order === salesOrder && row.line_no == lineNo) {
+                                if (serverEntries) row.custom_confirmed_stems_table = serverEntries;
+                                else {
+                                    let entries = row.custom_confirmed_stems_table || [];
+                                    const existing = entries.findIndex(e => e.farm === currentLocation);
+                                    if (stemsVal === 0) { if (existing >= 0) entries.splice(existing, 1); }
+                                    else if (existing >= 0) entries[existing].stems = stemsVal;
+                                    else entries.push({ farm: currentLocation, stems: stemsVal });
+                                    row.custom_confirmed_stems_table = entries;
+                                }
+                            }
+                        });
+                        populateConfirmedByFilter(); applyFilters();
+                    } else showToast(r.message?.error || 'Failed to update', 'error');
+                },
+                error: err => { showSpinner(false); showToast('Error updating', 'error'); console.error(err); }
+            });
+        }
+
+        function removeConfirmation(salesOrder, lineNo, farm) {
+            if (farm !== currentLocation) { showToast('You can only remove your own confirmations', 'error'); return; }
+            showSpinner(true);
+            frappe.call({
+                method: 'confimSalesOrderItem',
+                args: { sales_order: salesOrder, line_no: lineNo, processing_location: farm, action: 'unconfirm', stems: 0 },
+                callback: r => {
+                    showSpinner(false);
+                    if (r.message?.success) {
+                        showToast(`Confirmation removed for ${farm}`);
+                        allOrdersData.forEach(row => { if (row.sales_order === salesOrder && row.line_no == lineNo) row.custom_confirmed_stems_table = (row.custom_confirmed_stems_table || []).filter(e => e.farm !== farm); });
+                        populateConfirmedByFilter(); applyFilters();
+                    } else showToast(r.message?.error || 'Failed to remove', 'error');
+                },
+                error: err => { showSpinner(false); showToast('Error removing confirmation', 'error'); console.error(err); }
+            });
+        }
+
+        function openDoc(doctype, name) {
+            if (typeof frappe!=='undefined'&&frappe?.set_route) frappe.set_route('Form', doctype, name);
+            else window.open(`/app/${doctype.toLowerCase().replace(/ /g,'-')}/${name}`, '_blank');
+        }
+    </script>
+</body>
+</html>

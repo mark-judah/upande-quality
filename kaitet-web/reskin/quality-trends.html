@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quality Trends</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            --bg-page: #f4f5f6;--bg-surface: #ffffff;--bg-input: #f4f5f6;--bg-hover: #f8f9fa;
+            --text-primary: #1a1a1a;--text-secondary: #6c7178;--text-muted: #98a1a9;--text-on-dark: #ffffff;
+            --border-default: #e2e4e7;--border-light: #f0f0f0;
+            --accent-blue: #2490ef;--accent-blue-light: #e8f0fe;--accent-green: #29cd42;--accent-red: #e63757;--accent-orange: #fc9c30;--accent-purple: #7c5cfc;
+            --tint-blue: #e8f0fe;--tint-purple: #f0ecfe;--tint-green: #e6f9ee;--tint-orange: #fff3e0;--tint-gray: #f4f5f6;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;font-size:13px;line-height:1.5;background:var(--bg-page);color:var(--text-primary);min-height:100vh;}
+
+        .top-nav{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:0 16px;display:flex;align-items:center;position:sticky;top:0;z-index:200;height:44px;}
+        .nav-brand{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:0 14px 0 0;margin-right:6px;border-right:1px solid var(--border-default);white-space:nowrap;}
+        .nav-link{padding:12px 14px;font-size:13px;font-weight:500;color:var(--text-secondary);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 150ms ease,border-color 150ms ease;}
+        .nav-link:hover{color:var(--text-primary);border-bottom-color:var(--border-default);}
+        .nav-link.active{color:var(--accent-blue);border-bottom-color:var(--accent-blue);font-weight:600;}
+        @media(max-width:600px){.nav-brand{display:none;}.top-nav{overflow-x:auto;}}
+
+        .page-head{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:44px;z-index:100;min-height:48px;}
+        .page-title{font-size:18px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
+        .refresh-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;transition:background 150ms ease;}
+        .refresh-btn:hover{background:var(--bg-input);}
+        .refresh-dot{width:7px;height:7px;background:var(--accent-green);border-radius:50%;}
+
+        .filter-bar{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+        .filter-group{display:flex;align-items:center;gap:4px;}
+        .filter-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+        .form-control{height:30px;padding:4px 10px;font-size:12px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);transition:border-color 150ms ease,background 150ms ease;min-width:100px;}
+        .form-control:focus{outline:none;border-color:var(--accent-blue);background:var(--bg-surface);}
+        select.form-control{cursor:pointer;}
+
+        .container{padding:20px;max-width:1920px;margin:0 auto;}
+
+        .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
+        .kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;box-shadow:var(--shadow-card);padding:12px;display:flex;align-items:flex-start;gap:10px;}
+        .kpi-icon{width:34px;height:34px;min-width:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+        .kpi-icon svg{width:15px;height:15px;}
+        .kpi-content{flex:1;min-width:0;}
+        .kpi-label{font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:2px;line-height:1.3;}
+        .kpi-value{font-size:18px;font-weight:700;color:var(--text-primary);line-height:1;}
+        @media(max-width:992px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+        @media(max-width:480px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+
+        /* 2-column rows — one row per group */
+        .panel-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+        @media(max-width:768px){.panel-row{grid-template-columns:1fr;}}
+
+        .section-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;padding-left:2px;}
+
+        .panel{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;overflow:hidden;}
+        .panel-heading{padding:14px 16px 10px;border-bottom:1px solid var(--border-light);}
+        .panel-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+        .panel-body{padding:12px 16px 16px;flex:1;min-height:0;position:relative;}
+        .panel-body canvas{width:100%!important;max-height:340px;}
+
+        .loading-state{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px;}
+        .error-state{background:#fde8ec;color:var(--accent-red);padding:12px 16px;font-size:13px;border-radius:8px;margin:20px;}
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">QC DASHBOARD</span>
+    <a href="app/qc" class="nav-link">Home</a>
+    <a href="intake-ftr-overview" class="nav-link">Intake FTR</a>
+    <a href="solution-mixing-overview" class="nav-link">Solution Mixing</a>
+    <a href="coldroom-overview" class="nav-link">Coldroom Ops</a>
+    <a href="quality-trends" class="nav-link active">Trends</a>
+    <a href="quality-raw-data" class="nav-link">Raw Data</a>
+    <a href="transit-time" class="nav-link">Transit Time</a>
+</nav>
+
+<div class="page-head">
+    <span class="page-title">Quality Trends</span>
+    <button class="refresh-btn" onclick="loadData()"><span class="refresh-dot"></span>Refresh</button>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group">
+        <span class="filter-label">Year</span>
+        <select class="form-control" id="filterYear"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">Week</span>
+        <select class="form-control" id="filterWeek"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">Production Date</span>
+        <input type="date" class="form-control" id="filterDate">
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- KPI Row -->
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Total Reports</div><div class="kpi-value" id="kpiReports">--</div></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-purple);"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Stems Checked</div><div class="kpi-value" id="kpiChecked">--</div></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-orange);"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c1-3 6-6 6-10a6 6 0 1 0-12 0c0 4 5 7 6 10z"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Total Pests</div><div class="kpi-value" id="kpiPests">--</div></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green);"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Total Diseases</div><div class="kpi-value" id="kpiDiseases">--</div></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+            <div class="kpi-content"><div class="kpi-label">Other Concerns</div><div class="kpi-value" id="kpiOthers">--</div></div>
+        </div>
+    </div>
+
+    <!-- ── Diseases ─────────────────────────────────────────────── -->
+    <div class="section-label">Diseases</div>
+    <div class="panel-row">
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Diseases (Sum of Stems)</span></div>
+            <div class="panel-body"><canvas id="chartDiseasesSum"></canvas></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Diseases (Count)</span></div>
+            <div class="panel-body"><canvas id="chartDiseasesCount"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ── Other Quality Concerns ───────────────────────────────── -->
+    <div class="section-label">Other Quality Concerns</div>
+    <div class="panel-row">
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Other Quality Concerns (Sum of Stems)</span></div>
+            <div class="panel-body"><canvas id="chartOthersSum"></canvas></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Other Quality Concerns (Count)</span></div>
+            <div class="panel-body"><canvas id="chartOthersCount"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ── Pests ────────────────────────────────────────────────── -->
+    <div class="section-label">Pests</div>
+    <div class="panel-row">
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Pests (Sum of Stems)</span></div>
+            <div class="panel-body"><canvas id="chartPestsSum"></canvas></div>
+        </div>
+        <div class="panel">
+            <div class="panel-heading"><span class="panel-title">Pests (Count)</span></div>
+            <div class="panel-body"><canvas id="chartPestsCount"></canvas></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function(){
+    "use strict";
+
+    var chartInstances = {};
+
+    Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = "#6c7178";
+    Chart.defaults.plugins.legend.display = false;
+
+    // ── Color palettes per group ───────────────────────────────────────
+    var DISEASE_COLORS = ["#1a6e7e","#f0a73a","#7c5cfc","#4dc9c9","#8e44ad","#2490ef","#e63757"];
+    var OTHER_COLORS = [
+        "#2490ef","#d4c77f","#e63757","#4dc9c9","#c0c0c0","#29cd42",
+        "#fc9c30","#7c5cfc","#1a6e7e","#f0a73a","#8e44ad","#3498db",
+        "#e74c3c","#2ecc71","#9b59b6","#1abc9c","#d35400","#c0392b",
+        "#27ae60","#2980b9","#f39c12","#8e44ad","#16a085","#d35400",
+        "#c0392b","#7f8c8d","#2c3e50"
+    ];
+    var PEST_COLORS = [
+        "#1a6e7e","#88c4a8","#e63757","#6ecfcf","#d4c77f","#3a7d44",
+        "#f0a73a","#6b4fa0","#4dc9c9","#c0392b","#2980b9","#8e44ad",
+        "#16a085","#d35400","#f39c12","#27ae60","#e74c3c","#9b59b6",
+        "#1abc9c","#2c3e50"
+    ];
+
+    // ── Init ───────────────────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", function(){
+        ["filterYear","filterWeek","filterDate"].forEach(function(id){
+            document.getElementById(id).addEventListener("change", loadData);
+        });
+        setTimeout(loadData, 300);
+    });
+
+    function getFilters(){
+        return {
+            year:            document.getElementById("filterYear").value,
+            week:            document.getElementById("filterWeek").value,
+            production_date: document.getElementById("filterDate").value
+        };
+    }
+
+    // ── Load Data ──────────────────────────────────────────────────────
+    window.loadData = function(){
+        frappe.call({
+            method: "fetchTrendsData",
+            args: getFilters(),
+            callback: function(r){
+                var msg = r.message || {};
+                if(!msg.success){
+                    console.error(msg.error);
+                    return;
+                }
+                renderKPIs(msg.kpi || {});
+                renderBar("chartDiseasesSum",   msg.diseases_sum   || [], DISEASE_COLORS, "total_count");
+                renderBar("chartDiseasesCount", msg.diseases_count || [], DISEASE_COLORS, "occurrence_count");
+                renderBar("chartOthersSum",     msg.others_sum     || [], OTHER_COLORS,   "total_count");
+                renderBar("chartOthersCount",   msg.others_count   || [], OTHER_COLORS,   "occurrence_count");
+                renderBar("chartPestsSum",      msg.pests_sum      || [], PEST_COLORS,    "total_count");
+                renderBar("chartPestsCount",    msg.pests_count    || [], PEST_COLORS,    "occurrence_count");
+                populateFilters(msg.filter_options || {});
+            },
+            error: function(e){ console.error(e); }
+        });
+    };
+
+    // ── Populate filters ───────────────────────────────────────────────
+    function populateFilters(opts){
+        fillSelect("filterYear", opts.years || [], "", "All");
+        fillSelect("filterWeek", opts.weeks || [], "", "All");
+    }
+
+    function fillSelect(id, items, defaultVal, defaultLabel){
+        var sel = document.getElementById(id);
+        var cur = sel.value;
+        sel.innerHTML = '<option value="' + (defaultVal || "") + '">' + (defaultLabel || "All") + '</option>';
+        items.forEach(function(item){
+            var o = document.createElement("option");
+            o.value = item;
+            o.textContent = item;
+            if(String(item) === cur) o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+
+    // ── KPIs ───────────────────────────────────────────────────────────
+    function renderKPIs(kpi){
+        document.getElementById("kpiReports").textContent  = num(kpi.total_reports);
+        document.getElementById("kpiChecked").textContent   = num(kpi.total_stems_checked);
+        document.getElementById("kpiPests").textContent     = num(kpi.total_pests);
+        document.getElementById("kpiDiseases").textContent  = num(kpi.total_diseases);
+        document.getElementById("kpiOthers").textContent    = num(kpi.total_others);
+    }
+
+    // ── Stacked bar (by farm) + Pareto cumulative-% line ───────────────
+    // data rows: [{parameter_name, farm, <valueKey>}]
+    function renderBar(canvasId, data, colors, valueKey){
+        if(chartInstances[canvasId]){
+            chartInstances[canvasId].destroy();
+            chartInstances[canvasId] = null;
+        }
+        data = data || [];
+
+        var totals = {}, farmsSet = {}, lut = {};
+        data.forEach(function(d){
+            var p = d.parameter_name || "--", f = d.farm || "—", v = Number(d[valueKey] || 0);
+            totals[p] = (totals[p] || 0) + v;
+            farmsSet[f] = true;
+            lut[p + "||" + f] = (lut[p + "||" + f] || 0) + v;
+        });
+        // parameters sorted by total descending (Pareto order)
+        var params = Object.keys(totals).sort(function(a, b){ return totals[b] - totals[a]; });
+        var farms = Object.keys(farmsSet).sort();
+        var labels = params.map(function(p){ return truncate(p, 14); });
+
+        var datasets = farms.map(function(f, i){
+            return {
+                type: "bar", label: f, stack: "s", yAxisID: "y",
+                data: params.map(function(p){ return lut[p + "||" + f] || 0; }),
+                backgroundColor: colors[i % colors.length], borderWidth: 0, maxBarThickness: 40
+            };
+        });
+        // cumulative %
+        var grand = params.reduce(function(s, p){ return s + totals[p]; }, 0) || 1;
+        var cum = 0;
+        var cumPct = params.map(function(p){ cum += totals[p]; return Math.round(cum / grand * 1000) / 10; });
+        datasets.push({
+            type: "line", label: "Cumulative %", data: cumPct, yAxisID: "yPct",
+            borderColor: "#1a1a1a", backgroundColor: "transparent", borderWidth: 2,
+            pointRadius: 3, tension: 0.2
+        });
+
+        var ctx = document.getElementById(canvasId).getContext("2d");
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: "bar",
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: "bottom", labels: { boxWidth: 10, padding: 6, font: { size: 9 } } },
+                    tooltip: {
+                        backgroundColor: "#1a1a1a", cornerRadius: 6, padding: 10,
+                        callbacks: {
+                            label: function(ctx){
+                                return ctx.dataset.type === "line"
+                                    ? (ctx.dataset.label + ": " + ctx.parsed.y + "%")
+                                    : (ctx.dataset.label + ": " + num(ctx.parsed.y));
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0, font: { size: 9 } } },
+                    y: { stacked: true, beginAtZero: true, position: "left", grid: { color: "rgba(0,0,0,0.04)" }, ticks: { font: { size: 10 }, callback: function(v){ return shortNum(v); } } },
+                    yPct: { beginAtZero: true, max: 100, position: "right", grid: { drawOnChartArea: false }, ticks: { font: { size: 9 }, callback: function(v){ return v + "%"; } } }
+                }
+            }
+        });
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+    function num(n){
+        if(n === null || n === undefined) return "--";
+        return Number(n).toLocaleString();
+    }
+
+    function shortNum(v){
+        if(v >= 1000000) return (v / 1000000).toFixed(1) + "M";
+        if(v >= 1000) return (v / 1000).toFixed(1) + "k";
+        return v;
+    }
+
+    function truncate(s, maxLen){
+        s = String(s || "");
+        return s.length > maxLen ? s.substring(0, maxLen) + "..." : s;
+    }
+
+})();
+</script>
+</body>
+</html>

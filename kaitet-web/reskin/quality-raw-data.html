@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quality Raw Data | Quality Dashboard</title>
+    
+    <!-- PivotTable.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/themes/base/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .top-nav {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            height: 44px;
+        }
+        .nav-brand {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 14px 0 0;
+            margin-right: 6px;
+            border-right: 1px solid var(--border-default);
+            white-space: nowrap;
+        }
+        .nav-link {
+            padding: 12px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 150ms ease;
+        }
+        .nav-link:hover {
+            color: var(--text-primary);
+            border-bottom-color: var(--border-default);
+        }
+        .nav-link.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+            font-weight: 600;
+        }
+        @media (max-width: 640px) {
+            .top-nav { overflow-x: auto; padding: 0 12px; }
+            .nav-link { padding: 12px 12px; font-size: 11px; }
+        }
+
+        .page-head {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 44px;
+            z-index: 100;
+            flex-wrap: wrap;
+        }
+        .page-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .head-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .record-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: var(--bg-input);
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        .refresh-btn, .reset-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 5px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 150ms ease;
+        }
+        .refresh-btn:hover, .reset-btn:hover {
+            background: var(--bg-input);
+        }
+
+        .filter-bar {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 78px;
+            z-index: 99;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--bg-input);
+            padding: 3px 10px 3px 8px;
+            border-radius: 20px;
+            border: 1px solid var(--border-default);
+        }
+        .filter-label {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-control {
+            height: 28px;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-family: inherit;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            min-width: 90px;
+        }
+        .form-control:focus { outline: none; }
+        select.form-control { cursor: pointer; }
+        .clear-dates-btn {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--accent-blue);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+
+        .pivot-container {
+            padding: 20px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .pivot-wrapper {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .pivot-inner {
+            padding: 0;
+            overflow: auto;
+            max-height: calc(100vh - 200px);
+            width: 100%;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border-default);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-state {
+            background: #fde8ec;
+            color: var(--accent-red);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 20px;
+            border-left: 3px solid var(--accent-red);
+            font-size: 11px;
+        }
+
+        /* PivotTable.js Custom Styling */
+        .pvtUi {
+            font-family: inherit !important;
+            font-size: 12px !important;
+            color: var(--text-primary) !important;
+            width: 100% !important;
+        }
+        
+        .pvtAxisContainer, .pvtVals {
+            border: 1px dashed var(--border-default) !important;
+            background: var(--bg-input) !important;
+            padding: 8px !important;
+            border-radius: 6px !important;
+            margin: 4px !important;
+        }
+        
+        .pvtAxisContainer li span.pvtAttr,
+        .pvtRows li span.pvtAttr,
+        .pvtCols li span.pvtAttr {
+            background: var(--bg-surface) !important;
+            border: 1px solid var(--border-default) !important;
+            border-radius: 16px !important;
+            padding: 4px 12px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: var(--text-primary) !important;
+            cursor: grab !important;
+            display: inline-block !important;
+            margin: 2px 4px !important;
+        }
+        
+        .pvtAxisContainer li span.pvtAttr:hover,
+        .pvtRows li span.pvtAttr:hover,
+        .pvtCols li span.pvtAttr:hover {
+            border-color: var(--accent-blue) !important;
+            background: var(--accent-blue-light) !important;
+        }
+        
+        .pvtRenderer {
+            display: none !important;
+        }
+        
+        .pvtAggregator {
+            font-family: inherit !important;
+            font-size: 11px !important;
+            border: 1px solid var(--border-default) !important;
+            border-radius: 4px !important;
+            padding: 4px 8px !important;
+            background: var(--bg-surface) !important;
+        }
+        
+        .pvtTable {
+            font-family: inherit !important;
+            font-size: 11px !important;
+            border-collapse: collapse !important;
+            width: 100% !important;
+        }
+        
+        .pvtTable thead tr th,
+        .pvtTable tbody tr th {
+            background: var(--bg-input) !important;
+            border: 1px solid var(--border-default) !important;
+            padding: 8px 12px !important;
+            font-weight: 600 !important;
+            color: var(--text-secondary) !important;
+            white-space: nowrap !important;
+        }
+        
+        .pvtTable tbody tr td {
+            border: 1px solid var(--border-light) !important;
+            padding: 6px 10px !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
+        }
+        
+        .pvtTable tbody tr td:hover {
+            background: var(--bg-hover) !important;
+        }
+        
+        /* Grand totals row styling */
+        .pvtGrandTotal,
+        .pvtTotal {
+            background: var(--accent-blue-light) !important;
+            font-weight: 700 !important;
+        }
+        
+        .pvtFilterBox {
+            font-family: inherit !important;
+            font-size: 12px !important;
+            border: 1px solid var(--border-default) !important;
+            border-radius: 8px !important;
+            box-shadow: var(--shadow-card) !important;
+            background: var(--bg-surface) !important;
+            z-index: 1000 !important;
+        }
+        
+        .pvtFilterBox input {
+            font-family: inherit !important;
+            font-size: 11px !important;
+            border: 1px solid var(--border-default) !important;
+            border-radius: 4px !important;
+            padding: 4px 8px !important;
+        }
+        
+        .pvtFilterBox button {
+            font-size: 11px !important;
+            border-radius: 4px !important;
+            padding: 4px 12px !important;
+            cursor: pointer !important;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">QC DASHBOARD</span>
+    <a href="app/qc" class="nav-link">Home</a>
+    <a href="intake-ftr-overview" class="nav-link">Intake FTR</a>
+    <a href="solution-mixing-overview" class="nav-link">Solution Mixing</a>
+    <a href="coldroom-overview" class="nav-link">Coldroom Ops</a>
+    <a href="quality-trends" class="nav-link">Trends</a>
+    <a href="quality-raw-data" class="nav-link active">Raw Data</a>
+    <a href="transit-time" class="nav-link">Transit Time</a>
+</nav>
+
+<div class="page-head">
+    <span class="page-title">Quality Raw Data</span>
+    <div class="head-actions">
+        <span class="record-count" id="recordCount">-- records</span>
+        <button class="reset-btn" id="resetPivotBtn">↺ Reset Layout</button>
+        <button class="refresh-btn" onclick="loadPivotData()">⟳ Refresh</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group"><span class="filter-label">Year</span><select class="form-control" id="filterYear"><option value="">All</option></select></div>
+    <div class="filter-group"><span class="filter-label">Farm</span><select class="form-control" id="filterFarm"><option value="">All Farms</option></select></div>
+    <div class="filter-group"><span class="filter-label">Week</span><select class="form-control" id="filterWeek"><option value="">All</option></select></div>
+    <div class="filter-group"><span class="filter-label">Variety</span><select class="form-control" id="filterVariety"><option value="">All Varieties</option></select></div>
+    <div class="filter-group"><span class="filter-label">GH</span><select class="form-control" id="filterGH"><option value="">All GH</option></select></div>
+    <div class="filter-group"><span class="filter-label">From</span><input type="date" class="form-control" id="filterFrom"></div>
+    <div class="filter-group"><span class="filter-label">To</span><input type="date" class="form-control" id="filterTo"></div>
+    <button class="clear-dates-btn" id="clearDatesBtn">Clear dates</button>
+</div>
+
+<div class="pivot-container">
+    <div class="pivot-wrapper">
+        <div class="pivot-inner" id="pivotArea">
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <div>Loading quality data...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    "use strict";
+
+    let currentData = [];
+    let currentParamNames = [];
+    let currentPivotConfig = null;
+
+    function todayStr() {
+        let d = new Date();
+        let mm = String(d.getMonth() + 1).padStart(2, '0');
+        let dd = String(d.getDate()).padStart(2, '0');
+        return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+
+    function loadScript(url, callback) {
+        let s = document.createElement("script");
+        s.src = url;
+        s.onload = callback;
+        s.onerror = function() { console.error("Failed to load: " + url); };
+        document.head.appendChild(s);
+    }
+
+    function initWhenReady() {
+        if (typeof jQuery === "undefined") {
+            setTimeout(initWhenReady, 100);
+            return;
+        }
+        if (typeof frappe === "undefined") {
+            window.frappe = {};
+        }
+        if (!frappe.call) {
+            frappe.call = function(opts) {
+                let qs = [];
+                for (let k in opts.args) {
+                    if (opts.args[k]) qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(opts.args[k]));
+                }
+                let url = "/api/method/" + opts.method + (qs.length ? "?" + qs.join("&") : "");
+                jQuery.ajax({
+                    url: url,
+                    type: "GET",
+                    dataType: "json",
+                    success: function(r) { if (opts.callback) opts.callback(r); },
+                    error: function(e) { if (opts.error) opts.error(e); }
+                });
+            };
+        }
+        
+        loadScript("https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js", function() {
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js", function() {
+                jQuery(document).ready(function() { bootApp(); });
+            });
+        });
+    }
+
+    function bootApp() {
+        let today = todayStr();
+        let filterFrom = document.getElementById("filterFrom");
+        let filterTo = document.getElementById("filterTo");
+        if (filterFrom) filterFrom.value = today;
+        if (filterTo) filterTo.value = today;
+        
+        let filterIds = ["filterYear", "filterFarm", "filterWeek", "filterVariety", "filterGH", "filterFrom", "filterTo"];
+        filterIds.forEach(function(id) {
+            let el = document.getElementById(id);
+            if (el) el.addEventListener("change", function() { loadPivotData(); });
+        });
+        
+        let clearDatesBtn = document.getElementById("clearDatesBtn");
+        if (clearDatesBtn) {
+            clearDatesBtn.addEventListener("click", function() {
+                if (filterFrom) filterFrom.value = "";
+                if (filterTo) filterTo.value = "";
+                loadPivotData();
+            });
+        }
+        
+        let resetBtn = document.getElementById("resetPivotBtn");
+        if (resetBtn) {
+            resetBtn.addEventListener("click", function() {
+                currentPivotConfig = null;
+                renderPivot(currentData, currentParamNames);
+            });
+        }
+        
+        setTimeout(function() { loadPivotData(); }, 200);
+    }
+
+    function getFilters() {
+        let getVal = function(id) { let el = document.getElementById(id); return el ? el.value : ""; };
+        return {
+            year: getVal("filterYear"),
+            farm: getVal("filterFarm"),
+            week: getVal("filterWeek"),
+            variety: getVal("filterVariety"),
+            greenhouse: getVal("filterGH"),
+            from_date: getVal("filterFrom"),
+            to_date: getVal("filterTo")
+        };
+    }
+
+    window.loadPivotData = function() {
+        let pivotArea = document.getElementById("pivotArea");
+        if (pivotArea) {
+            pivotArea.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Loading quality data...</div></div>';
+        }
+        document.getElementById("recordCount").textContent = "-- records";
+        
+        frappe.call({
+            method: "fetchQualityRawData",
+            args: getFilters(),
+            callback: function(r) {
+                let msg = r.message || {};
+                if (!msg.success) {
+                    if (pivotArea) {
+                        pivotArea.innerHTML = '<div class="error-state">Error: ' + (msg.error || "Unknown") + '</div>';
+                    }
+                    return;
+                }
+                
+                currentData = msg.data || [];
+                currentParamNames = msg.param_names || [];
+                document.getElementById("recordCount").textContent = (msg.record_count || 0).toLocaleString() + " records";
+                
+                renderPivot(currentData, currentParamNames);
+                populateFilters(msg.filter_options || {});
+            },
+            error: function(e) {
+                console.error(e);
+                if (pivotArea) {
+                    pivotArea.innerHTML = '<div class="error-state">Failed to load data — check console</div>';
+                }
+            }
+        });
+    };
+
+    function renderPivot(data, paramNames) {
+        if (!data || !data.length) {
+            document.getElementById("pivotArea").innerHTML = '<div class="loading-state" style="color:var(--text-secondary);">No data for the selected filters.</div>';
+            return;
+        }
+        
+        // Default config: Rows = Year, Week, Farm, GH, Variety
+        // No "Period" - removed as requested
+        let defaultConfig = {
+            rows: ["Year", "Week", "Farm", "GH", "Variety"],
+            cols: [],
+            vals: ["Stems Received", "Stems Checked", "Quarantined Stems"],
+            aggregatorName: "Sum",
+            rendererName: "Table"
+        };
+        
+        // Add top 15 quality parameters to default values (so user sees them initially)
+        for (let i = 0; i < Math.min(15, paramNames.length); i++) {
+            defaultConfig.vals.push(paramNames[i]);
+        }
+        
+        let config = currentPivotConfig || defaultConfig;
+        let pivotEl = jQuery("#pivotArea");
+        pivotEl.empty();
+        
+        pivotEl.pivotUI(data, {
+            rows: config.rows || ["Year", "Week", "Farm", "GH", "Variety"],
+            cols: config.cols || [],
+            vals: config.vals || defaultConfig.vals,
+            aggregatorName: config.aggregatorName || "Sum",
+            rendererName: "Table",
+            unusedAttrsVertical: false,
+            menuLimit: 500,
+            renderers: { "Table": jQuery.pivotUtilities.renderers["Table"] },
+            aggregators: {
+                "Sum": jQuery.pivotUtilities.aggregators["Sum"],
+                "Count": jQuery.pivotUtilities.aggregators["Count"],
+                "Average": jQuery.pivotUtilities.aggregators["Average"]
+            },
+            onRefresh: function(cfg) {
+                let cfgCopy = JSON.parse(JSON.stringify(cfg));
+                delete cfgCopy.aggregators;
+                delete cfgCopy.renderers;
+                delete cfgCopy.rendererOptions;
+                delete cfgCopy.localeStrings;
+                currentPivotConfig = cfgCopy;
+            }
+        }, false);
+    }
+
+    function populateFilters(opts) {
+        fillSelect("filterYear", opts.years || [], "", "All");
+        fillSelect("filterFarm", opts.farms || [], "", "All Farms");
+        fillSelect("filterWeek", opts.weeks || [], "", "All");
+        fillSelect("filterVariety", opts.varieties || [], "", "All Varieties");
+        fillSelect("filterGH", opts.greenhouses || [], "", "All GH");
+    }
+
+    function fillSelect(id, items, defaultVal, defaultLabel) {
+        let sel = document.getElementById(id);
+        if (!sel) return;
+        let cur = sel.value;
+        sel.innerHTML = '<option value="' + (defaultVal || "") + '">' + (defaultLabel || "All") + '</option>';
+        for (var i = 0; i < items.length; i++) {
+            let o = document.createElement("option");
+            o.value = items[i];
+            o.textContent = items[i];
+            if (String(items[i]) === cur) o.selected = true;
+            sel.appendChild(o);
+        }
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initWhenReady);
+    } else {
+        initWhenReady();
+    }
+})();
+</script>
+</body>
+</html>

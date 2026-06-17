@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejects | Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
+<style>
+/* ── Topbar filter bar (year/week/farm) restyled into aph chrome ── */
+.aph .filter-group{display:flex;align-items:center;gap:5px;background:var(--bg-card);padding:0 8px;border-radius:7px;border:1px solid var(--border-2);height:32px}
+.aph .filter-label{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.aph .form-control{height:28px;padding:0 6px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;border:none;color:var(--text);min-width:78px;outline:0;font-weight:500}
+.aph select.form-control{cursor:pointer}
+.aph .clear-dates-btn{font-size:11px;font-weight:600;color:var(--text-2);background:none;border:none;cursor:pointer;padding:0 8px;height:32px}
+.aph .clear-dates-btn:hover{color:var(--text)}
+
+/* ── Active-filter badges (rendered into the page header sub area) ── */
+.aph .active-filter-badge{background:var(--bg-muted);color:var(--text);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:500;display:inline-flex;align-items:center;gap:5px;line-height:1.5}
+.aph .clear-badge{cursor:pointer;font-size:11px;opacity:.6}
+.aph .clear-badge:hover{opacity:1}
+
+/* ── Pills / status tags ── */
+.aph .pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.aph .pill-ok{background:rgba(22,163,74,.12);color:var(--good)}
+.aph .pill-warn{background:rgba(217,119,6,.12);color:var(--warn)}
+.aph .pill-bad{background:rgba(220,38,38,.12);color:var(--bad)}
+
+/* ── Loading / empty states (render output) ── */
+.aph .empty-state{text-align:center;padding:40px 20px;color:var(--text-3);font-size:12px}
+
+/* ── shared multiselect (farm etc.) ── */
+.aph .ms{position:relative;display:inline-block;min-width:150px;font-size:12px;vertical-align:middle}
+.aph .ms-control{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:28px;padding:2px 22px 2px 4px;border:none;border-radius:5px;background:transparent;cursor:pointer;position:relative}
+.aph .ms-control:after{content:"\25BE";position:absolute;right:6px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:10px;pointer-events:none}
+.aph .ms-ph{color:var(--text-3)}
+.aph .ms-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;line-height:1.6;max-width:120px}
+.aph .ms-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aph .ms-chip b{cursor:pointer;font-weight:700;opacity:.85}
+.aph .ms-chip b:hover{opacity:1}
+.aph .ms-count{background:var(--bg-muted);color:var(--text);border-radius:10px;padding:1px 9px;font-size:11px;font-weight:600}
+.aph .ms-panel{position:absolute;z-index:200;top:calc(100% + 6px);left:0;min-width:210px;background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.16);display:none;flex-direction:column;max-height:300px}
+.aph .ms.open .ms-panel{display:flex}
+.aph .ms-search{margin:7px;padding:5px 8px;border:1px solid var(--border-2);border-radius:5px;font-size:12px;outline:none;font-family:var(--f)}
+.aph .ms-actions{display:flex;gap:12px;padding:0 10px 6px;border-bottom:1px solid var(--border)}
+.aph .ms-actions a{color:var(--text-2);cursor:pointer;font-size:11px;font-weight:500}
+.aph .ms-actions a:hover{color:var(--text)}
+.aph .ms-list{overflow-y:auto;padding:4px 0}
+.aph .ms-opt{display:flex;align-items:center;gap:7px;padding:5px 11px;cursor:pointer}
+.aph .ms-opt:hover{background:var(--bg-hover)}
+.aph .ms-opt input{margin:0;cursor:pointer}
+.aph .ms-opt.hidden{display:none}
+.aph .ms-empty{padding:9px 11px;color:var(--text-3)}
+@media(max-width:900px){
+  .aph .filter-group{height:auto;min-height:32px}
+}
+</style>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Quality</small></div>
+    </div>
+    <a class="home-link" href="app/qc">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Quality</div>
+      <a class="nav-item" href="intake-ftr-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        Intake FTR
+      </a>
+      <a class="nav-item active" href="rejects">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Rejects
+      </a>
+      <a class="nav-item" href="solution-mixing-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.58 16.5h12.85"/></svg>
+        Solution Mixing
+      </a>
+      <a class="nav-item" href="coldroom-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m19.07 4.93-14.14 14.14"/></svg>
+        Coldroom Ops
+      </a>
+
+      <div class="group-lbl">Analytics</div>
+      <a class="nav-item" href="quality-trends">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Trends
+      </a>
+      <a class="nav-item" href="quality-raw-data">
+        <svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+        Raw Data
+      </a>
+      <a class="nav-item" href="transit-time">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Transit Time
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Rejects</h1>
+      <span class="crumb">Quality</span>
+      <div class="right">
+        <div class="filter-group"><span class="filter-label">Year</span><select class="form-control" id="filterYear"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Week</span><select class="form-control" id="filterWeek"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Farm</span><div id="filterFarm"></div></div>
+        <button class="btn reset-filters-btn" id="resetFiltersBtn">↺ Reset</button>
+        <button class="btn refresh-btn" onclick="loadData()">⟳ Refresh</button>
+      </div>
+    </div>
+
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Rejects</div>
+        <div class="sub">Intake, field, grading &amp; packhouse rejects across the quality pipeline</div>
+        <div id="activeFilters" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div><div class="lbl">Intake Rejects</div><div class="v" id="kpiIntake">—</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M16 8l-8 8M8 8l8 8"/></svg></div>
+          <div><div class="lbl">Field Rejects</div><div class="v" id="kpiField">—</div></div>
+        </div>
+      </div>
+
+      <!-- Reject tables -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Intake Rejects</div>
+            <div class="sub" style="margin-left:auto">Quality Reporting · rejected at intake</div>
+          </div>
+          <div class="aph-card-body padless">
+            <div class="aph-tbl-scroll" style="max-height:420px;overflow-y:auto">
+              <table class="aph-tbl">
+                <thead><tr><th>Captured By</th><th>Date</th><th>Farm</th><th>Greenhouse</th><th>Variety</th><th>Issues</th></tr></thead>
+                <tbody id="intakeRows"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Field Rejects</div>
+            <div class="sub" style="margin-left:auto">Rejected in the field before intake</div>
+          </div>
+          <div class="aph-card-body padless">
+            <div class="aph-tbl-scroll" style="max-height:420px;overflow-y:auto">
+              <table class="aph-tbl">
+                <thead><tr><th>Captured By</th><th>Date</th><th>Farm</th><th>Greenhouse</th><th>Variety</th><th>Issues</th><th class="num">Stems</th></tr></thead>
+                <tbody id="fieldRows"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Grading Rejects</div>
+            <div class="sub" style="margin-left:auto">Coming soon</div>
+          </div>
+          <div class="aph-card-body"><div class="empty-state">🚧 Grading rejects — coming soon.</div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Packhouse Rejects</div>
+            <div class="sub" style="margin-left:auto">Coming soon</div>
+          </div>
+          <div class="aph-card-body"><div class="empty-state">🚧 Packhouse rejects — coming soon.</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let farmMS = null;
+function el(id){ return document.getElementById(id); }
+function num(v, d=0){ if(v===null||v===undefined||v==='') return '—'; const n=Number(v); if(!isFinite(n)) return '—'; return n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ── shared multiselect factory (chips + search + select-all) ── */
+function createMultiSelect(mountId, opts) {
+    opts = opts || {};
+    var root = document.getElementById(mountId);
+    if (!root) return null;
+    root.classList.add('ms');
+    var ph = opts.placeholder || 'All';
+    var items = [];        // [{value,label}]
+    var selected = {};     // value -> true
+    var changeCb = null;
+    function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    root.innerHTML =
+        '<div class="ms-control"><span class="ms-body"></span></div>' +
+        '<div class="ms-panel">' +
+          '<input class="ms-search" type="text" placeholder="Search…">' +
+          '<div class="ms-actions"><a class="ms-all">Select all</a><a class="ms-clear">Clear</a></div>' +
+          '<div class="ms-list"></div>' +
+        '</div>';
+    var control = root.querySelector('.ms-control');
+    var body = root.querySelector('.ms-body');
+    var search = root.querySelector('.ms-search');
+    var list = root.querySelector('.ms-list');
+    function renderBody(){
+        var keys = Object.keys(selected);
+        if(!keys.length){ body.innerHTML = '<span class="ms-ph">'+esc(ph)+'</span>'; return; }
+        if(keys.length <= 2){
+            body.innerHTML = keys.map(function(v){
+                var it = items.find(function(i){return i.value===v;});
+                return '<span class="ms-chip"><span>'+esc(it?it.label:v)+'</span><b data-v="'+esc(v)+'">×</b></span>';
+            }).join('');
+        } else {
+            body.innerHTML = '<span class="ms-count">'+keys.length+' selected</span>';
+        }
+    }
+    function renderList(){
+        var q = (search.value||'').toLowerCase();
+        if(!items.length){ list.innerHTML = '<div class="ms-empty">No options</div>'; return; }
+        list.innerHTML = items.map(function(it){
+            var hide = q && it.label.toLowerCase().indexOf(q)===-1;
+            return '<label class="ms-opt'+(hide?' hidden':'')+'"><input type="checkbox" data-v="'+esc(it.value)+'"'+(selected[it.value]?' checked':'')+'><span>'+esc(it.label)+'</span></label>';
+        }).join('');
+    }
+    function fire(){ renderBody(); if(changeCb) changeCb(); }
+    control.addEventListener('click', function(e){
+        if(e.target.tagName==='B' && e.target.dataset.v){ delete selected[e.target.dataset.v]; renderList(); fire(); e.stopPropagation(); return; }
+        root.classList.toggle('open'); if(root.classList.contains('open')) search.focus();
+    });
+    list.addEventListener('change', function(e){
+        var v = e.target.dataset.v; if(v===undefined) return;
+        if(e.target.checked) selected[v]=true; else delete selected[v];
+        fire();
+    });
+    search.addEventListener('input', renderList);
+    search.addEventListener('click', function(e){ e.stopPropagation(); });
+    root.querySelector('.ms-all').addEventListener('click', function(e){ e.stopPropagation(); var q=(search.value||'').toLowerCase(); items.forEach(function(it){ if(!q||it.label.toLowerCase().indexOf(q)!==-1) selected[it.value]=true; }); renderList(); fire(); });
+    root.querySelector('.ms-clear').addEventListener('click', function(e){ e.stopPropagation(); selected={}; renderList(); fire(); });
+    document.addEventListener('click', function(e){ if(!root.contains(e.target)) root.classList.remove('open'); });
+    var api = {
+        setOptions: function(arr){ items=(arr||[]).map(function(x){ return (x&&typeof x==='object')?{value:String(x.value),label:String(x.label)}:{value:String(x),label:String(x)}; }); var valid={}; items.forEach(function(i){valid[i.value]=1;}); Object.keys(selected).forEach(function(v){ if(!valid[v]) delete selected[v]; }); renderList(); renderBody(); },
+        getValue: function(){ return Object.keys(selected).join(','); },
+        setValue: function(csv){ selected={}; String(csv||'').split(',').forEach(function(v){ v=v.trim(); if(v) selected[v]=true; }); renderList(); renderBody(); },
+        onChange: function(cb){ changeCb = cb; }
+    };
+    renderBody(); renderList();
+    return api;
+}
+/* Format an adaptive-period key for axis labels: YYYY-MM-DD -> "Sun 08", YYYY-MM -> "Jun", MM -> "Jun", YYYY-Www kept. */
+function formatPeriodLabel(k){
+    k = String(k);
+    var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var m;
+    if((m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(k))){ var dt=new Date(+m[1],+m[2]-1,+m[3]); return DOW[dt.getDay()]+' '+m[3]; }
+    if((m=/^(\d{4})-(\d{2})$/.exec(k))){ return MON[+m[2]-1]+' '+m[1]; }
+    if((m=/^(\d{1,2})$/.exec(k))){ var i=+m[1]; if(i>=1&&i<=12) return MON[i-1]; }
+    return k;
+}
+
+
+function fillSelect(sel, items, current){
+    const def = sel.querySelector('option[value=""]');
+    sel.innerHTML = ''; if(def) sel.appendChild(def);
+    items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; if(current && String(current)===String(v)) o.selected=true; sel.appendChild(o); });
+}
+function setBadges(filters){
+    const wrap = el('activeFilters'); wrap.innerHTML='';
+    Object.entries(filters||{}).forEach(([k,v]) => { if(!v) return; const span=document.createElement('span'); span.className='active-filter-badge'; span.innerHTML=k+': '+v+' <span class="clear-badge" data-k="'+k+'">×</span>'; wrap.appendChild(span); });
+    wrap.querySelectorAll('.clear-badge').forEach(c => { c.onclick=()=>{ const k=c.dataset.k; if(k==='farm'){ if(farmMS) farmMS.setValue(''); } else { const id={year:'filterYear',week:'filterWeek'}[k]; if(id) el(id).value=''; } loadData(); }; });
+}
+function renderIntake(rows){
+    const tb=el('intakeRows');
+    if(!rows || !rows.length){ tb.innerHTML='<tr><td colspan="6" class="empty-state">No intake rejects for these filters.</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => '<tr><td>'+esc(r.captured_by)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.farm)+'</td><td>'+esc(r.greenhouse)+'</td><td>'+esc(r.variety)+'</td><td>'+esc(r.issues||'—')+'</td></tr>').join('');
+}
+function renderField(rows){
+    const tb=el('fieldRows');
+    if(!rows || !rows.length){ tb.innerHTML='<tr><td colspan="7" class="empty-state">No field rejects for these filters.</td></tr>'; return; }
+    tb.innerHTML = rows.map(r => '<tr><td>'+esc(r.captured_by)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.farm)+'</td><td>'+esc(r.greenhouse)+'</td><td>'+esc(r.variety)+'</td><td>'+esc(r.issues||'—')+'</td><td class="num">'+num(r.stems,0)+'</td></tr>').join('');
+}
+function loadData(){
+    const params = new URLSearchParams({ year: el('filterYear').value, week: el('filterWeek').value, farm: farmMS ? farmMS.getValue() : '' });
+    fetch('/api/method/fetchRejects?'+params.toString(), { headers:{ 'X-Frappe-CSRF-Token': frappe.csrf_token || 'token' }, credentials:'include' })
+        .then(r => r.json()).then(j => {
+            const d = (j && j.message) || {};
+            if(!d.success){ el('intakeRows').innerHTML='<tr><td colspan="6" class="empty-state">Failed to load: '+(d.error||'unknown error')+'</td></tr>'; return; }
+            el('kpiIntake').textContent = num((d.kpi||{}).intake, 0);
+            el('kpiField').textContent  = num((d.kpi||{}).field, 0);
+            const opts = d.filter_options || {};
+            fillSelect(el('filterYear'), (opts.years||[]).map(String), el('filterYear').value);
+            fillSelect(el('filterWeek'), (opts.weeks||[]).map(String), el('filterWeek').value);
+            if(farmMS) farmMS.setOptions(opts.farms||[]);
+            setBadges(d.active_filters||{});
+            renderIntake(d.intake_rejects||[]);
+            renderField(d.field_rejects||[]);
+        }).catch(e => { el('intakeRows').innerHTML='<tr><td colspan="6" class="empty-state">Failed to load: '+e.message+'</td></tr>'; });
+}
+['filterYear','filterWeek'].forEach(id => el(id).addEventListener('change', loadData));
+farmMS = createMultiSelect('filterFarm', { placeholder: 'All farms' });
+if(farmMS) farmMS.onChange(loadData);
+el('resetFiltersBtn').addEventListener('click', () => { el('filterYear').value=''; el('filterWeek').value=''; if(farmMS) farmMS.setValue(''); loadData(); });
+loadData();
+</script>
+
+<script>
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        var av = document.getElementById('aph-foot-av'), nm = document.getElementById('aph-foot-nm'), em = document.getElementById('aph-foot-em');
+        if (av) av.textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        if (nm) nm.textContent = fullName;
+        if (em) em.textContent = u;
+    }
+    tryFill();
+})();
+</script>

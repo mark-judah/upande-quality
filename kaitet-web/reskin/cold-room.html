@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cold Room</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --bg-tab-group: #f4f5f6;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --text-on-dark: #ffffff;
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+            --btn-dark: #1a1a1a;
+            --btn-dark-hover: #333333;
+            --tint-blue: #e8f0fe;
+            --tint-purple: #f0ecfe;
+            --tint-green: #e6f9ee;
+            --tint-orange: #fff3e0;
+            --tint-red: #fde8ec;
+            --tint-gray: #f4f5f6;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 13px; line-height: 1.5;
+            background: var(--bg-page); color: var(--text-primary); min-height: 100vh;
+        }
+
+        /* ── Top Nav ── */
+        .top-nav {
+            background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+            padding: 0 16px; display: flex; align-items: center;
+            position: sticky; top: 0; z-index: 200; height: 44px;
+        }
+        .nav-brand {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 0 14px 0 0; margin-right: 6px;
+            border-right: 1px solid var(--border-default); white-space: nowrap;
+        }
+        .nav-link {
+            padding: 12px 14px; font-size: 13px; font-weight: 500;
+            color: var(--text-secondary); text-decoration: none;
+            border-bottom: 2px solid transparent; margin-bottom: -1px;
+            transition: color 150ms ease, border-color 150ms ease;
+        }
+        .nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-default); }
+        .nav-link.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 600; }
+        @media(max-width:600px) { .nav-brand { display:none; } .top-nav { overflow-x:auto; } }
+
+        /* ── Page Head ── */
+        .page-head {
+            background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+            padding: 10px 20px; position: sticky; top: 44px; z-index: 100;
+        }
+        .page-head-top {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; flex-wrap: wrap;
+        }
+        .page-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+        .page-head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit;
+            border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+            display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+            transition: background 150ms ease, color 150ms ease;
+        }
+        .btn-primary { background: var(--btn-dark); color: var(--text-on-dark); border: none; }
+        .btn-primary:hover { background: var(--btn-dark-hover); }
+        .btn-secondary { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-default); }
+        .btn-secondary:hover { background: var(--bg-input); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        /* ── Location Selector ── */
+        .location-wrap {
+            display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+            border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-surface);
+        }
+        .location-wrap.confirmed { border-color: var(--accent-green); background: var(--tint-green); }
+        .location-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+        .location-wrap select {
+            border: none; background: transparent; font-size: 13px; font-weight: 600;
+            color: var(--text-primary); font-family: inherit; cursor: pointer;
+        }
+        .location-wrap select:focus { outline: none; }
+
+        /* ── Live Badge ── */
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+            font-weight: 600; color: var(--text-primary); background: var(--bg-surface);
+            border: 1px solid var(--border-default); border-radius: 8px; padding: 6px 14px;
+            cursor: pointer; font-family: inherit; transition: background 150ms ease;
+        }
+        .live-badge:hover { background: var(--bg-input); }
+        .live-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; }
+
+        /* ── Form Controls ── */
+        .form-control {
+            height: 32px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+            background: var(--bg-input); border: 1px solid transparent; border-radius: 6px;
+            color: var(--text-primary); transition: border-color 150ms ease, background 150ms ease;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+        .form-control::placeholder { color: var(--text-muted); }
+        .form-control.has-value { border-color: var(--accent-blue); background: var(--bg-surface); }
+
+        /* ── Tab Toggle ── */
+        .tab-group { display: inline-flex; background: var(--bg-tab-group); border-radius: 8px; padding: 3px; }
+        .tab-btn {
+            padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+            border: none; background: transparent; color: var(--text-secondary);
+            cursor: pointer; font-family: inherit; transition: background 150ms ease, color 150ms ease;
+        }
+        .tab-btn.active { background: var(--btn-dark); color: var(--text-on-dark); }
+
+        /* ── Spinner & Toast ── */
+        .spinner-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0;
+            background: rgba(255,255,255,0.7); display: none;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        .spinner-overlay.show { display: flex; }
+        .spinner {
+            width: 28px; height: 28px; border: 2px solid var(--border-default);
+            border-top: 2px solid var(--text-primary); border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .toast {
+            position: fixed; top: 80px; right: 20px; background: var(--bg-surface);
+            border: 1px solid var(--border-default); color: var(--text-primary);
+            padding: 10px 16px; border-radius: 8px; font-size: 13px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 10000;
+            transform: translateX(200%); transition: transform 0.25s ease;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: var(--tint-green); border-color: #c5e8cd; color: #1a8a3a; }
+        .toast.error { background: var(--tint-red); border-color: #f5c6ce; color: var(--accent-red); }
+
+        /* ── Container ── */
+        .container { padding: 20px; max-width: 100%; margin: 0 auto; }
+
+        /* ── KPI Row ── */
+        .kpi-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px; margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: var(--bg-surface); border: 1px solid var(--border-default);
+            border-radius: 10px; box-shadow: var(--shadow-card); padding: 14px;
+            display: flex; align-items: flex-start; gap: 10px;
+        }
+        .kpi-icon {
+            width: 36px; height: 36px; min-width: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .kpi-icon svg { width: 16px; height: 16px; }
+        .kpi-content { flex: 1; min-width: 0; }
+        .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; line-height: 1.3; }
+        .kpi-value { font-size: 20px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+        .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        @media(max-width:992px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        @media(max-width:600px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+
+        /* ── Panels ── */
+        .panel {
+            background: var(--bg-surface); border: 1px solid var(--border-default);
+            border-radius: 8px; box-shadow: var(--shadow-card); margin-bottom: 20px;
+        }
+        .panel-heading {
+            padding: 14px 20px; border-bottom: 1px solid var(--border-default);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .panel-body { padding: 0; }
+
+        /* ── Charts Grid ── */
+        .charts-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
+        }
+        @media(max-width:900px) { .charts-row { grid-template-columns: 1fr; } }
+        .chart-panel { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 8px; box-shadow: var(--shadow-card); }
+        .chart-heading { padding: 14px 20px; border-bottom: 1px solid var(--border-default); }
+        .chart-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .chart-body { padding: 16px; position: relative; min-height: 220px; }
+        .chart-canvas { width: 100% !important; max-height: 220px; }
+
+        /* ── Pressure Gauge ── */
+        .pressure-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px; margin-bottom: 20px;
+        }
+        .pressure-card {
+            background: var(--bg-surface); border: 1px solid var(--border-default);
+            border-radius: 10px; box-shadow: var(--shadow-card); padding: 16px;
+        }
+        .pressure-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+        .pressure-bar-wrap { margin-bottom: 8px; }
+        .pressure-bar-label {
+            display: flex; justify-content: space-between; font-size: 11px;
+            font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;
+        }
+        .pressure-bar {
+            height: 20px; background: var(--bg-input); border-radius: 6px;
+            overflow: hidden; display: flex; position: relative;
+        }
+        .pressure-segment {
+            height: 100%; transition: width 300ms ease; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700; color: white; min-width: 0;
+            overflow: hidden; white-space: nowrap;
+        }
+        .seg-incoming { background: var(--accent-orange); }
+        .seg-onshelf { background: var(--accent-blue); }
+        .seg-allocated { background: var(--accent-green); }
+        .seg-empty { background: var(--border-default); }
+        .pressure-capacity-line {
+            position: absolute; top: -4px; bottom: -4px; width: 2px;
+            background: var(--accent-red); z-index: 2;
+        }
+        .pressure-legend {
+            display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+        /* ── Labels / Badges ── */
+        .label {
+            display: inline-flex; align-items: center; padding: 3px 8px;
+            font-size: 11px; font-weight: 600; border-radius: 4px; letter-spacing: 0.3px;
+        }
+        .label-success { background: var(--tint-green); color: #1a8a3a; }
+        .label-warning { background: var(--tint-orange); color: #9a5a00; }
+        .label-danger { background: var(--tint-red); color: var(--accent-red); }
+        .label-default { background: var(--bg-input); color: var(--text-secondary); }
+        .label-info { background: var(--tint-purple); color: var(--accent-purple); }
+
+        /* ── Data Table ── */
+        .table-container { width: 100%; overflow: auto; max-height: calc(100vh - 260px); }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+        .data-table thead {
+            background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+        }
+        .data-table th {
+            padding: 10px 8px; text-align: left; font-size: 12px; font-weight: 600;
+            color: var(--text-secondary); white-space: nowrap;
+            border-bottom: 1px solid var(--border-default); background: var(--bg-surface);
+            position: sticky; top: 0; z-index: 2;
+        }
+        .data-table td {
+            padding: 8px 8px; border-bottom: 1px solid var(--border-light);
+            white-space: nowrap; font-size: 13px; color: var(--text-primary); vertical-align: middle;
+        }
+        .data-table tbody tr:hover { background: var(--bg-hover); }
+        .cell-number { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .cell-variety { font-weight: 700; color: var(--text-primary); }
+        .cell-farm { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+
+        /* Age color coding */
+        .age-fresh { color: #1a8a3a; }
+        .age-amber { color: #9a5a00; }
+        .age-old { color: var(--accent-red); }
+
+        /* ── Filters Row ── */
+        .stock-filters {
+            padding: 14px 20px; border-bottom: 1px solid var(--border-default);
+            display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group-label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.5px; color: var(--text-muted);
+        }
+        .custom-select { position: relative; }
+        .custom-select input { width: 100%; }
+        .select-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--bg-surface); border: 1px solid var(--border-default);
+            border-top: none; border-radius: 0 0 6px 6px; max-height: 180px;
+            overflow-y: auto; z-index: 1000; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        .select-dropdown.show { display: block; }
+        .select-option {
+            padding: 6px 12px; font-size: 13px; cursor: pointer;
+            color: var(--text-primary); border-bottom: 1px solid var(--border-light);
+            transition: background 150ms ease;
+        }
+        .select-option:last-child { border-bottom: none; }
+        .select-option:hover { background: var(--bg-hover); }
+        .select-option.selected { background: var(--accent-blue-light); color: var(--accent-blue); font-weight: 600; }
+
+        /* ── Empty / Loading ── */
+        .empty-state { text-align: center; padding: 32px 20px; color: var(--text-secondary); }
+        .empty-state p { font-size: 13px; margin-top: 10px; }
+        .loading-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+
+        /* ── Sensor status indicator ── */
+        .sensor-status { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; }
+        .sensor-ok { color: #1a8a3a; }
+        .sensor-warn { color: var(--accent-orange); }
+        .sensor-alert { color: var(--accent-red); }
+    </style>
+</head>
+<body>
+
+<div class="spinner-overlay" id="spinnerOverlay"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
+
+<nav class="top-nav">
+    <span class="nav-brand">Packhouse</span>
+    <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+    <a href="packhouse-dashboard" class="nav-link">Workflow</a>
+    <a href="sales-allocation-planning" class="nav-link">Allocation Planning</a>
+    <a href="bucket-tracker" class="nav-link">Bucket Journey</a>
+    <a href="cold-room" class="nav-link active">Cold Room</a>
+    <a href="stock-visibility" class="nav-link">Stock Visibility</a>
+    <a href="order-summary" class="nav-link">Order Summary</a>
+</nav>
+
+<div class="page-head">
+    <div class="page-head-top">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span class="page-title">Cold Room</span>
+            <div class="tab-group">
+                <button class="tab-btn active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</button>
+                <button class="tab-btn" data-view="shelf" onclick="switchView('shelf')">Shelf Contents</button>
+            </div>
+        </div>
+        <div class="page-head-right">
+            <div class="location-wrap" id="locationWrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                <span class="location-label">Farm:</span>
+                <select id="farmSelector" onchange="updateFarm()">
+                    <option value="">All Farms</option>
+                </select>
+            </div>
+            <button class="live-badge" onclick="loadAllData()">
+                <span class="live-dot"></span>LIVE
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <!-- KPIs — Order: Shelves, Buckets, Stems, Varieties, Age, Temp, Humidity, Incoming, Allocated, Discards -->
+    <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-orange)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Shelves in Use</div>
+                <div class="kpi-value" id="kpiShelves">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Buckets</div>
+                <div class="kpi-value" id="kpiBuckets">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-purple)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Stems</div>
+                <div class="kpi-value" id="kpiStems">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Varieties</div>
+                <div class="kpi-value" id="kpiVarieties">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-orange)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Avg Age</div>
+                <div class="kpi-value" id="kpiAvgAge">0d</div>
+                <div class="kpi-sub" id="kpiOldest"></div>
+            </div>
+        </div>
+        <div class="kpi-card" id="kpiTempCard">
+            <div class="kpi-icon" style="background:var(--tint-blue)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Temperature</div>
+                <div class="kpi-value" id="kpiTemp">--</div>
+                <div class="kpi-sub" id="kpiTempStatus"></div>
+            </div>
+        </div>
+        <div class="kpi-card" id="kpiHumCard">
+            <div class="kpi-icon" style="background:var(--tint-purple)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Humidity</div>
+                <div class="kpi-value" id="kpiHumidity">--</div>
+                <div class="kpi-sub" id="kpiHumStatus"></div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Received (Not Shelved)</div>
+                <div class="kpi-value" id="kpiIncoming">0</div>
+                <div class="kpi-sub" id="kpiIncomingBuckets"></div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-purple)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Allocated (Not Issued)</div>
+                <div class="kpi-value" id="kpiAllocated">0</div>
+                <div class="kpi-sub" id="kpiAllocatedBuckets"></div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-red)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#e63757" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Discards Today</div>
+                <div class="kpi-value" id="kpiDiscards">0</div>
+                <div class="kpi-sub" id="kpiDiscardsEntries"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="viewDashboard">
+        <!-- Cold Store Pressure -->
+        <div class="pressure-row" id="pressureRow"></div>
+
+        <!-- Environment Charts -->
+        <div class="charts-row">
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Cold Room Temperature (24h)</span></div>
+                <div class="chart-body"><canvas id="chartTemp" class="chart-canvas"></canvas></div>
+            </div>
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Cold Room Humidity (24h)</span></div>
+                <div class="chart-body"><canvas id="chartHumidity" class="chart-canvas"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Analytics Charts -->
+        <div class="charts-row">
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Stems by Variety (Top 15)</span></div>
+                <div class="chart-body"><canvas id="chartVariety" class="chart-canvas" style="max-height:280px"></canvas></div>
+            </div>
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Stock Age Distribution</span></div>
+                <div class="chart-body"><canvas id="chartAge" class="chart-canvas"></canvas></div>
+            </div>
+        </div>
+        <div class="charts-row">
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Stems by Length</span></div>
+                <div class="chart-body"><canvas id="chartLength" class="chart-canvas"></canvas></div>
+            </div>
+            <div class="chart-panel">
+                <div class="chart-heading"><span class="chart-title">Stems by Farm</span></div>
+                <div class="chart-body"><canvas id="chartFarm" class="chart-canvas"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHELF CONTENTS VIEW -->
+    <div id="viewShelf" style="display:none">
+        <div class="panel">
+            <div class="panel-heading">
+                <span class="panel-title">Shelf Inventory</span>
+            </div>
+            <div class="stock-filters">
+                <div class="filter-group">
+                    <label class="filter-group-label">Farm</label>
+                    <div class="custom-select" style="min-width:140px">
+                        <input type="text" class="form-control" id="shelfFarmFilter" placeholder="Filter farm..." autocomplete="off">
+                        <div class="select-dropdown" id="shelfFarmDropdown"></div>
+                    </div>
+                </div>
+                <div class="filter-group" style="flex:1">
+                    <label class="filter-group-label">Search Varieties</label>
+                    <input type="text" class="form-control" id="shelfSearch" placeholder="Search..." style="width:100%">
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>Variety</th><th>Length</th><th>Farm</th>
+                            <th>Stems</th><th>Buckets</th><th>Shelf Location</th>
+                        </tr></thead>
+                        <tbody id="shelfTableBody">
+                            <tr><td colspan="6" class="loading-state">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- end views -->
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ─── State ───
+let dashData = null;
+let sensorTemp = null, sensorHum = null;
+let selectedFarm = '';
+let charts = {};
+let currentView = 'dashboard';
+let shelfFarmValue = '';
+
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+    initFilters();
+    setTimeout(loadAllData, 400);
+    setInterval(() => loadAllData(), 120000);
+});
+
+function showSpinner(v) { document.getElementById('spinnerOverlay').classList.toggle('show', v); }
+function showToast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast ' + type;
+    t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── View Switching ───
+function switchView(view) {
+    currentView = view;
+    document.querySelectorAll('.tab-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    ['viewDashboard','viewShelf'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    const map = { dashboard:'viewDashboard', shelf:'viewShelf' };
+    document.getElementById(map[view]).style.display = 'block';
+    if (dashData) renderCurrentView();
+}
+
+function renderCurrentView() {
+    if (!dashData) return;
+    if (currentView === 'dashboard') renderDashboard();
+    else if (currentView === 'shelf') renderShelfTable();
+}
+
+// ─── Farm Selector ───
+function updateFarm() {
+    selectedFarm = document.getElementById('farmSelector').value;
+    const wrap = document.getElementById('locationWrap');
+    wrap.classList.toggle('confirmed', !!selectedFarm);
+    loadAllData();
+}
+
+function populateFarmSelector(farms) {
+    const sel = document.getElementById('farmSelector');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All Farms</option>';
+    (farms || []).forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.name; o.textContent = f.name;
+        if (f.name === cur) o.selected = true;
+        sel.appendChild(o);
+    });
+}
+
+// ─── Filters ───
+function initFilters() {
+    const sfi = document.getElementById('shelfFarmFilter');
+    const sfd = document.getElementById('shelfFarmDropdown');
+    sfi.addEventListener('focus', () => { buildShelfFarmDropdown(sfi, sfd); sfd.classList.add('show'); });
+    sfi.addEventListener('input', () => { buildShelfFarmDropdown(sfi, sfd); if (!sfi.value) { shelfFarmValue=''; renderShelfTable(); } });
+    document.getElementById('shelfSearch').addEventListener('input', () => renderShelfTable());
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.custom-select')) document.querySelectorAll('.select-dropdown').forEach(d => d.classList.remove('show'));
+    });
+}
+
+function buildShelfFarmDropdown(input, dropdown) {
+    if (!dashData) return;
+    const farms = Object.keys(dashData.aggregations.farm_stems || {}).sort();
+    const term = input.value.toLowerCase();
+    const items = farms.filter(f => f.toLowerCase().includes(term));
+    dropdown.innerHTML = items.map(f =>
+        `<div class="select-option${shelfFarmValue===f?' selected':''}" data-value="${f}">${f}</div>`
+    ).join('') || '<div class="select-option" style="color:var(--text-muted)">No farms</div>';
+    dropdown.querySelectorAll('.select-option[data-value]').forEach(opt => {
+        opt.addEventListener('click', () => {
+            shelfFarmValue = opt.dataset.value;
+            input.value = shelfFarmValue; input.classList.add('has-value');
+            dropdown.classList.remove('show');
+            renderShelfTable();
+        });
+    });
+}
+
+// ─── Data Loading ───
+function loadAllData() {
+    showSpinner(true);
+    frappe.call({
+        method: 'fetchColdroomData',
+        args: { farm: selectedFarm || '' },
+        callback: r => {
+            showSpinner(false);
+            if (r.message && r.message.success) {
+                dashData = r.message;
+                populateFarmSelector(dashData.available_farms);
+                updateKPIs();
+                renderCurrentView();
+                loadSensorData();
+            } else {
+                showToast(r.message?.error || 'Failed to load data', 'error');
+            }
+        },
+        error: err => { showSpinner(false); showToast('Failed to load data', 'error'); console.error(err); }
+    });
+}
+
+function loadSensorData() {
+    const caps = dashData?.capacity_data || [];
+    const sensor = selectedFarm
+        ? caps.find(c => c.farm === selectedFarm)
+        : (caps[0] || null);
+    const sensorName = sensor?.sensor_name || 'Kapkolia Cold Room 2';
+    const tempMin = sensor?.temp_min || 2;
+    const tempMax = sensor?.temp_max || 4;
+    const humMin = sensor?.humidity_min || 80;
+    const humMax = sensor?.humidity_max || 95;
+
+    // Update chart titles and KPI labels with sensor name
+    const tempTitle = document.querySelector('#chartTemp')?.closest('.chart-panel')?.querySelector('.chart-title');
+    const humTitle = document.querySelector('#chartHumidity')?.closest('.chart-panel')?.querySelector('.chart-title');
+    if (tempTitle) tempTitle.textContent = sensorName + ' — Temperature (24h)';
+    if (humTitle) humTitle.textContent = sensorName + ' — Humidity (24h)';
+
+    // Temperature
+    frappe.call({
+        method: 'upande_sensors.api.sensor_charts.get_sensor_chart_data',
+        args: { sensor_name: sensorName, sensor_type: 'Temperature', date_from: '', timespan: 'last_24h', time_interval: 'hourly' },
+        callback: r => {
+            if (r.message) {
+                sensorTemp = r.message;
+                sensorTemp._thresholds = { min: tempMin, max: tempMax };
+                sensorTemp._sensorName = sensorName;
+                renderTempChart();
+                updateTempKPI();
+            }
+        },
+        error: () => {}
+    });
+
+    // Humidity
+    frappe.call({
+        method: 'upande_sensors.api.sensor_charts.get_sensor_chart_data',
+        args: { sensor_name: sensorName, sensor_type: 'Humidity', date_from: '', timespan: 'last_24h', time_interval: 'hourly' },
+        callback: r => {
+            if (r.message) {
+                sensorHum = r.message;
+                sensorHum._thresholds = { min: humMin, max: humMax };
+                sensorHum._sensorName = sensorName;
+                renderHumChart();
+                updateHumKPI();
+            }
+        },
+        error: () => {}
+    });
+}
+
+// ─── KPIs ───
+function updateKPIs() {
+    if (!dashData) return;
+    const a = dashData.aggregations;
+    document.getElementById('kpiBuckets').textContent = (a.total_buckets || 0).toLocaleString();
+    document.getElementById('kpiStems').textContent = (a.total_stems || 0).toLocaleString();
+    document.getElementById('kpiVarieties').textContent = a.total_varieties || 0;
+    document.getElementById('kpiAvgAge').textContent = (a.avg_age_days || 0) + 'd';
+    document.getElementById('kpiOldest').textContent = a.oldest_age_days ? 'Oldest: ' + a.oldest_age_days + 'd' : '';
+    document.getElementById('kpiAllocated').textContent = (a.total_allocated_stems || 0).toLocaleString();
+    const allocBkts = a.total_allocated_buckets || 0;
+    document.getElementById('kpiAllocatedBuckets').textContent = allocBkts ? allocBkts + ' buckets' : '';
+    document.getElementById('kpiShelves').textContent = a.total_shelves || 0;
+    document.getElementById('kpiIncoming').textContent = (a.total_incoming_stems || 0).toLocaleString();
+    const inBkts = a.total_incoming_buckets || 0;
+    document.getElementById('kpiIncomingBuckets').textContent = inBkts ? inBkts + ' buckets' : '';
+    document.getElementById('kpiDiscards').textContent = (a.total_discard_stems || 0).toLocaleString();
+    const discardEntries = a.total_discard_entries || 0;
+    document.getElementById('kpiDiscardsEntries').textContent = discardEntries ? discardEntries + ' buckets' : '';
+}
+
+function updateTempKPI() {
+    if (!sensorTemp) return;
+    const vals = sensorTemp.values || [];
+    const latest = vals[vals.length - 1];
+    const th = sensorTemp._thresholds || { min: 2, max: 4 };
+    const name = sensorTemp._sensorName || '';
+    document.getElementById('kpiTemp').textContent = latest != null ? latest.toFixed(1) + '°C' : '--';
+    const statusEl = document.getElementById('kpiTempStatus');
+    let statusHtml = name ? '<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">' + name + '</div>' : '';
+    if (latest != null) {
+        if (latest >= th.min && latest <= th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-ok">● Normal</span>';
+        } else if (latest > th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-alert">● Too High</span>';
+        } else {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-warn">● Too Low</span>';
+        }
+    }
+    statusEl.innerHTML = statusHtml;
+}
+
+function updateHumKPI() {
+    if (!sensorHum) return;
+    const vals = sensorHum.values || [];
+    const latest = vals[vals.length - 1];
+    const th = sensorHum._thresholds || { min: 80, max: 95 };
+    const name = sensorHum._sensorName || '';
+    document.getElementById('kpiHumidity').textContent = latest != null ? latest.toFixed(1) + '%' : '--';
+    const statusEl = document.getElementById('kpiHumStatus');
+    let statusHtml = name ? '<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">' + name + '</div>' : '';
+    if (latest != null) {
+        if (latest >= th.min && latest <= th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-ok">● Normal</span>';
+        } else {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-warn">● Out of Range</span>';
+        }
+    }
+    statusEl.innerHTML = statusHtml;
+}
+
+// ─── Dashboard Rendering ───
+function renderDashboard() {
+    renderPressureCards();
+    renderVarietyChart();
+    renderAgeChart();
+    renderLengthChart();
+    renderFarmChart();
+}
+
+// ─── Pressure Cards ───
+function renderPressureCards() {
+    if (!dashData) return;
+    const a = dashData.aggregations;
+    const caps = dashData.capacity_data || [];
+    const container = document.getElementById('pressureRow');
+
+    if (!caps.length) {
+        // Single summary card
+        const incoming = Object.values(a.incoming_stems || {}).reduce((s,v) => s+v, 0);
+        const onShelf = a.total_stems || 0;
+        const allocated = a.total_allocated_stems || 0;
+        const total = incoming + onShelf;
+        container.innerHTML = buildPressureCard('All Cold Stores', incoming, onShelf, allocated, 0, total);
+        return;
+    }
+
+    let html = '';
+    caps.forEach(cap => {
+        const farm = cap.farm;
+        const incoming = (a.incoming_stems || {})[farm] || 0;
+        const onShelf = (a.farm_stems || {})[farm] || 0;
+        const allocated = a.total_allocated_stems || 0; // simplified; ideally per-farm
+        const maxStems = cap.max_stems || 0;
+        const total = incoming + onShelf;
+        html += buildPressureCard(farm + ' Cold Store', incoming, onShelf, allocated, maxStems, total);
+    });
+    container.innerHTML = html;
+}
+
+function buildPressureCard(title, incoming, onShelf, allocated, capacity, total) {
+    // The bar shows: Incoming (not shelved) | On Shelf | Allocated (not issued)
+    const unallocatedShelf = Math.max(0, onShelf - allocated);
+    const allocShow = Math.min(allocated, onShelf);
+    const allSegments = incoming + unallocatedShelf + allocShow;
+    const maxVal = capacity > 0 ? Math.max(capacity, allSegments) : (allSegments || 1);
+    const pctIn = maxVal > 0 ? (incoming / maxVal * 100) : 0;
+    const pctUnalloc = maxVal > 0 ? (unallocatedShelf / maxVal * 100) : 0;
+    const pctAlloc = maxVal > 0 ? (allocShow / maxVal * 100) : 0;
+    const pctEmpty = Math.max(0, 100 - pctIn - pctUnalloc - pctAlloc);
+    const capLine = capacity > 0 && maxVal > 0 ? (capacity / maxVal * 100) : 0;
+    const utilPct = capacity > 0 ? Math.round(allSegments / capacity * 100) : 0;
+
+    return `<div class="pressure-card">
+        <div class="pressure-title">${title}${capacity > 0 ? ` <span class="label ${utilPct > 90 ? 'label-danger' : utilPct > 70 ? 'label-warning' : 'label-success'}">${utilPct}% utilized</span>` : ''}</div>
+        <div class="pressure-bar-wrap">
+            <div class="pressure-bar-label">
+                <span>0</span>
+                ${capacity > 0 ? `<span>Capacity: ${capacity.toLocaleString()}</span>` : `<span>Total: ${allSegments.toLocaleString()}</span>`}
+            </div>
+            <div class="pressure-bar">
+                <div class="pressure-segment seg-incoming" style="width:${pctIn}%" title="Received (not shelved): ${incoming.toLocaleString()}">${incoming > 0 ? incoming.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-onshelf" style="width:${pctUnalloc}%" title="On Shelf : ${unallocatedShelf.toLocaleString()}">${unallocatedShelf > 0 ? unallocatedShelf.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-allocated" style="width:${pctAlloc}%" title="Allocated (not issued): ${allocShow.toLocaleString()}">${allocShow > 0 ? allocShow.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-empty" style="width:${pctEmpty}%"></div>
+                ${capLine > 0 ? `<div class="pressure-capacity-line" style="left:${Math.min(capLine, 100)}%"></div>` : ''}
+            </div>
+        </div>
+        <div class="pressure-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent-orange)"></div>Received (not shelved): ${incoming.toLocaleString()}</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent-blue)"></div>On shelf: ${unallocatedShelf.toLocaleString()}</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Allocated (not issued): ${allocShow.toLocaleString()}</div>
+        </div>
+    </div>`;
+}
+
+// ─── Charts ───
+function destroyChart(key) { if (charts[key]) { charts[key].destroy(); charts[key] = null; } }
+
+function renderTempChart() {
+    if (!sensorTemp) return;
+    destroyChart('temp');
+    const ctx = document.getElementById('chartTemp').getContext('2d');
+    const th = sensorTemp._thresholds || { min: 2, max: 4 };
+    charts.temp = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sensorTemp.labels,
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: sensorTemp.values,
+                borderColor: '#2490ef',
+                backgroundColor: 'rgba(36,144,239,0.1)',
+                fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                annotation: undefined
+            },
+            scales: {
+                y: {
+                    min: Math.min(th.min - 1, sensorTemp.min_value - 0.5),
+                    max: Math.max(th.max + 1, sensorTemp.max_value + 0.5),
+                    grid: { color: '#f0f0f0' },
+                    ticks: { font: { size: 11 } }
+                },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } }
+            }
+        }
+    });
+}
+
+function renderHumChart() {
+    if (!sensorHum) return;
+    destroyChart('hum');
+    const ctx = document.getElementById('chartHumidity').getContext('2d');
+    charts.hum = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sensorHum.labels,
+            datasets: [{
+                label: 'Humidity (%)',
+                data: sensorHum.values,
+                borderColor: '#7c5cfc',
+                backgroundColor: 'rgba(124,92,252,0.1)',
+                fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } }
+            }
+        }
+    });
+}
+
+function renderVarietyChart() {
+    if (!dashData) return;
+    destroyChart('variety');
+    const vs = dashData.aggregations.variety_stems || {};
+    const sorted = Object.entries(vs).sort((a,b) => b[1] - a[1]).slice(0, 15);
+    const ctx = document.getElementById('chartVariety').getContext('2d');
+    charts.variety = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: '#2490ef', borderRadius: 4, barThickness: 16
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderAgeChart() {
+    if (!dashData) return;
+    destroyChart('age');
+    const labels = dashData.aggregations.age_dist_labels || [];
+    const values = dashData.aggregations.age_dist_values || [];
+    if (!labels.length) return;
+    // Color gradient: green for fresh, orange for mid, red for old
+    const colors = labels.map((l, i) => {
+        if (i === 0) return '#29cd42';
+        if (i === 1) return '#7cda89';
+        if (i === 2) return '#fc9c30';
+        return '#e63757';
+    });
+    const ctx = document.getElementById('chartAge').getContext('2d');
+    charts.age = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors, borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderLengthChart() {
+    if (!dashData) return;
+    destroyChart('length');
+    const ls = dashData.aggregations.length_stems || {};
+    const sorted = Object.entries(ls).sort((a,b) => {
+        const na = parseFloat(a[0]) || 0, nb = parseFloat(b[0]) || 0;
+        return na - nb;
+    });
+    const ctx = document.getElementById('chartLength').getContext('2d');
+    charts.length = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: '#7c5cfc', borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderFarmChart() {
+    if (!dashData) return;
+    destroyChart('farm');
+    const fs = dashData.aggregations.farm_stems || {};
+    const sorted = Object.entries(fs).sort((a,b) => b[1] - a[1]);
+    const ctx = document.getElementById('chartFarm').getContext('2d');
+    const colors = ['#2490ef', '#29cd42', '#fc9c30', '#7c5cfc', '#e63757', '#1a8a3a'];
+    charts.farm = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{ data: sorted.map(s => s[1]), backgroundColor: colors.slice(0, sorted.length) }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 11 }, padding: 12, usePointStyle: true } }
+            }
+        }
+    });
+}
+
+// ─── Shelf Table ───
+function renderShelfTable() {
+    if (!dashData) return;
+    const data = dashData.stock_data || [];
+    const search = (document.getElementById('shelfSearch').value || '').toLowerCase();
+    let html = '';
+    data.forEach(r => {
+        if (search && !(r.item_code || '').toLowerCase().includes(search)) return;
+        if (shelfFarmValue && r.farm_name !== shelfFarmValue) return;
+        html += `<tr>
+            <td class="cell-variety">${r.item_code || '--'}</td>
+            <td>${r.stem_length || 'N/A'}</td>
+            <td class="cell-farm">${r.farm_name || '--'}</td>
+            <td class="cell-number">${(r.available_stems || 0).toLocaleString()}</td>
+            <td class="cell-number">${r.bucket_count || 0}</td>
+            <td style="color:var(--accent-blue);font-size:12px">${r.shelf_names || '--'}</td>
+        </tr>`;
+    });
+    document.getElementById('shelfTableBody').innerHTML = html || '<tr><td colspan="6" class="empty-state"><p>No stock data</p></td></tr>';
+}
+
+</script>
+</body>
+</html>

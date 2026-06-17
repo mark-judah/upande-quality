@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Production Planning</title>
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+:root{
+--bg:#f4f5f6;--surface:#fff;--inp:#f4f5f6;--hover:#f8f9fa;
+--txt:#1a1a1a;--txt2:#6c7178;--muted:#98a1a9;
+--border:#e2e4e7;--borderL:#f0f0f0;
+--blue:#2490ef;--bluel:#e8f0fe;
+--green:#29cd42;--greenl:#e6f9ee;
+--red:#e63757;--redl:#fde8ec;
+--orange:#fc9c30;--orangel:#fff3e0;
+--purple:#7c5cfc;--purplel:#f0ecfe;
+--teal:#0ea5e9;--teall:#e0f2fe;
+--shadow:0 1px 3px rgba(0,0,0,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;background:var(--bg);color:var(--txt);min-height:100vh}
+.loader{display:none;position:fixed;inset:0;z-index:9999;background:rgba(255,255,255,.65);backdrop-filter:blur(2px);justify-content:center;align-items:center}
+.loader.on{display:flex}
+.spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;height:44px;position:sticky;top:0;z-index:200;gap:2px}
+.nav-brand{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding-right:14px;margin-right:6px;border-right:1px solid var(--border);white-space:nowrap;flex-shrink:0}
+.nav-brand a{color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px}
+.nav-link{padding:12px 14px;font-size:13px;font-weight:500;color:var(--txt2);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap}
+.nav-link:hover{color:var(--txt)}
+.nav-link.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.ph{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:44px;z-index:100}
+.ptitle{font-size:18px;font-weight:700}
+.badge{font-size:11px;font-weight:600;color:var(--txt2);background:var(--inp);padding:3px 10px;border-radius:5px}
+.ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.fc{height:32px;padding:0 10px;font-size:12px;font-family:inherit;background:var(--inp);border:1px solid transparent;border-radius:6px;color:var(--txt);transition:border-color .15s}
+.fc:focus{outline:none;border-color:var(--blue);background:#fff}
+select.fc{cursor:pointer}
+.btn{height:32px;padding:0 14px;font-size:12px;font-weight:600;font-family:inherit;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s;white-space:nowrap}
+.btn:hover{background:var(--inp)}
+.dot{width:7px;height:7px;background:var(--green);border-radius:50%;flex-shrink:0}
+.wrap{padding:16px 20px;max-width:1800px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.fbar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.ms-wrap{position:relative}
+.ms-btn{height:32px;min-width:160px;max-width:220px;padding:0 10px;font-size:12px;font-family:inherit;background:var(--inp);border:1px solid transparent;border-radius:6px;color:var(--txt);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;white-space:nowrap}
+.ms-dd{position:absolute;top:calc(100% + 4px);left:0;min-width:240px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:500;display:none}
+.ms-dd.open{display:block}
+.ms-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;transition:background .1s}
+.ms-item:hover{background:var(--hover)}
+.kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow)}
+.kpi-ic{width:34px;height:34px;min-width:34px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.kpi-ic svg{width:15px;height:15px}
+.kpi-lbl{font-size:10px;font-weight:600;color:var(--txt2);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.kpi-val{font-size:19px;font-weight:700;line-height:1}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.ph2{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ph2c{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer;user-select:none;transition:background .15s;border-bottom:1px solid transparent}
+.ph2c:hover{background:var(--hover)}
+.ph2c.open{border-bottom-color:var(--border)}
+.pbc{display:none}
+.pbc.open{display:block}
+.ptl{font-size:13px;font-weight:700}
+.psub{font-size:11px;color:var(--muted)}
+.pchev{font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;transform:rotate(-90deg);flex-shrink:0}
+.pchev.open{transform:rotate(0deg)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pipe{display:flex;align-items:center;padding:16px;flex-wrap:wrap;gap:6px}
+.pipe-step{flex:1;min-width:90px;background:var(--inp);border-radius:8px;padding:12px 10px;text-align:center}
+.pipe-step .ps-val{font-size:22px;font-weight:700;margin-bottom:2px}
+.pipe-step .ps-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--txt2)}
+.ps-draft{border-top:3px solid var(--muted)}.ps-review{border-top:3px solid var(--orange)}
+.ps-approval{border-top:3px solid var(--blue)}.ps-approved{border-top:3px solid var(--teal)}
+.ps-submitted{border-top:3px solid var(--green)}.ps-rejected{border-top:3px solid var(--red)}
+.pipe-arrow{color:var(--muted);font-size:16px;flex-shrink:0}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{text-align:left;padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+.tbl td{padding:9px 14px;border-bottom:1px solid var(--borderL);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:var(--hover)}
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tg{background:var(--greenl);color:#1a7a2a}.tb{background:var(--bluel);color:#1565c0}
+.to{background:var(--orangel);color:#9a5a00}.tr{background:var(--redl);color:#b71c1c}
+.tp{background:var(--purplel);color:#4527a0}.tm{background:var(--inp);color:var(--muted)}
+.tsp{background:#fce4ec;color:#880e4f}.tteal{background:var(--teall);color:#0369a1}
+.rbadge{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.r1{background:#fff3e0;color:#e65100}.r2{background:#f3f4f6;color:#374151}.r3{background:#fff8e1;color:#b45309}.rn{background:var(--inp);color:var(--muted)}
+.pbar-wrap{display:flex;align-items:center;gap:8px}
+.pbar{flex:1;height:6px;background:var(--borderL);border-radius:3px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .4s}
+.pct{font-size:11px;font-weight:700;min-width:34px;text-align:right}
+.chart-wrap{padding:16px;height:280px;position:relative}
+.ibtn{height:28px;padding:0 10px;font-size:11px;font-weight:600;font-family:inherit;background:var(--inp);border:1px solid var(--borderL);border-radius:6px;cursor:pointer;color:var(--txt2);white-space:nowrap}
+.ibtn:hover{background:var(--hover);color:var(--txt)}
+.ibtn.on{background:var(--bluel);color:var(--blue);border-color:var(--blue)}
+.otabs{display:inline-flex;background:var(--inp);border-radius:8px;padding:3px;gap:2px}
+.otab{padding:4px 12px;border-radius:6px;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--txt2);cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+.otab.active{background:#fff;color:var(--txt);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.otab.warn{color:var(--red)}
+.cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:700;margin-left:4px;padding:0 3px}
+.cnt-r{background:var(--redl);color:var(--red)}.cnt-o{background:var(--orangel);color:#9a5a00}
+.cnt-p{background:#fce4ec;color:#880e4f}.cnt-g{background:var(--greenl);color:#1a7a2a}
+.cnt-b{background:var(--bluel);color:var(--blue)}
+.ov-row{border-bottom:1px solid var(--borderL)}
+.ov-row:last-child{border-bottom:none}
+.ov-head{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;transition:background .1s;user-select:none}
+.ov-head:hover{background:var(--hover)}
+.ov-chev{font-size:10px;color:var(--muted);transition:transform .2s;flex-shrink:0;display:inline-block;transform:rotate(-90deg)}
+.ov-chev.open{transform:rotate(0deg)}
+.ov-gh{font-size:12px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-detail{display:none;background:var(--bg);border-top:1px solid var(--borderL)}
+.ov-detail.open{display:block}
+.ov-plan-row{display:flex;align-items:center;gap:10px;padding:8px 16px 8px 32px;border-bottom:1px solid var(--borderL);font-size:12px;flex-wrap:wrap}
+.ov-plan-row:last-child{border-bottom:none}
+.alert{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;font-size:12px;font-weight:500;margin:12px 16px 0;border-radius:8px;border:1px solid}
+.alert-r{background:var(--redl);border-color:#fca5a5;color:#b91c1c}
+.alert-o{background:var(--orangel);border-color:#fcd34d;color:#92400e}
+.alert-p{background:#fce4ec;border-color:#f48fb1;color:#880e4f}
+.day-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:var(--purplel);color:var(--purple);margin:2px}
+.empty{text-align:center;padding:28px;color:var(--muted);font-size:12px}
+.appr-tabs{display:flex;border-bottom:1px solid var(--border)}
+.appr-tab{padding:10px 18px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--txt2);cursor:pointer;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.appr-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.appr-tab:hover{color:var(--txt)}
+@media(max-width:1400px){.kpis{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="loader" id="ldr"><div class="spinner"></div></div>
+<nav class="nav">
+  <span class="nav-brand"><a href="/app/roses-production"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home</a></span>
+  <a href="/production-dashboard" class="nav-link">Overview</a>
+  <a href="/production-planning" class="nav-link active">Planning</a>
+    <a href="/production-forecast" class="nav-link">Forecast</a>
+  <a href="/crop-cycle-dashboard" class="nav-link">Crop Cycles</a>
+</nav>
+<div class="ph">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="ptitle">Production Planning</span>
+    <span class="badge" id="weekBadge">This Week</span>
+  </div>
+  <div class="ctl">
+    <div class="fg"><span class="fl">From</span><input type="date" class="fc" id="fFrom" style="width:130px"></div>
+    <div class="fg"><span class="fl">To</span><input type="date" class="fc" id="fTo" style="width:130px"></div>
+    <div class="fg"><span class="fl">Farm</span><select class="fc" id="fFarm" style="width:130px"><option value="">All Farms</option></select></div>
+    <div class="fg"><span class="fl">Plan Type</span>
+      <select class="fc" id="fType" style="width:160px">
+        <option value="">All Types</option>
+        <option value="Greenhouse Operations">Greenhouse Operations</option>
+        <option value="Irrigation">Irrigation</option>
+        <option value="Crop Protection">Crop Protection</option>
+      </select>
+    </div>
+    <button class="btn" onclick="pp.load()"><span class="dot"></span>Refresh</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="fbar">
+    <div class="fg"><span class="fl">Greenhouse</span>
+      <div class="ms-wrap">
+        <button class="ms-btn" id="ghBtn" onclick="pp.toggleMs()">All Greenhouses <span>&#9662;</span></button>
+        <div class="ms-dd" id="ghDD"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-ic" style="background:var(--inp)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div><div class="kpi-lbl">Total Plans</div><div class="kpi-val" id="kTotal">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--greenl)"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="kpi-lbl">Submitted</div><div class="kpi-val" id="kSubmitted">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--teall)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div><div class="kpi-lbl">Approved</div><div class="kpi-val" id="kApproved">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--bluel)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Pend. Approval</div><div class="kpi-val" id="kPendingA">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--orangel)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div><div class="kpi-lbl">Pend. Review</div><div class="kpi-val" id="kPendingR">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--redl)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><div><div class="kpi-lbl">Rejected</div><div class="kpi-val" id="kRejected">&mdash;</div></div></div>
+    <div class="kpi"><div class="kpi-ic" style="background:var(--inp)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div><div><div class="kpi-lbl">Draft</div><div class="kpi-val" id="kDraft">&mdash;</div></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="ptl">Workflow Pipeline</span><span class="psub" id="weekLabel"></span></div>
+    <div class="pipe" id="pipeBody"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2c" id="apprHeader" onclick="pp.togglePanel('appr')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pchev" id="apprChev">&#9660;</span>
+        <span class="ptl">Plan Approvals</span>
+        <span class="psub" id="apprSub">Approval status per plan</span>
+      </div>
+      <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+        <span class="cnt cnt-g" id="apprCntA" title="Approved / Submitted">0</span>
+        <span class="cnt cnt-b" id="apprCntP" title="Pending">0</span>
+        <span class="cnt cnt-r" id="apprCntR" title="Rejected">0</span>
+      </div>
+    </div>
+    <div class="pbc" id="apprBody">
+      <div class="appr-tabs">
+        <button class="appr-tab active" id="atab0" onclick="pp.switchApprTab(0)">Approved <span class="cnt cnt-g" id="atCntA">0</span></button>
+        <button class="appr-tab" id="atab1" onclick="pp.switchApprTab(1)">Pending <span class="cnt cnt-b" id="atCntP">0</span></button>
+        <button class="appr-tab" id="atab2" onclick="pp.switchApprTab(2)">Rejected <span class="cnt cnt-r" id="atCntR">0</span></button>
+        <button class="appr-tab" id="atab3" onclick="pp.switchApprTab(3)">Draft <span class="cnt cnt-o" id="atCntD">0</span></button>
+      </div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Plan</th><th>Farm</th><th>Greenhouse</th><th>Type</th><th>Supervisor</th><th>Variety</th><th>Week</th><th>Status</th><th>Modified</th></tr></thead>
+        <tbody id="apprTableBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2c" id="ovHeader" onclick="pp.togglePanel('ov')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pchev" id="ovChev">&#9660;</span>
+        <span class="ptl">Overlapping Plans</span>
+        <span class="psub" id="overlapSub"></span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+        <div class="otabs">
+          <button class="otab active" id="otab0" onclick="pp.switchOvTab(0)">Duplicates <span class="cnt cnt-r" id="dupCnt">0</span></button>
+          <button class="otab" id="otab1" onclick="pp.switchOvTab(1)">Cross-type <span class="cnt cnt-o" id="crossCnt">0</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="pbc" id="ovBody"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2c" id="spHeader" onclick="pp.togglePanel('sp')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pchev" id="spChev">&#9660;</span>
+        <span class="ptl">Spray Plan Conflicts</span>
+        <span class="psub" id="spraySub"></span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+        <div class="otabs">
+          <button class="otab active" id="stab0" onclick="pp.switchSprayTab(0)">vs Harvest <span class="cnt cnt-r" id="svhCnt">0</span></button>
+          <button class="otab" id="stab1" onclick="pp.switchSprayTab(1)">vs Spray <span class="cnt cnt-p" id="svsCnt">0</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="pbc" id="spBody"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2c" id="ghActHeader" onclick="pp.togglePanel('gha')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pchev" id="ghaChev">&#9660;</span>
+        <span class="ptl">Greenhouse Activity Breakdown</span>
+        <span class="psub" id="ghActSub">Click to expand</span>
+      </div>
+    </div>
+    <div class="pbc" id="ghaBody"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="ph2"><span class="ptl">Farm Coverage</span><span class="psub">Plan status by farm</span></div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Farm</th><th>GH Ops</th><th>Irrigation</th><th>Crop Prot.</th><th>Total</th><th>Submitted</th></tr></thead>
+        <tbody id="farmBody"></tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <div class="ph2"><span class="ptl">Activity Breakdown</span><span class="psub">Tasks per activity</span></div>
+      <div style="overflow-x:auto"><table class="tbl">
+        <thead><tr><th>Activity</th><th>Type</th><th>Tasks</th><th>Target</th><th>Actual</th><th>Achievement</th></tr></thead>
+        <tbody id="actBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2"><span class="ptl">Target vs Actual by Greenhouse</span></div>
+    <div class="chart-wrap"><canvas id="ghChart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph2">
+      <span class="ptl">Supervisor Performance</span>
+      <div style="display:flex;gap:6px">
+        <button class="ibtn" id="svSortBtn" onclick="pp.toggleSvSort()">&#9660; Top performers</button>
+        <button class="ibtn" id="svAllBtn" onclick="pp.toggleSvAll()">Show all</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>#</th><th>Supervisor</th><th>Farm</th><th>Plans</th><th>Target</th><th>Actual</th><th>Achievement</th><th>Status</th></tr></thead>
+      <tbody id="svBody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<script>
+var pp = (function(){
+  var ghChart = null;
+  var allData = {};
+  var selGH = [];
+  var svAsc = false, svAll = false;
+  var ovTab = 0, sprayTab = 0, apprTab = 0;
+  var panelState = {ov:false, sp:false, gha:false, appr:false};
+  var debT = null;
+
+  var TYPE_CLS = {'Greenhouse Operations':'tb','Irrigation':'tp','Crop Protection':'to','GH Ops':'tb'};
+  var STATE_CLS = {'submitted':'tg','Approved':'tteal','Pending Approval':'to','Pending Review':'to','Rejected':'tr','Draft':'tm'};
+  var DAY_ORDER = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+
+  function el(id){ return document.getElementById(id); }
+  function loader(v){ el('ldr').classList.toggle('on',v); }
+  function fmt(n){ return Number(n||0).toLocaleString(); }
+  function pct(a,t){ return t>0?Math.round(a*100/t):0; }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function debounce(fn,ms){ clearTimeout(debT); debT=setTimeout(fn,ms); }
+
+  function getWeekBounds(){
+    var now=new Date(), day=now.getDay();
+    var mon=new Date(now); mon.setDate(now.getDate()-(day===0?6:day-1));
+    var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    function iso(d){ return d.toISOString().split('T')[0]; }
+    return {from:iso(mon),to:iso(sun)};
+  }
+
+  function init(){
+    var w=getWeekBounds();
+    el('fFrom').value=w.from; el('fTo').value=w.to;
+    updateWeekBadge();
+    ['fFrom','fTo','fFarm','fType'].forEach(function(id){
+      el(id).addEventListener('change',function(){ updateWeekBadge(); debounce(load,400); });
+    });
+    document.addEventListener('click',function(e){
+      if(!e.target.closest('.ms-wrap')) el('ghDD').classList.remove('open');
+    });
+    load();
+  }
+
+  function updateWeekBadge(){
+    var from=el('fFrom').value, to=el('fTo').value, w=getWeekBounds();
+    if(from===w.from&&to===w.to){ el('weekBadge').textContent='This Week'; return; }
+    var opts={day:'numeric',month:'short'};
+    var f=new Date(from+'T00:00:00').toLocaleDateString(undefined,opts);
+    var t=new Date(to+'T00:00:00').toLocaleDateString(undefined,opts);
+    el('weekBadge').textContent=from===to?f:f+'\u2013'+t;
+  }
+
+  function toggleMs(){ el('ghDD').classList.toggle('open'); }
+
+  function buildGHDropdown(list){
+    var dd=el('ghDD'); dd.innerHTML='';
+    if(!list||!list.length){ dd.innerHTML='<div class="ms-item" style="color:var(--muted)">No greenhouses</div>'; return; }
+    list.forEach(function(gh){
+      var row=document.createElement('div'); row.className='ms-item';
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.value=gh;
+      cb.checked=selGH.indexOf(gh)>-1;
+      cb.addEventListener('change',function(){
+        var i=selGH.indexOf(gh);
+        if(cb.checked&&i===-1) selGH.push(gh);
+        else if(!cb.checked&&i>-1) selGH.splice(i,1);
+        updateGHBtn(); debounce(load,400);
+      });
+      var lbl=document.createElement('span'); lbl.textContent=gh;
+      row.appendChild(cb); row.appendChild(lbl); dd.appendChild(row);
+    });
+  }
+
+  function updateGHBtn(){
+    el('ghBtn').innerHTML=(selGH.length?selGH.length+' selected':'All Greenhouses')+' <span>&#9662;</span>';
+  }
+
+  function populateSel(id,list,cur){
+    var sel=el(id), first=sel.options[0].outerHTML;
+    sel.innerHTML=first;
+    list.forEach(function(v){
+      var o=document.createElement('option'); o.value=v; o.textContent=v;
+      if(v===cur) o.selected=true; sel.appendChild(o);
+    });
+  }
+
+  function togglePanel(key){
+    panelState[key]=!panelState[key];
+    var bodyId = key==='ov'?'ovBody':key==='sp'?'spBody':key==='gha'?'ghaBody':'apprBody';
+    var chevId = key==='ov'?'ovChev':key==='sp'?'spChev':key==='gha'?'ghaChev':'apprChev';
+    var headId = key==='ov'?'ovHeader':key==='sp'?'spHeader':key==='gha'?'ghActHeader':'apprHeader';
+    el(bodyId).classList.toggle('open',panelState[key]);
+    el(chevId).classList.toggle('open',panelState[key]);
+    el(headId).classList.toggle('open',panelState[key]);
+  }
+
+  function load(){
+    loader(true);
+    frappe.call({
+      method:'get_production_planning_data',
+      args:{from_date:el('fFrom').value,to_date:el('fTo').value,farm:el('fFarm').value,plan_type:el('fType').value,greenhouses:selGH.join(',')},
+      callback:function(r){ loader(false); if(r.message) render(r.message); },
+      error:function(){ loader(false); }
+    });
+  }
+
+  function render(d){
+    allData=d;
+    populateSel('fFarm',d.farms||[],el('fFarm').value);
+    if(d.greenhouses&&d.greenhouses.length) buildGHDropdown(d.greenhouses);
+
+    var wl=d.from_week===d.to_week?'Week '+d.from_week:'Weeks '+d.from_week+'\u2013'+d.to_week;
+    el('weekLabel').textContent=wl;
+
+    var s=d.summary||{};
+    el('kTotal').textContent=fmt(s.total); el('kSubmitted').textContent=fmt(s.submitted);
+    el('kApproved').textContent=fmt(s.approved); el('kPendingA').textContent=fmt(s.pending_approval);
+    el('kPendingR').textContent=fmt(s.pending_review); el('kRejected').textContent=fmt(s.rejected);
+    el('kDraft').textContent=fmt(s.draft);
+
+    var steps=[
+      {key:'draft',label:'Draft',cls:'ps-draft'},{key:'pending_review',label:'Pending Review',cls:'ps-review'},
+      {key:'pending_approval',label:'Pend. Approval',cls:'ps-approval'},{key:'approved',label:'Approved',cls:'ps-approved'},
+      {key:'submitted',label:'Submitted',cls:'ps-submitted'},{key:'rejected',label:'Rejected',cls:'ps-rejected'}
+    ];
+    el('pipeBody').innerHTML=steps.map(function(st,i){
+      return '<div class="pipe-step '+st.cls+'"><div class="ps-val">'+fmt(s[st.key]||0)+'</div><div class="ps-lbl">'+st.label+'</div></div>'+(i<steps.length-2?'<span class="pipe-arrow">&#8594;</span>':'');
+    }).join('');
+
+    var ap=d.approvals||{};
+    var nA=(ap.approved||[]).length, nP=(ap.pending||[]).length, nR=(ap.rejected||[]).length, nD=(ap.draft||[]).length;
+    el('apprCntA').textContent=nA; el('apprCntP').textContent=nP; el('apprCntR').textContent=nR;
+    el('atCntA').textContent=nA; el('atCntP').textContent=nP; el('atCntR').textContent=nR; el('atCntD').textContent=nD;
+    el('apprSub').textContent=nA+' approved, '+nP+' pending, '+nR+' rejected';
+    el('apprBody').classList.toggle('open',panelState['appr']);
+    el('apprChev').classList.toggle('open',panelState['appr']);
+    el('apprHeader').classList.toggle('open',panelState['appr']);
+    renderApprovals();
+
+    var os=d.overlap_summary||{};
+    el('dupCnt').textContent=os.duplicate_count||0;
+    el('crossCnt').textContent=os.cross_type_count||0;
+    var tot=(os.duplicate_count||0)+(os.cross_type_count||0);
+    el('overlapSub').textContent=tot>0?tot+' greenhouse'+(tot!==1?'s':'')+' with multiple plans':'No overlapping plans';
+    el('otab0').classList.toggle('warn',(os.duplicate_count||0)>0);
+    el('ovBody').classList.toggle('open',panelState['ov']);
+    el('ovChev').classList.toggle('open',panelState['ov']);
+    el('ovHeader').classList.toggle('open',panelState['ov']);
+    renderOverlaps();
+
+    var sc=d.spray_conflict_summary||{};
+    el('svhCnt').textContent=sc.spray_vs_harvest||0;
+    el('svsCnt').textContent=sc.spray_vs_spray||0;
+    el('spraySub').textContent=sc.approved_spray_count
+      ?sc.approved_spray_count+' approved spray plan'+(sc.approved_spray_count!==1?'s':'')+' in period'
+      :'No approved spray plans in period';
+    el('stab0').classList.toggle('warn',(sc.spray_vs_harvest||0)>0);
+    el('spBody').classList.toggle('open',panelState['sp']);
+    el('spChev').classList.toggle('open',panelState['sp']);
+    el('spHeader').classList.toggle('open',panelState['sp']);
+    renderSprayConflicts();
+
+    renderGHActivities();
+
+    var farms=d.farm_coverage||[];
+    el('farmBody').innerHTML=!farms.length?'<tr><td colspan="6" class="empty">No data</td></tr>'
+      :farms.map(function(f){
+          var stCls=f.submitted===f.total&&f.total>0?'tg':f.submitted>0?'tb':'tm';
+          return '<tr><td style="font-weight:600">'+esc(f.farm)+'</td><td>'+fmt(f.gh_ops)+'</td><td>'+fmt(f.irrigation)+'</td><td>'+fmt(f.crop_protection)+'</td><td><b>'+fmt(f.total)+'</b></td><td><span class="tag '+stCls+'">'+f.submitted+' / '+f.total+'</span></td></tr>';
+        }).join('');
+
+    var acts=d.activities||[];
+    el('actBody').innerHTML=!acts.length?'<tr><td colspan="6" class="empty">No data</td></tr>'
+      :acts.map(function(a){
+          var ap2=pct(a.actual,a.target), bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+          return '<tr><td style="font-weight:600">'+esc(a.task)+'</td><td><span class="tag tm">'+esc(a.plan_type)+'</span></td><td>'+fmt(a.count)+'</td><td>'+fmt(a.target)+'</td><td>'+fmt(a.actual)+'</td><td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td></tr>';
+        }).join('');
+
+    var gh=d.greenhouse_data||[];
+    if(ghChart){ ghChart.destroy(); ghChart=null; }
+    if(gh.length){
+      ghChart=new Chart(el('ghChart'),{
+        type:'bar',
+        data:{labels:gh.map(function(g){return g.label;}),datasets:[
+          {label:'Target',data:gh.map(function(g){return g.target;}),backgroundColor:'rgba(36,144,239,.3)',borderColor:'rgba(36,144,239,.8)',borderWidth:1,borderRadius:3},
+          {label:'Actual',data:gh.map(function(g){return g.actual;}),backgroundColor:'rgba(41,205,66,.6)',borderColor:'rgba(41,205,66,.9)',borderWidth:1,borderRadius:3}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+          plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true}},
+            tooltip:{backgroundColor:'rgba(15,23,42,.9)',padding:10,cornerRadius:8,callbacks:{label:function(c){return ' '+c.dataset.label+': '+c.raw.toLocaleString();}}}},
+          scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#98a1a9',maxRotation:45}},
+            y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#98a1a9'}}}}
+      });
+    }
+
+    renderSupervisors();
+  }
+
+  function switchApprTab(t){
+    apprTab=t;
+    ['atab0','atab1','atab2','atab3'].forEach(function(id,i){ el(id).classList.toggle('active',i===t); });
+    renderApprovals();
+  }
+
+  function renderApprovals(){
+    var ap=allData.approvals||{};
+    var lists=['approved','pending','rejected','draft'];
+    var list=ap[lists[apprTab]]||[];
+    if(!list.length){ el('apprTableBody').innerHTML='<tr><td colspan="9" class="empty">No plans in this category.</td></tr>'; return; }
+    el('apprTableBody').innerHTML=list.map(function(p){
+      var sc=STATE_CLS[p.workflow_state]||'tm';
+      return '<tr>'+
+        '<td><a href="/app/production-plan-form/'+esc(p.name)+'" target="_blank" style="color:var(--blue);font-weight:600;font-size:11px">'+esc(p.name)+'</a></td>'+
+        '<td style="font-weight:600">'+esc(p.farm)+'</td>'+
+        '<td style="font-size:11px">'+esc(p.greenhouse)+'</td>'+
+        '<td><span class="tag '+(TYPE_CLS[p.plan_type]||'tm')+'" style="font-size:10px">'+esc(p.plan_type)+'</span></td>'+
+        '<td style="font-size:11px">'+esc(p.supervisor)+'</td>'+
+        '<td style="font-size:11px;color:var(--txt2)">'+esc(p.variety)+'</td>'+
+        '<td style="font-size:11px">Wk '+esc(String(p.week_no||''))+'</td>'+
+        '<td><span class="tag '+sc+'">'+esc(p.workflow_state)+'</span></td>'+
+        '<td style="font-size:10px;color:var(--muted)">'+esc(p.modified)+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  function switchOvTab(t){ ovTab=t; el('otab0').classList.toggle('active',t===0); el('otab1').classList.toggle('active',t===1); renderOverlaps(); }
+
+  function renderOverlaps(){
+    var list=ovTab===0?(allData.duplicate_overlaps||[]):(allData.cross_type_overlaps||[]);
+    var isDup=ovTab===0;
+    if(!list.length){ el('ovBody').innerHTML='<div class="empty">'+(isDup?'No duplicate plans found.':'No cross-type overlaps found.')+'</div>'; return; }
+    var banner=isDup
+      ?'<div class="alert alert-r">&#9888;&nbsp;<b>'+list.length+' greenhouse'+(list.length!==1?'s':'')+' have duplicate plans</b> &mdash; same type in same week.</div>'
+      :'<div class="alert alert-o">&#8505;&nbsp;<b>'+list.length+' greenhouse'+(list.length!==1?'s':'')+' have cross-type plans</b> &mdash; different plan types same week. Usually intentional.</div>';
+    var rows=list.map(function(ov,idx){
+      var uid='ov-'+idx;
+      var plans=ov.plans.map(function(p){
+        return '<div class="ov-plan-row"><span style="font-size:10px;color:var(--muted);min-width:130px">'+esc(p.name)+'</span>'+
+          '<span class="tag '+(TYPE_CLS[p.plan_type]||'tm')+'">'+esc(p.plan_type)+'</span>'+
+          '<span class="tag '+(STATE_CLS[p.workflow_state]||'tm')+'">'+esc(p.workflow_state)+'</span>'+
+          '<span style="font-size:11px;color:var(--txt2);flex:1">'+esc(p.supervisor_name)+'</span>'+
+          '<span style="font-size:11px;color:var(--muted)">Wk '+ov.week_no+'</span></div>';
+      }).join('');
+      return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+        '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+        '<span class="ov-gh">'+esc(ov.greenhouse)+'</span>'+
+        '<span class="tag '+(isDup?'tr':'to')+'">'+ov.plan_count+' plans</span>'+
+        '<span style="font-size:11px;color:var(--muted);margin-left:8px">'+esc(ov.plan_types)+'</span></div>'+
+        '<div class="ov-detail" id="'+uid+'">'+plans+'</div></div>';
+    }).join('');
+    el('ovBody').innerHTML=banner+rows;
+  }
+
+  function switchSprayTab(t){ sprayTab=t; el('stab0').classList.toggle('active',t===0); el('stab1').classList.toggle('active',t===1); renderSprayConflicts(); }
+
+  function renderSprayConflicts(){
+    var body=el('spBody');
+    if(sprayTab===0){
+      var list=allData.spray_vs_harvest||[];
+      if(!list.length){ body.innerHTML='<div class="empty">No spray vs harvest conflicts found.</div>'; return; }
+      var banner='<div class="alert alert-r">&#9888;&nbsp;<b>'+list.length+' conflict'+(list.length!==1?'s':'')+' detected</b> &mdash; approved spray plan on same greenhouse and week as Harvesting tasks.</div>';
+      var rows=list.map(function(c,idx){
+        var uid='sp-'+idx;
+        var days=c.harvesting_days.map(function(d){ return '<span class="day-chip">'+esc(d)+'</span>'; }).join('');
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+          '<span class="ov-gh">'+esc(c.greenhouse)+'</span>'+
+          '<span class="tag tr">Week '+c.week_no+'</span>'+
+          '<span style="font-size:11px;color:var(--muted);margin-left:8px">Spray: '+esc(c.spray_date)+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'" style="padding:10px 16px 10px 32px">'+
+            '<div style="display:flex;flex-wrap:wrap;gap:12px">'+
+            '<div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Spray Plan</div>'+
+            '<a href="/app/work-order/'+esc(c.spray_plan)+'" target="_blank" style="color:var(--blue);font-size:12px;font-weight:600">'+esc(c.spray_plan)+'</a>'+
+            '<div style="font-size:11px;color:var(--txt2);margin-top:3px">Targets: '+esc(c.spray_targets)+'</div></div>'+
+            '<div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Harvesting Days</div>'+days+'</div></div></div></div>';
+      }).join('');
+      body.innerHTML=banner+rows;
+    } else {
+      var list2=allData.spray_vs_spray||[];
+      if(!list2.length){ body.innerHTML='<div class="empty">No overlapping spray plans found.</div>'; return; }
+      var banner2='<div class="alert alert-p">&#8505;&nbsp;<b>'+list2.length+' greenhouse'+(list2.length!==1?'s':'')+' have multiple spray plans</b> in the same week.</div>';
+      var rows2=list2.map(function(c,idx){
+        var uid='ss-'+idx;
+        var sprays=c.sprays.map(function(s){
+          return '<div class="ov-plan-row"><a href="/app/work-order/'+esc(s.name)+'" target="_blank" style="color:var(--blue);font-size:12px;font-weight:600;min-width:160px">'+esc(s.name)+'</a>'+
+            '<span style="font-size:11px;color:var(--txt2);margin:0 8px">'+esc(s.date)+'</span>'+
+            '<span style="font-size:11px;color:var(--muted)">'+esc(s.targets)+'</span></div>';
+        }).join('');
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+          '<span class="ov-gh">'+esc(c.greenhouse)+'</span>'+
+          '<span class="tag tsp">'+c.spray_count+' spray plans</span>'+
+          '<span style="font-size:11px;color:var(--muted);margin-left:8px">Wk '+c.week_no+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'">'+sprays+'</div></div>';
+        }).join('');
+      body.innerHTML=banner2+rows2;
+    }
+  }
+
+  function renderGHActivities(){
+    var list=allData.gh_weekly_activities||[];
+    if(!list.length){
+      el('ghActSub').textContent='No activity data for selected period';
+      el('ghaBody').innerHTML='<div class="empty">No activity data for selected period.</div>';
+    } else {
+      el('ghActSub').textContent=list.length+' greenhouse'+(list.length!==1?'s':'')+' \u2014 click to expand';
+      var rows=list.map(function(entry,idx){
+        var uid='gha-'+idx;
+        var dayMap={};
+        entry.tasks.forEach(function(t){ var d=t.day||'?'; if(!dayMap[d]) dayMap[d]=[]; dayMap[d].push(t); });
+        var dayOrder=Object.keys(dayMap).sort(function(a,b){ return (DAY_ORDER[a]!==undefined?DAY_ORDER[a]:99)-(DAY_ORDER[b]!==undefined?DAY_ORDER[b]:99); });
+        var taskRows=dayOrder.map(function(day){
+          var tasks=dayMap[day];
+          return tasks.map(function(t,ti){
+            var ap2=pct(t.actual,t.target), bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+            return '<tr>'+(ti===0?'<td rowspan="'+tasks.length+'" style="font-weight:700;vertical-align:top;font-size:11px;white-space:nowrap">'+esc(day)+'</td>':'')+
+              '<td><span class="tag '+(TYPE_CLS[t.type]||'tm')+'" style="font-size:10px">'+esc(t.type)+'</span></td>'+
+              '<td style="font-weight:600">'+esc(t.task)+'</td><td style="font-size:11px;color:var(--txt2)">'+esc(t.purpose)+'</td>'+
+              '<td>'+fmt(t.target)+'</td><td>'+fmt(t.actual)+'</td>'+
+              '<td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td></tr>';
+          }).join('');
+        }).join('');
+        var taskCount=entry.tasks.length;
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span><span class="ov-gh">'+esc(entry.greenhouse)+'</span>'+
+          '<span class="tag tb" style="margin-left:6px">'+taskCount+' task'+(taskCount!==1?'s':'')+'</span>'+
+          '<span style="font-size:11px;color:var(--muted);margin-left:8px">Week '+entry.week_no+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'"><table class="tbl"><thead><tr><th>Day</th><th>Type</th><th>Task</th><th>Purpose</th><th>Target</th><th>Actual</th><th>Achievement</th></tr></thead><tbody>'+taskRows+'</tbody></table></div></div>';
+      }).join('');
+      el('ghaBody').innerHTML=rows;
+    }
+    el('ghaBody').classList.toggle('open',panelState['gha']);
+    el('ghaChev').classList.toggle('open',panelState['gha']);
+    el('ghActHeader').classList.toggle('open',panelState['gha']);
+  }
+
+  function toggleRow(uid){
+    var d=el(uid), c=el('chev-'+uid);
+    var o=d.classList.toggle('open');
+    if(c) c.classList.toggle('open',o);
+  }
+
+  function toggleSvSort(){
+    svAsc=!svAsc;
+    el('svSortBtn').innerHTML=svAsc?'&#9650; Bottom (missed target)':'&#9660; Top performers';
+    el('svSortBtn').classList.toggle('on',svAsc); renderSupervisors();
+  }
+
+  function toggleSvAll(){
+    svAll=!svAll;
+    el('svAllBtn').textContent=svAll?'Top 10':'Show all';
+    el('svAllBtn').classList.toggle('on',svAll); renderSupervisors();
+  }
+
+  function renderSupervisors(){
+    var svs=(allData.supervisors||[]).slice();
+    svs.sort(function(a,b){ var pa=pct(a.actual,a.target),pb=pct(b.actual,b.target); return svAsc?pa-pb:pb-pa; });
+    var list=svAll?svs:svs.slice(0,10);
+    if(!list.length){ el('svBody').innerHTML='<tr><td colspan="8" class="empty">No data</td></tr>'; return; }
+    el('svBody').innerHTML=list.map(function(sv,i){
+      var ap2=pct(sv.actual,sv.target),bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+      var stCls=ap2>=90?'tg':ap2>=60?'to':'tr', bd=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+      return '<tr><td><div class="rbadge '+bd+'">'+(i+1)+'</div></td><td style="font-weight:600">'+esc(sv.name)+'</td>'+
+        '<td style="color:var(--txt2)">'+esc(sv.farm)+'</td><td>'+fmt(sv.plans)+'</td><td>'+fmt(sv.target)+'</td><td>'+fmt(sv.actual)+'</td>'+
+        '<td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td>'+
+        '<td><span class="tag '+stCls+'">'+esc(sv.workflow_state)+'</span></td></tr>';
+    }).join('');
+  }
+
+  return {init:init,load:load,toggleMs:toggleMs,togglePanel:togglePanel,switchApprTab:switchApprTab,switchOvTab:switchOvTab,switchSprayTab:switchSprayTab,toggleRow:toggleRow,toggleSvSort:toggleSvSort,toggleSvAll:toggleSvAll};
+})();
+
+document.addEventListener('DOMContentLoaded',function(){ pp.init(); });
+</script>
+</body>
+</html>

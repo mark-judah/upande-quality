@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Transit Time</title>
+
+    <!-- PivotTable.js CSS only — JS loaded after Frappe's jQuery is ready -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/themes/base/jquery-ui.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css">
+
+    <style>
+        :root {
+            --bg-page: #f4f5f6;--bg-surface: #ffffff;--bg-input: #f4f5f6;--bg-hover: #f8f9fa;
+            --text-primary: #1a1a1a;--text-secondary: #6c7178;--text-muted: #98a1a9;
+            --border-default: #e2e4e7;--border-light: #f0f0f0;
+            --accent-blue: #2490ef;--accent-blue-light: #e8f0fe;--accent-green: #29cd42;--accent-red: #e63757;--accent-orange: #fc9c30;--accent-purple: #7c5cfc;
+            --tint-blue: #e8f0fe;--tint-green: #e6f9ee;--tint-orange: #fff3e0;--tint-gray: #f4f5f6;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+            --chart-teal: #2d9ea0;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;font-size:13px;line-height:1.5;background:var(--bg-page);color:var(--text-primary);min-height:100vh;}
+
+        .top-nav{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:0 16px;display:flex;align-items:center;position:sticky;top:0;z-index:200;height:44px;}
+        .nav-brand{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:0 14px 0 0;margin-right:6px;border-right:1px solid var(--border-default);white-space:nowrap;}
+        .nav-link{padding:12px 14px;font-size:13px;font-weight:500;color:var(--text-secondary);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 150ms ease,border-color 150ms ease;}
+        .nav-link:hover{color:var(--text-primary);border-bottom-color:var(--border-default);}
+        .nav-link.active{color:var(--accent-blue);border-bottom-color:var(--accent-blue);font-weight:600;}
+        @media(max-width:600px){.nav-brand{display:none;}.top-nav{overflow-x:auto;}}
+
+        .page-head{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:44px;z-index:100;min-height:48px;}
+        .page-title{font-size:18px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
+        .head-actions{display:flex;align-items:center;gap:8px;}
+        .refresh-btn,.reset-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;transition:background 150ms ease;}
+        .refresh-btn:hover,.reset-btn:hover{background:var(--bg-input);}
+        .refresh-dot{width:7px;height:7px;background:var(--accent-green);border-radius:50%;}
+        .record-count{font-size:11px;font-weight:600;color:var(--text-muted);padding:4px 10px;background:var(--tint-gray);border-radius:6px;}
+
+        .filter-bar{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+        .filter-group{display:flex;align-items:center;gap:4px;}
+        .filter-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+        .form-control{height:30px;padding:4px 10px;font-size:12px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);transition:border-color 150ms ease,background 150ms ease;min-width:100px;}
+        .form-control:focus{outline:none;border-color:var(--accent-blue);background:var(--bg-surface);}
+        select.form-control{cursor:pointer;}
+        .clear-dates-btn{font-size:11px;font-weight:600;color:var(--accent-blue);background:none;border:none;cursor:pointer;padding:4px 8px;font-family:inherit;text-decoration:underline;}
+        .clear-dates-btn:hover{color:var(--accent-purple);}
+
+        .pivot-container{padding:20px;max-width:100%;margin:0 auto;}
+        .pivot-wrapper{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;box-shadow:var(--shadow-card);overflow:hidden;}
+        .pivot-inner{padding:0;overflow:auto;max-height:calc(100vh - 200px);}
+
+        .loading-state{text-align:center;padding:60px 20px;color:var(--text-muted);font-size:13px;}
+        .loading-state .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border-default);border-top-color:var(--accent-blue);border-radius:50%;animation:spin .6s linear infinite;margin-bottom:10px;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+        .error-state{background:#fde8ec;color:var(--accent-red);padding:16px 20px;font-size:13px;border-radius:8px;margin:20px;}
+
+        /* ═══════════════════════════════════════════════ */
+        /* PivotTable.js style overrides                   */
+        /* ═══════════════════════════════════════════════ */
+        .pvtUi{font-family:inherit!important;font-size:12px!important;color:var(--text-primary)!important;border:none!important;width:100%!important;overflow-x:auto!important;}
+        .pvtUi td{padding:0!important;}
+        .pvtUi > tbody > tr:first-child{display:flex!important;flex-wrap:wrap!important;gap:0!important;border-bottom:1px solid var(--border-default)!important;padding:12px 16px!important;background:var(--bg-page)!important;}
+        .pvtUiCell{vertical-align:top!important;}
+        .pvtRendererArea{padding:0!important;}
+        .pvtRendererArea table{margin:0!important;}
+        .pvtRenderer{display:none!important;}
+
+        .pvtVals{border:none!important;background:none!important;padding:0 12px 0 0!important;min-height:auto!important;border-radius:0!important;border-right:1px solid var(--border-default)!important;margin-right:12px!important;}
+        .pvtVals::before{content:"Aggregate";display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px;}
+        .pvtAggregator{font-family:inherit!important;font-size:11px!important;font-weight:600!important;color:var(--text-primary)!important;border:1px solid var(--border-default)!important;border-radius:6px!important;padding:4px 8px!important;background:var(--bg-surface)!important;cursor:pointer!important;}
+        .pvtVals select:not(.pvtAggregator){display:none!important;}
+        .pvtVals .pvtRowOrder,.pvtVals .pvtColOrder{display:none!important;}
+
+        .pvtAxisContainer.pvtUnused{border:none!important;background:none!important;padding:0 12px 0 0!important;min-height:auto!important;border-radius:0!important;display:flex!important;flex-wrap:wrap!important;align-items:flex-start!important;gap:0!important;max-width:none!important;border-right:1px solid var(--border-default)!important;margin-right:12px!important;}
+        .pvtUnused::before{content:"Available Fields";display:block;width:100%;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px;}
+        .pvtAxisContainer.pvtUnused li{display:inline-block!important;margin:0 4px 4px 0!important;}
+
+        .pvtAxisContainer.pvtRows{border:1px dashed var(--border-default)!important;background:var(--tint-blue)!important;padding:6px 10px!important;min-height:36px!important;border-radius:6px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:0!important;margin-right:12px!important;}
+        .pvtRows::before{content:"Rows";display:block;width:100%;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-blue);margin-bottom:2px;}
+        .pvtAxisContainer.pvtRows li{display:inline-block!important;margin:0 4px 4px 0!important;}
+
+        .pvtAxisContainer.pvtCols{border:1px dashed var(--border-default)!important;background:var(--tint-green)!important;padding:6px 10px!important;min-height:36px!important;border-radius:6px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:0!important;}
+        .pvtCols::before{content:"Columns";display:block;width:100%;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a8a3a;margin-bottom:2px;}
+        .pvtAxisContainer.pvtCols li{display:inline-block!important;margin:0 4px 4px 0!important;}
+
+        .pvtAxisContainer li span.pvtAttr,.pvtRows li span.pvtAttr,.pvtCols li span.pvtAttr,.pvtUnused li span.pvtAttr{background:var(--bg-surface)!important;border:1px solid var(--border-default)!important;border-radius:20px!important;padding:3px 10px!important;font-size:11px!important;font-weight:600!important;color:var(--text-primary)!important;cursor:grab!important;box-shadow:none!important;text-shadow:none!important;white-space:nowrap!important;line-height:1.4!important;}
+        .pvtAxisContainer li span.pvtAttr:hover,.pvtRows li span.pvtAttr:hover,.pvtCols li span.pvtAttr:hover,.pvtUnused li span.pvtAttr:hover{border-color:var(--accent-blue)!important;background:var(--accent-blue-light)!important;}
+        .pvtRows li span.pvtAttr{background:var(--bg-surface)!important;border-color:var(--accent-blue)!important;}
+        .pvtCols li span.pvtAttr{background:var(--bg-surface)!important;border-color:#29cd42!important;}
+
+        .pvtUi > tbody > tr:last-child > td{padding:0!important;}
+        .pvtTriangle{color:var(--text-muted)!important;font-size:9px!important;}
+
+        .pvtFilterBox{font-family:inherit!important;font-size:12px!important;border:1px solid var(--border-default)!important;border-radius:8px!important;box-shadow:0 4px 12px rgba(0,0,0,0.1)!important;background:var(--bg-surface)!important;z-index:1000!important;}
+        .pvtFilterBox input[type="text"]{font-family:inherit!important;font-size:12px!important;border:1px solid var(--border-default)!important;border-radius:6px!important;padding:6px 10px!important;background:var(--bg-input)!important;}
+        .pvtFilterBox .pvtCheckContainer{font-size:12px!important;}
+        .pvtFilterBox button{font-family:inherit!important;font-size:11px!important;font-weight:600!important;border-radius:6px!important;padding:4px 12px!important;cursor:pointer!important;}
+        .pvtFilterBox .pvtButton{background:var(--accent-blue)!important;color:#fff!important;border:none!important;}
+        .pvtFilterBox .pvtButton:hover{opacity:0.9!important;}
+
+        .pvtUi select{font-family:inherit!important;font-size:11px!important;border:1px solid var(--border-default)!important;border-radius:6px!important;padding:4px 8px!important;background:var(--bg-input)!important;color:var(--text-primary)!important;cursor:pointer!important;}
+
+        .pvtTable{font-family:inherit!important;font-size:12px!important;border-collapse:collapse!important;width:auto!important;margin:0!important;}
+        .pvtTable thead tr th,.pvtTable tbody tr th{background:var(--bg-page)!important;border:1px solid var(--border-default)!important;padding:6px 10px!important;font-size:11px!important;font-weight:600!important;color:var(--text-secondary)!important;text-align:left!important;white-space:nowrap!important;}
+        .pvtTable tbody tr td{border:1px solid var(--border-light)!important;padding:5px 10px!important;font-size:12px!important;font-variant-numeric:tabular-nums!important;text-align:right!important;color:var(--text-primary)!important;}
+        .pvtTable tbody tr td:hover{background:var(--bg-hover)!important;}
+        .pvtGrandTotal,.pvtTotal{font-weight:700!important;background:var(--tint-blue)!important;color:var(--text-primary)!important;}
+        .pvtTotalLabel{font-weight:700!important;background:var(--tint-gray)!important;}
+        .pvtTable .pvtRowLabel,.pvtTable .pvtColLabel{font-weight:600!important;color:var(--text-primary)!important;background:var(--bg-surface)!important;}
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">QC DASHBOARD</span>
+    <a href="app/qc" class="nav-link">Home</a>
+    <a href="intake-ftr-overview" class="nav-link">Intake FTR</a>
+    <a href="solution-mixing-overview" class="nav-link">Solution Mixing</a>
+    <a href="coldroom-overview" class="nav-link">Coldroom Ops</a>
+    <a href="quality-trends" class="nav-link">Trends</a>
+    <a href="quality-raw-data" class="nav-link">Raw Data</a>
+    <a href="transit-time" class="nav-link active">Transit Time</a>
+</nav>
+
+<div class="page-head">
+    <span class="page-title">Transit Time</span>
+    <div class="head-actions">
+        <span class="record-count" id="recordCount">-- records</span>
+        <button class="reset-btn" id="resetPivotBtn">Reset Layout</button>
+        <button class="refresh-btn" onclick="loadPivotData()"><span class="refresh-dot"></span>Refresh</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="filter-group">
+        <span class="filter-label">Year</span>
+        <select class="form-control" id="filterYear"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">Farm</span>
+        <select class="form-control" id="filterFarm"><option value="">All Farms</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">Week</span>
+        <select class="form-control" id="filterWeek"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">Variety</span>
+        <select class="form-control" id="filterVariety"><option value="">All Varieties</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">GH</span>
+        <select class="form-control" id="filterGH"><option value="">All GH</option></select>
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">From</span>
+        <input type="date" class="form-control" id="filterFrom">
+    </div>
+    <div class="filter-group">
+        <span class="filter-label">To</span>
+        <input type="date" class="form-control" id="filterTo">
+    </div>
+    <div class="filter-group">
+        <button class="clear-dates-btn" id="clearDatesBtn">Clear dates</button>
+    </div>
+</div>
+
+<div class="pivot-container">
+    <div class="pivot-wrapper">
+        <div class="pivot-inner" id="pivotArea">
+            <div class="loading-state" id="loadingState">
+                <div class="spinner"></div>
+                <div>Loading transit time data...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    "use strict";
+
+    var currentData = [];
+    var currentPivotConfig = null;
+
+    function todayStr(){
+        var d = new Date();
+        var mm = String(d.getMonth() + 1);
+        if(mm.length < 2) mm = "0" + mm;
+        var dd = String(d.getDate());
+        if(dd.length < 2) dd = "0" + dd;
+        return d.getFullYear() + "-" + mm + "-" + dd;
+    }
+
+    function loadScript(url, callback){
+        var s = document.createElement("script");
+        s.src = url;
+        s.onload = callback;
+        s.onerror = function(){ console.error("Failed to load: " + url); };
+        document.head.appendChild(s);
+    }
+
+    function bootApp(){
+        var today = todayStr();
+        document.getElementById("filterFrom").value = today;
+        document.getElementById("filterTo").value = today;
+
+        var filterIds = ["filterYear","filterFarm","filterWeek","filterVariety","filterGH","filterFrom","filterTo"];
+        for(var i = 0; i < filterIds.length; i++){
+            document.getElementById(filterIds[i]).addEventListener("change", function(){ loadPivotData(); });
+        }
+
+        document.getElementById("clearDatesBtn").addEventListener("click", function(){
+            document.getElementById("filterFrom").value = "";
+            document.getElementById("filterTo").value = "";
+            loadPivotData();
+        });
+
+        document.getElementById("resetPivotBtn").addEventListener("click", function(){
+            currentPivotConfig = null;
+            renderPivot(currentData);
+        });
+
+        setTimeout(function(){ loadPivotData(); }, 300);
+    }
+
+    var jqueryWaitCount = 0;
+    function initWhenReady(){
+        if(typeof jQuery === "undefined"){
+            jqueryWaitCount = jqueryWaitCount + 1;
+            if(jqueryWaitCount > 30){
+                loadScript("https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js", function(){
+                    initWhenReady();
+                });
+                return;
+            }
+            setTimeout(initWhenReady, 100);
+            return;
+        }
+
+        if(typeof frappe === "undefined"){
+            window.frappe = {};
+        }
+        if(!frappe.call){
+            frappe.call = function(opts){
+                var args = opts.args || {};
+                var qs = [];
+                for(var k in args){
+                    if(args[k]) qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(args[k]));
+                }
+                var url = "/api/method/" + opts.method;
+                if(qs.length) url = url + "?" + qs.join("&");
+                jQuery.ajax({
+                    url: url,
+                    type: "GET",
+                    dataType: "json",
+                    success: function(r){ if(opts.callback) opts.callback(r); },
+                    error: function(e){ if(opts.error) opts.error(e); }
+                });
+            };
+        }
+
+        loadScript("https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js", function(){
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js", function(){
+                jQuery(document).ready(function(){ bootApp(); });
+            });
+        });
+    }
+
+    if(document.readyState === "loading"){
+        document.addEventListener("DOMContentLoaded", initWhenReady);
+    } else {
+        initWhenReady();
+    }
+
+    function getFilters(){
+        return {
+            year:       document.getElementById("filterYear").value,
+            farm:       document.getElementById("filterFarm").value,
+            week:       document.getElementById("filterWeek").value,
+            variety:    document.getElementById("filterVariety").value,
+            greenhouse: document.getElementById("filterGH").value,
+            from_date:  document.getElementById("filterFrom").value,
+            to_date:    document.getElementById("filterTo").value
+        };
+    }
+
+    window.loadPivotData = function(){
+        var pivotArea = document.getElementById("pivotArea");
+        pivotArea.innerHTML = '<div class="loading-state"><div class="spinner"></div><div>Loading transit time data...</div></div>';
+        document.getElementById("recordCount").textContent = "-- records";
+
+        frappe.call({
+            method: "fetchTransitTimePivotData",
+            args: getFilters(),
+            callback: function(r){
+                var msg = r.message || {};
+                if(!msg.success){
+                    pivotArea.innerHTML = '<div class="error-state">Error: ' + (msg.error || "Unknown") + '</div>';
+                    return;
+                }
+
+                currentData = msg.data || [];
+                document.getElementById("recordCount").textContent = (msg.record_count || 0).toLocaleString() + " records";
+
+                renderPivot(currentData);
+                populateFilters(msg.filter_options || {});
+            },
+            error: function(e){
+                console.error(e);
+                pivotArea.innerHTML = '<div class="error-state">Failed to load data — check console</div>';
+            }
+        });
+    };
+
+    function renderPivot(data){
+        if(!data.length){
+            document.getElementById("pivotArea").innerHTML = '<div class="loading-state" style="color:var(--text-secondary);">No data for the selected filters.</div>';
+            return;
+        }
+
+        var defaultConfig = {
+            rows: ["Farm", "GH", "Date", "Variety"],
+            cols: [],
+            vals: ["Transit Time (min)"],
+            aggregatorName: "Average"
+        };
+
+        var config = currentPivotConfig || defaultConfig;
+
+        var pivotEl = jQuery("#pivotArea");
+        pivotEl.empty();
+
+        pivotEl.pivotUI(data, {
+            rows: config.rows || ["Farm", "GH", "Date", "Variety"],
+            cols: config.cols || [],
+            vals: config.vals || ["Transit Time (min)"],
+            aggregatorName: config.aggregatorName || "Average",
+            rendererName: "Table",
+            unusedAttrsVertical: false,
+            menuLimit: 500,
+            renderers: {"Table": jQuery.pivotUtilities.renderers["Table"]},
+            aggregators: {
+                "Average": jQuery.pivotUtilities.aggregators["Average"],
+                "Sum": jQuery.pivotUtilities.aggregators["Sum"],
+                "Count": jQuery.pivotUtilities.aggregators["Count"],
+                "Maximum": jQuery.pivotUtilities.aggregators["Maximum"],
+                "Minimum": jQuery.pivotUtilities.aggregators["Minimum"]
+            },
+            onRefresh: function(cfg){
+                var cfgCopy = JSON.parse(JSON.stringify(cfg));
+                delete cfgCopy.aggregators;
+                delete cfgCopy.renderers;
+                delete cfgCopy.rendererOptions;
+                delete cfgCopy.localeStrings;
+                currentPivotConfig = cfgCopy;
+            }
+        }, false);
+    }
+
+    function populateFilters(opts){
+        fillSelect("filterYear", opts.years || [], "", "All");
+        fillSelect("filterFarm", opts.farms || [], "", "All Farms");
+        fillSelect("filterWeek", opts.weeks || [], "", "All");
+        fillSelect("filterVariety", opts.varieties || [], "", "All Varieties");
+        fillSelect("filterGH", opts.greenhouses || [], "", "All GH");
+    }
+
+    function fillSelect(id, items, defaultVal, defaultLabel){
+        var sel = document.getElementById(id);
+        var cur = sel.value;
+        sel.innerHTML = '<option value="' + (defaultVal || "") + '">' + (defaultLabel || "All") + '</option>';
+        for(var i = 0; i < items.length; i++){
+            var o = document.createElement("option");
+            o.value = items[i];
+            o.textContent = items[i];
+            if(String(items[i]) === cur) o.selected = true;
+            sel.appendChild(o);
+        }
+    }
+
+})();
+</script>
+</body>
+</html>

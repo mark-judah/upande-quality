@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intake FTR Overview | Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
+<style>
+/* ── Topbar filter bar (year/farm/week/variety/gh/issue/dates) restyled into aph chrome ── */
+.aph .filter-group{display:flex;align-items:center;gap:5px;background:var(--bg-card);padding:0 8px;border-radius:7px;border:1px solid var(--border-2);height:32px}
+.aph .filter-label{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.aph .form-control{height:28px;padding:0 6px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;border:none;color:var(--text);min-width:78px;outline:0;font-weight:500}
+.aph select.form-control{cursor:pointer}
+.aph .clear-dates-btn{font-size:11px;font-weight:600;color:var(--text-2);background:none;border:none;cursor:pointer;padding:0 8px;height:32px}
+.aph .clear-dates-btn:hover{color:var(--text)}
+.aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
+  border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
+.aph .live-badge:hover{background:var(--bg-hover)}
+
+/* ── Active-filter badges (rendered into the page header sub area) ── */
+.aph .active-filter-badge{background:var(--bg-muted);color:var(--text);padding:3px 9px;border-radius:10px;font-size:11px;font-weight:500;display:inline-flex;align-items:center;gap:5px;line-height:1.5}
+.aph .clear-badge{cursor:pointer;font-size:11px;opacity:.6}
+.aph .clear-badge:hover{opacity:1}
+
+/* ── Chart wrappers inside aph-card bodies ── */
+.aph .chart-scroll{overflow-x:auto;width:100%;-webkit-overflow-scrolling:touch}
+.aph .chart-scroll canvas{min-width:600px}
+.aph .chart-box{position:relative;height:300px}
+.aph 
+.aph .chart-box.tall{min-height:360px}
+.aph 
+
+/* ── FTR farm table (kept as aph-tbl, scrolling body) ── */
+.aph .ftr-scroll{max-height:360px;overflow:auto}
+.aph .ftr-bar{display:inline-block;height:6px;border-radius:3px;background:var(--accent-teal,#2d9ea0);min-width:2px;vertical-align:middle;margin-left:8px}
+.aph .ftr-low{background:var(--bad)}
+.aph .ftr-medium{background:var(--warn)}
+.aph .ftr-high{background:var(--good)}
+.aph .totals-row td{font-weight:600}
+
+/* ── Loading / error / empty states (render output) ── */
+.aph .loading-state{text-align:center;padding:40px 20px;color:var(--text-3)}
+.aph .spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.aph .error-state{background:#fde8ec;color:var(--bad);padding:12px 16px;border-radius:8px;border-left:3px solid var(--bad);font-size:11px}
+.aph .empty-state{text-align:center;padding:30px 20px;color:var(--text-2);font-size:11px}
+
+/* ── shared multiselect (farm etc.) ── */
+.aph .ms{position:relative;display:inline-block;min-width:150px;font-size:12px;vertical-align:middle}
+.aph .ms-control{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-height:28px;padding:2px 22px 2px 4px;border:none;border-radius:5px;background:transparent;cursor:pointer;position:relative}
+.aph .ms-control:after{content:"\25BE";position:absolute;right:6px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:10px;pointer-events:none}
+.aph .ms-ph{color:var(--text-3)}
+.aph .ms-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;line-height:1.6;max-width:120px}
+.aph .ms-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aph .ms-chip b{cursor:pointer;font-weight:700;opacity:.85}
+.aph .ms-chip b:hover{opacity:1}
+.aph .ms-count{background:var(--bg-muted);color:var(--text);border-radius:10px;padding:1px 9px;font-size:11px;font-weight:600}
+.aph .ms-panel{position:absolute;z-index:200;top:calc(100% + 6px);left:0;min-width:210px;background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 8px 24px rgba(0,0,0,.16);display:none;flex-direction:column;max-height:300px}
+.aph .ms.open .ms-panel{display:flex}
+.aph .ms-search{margin:7px;padding:5px 8px;border:1px solid var(--border-2);border-radius:5px;font-size:12px;outline:none;font-family:var(--f)}
+.aph .ms-actions{display:flex;gap:12px;padding:0 10px 6px;border-bottom:1px solid var(--border)}
+.aph .ms-actions a{color:var(--text-2);cursor:pointer;font-size:11px;font-weight:500}
+.aph .ms-actions a:hover{color:var(--text)}
+.aph .ms-list{overflow-y:auto;padding:4px 0}
+.aph .ms-opt{display:flex;align-items:center;gap:7px;padding:5px 11px;cursor:pointer}
+.aph .ms-opt:hover{background:var(--bg-hover)}
+.aph .ms-opt input{margin:0;cursor:pointer}
+.aph .ms-opt.hidden{display:none}
+.aph .ms-empty{padding:9px 11px;color:var(--text-3)}
+@media(max-width:900px){
+  .aph .filter-group{height:auto;min-height:32px}
+}
+</style>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Quality</small></div>
+    </div>
+    <a class="home-link" href="app/qc">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Quality</div>
+      <a class="nav-item active" href="intake-ftr-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        Intake FTR
+      </a>
+      <a class="nav-item" href="rejects">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Rejects
+      </a>
+      <a class="nav-item" href="solution-mixing-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.58 16.5h12.85"/></svg>
+        Solution Mixing
+      </a>
+      <a class="nav-item" href="coldroom-overview">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m19.07 4.93-14.14 14.14"/></svg>
+        Coldroom Ops
+      </a>
+
+      <div class="group-lbl">Analytics</div>
+      <a class="nav-item" href="quality-trends">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Trends
+      </a>
+      <a class="nav-item" href="quality-raw-data">
+        <svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+        Raw Data
+      </a>
+      <a class="nav-item" href="transit-time">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Transit Time
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Intake FTR Overview</h1>
+      <span class="crumb">Quality</span>
+      <div class="right">
+        <div class="filter-group"><span class="filter-label">Year</span><select class="form-control" id="filterYear"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Farm</span><div id="filterFarm"></div></div>
+        <div class="filter-group"><span class="filter-label">Week</span><select class="form-control" id="filterWeek"><option value="">All</option></select></div>
+        <div class="filter-group"><span class="filter-label">Variety</span><select class="form-control" id="filterVariety"><option value="">All Varieties</option></select></div>
+        <div class="filter-group"><span class="filter-label">GH</span><select class="form-control" id="filterGH"><option value="">All GH</option></select></div>
+        <div class="filter-group"><span class="filter-label">Issue</span><select class="form-control" id="filterIssue"><option value="">All Issues</option></select></div>
+        <div class="date-pill">
+          <input type="date" class="form-control" id="filterFrom" style="border:0;width:118px">
+          <span class="sep">→</span>
+          <input type="date" class="form-control" id="filterTo" style="border:0;width:118px">
+          <button class="clear-dates-btn" id="clearDatesBtn">Clear</button>
+        </div>
+        <button class="btn reset-filters-btn" id="resetFiltersBtn">↺ Reset</button>
+        <button class="live-badge refresh-btn" onclick="loadData()">⟳ Refresh</button>
+      </div>
+    </div>
+
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Intake FTR Overview</div>
+        <div class="sub">First Time Right intake quality, quarantine drivers &amp; pest/disease trends</div>
+        <div id="activeFilters" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div><div class="lbl">Total Reports</div><div class="v" id="kpiReports">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div><div class="lbl">Stems Received</div><div class="v" id="kpiReceived">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <div><div class="lbl">Stems Checked</div><div class="v" id="kpiChecked">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div><div class="lbl">Quarantined</div><div class="v" id="kpiQuarantined">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="lbl">Overall FTR %</div><div class="v" id="kpiFTR">--</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+          <div><div class="lbl">Sampled %</div><div class="v" id="kpiSampled">--</div></div>
+        </div>
+      </div>
+
+      <!-- FTR per farm table + Quarantined by issue -->
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">FTR Score per Farm</div>
+            <div class="sub" style="margin-left:auto">First Time Right percentage by farm</div>
+          </div>
+          <div class="aph-card-body padless">
+            <div class="ftr-scroll">
+              <table class="aph-tbl">
+                <thead><tr><th>Farm</th><th class="num">Intake FTR Score</th></tr></thead>
+                <tbody id="ftrTableBody"><tr><td colspan="2" class="loading-state">Loading...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Quarantined Buckets per Issue</div>
+            <div class="sub" style="margin-left:auto">Click on any bar to filter · scroll horizontally</div>
+          </div>
+          <div class="aph-card-body">
+            <div class="chart-scroll"><canvas id="chartIssue" style="cursor:pointer;min-width:600px;"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quarantined by variety + GH -->
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Quarantined Buckets per Variety</div>
+            <div class="sub" style="margin-left:auto">Click on any bar to filter · scroll horizontally</div>
+          </div>
+          <div class="aph-card-body">
+            <div class="chart-scroll"><canvas id="chartVariety" style="min-width:600px;"></canvas></div>
+          </div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Quarantined Buckets per GH</div>
+            <div class="sub" style="margin-left:auto">Click on any bar to filter · scroll horizontally</div>
+          </div>
+          <div class="aph-card-body">
+            <div class="chart-scroll"><canvas id="chartGH" style="min-width:600px;"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FTR trends -->
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">FTR Score per Unit (Farm)</div>
+            <div class="sub" style="margin-left:auto">Weekly FTR percentage trend by farm</div>
+          </div>
+          <div class="aph-card-body"><div class="chart-box"><canvas id="chartFTRUnit"></canvas></div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">FTR per Year</div>
+            <div class="sub" style="margin-left:auto">Weekly FTR percentage trend by year</div>
+          </div>
+          <div class="aph-card-body"><div class="chart-box"><canvas id="chartFTRYear"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- Pest / disease -->
+      <div class="aph-grid">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Pest Trend by Farm</div>
+            <div class="sub" style="margin-left:auto">Pest counts across farms</div>
+          </div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="pestTrendChart"></canvas></div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Diseases by Farm</div>
+            <div class="sub" style="margin-left:auto">Stacked by disease · Pareto cumulative %</div>
+          </div>
+          <div class="aph-card-body"><div class="chart-box tall"><canvas id="diseasesChart"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- Major pests full width -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Major Pests — Last 4 Weeks</div>
+            <div class="sub" style="margin-left:auto">Top pests by weekly count · colour-coded by pest</div>
+          </div>
+          <div class="aph-card-body"><div class="chart-box" style="height:340px"><canvas id="majorPestsChart"></canvas></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+    "use strict";
+
+    if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+
+    let chartInstances = {};
+    let selectedIssue = null;
+    let farmMS = null;
+
+    Chart.defaults.font.family = "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+    Chart.defaults.font.size = 10;
+    Chart.defaults.color = "#6b6b6b";
+
+    const COLORS = {
+        veryHigh: "#e63757", high: "#fc9c30", medium: "#2490ef", low: "#7c5cfc", veryLow: "#29cd42", selected: "#2d9ea0"
+    };
+    const LINE_COLORS = ["#e63757", "#2d9ea0", "#2490ef", "#fc9c30", "#7c5cfc", "#29cd42", "#1a1a1a"];
+
+    function todayStr() {
+        let d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function initFilters() {
+        let today = todayStr();
+        let filterFrom = document.getElementById("filterFrom");
+        let filterTo = document.getElementById("filterTo");
+        if (filterFrom) filterFrom.value = today;
+        if (filterTo) filterTo.value = today;
+
+        let filterIds = ["filterYear", "filterFarm", "filterWeek", "filterVariety", "filterGH", "filterIssue", "filterFrom", "filterTo"];
+        filterIds.forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.addEventListener("change", () => { selectedIssue = null; loadData(); });
+        });
+
+        farmMS = createMultiSelect("filterFarm", { placeholder: "All farms" });
+        if (farmMS) farmMS.onChange(() => { selectedIssue = null; loadData(); });
+
+        let clearDatesBtn = document.getElementById("clearDatesBtn");
+        if (clearDatesBtn) {
+            clearDatesBtn.addEventListener("click", () => {
+                if (filterFrom) filterFrom.value = "";
+                if (filterTo) filterTo.value = "";
+                selectedIssue = null;
+                loadData();
+            });
+        }
+
+        let resetBtn = document.getElementById("resetFiltersBtn");
+        if (resetBtn) {
+            resetBtn.addEventListener("click", () => {
+                ["filterYear","filterWeek","filterVariety","filterGH","filterIssue"].forEach(id => {
+                    let el = document.getElementById(id);
+                    if (el) el.value = "";
+                });
+                if (farmMS) farmMS.setValue("");
+                if (filterFrom) filterFrom.value = todayStr();
+                if (filterTo) filterTo.value = todayStr();
+                selectedIssue = null;
+                loadData();
+            });
+        }
+    }
+
+/* ── shared multiselect factory (chips + search + select-all) ── */
+    function createMultiSelect(mountId, opts) {
+        opts = opts || {};
+        var root = document.getElementById(mountId);
+        if (!root) return null;
+        root.classList.add('ms');
+        var ph = opts.placeholder || 'All';
+        var items = [];        // [{value,label}]
+        var selected = {};     // value -> true
+        var changeCb = null;
+        function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+        root.innerHTML =
+            '<div class="ms-control"><span class="ms-body"></span></div>' +
+            '<div class="ms-panel">' +
+              '<input class="ms-search" type="text" placeholder="Search…">' +
+              '<div class="ms-actions"><a class="ms-all">Select all</a><a class="ms-clear">Clear</a></div>' +
+              '<div class="ms-list"></div>' +
+            '</div>';
+        var control = root.querySelector('.ms-control');
+        var body = root.querySelector('.ms-body');
+        var search = root.querySelector('.ms-search');
+        var list = root.querySelector('.ms-list');
+        function renderBody(){
+            var keys = Object.keys(selected);
+            if(!keys.length){ body.innerHTML = '<span class="ms-ph">'+esc(ph)+'</span>'; return; }
+            if(keys.length <= 2){
+                body.innerHTML = keys.map(function(v){
+                    var it = items.find(function(i){return i.value===v;});
+                    return '<span class="ms-chip"><span>'+esc(it?it.label:v)+'</span><b data-v="'+esc(v)+'">×</b></span>';
+                }).join('');
+            } else {
+                body.innerHTML = '<span class="ms-count">'+keys.length+' selected</span>';
+            }
+        }
+        function renderList(){
+            var q = (search.value||'').toLowerCase();
+            if(!items.length){ list.innerHTML = '<div class="ms-empty">No options</div>'; return; }
+            list.innerHTML = items.map(function(it){
+                var hide = q && it.label.toLowerCase().indexOf(q)===-1;
+                return '<label class="ms-opt'+(hide?' hidden':'')+'"><input type="checkbox" data-v="'+esc(it.value)+'"'+(selected[it.value]?' checked':'')+'><span>'+esc(it.label)+'</span></label>';
+            }).join('');
+        }
+        function fire(){ renderBody(); if(changeCb) changeCb(); }
+        control.addEventListener('click', function(e){
+            if(e.target.tagName==='B' && e.target.dataset.v){ delete selected[e.target.dataset.v]; renderList(); fire(); e.stopPropagation(); return; }
+            root.classList.toggle('open'); if(root.classList.contains('open')) search.focus();
+        });
+        list.addEventListener('change', function(e){
+            var v = e.target.dataset.v; if(v===undefined) return;
+            if(e.target.checked) selected[v]=true; else delete selected[v];
+            fire();
+        });
+        search.addEventListener('input', renderList);
+        search.addEventListener('click', function(e){ e.stopPropagation(); });
+        root.querySelector('.ms-all').addEventListener('click', function(e){ e.stopPropagation(); var q=(search.value||'').toLowerCase(); items.forEach(function(it){ if(!q||it.label.toLowerCase().indexOf(q)!==-1) selected[it.value]=true; }); renderList(); fire(); });
+        root.querySelector('.ms-clear').addEventListener('click', function(e){ e.stopPropagation(); selected={}; renderList(); fire(); });
+        document.addEventListener('click', function(e){ if(!root.contains(e.target)) root.classList.remove('open'); });
+        var api = {
+            setOptions: function(arr){ items=(arr||[]).map(function(x){ return (x&&typeof x==='object')?{value:String(x.value),label:String(x.label)}:{value:String(x),label:String(x)}; }); var valid={}; items.forEach(function(i){valid[i.value]=1;}); Object.keys(selected).forEach(function(v){ if(!valid[v]) delete selected[v]; }); renderList(); renderBody(); },
+            getValue: function(){ return Object.keys(selected).join(','); },
+            setValue: function(csv){ selected={}; String(csv||'').split(',').forEach(function(v){ v=v.trim(); if(v) selected[v]=true; }); renderList(); renderBody(); },
+            onChange: function(cb){ changeCb = cb; }
+        };
+        renderBody(); renderList();
+        return api;
+    }
+    /* Format an adaptive-period key for axis labels: YYYY-MM-DD -> "Sun 08", YYYY-MM -> "Jun", MM -> "Jun", YYYY-Www kept. */
+    function formatPeriodLabel(k){
+        k = String(k);
+        var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        var m;
+        if((m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(k))){ var dt=new Date(+m[1],+m[2]-1,+m[3]); return DOW[dt.getDay()]+' '+m[3]; }
+        if((m=/^(\d{4})-(\d{2})$/.exec(k))){ return MON[+m[2]-1]+' '+m[1]; }
+        if((m=/^(\d{1,2})$/.exec(k))){ var i=+m[1]; if(i>=1&&i<=12) return MON[i-1]; }
+        return k;
+    }
+
+
+    function getFilters() {
+        let getVal = (id) => { let el = document.getElementById(id); return el ? el.value : ""; };
+        let getMulti = (id) => { let el = document.getElementById(id); return el ? Array.from(el.selectedOptions).map(o => o.value).filter(v => v).join(",") : ""; };
+        return {
+            year: getVal("filterYear"),
+            farm: farmMS ? farmMS.getValue() : "",
+            week: getVal("filterWeek"),
+            variety: getVal("filterVariety"),
+            greenhouse: getVal("filterGH"),
+            from_date: getVal("filterFrom"),
+            to_date: getVal("filterTo"),
+            selected_issue: selectedIssue || getVal("filterIssue") || ""
+        };
+    }
+
+    function displayActiveFilters(active) {
+        let container = document.getElementById("activeFilters");
+        if (!container) return;
+        if (!active) active = {};
+        let activeList = [];
+        if (active.year) activeList.push(`Year: ${active.year}`);
+        if (active.farm) activeList.push(`Farm: ${active.farm}`);
+        if (active.week) activeList.push(`Week: ${active.week}`);
+        if (active.variety) activeList.push(`Variety: ${active.variety}`);
+        if (active.greenhouse) activeList.push(`GH: ${active.greenhouse}`);
+        if (active.selected_issue) activeList.push(`Issue: ${active.selected_issue}`);
+        if (active.from_date) activeList.push(`From: ${active.from_date}`);
+        if (active.to_date) activeList.push(`To: ${active.to_date}`);
+        if (selectedIssue) activeList.push(`🔍 ${selectedIssue} <span class="clear-badge" onclick="clearIssueFilter()">✕</span>`);
+
+        container.innerHTML = activeList.length ? activeList.map(f => `<span class="active-filter-badge">${f}</span>`).join('') : '<span class="active-filter-badge">No active filters</span>';
+    }
+
+    window.clearIssueFilter = function() { selectedIssue = null; loadData(); };
+
+    window.loadData = function() {
+        let ftrTable = document.getElementById("ftrTableBody");
+        if (ftrTable) ftrTable.innerHTML = '<tr><td colspan="2" class="loading-state"><div class="spinner"></div>Loading...</td></tr>';
+
+        frappe.call({
+            method: "fetchIntakeFtrOverview",
+            args: getFilters(),
+            callback: function(r) {
+                let msg = r.message || {};
+                if (!msg.success) {
+                    if (ftrTable) ftrTable.innerHTML = `<tr><td colspan="2"><div class="error-state">Error: ${msg.error || "Unknown"}</div></td></tr>`;
+                    return;
+                }
+                displayActiveFilters(msg.active_filters || {});
+                renderKPIs(msg.kpi || {});
+                renderFTRTable(msg.ftr_by_farm || []);
+                renderBarChart("chartIssue", msg.quarantined_by_issue || [], "reason", "total_count", "Total Stems");
+                renderBarChart("chartVariety", msg.quarantined_by_variety || [], "variety", "total_quarantined", "Quarantined Stems");
+                renderBarChart("chartGH", msg.quarantined_by_gh || [], "greenhouse", "total_quarantined", "Quarantined Stems");
+                renderLineChart("chartFTRUnit", msg.ftr_unit_by_farm || {}, "Farm");
+                renderLineChart("chartFTRYear", msg.ftr_by_year || {}, "Year");
+                renderPestTrendTable(msg.pest_trend || {});
+                renderDiseaseStackedPareto(msg.disease_by_farm || {});
+                renderPestWeekly(msg.major_pests_trend || {}, msg.major_pests_weeks || []);
+                populateFilters(msg.filter_options || {});
+            }
+        });
+    };
+
+    function populateFilters(opts) {
+        fillSelect("filterYear", opts.years || [], "", "All");
+        if (farmMS) farmMS.setOptions(opts.farms || []);
+        fillSelect("filterWeek", opts.weeks || [], "", "All");
+        fillSelect("filterVariety", opts.varieties || [], "", "All Varieties");
+        fillSelect("filterGH", opts.greenhouses || [], "", "All GH");
+        fillSelect("filterIssue", opts.control_actions || [], "", "All Issues");
+    }
+
+    function fillSelect(id, items, defaultVal, defaultLabel) {
+        let sel = document.getElementById(id);
+        if (!sel) return;
+        let curVals = Array.from(sel.selectedOptions).map(o => o.value);
+        sel.innerHTML = `<option value="${defaultVal}">${defaultLabel}</option>`;
+        for (let item of items) {
+            let o = document.createElement("option");
+            o.value = item;
+            o.textContent = item;
+            if (curVals.indexOf(String(item)) !== -1) o.selected = true;
+            sel.appendChild(o);
+        }
+    }
+
+    function renderKPIs(kpi) {
+        let map = { "kpiReports": "total_reports", "kpiReceived": "total_stems_received", "kpiChecked": "total_stems_checked", "kpiQuarantined": "total_quarantined" };
+        for (let [id, key] of Object.entries(map)) {
+            let el = document.getElementById(id);
+            if (el) el.textContent = formatNumber(kpi[key]);
+        }
+        let ftrEl = document.getElementById("kpiFTR");
+        if (ftrEl) ftrEl.textContent = (kpi.overall_ftr || 0).toFixed(2) + "%";
+        let sampledEl = document.getElementById("kpiSampled");
+        if (sampledEl) sampledEl.textContent = (kpi.overall_sampled || 0).toFixed(2) + "%";
+    }
+
+    function renderFTRTable(rows) {
+        let tbody = document.getElementById("ftrTableBody");
+        if (!tbody) return;
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="2" class="empty-state">No data available</td></tr>';
+            return;
+        }
+        let totalFTR = rows.reduce((sum, r) => sum + (r.ftr || 0), 0) / rows.length;
+        let html = `<tr class="totals-row"><td><strong>Totals</strong></td><td class="num"><strong>${totalFTR.toFixed(2)}%</strong></td></tr>`;
+        for (let row of rows) {
+            let ftr = row.ftr || 0;
+            let barColor = ftr >= 80 ? "ftr-high" : (ftr >= 60 ? "ftr-medium" : "ftr-low");
+            html += `<tr><td>${escapeHtml(row.farm)}</td><td class="num">${ftr.toFixed(2)}%<span class="ftr-bar ${barColor}" style="width:${Math.min(ftr,100)}px"></span></td></tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderBarChart(canvasId, data, labelKey, valueKey, valueLabel) {
+        // Pareto: bars (stems) sorted high->low + cumulative % line on the right axis.
+        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+        let canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        if (!data || !data.length) return;
+
+        let rows = data.map(d => ({ label: truncate(d[labelKey] || "--", 30), value: Number(d[valueKey] || 0) }));
+        rows.sort((a, b) => b.value - a.value);
+        let labels = rows.map(r => r.label);
+        let values = rows.map(r => r.value);
+        let maxVal = Math.max(...values, 1);
+        let total = values.reduce((s, v) => s + v, 0) || 1;
+        let run = 0;
+        let cumPct = values.map(v => { run += v; return Math.round((run / total) * 1000) / 10; });
+        let bgColors = values.map(v => {
+            let p = v / maxVal;
+            if (p >= 0.75) return COLORS.veryHigh;
+            if (p >= 0.5) return COLORS.high;
+            if (p >= 0.25) return COLORS.medium;
+            return COLORS.veryLow;
+        });
+        if (selectedIssue) {
+            for (let i = 0; i < labels.length; i++) {
+                if (labels[i] === selectedIssue) bgColors[i] = COLORS.selected;
+            }
+        }
+
+        let ctx = canvas.getContext("2d");
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [
+                    { type: "bar", label: valueLabel, data: values, backgroundColor: bgColors, borderRadius: 3, maxBarThickness: 35, yAxisID: "y", order: 2 },
+                    { type: "line", label: "Cumulative %", data: cumPct, borderColor: "#1a1a1a", backgroundColor: "transparent", borderWidth: 2, pointRadius: 2, tension: 0.2, yAxisID: "yPct", order: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (e, active) => {
+                    let bar = active.find(a => a.datasetIndex === 0);
+                    if (bar) {
+                        let idx = bar.index;
+                        selectedIssue = (selectedIssue === labels[idx]) ? null : labels[idx];
+                        loadData();
+                    }
+                },
+                plugins: {
+                    tooltip: { callbacks: { label: (ctx) => ctx.dataset.type === "line" ? `Cumulative ${ctx.parsed.y}%` : `${formatNumber(ctx.parsed.y)} ${valueLabel}` } },
+                    legend: { display: true, position: "top", labels: { boxWidth: 10, font: { size: 9 } } },
+                    datalabels: { display: false }
+                },
+                scales: {
+                    x: { ticks: { maxRotation: 45, minRotation: 0, font: { size: 8 } } },
+                    y: { beginAtZero: true, position: "left", ticks: { callback: (v) => shortNum(v), font: { size: 8 } }, title: { display: true, text: valueLabel, font: { size: 9 } } },
+                    yPct: { beginAtZero: true, max: 100, position: "right", grid: { drawOnChartArea: false }, ticks: { callback: (v) => v + "%", font: { size: 8 } } }
+                }
+            }
+        });
+    }
+
+    function renderLineChart(canvasId, data, labelPrefix) {
+        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+        let canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        if (!data || Object.keys(data).length === 0) return;
+
+        let allWeeks = new Set();
+        for (let key in data) {
+            for (let week in data[key]) allWeeks.add(week);
+        }
+        let weeksSorted = Array.from(allWeeks).sort();
+        let datasets = [];
+        let idx = 0;
+        for (let key in data) {
+            let seriesData = weeksSorted.map(w => data[key][w] || 100);
+            datasets.push({ label: `${labelPrefix} ${key}`, data: seriesData, borderColor: LINE_COLORS[idx % LINE_COLORS.length], backgroundColor: "transparent", borderWidth: 2, pointRadius: 2, tension: 0.3, fill: false });
+            idx++;
+        }
+
+        let ctx = canvas.getContext("2d");
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: "line",
+            data: { labels: weeksSorted.map(formatPeriodLabel), datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } },
+                    legend: { position: "top", labels: { boxWidth: 10, font: { size: 9 } } },
+                    datalabels: { display: false }
+                },
+                scales: {
+                    x: { ticks: { maxRotation: 45, font: { size: 8 } } },
+                    y: { min: 0, max: 100, ticks: { callback: (v) => v + "%", font: { size: 8 } } }
+                }
+            }
+        });
+    }
+
+    // Pest Trend by Farm - stacked bar (one stack segment per pest type)
+    function renderPestTrendTable(pestTrend) {
+        let canvasId = "pestTrendChart";
+        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+        let canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        let farms = pestTrend.farms || [];
+        let data = pestTrend.data || {};
+        let pestTypes = Object.keys(data).sort();
+        if (!farms.length || !pestTypes.length) return;
+        let palette = ["#e63757","#fc9c30","#2490ef","#7c5cfc","#29cd42","#2d9ea0","#1a1a1a","#f5803e","#a0aec0","#d6336c","#0ca678","#7048e8","#f59f00","#1c7ed6","#e8590c","#37b24d","#ae3ec9","#1098ad"];
+        let datasets = pestTypes.map((pest, i) => ({
+            label: pest,
+            data: farms.map(f => (data[pest] && data[pest][f]) || 0),
+            backgroundColor: palette[i % palette.length],
+            stack: "pests",
+            maxBarThickness: 48
+        }));
+        let ctx = canvas.getContext("2d");
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: "bar",
+            data: { labels: farms, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 8 } } },
+                    tooltip: { callbacks: { label: (c) => c.dataset.label + ": " + formatNumber(c.parsed.y) } },
+                    datalabels: { display: false }
+                },
+                scales: {
+                    x: { stacked: true, ticks: { maxRotation: 45, font: { size: 8 } } },
+                    y: { stacked: true, beginAtZero: true, ticks: { callback: (v) => shortNum(v), font: { size: 8 } } }
+                }
+            }
+        });
+    }
+
+    function renderPestWeekly(trend, weeks) {
+        const id = "majorPestsChart";
+        if (chartInstances[id]) chartInstances[id].destroy();
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const pests = Object.keys(trend || {});
+        let wk = (weeks && weeks.length) ? weeks.slice() : [];
+        if (!wk.length) { const set = new Set(); pests.forEach(p => Object.keys(trend[p] || {}).forEach(w => set.add(w))); wk = Array.from(set).sort(); }
+        if (!pests.length || !wk.length) return;
+        const labels = wk.map(w => { const m = /W(\d+)/.exec(w); return m ? "W" + m[1] : w; });
+        const palette = ["#e63757","#fc9c30","#2490ef","#7c5cfc","#29cd42","#2d9ea0","#f5803e","#ae3ec9"];
+        const datasets = pests.map((pn, i) => ({
+            label: pn,
+            data: wk.map(w => (trend[pn] && trend[pn][w] != null) ? trend[pn][w] : 0),
+            borderColor: palette[i % palette.length], backgroundColor: "transparent",
+            borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: true,
+        }));
+        chartInstances[id] = new Chart(canvas.getContext("2d"), {
+            type: "line",
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                plugins: {
+                    legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 9 } } },
+                    datalabels: { display: false },
+                    tooltip: { callbacks: { label: c => c.dataset.label + ": " + formatNumber(c.parsed.y) } }
+                },
+                scales: {
+                    x: { title: { display: true, text: "Week" }, ticks: { font: { size: 9 } } },
+                    y: { beginAtZero: true, title: { display: true, text: "Count" }, ticks: { callback: v => shortNum(v), font: { size: 9 } } }
+                }
+            }
+        });
+    }
+
+    function renderDiseaseStackedPareto(matrix) {
+        const id = "diseasesChart";
+        if (chartInstances[id]) chartInstances[id].destroy();
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const farms = (matrix && matrix.farms) || [];
+        const data = (matrix && matrix.data) || {};
+        const diseases = Object.keys(data).sort();
+        if (!farms.length || !diseases.length) return;
+        const farmTotal = {};
+        farms.forEach(f => { farmTotal[f] = diseases.reduce((sum, d) => sum + ((data[d] && data[d][f]) || 0), 0); });
+        const sortedFarms = farms.slice().sort((a, b) => farmTotal[b] - farmTotal[a]);
+        const grand = sortedFarms.reduce((sum, f) => sum + farmTotal[f], 0) || 1;
+        let cum = 0;
+        const cumPct = sortedFarms.map(f => { cum += farmTotal[f]; return Math.round(cum / grand * 1000) / 10; });
+        const palette = ["#e63757","#fc9c30","#2490ef","#7c5cfc","#29cd42","#2d9ea0","#1a1a1a","#f5803e","#a0aec0","#d6336c","#0ca678","#7048e8"];
+        const barDs = diseases.map((d, i) => ({
+            label: d, data: sortedFarms.map(f => (data[d] && data[d][f]) || 0),
+            backgroundColor: palette[i % palette.length], stack: "diseases", maxBarThickness: 48, yAxisID: "y",
+        }));
+        const lineDs = {
+            label: "Cumulative %", type: "line", data: cumPct, yAxisID: "yPct",
+            borderColor: "#1a1a1a", backgroundColor: "transparent", borderWidth: 2, pointRadius: 3, tension: 0.2,
+            datalabels: { display: false }
+        };
+        chartInstances[id] = new Chart(canvas.getContext("2d"), {
+            type: "bar",
+            data: { labels: sortedFarms, datasets: barDs.concat([lineDs]) },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 8 } } },
+                    datalabels: { display: false },
+                    tooltip: { callbacks: { label: c => c.dataset.label === "Cumulative %" ? ("Cumulative: " + c.parsed.y + "%") : (c.dataset.label + ": " + formatNumber(c.parsed.y)) } }
+                },
+                scales: {
+                    x: { stacked: true, ticks: { maxRotation: 45, font: { size: 8 } } },
+                    y: { stacked: true, beginAtZero: true, position: "left", ticks: { callback: v => shortNum(v), font: { size: 8 } }, title: { display: true, text: "Stems", font: { size: 9 } } },
+                    yPct: { beginAtZero: true, max: 100, position: "right", grid: { drawOnChartArea: false }, ticks: { callback: v => v + "%", font: { size: 8 } } }
+                }
+            }
+        });
+    }
+
+    function renderDiseasesTable(diseases) {
+        let tbody = document.getElementById("diseasesTableBody");
+        if (!tbody) return;
+        if (!diseases.length) {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No disease data available</td></tr>';
+            return;
+        }
+        let html = '';
+        for (let d of diseases) {
+            html += `<tr><td><strong>${escapeHtml(d.disease_name)}</strong></td><td class="num">${formatNumber(d.sum_of_stems)}</td><td class="num">${formatNumber(d.occurrence_count)}</td></tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function formatNumber(n) { return (n === null || n === undefined) ? "0" : Number(n).toLocaleString(); }
+    function shortNum(v) { if (v >= 1000000) return (v/1000000).toFixed(1)+"M"; if (v >= 1000) return (v/1000).toFixed(1)+"k"; return v; }
+    function truncate(s, maxLen) { s = String(s || ""); return s.length > maxLen ? s.substring(0, maxLen) + "..." : s; }
+    function escapeHtml(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+    document.addEventListener("DOMContentLoaded", () => { initFilters(); setTimeout(loadData, 200); });
+})();
+</script>
+
+<script>
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        var av = document.getElementById('aph-foot-av'), nm = document.getElementById('aph-foot-nm'), em = document.getElementById('aph-foot-em');
+        if (av) av.textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        if (nm) nm.textContent = fullName;
+        if (em) em.textContent = u;
+    }
+    tryFill();
+})();
+</script>

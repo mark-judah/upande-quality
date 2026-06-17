@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Order Summary</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            --bg-page: #f4f5f6;--bg-surface: #ffffff;--bg-input: #f4f5f6;--bg-hover: #f8f9fa;--bg-tab-group: #f4f5f6;
+            --text-primary: #1a1a1a;--text-secondary: #6c7178;--text-muted: #98a1a9;--text-on-dark: #ffffff;
+            --border-default: #e2e4e7;--border-light: #f0f0f0;
+            --accent-blue: #2490ef;--accent-blue-light: #e8f0fe;--accent-green: #29cd42;--accent-red: #e63757;--accent-orange: #fc9c30;--accent-purple: #7c5cfc;
+            --btn-dark: #1a1a1a;--btn-dark-hover: #333333;
+            --tint-blue: #e8f0fe;--tint-purple: #f0ecfe;--tint-green: #e6f9ee;--tint-orange: #fff3e0;--tint-gray: #f4f5f6;
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;font-size:13px;line-height:1.5;background:var(--bg-page);color:var(--text-primary);min-height:100vh;}
+        .top-nav{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:0 16px;display:flex;align-items:center;position:sticky;top:0;z-index:200;height:44px;}
+        .nav-brand{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:0 14px 0 0;margin-right:6px;border-right:1px solid var(--border-default);white-space:nowrap;}
+        .nav-link{padding:12px 14px;font-size:13px;font-weight:500;color:var(--text-secondary);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 150ms ease,border-color 150ms ease;}
+        .nav-link:hover{color:var(--text-primary);border-bottom-color:var(--border-default);}
+        .nav-link.active{color:var(--accent-blue);border-bottom-color:var(--accent-blue);font-weight:600;}
+        @media(max-width:600px){.nav-brand{display:none;}.top-nav{overflow-x:auto;}}
+        .page-head{background:var(--bg-surface);border-bottom:1px solid var(--border-default);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:44px;z-index:100;min-height:48px;}
+        .page-title{font-size:18px;font-weight:700;color:var(--text-primary);white-space:nowrap;}
+        .page-controls{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;}
+        .form-control{height:32px;padding:6px 12px;font-size:13px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);transition:border-color 150ms ease,background 150ms ease;}
+        .form-control:focus{outline:none;border-color:var(--accent-blue);background:var(--bg-surface);}
+        .form-control::placeholder{color:var(--text-muted);}
+        select.form-control{cursor:pointer;}
+        .search-input{height:32px;padding:6px 12px;font-size:13px;font-family:inherit;background:var(--bg-input);border:1px solid transparent;border-radius:6px;color:var(--text-primary);min-width:200px;transition:border-color 150ms ease,background 150ms ease;}
+        .search-input:focus{outline:none;border-color:var(--accent-blue);background:var(--bg-surface);}
+        .search-input::placeholder{color:var(--text-muted);}
+        .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:inherit;transition:background 150ms ease;}
+        .live-badge:hover{background:var(--bg-input);}
+        .live-dot{width:7px;height:7px;background:var(--accent-green);border-radius:50%;}
+        .container{padding:20px;max-width:1920px;margin:0 auto;}
+        .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px;}
+        .kpi-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:10px;box-shadow:var(--shadow-card);padding:12px;display:flex;align-items:flex-start;gap:10px;}
+        .kpi-icon{width:34px;height:34px;min-width:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+        .kpi-icon svg{width:15px;height:15px;}
+        .kpi-content{flex:1;min-width:0;}
+        .kpi-label{font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:2px;line-height:1.3;}
+        .kpi-value{font-size:18px;font-weight:700;color:var(--text-primary);line-height:1;}
+        @media(max-width:992px){.kpi-row{grid-template-columns:repeat(5,1fr);}}
+        @media(max-width:768px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+        @media(max-width:480px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+        .status-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+        .status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid var(--border-default);background:var(--bg-surface);color:var(--text-secondary);cursor:pointer;transition:all 150ms ease;}
+        .status-pill:hover{background:var(--bg-hover);}
+        .status-pill.active{border-color:var(--accent-blue);background:var(--accent-blue-light);color:var(--accent-blue);}
+        .pill-count{background:var(--bg-input);border-radius:4px;padding:1px 6px;font-size:11px;font-weight:700;}
+        .status-pill.active .pill-count{background:var(--accent-blue);color:var(--text-on-dark);}
+        .panel{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;box-shadow:var(--shadow-card);margin-bottom:20px;}
+        .panel-heading{padding:14px 20px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+        .panel-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+        .table-wrap{width:100%;overflow:auto;max-height:calc(100vh - 260px);}
+        .data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:1800px;}
+        .data-table thead th{padding:10px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;border-bottom:1px solid var(--border-default);background:var(--bg-surface);position:sticky;top:0;z-index:2;}
+        .data-table thead th.num{text-align:right;}
+        .data-table tbody td{padding:8px 8px;border-bottom:1px solid var(--border-light);vertical-align:middle;white-space:nowrap;}
+        .data-table tbody tr:hover td{background:var(--bg-hover);}
+        .data-table tbody tr.customer-first td{border-top:1px solid var(--border-default);}
+        .td-customer{font-weight:700;font-size:13px;}
+        .td-order{font-weight:600;font-size:12px;}
+        .td-muted{color:var(--text-muted);font-size:12px;}
+        .td-num{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;}
+        .doc-link{color:var(--accent-blue);text-decoration:none;font-weight:600;cursor:pointer;font-size:11px;}
+        .doc-link:hover{text-decoration:underline;}
+        .label{display:inline-flex;align-items:center;padding:3px 8px;font-size:11px;font-weight:600;border-radius:4px;letter-spacing:.3px;white-space:nowrap;}
+        .label-not-allocated{background:var(--bg-input);color:var(--text-muted);}
+        .label-partial-alloc{background:var(--tint-orange);color:#9a5a00;}
+        .label-allocated{background:var(--tint-purple);color:var(--accent-purple);}
+        .label-partial-issued{background:var(--tint-orange);color:#9a5a00;}
+        .label-issued{background:var(--tint-blue);color:var(--accent-blue);}
+        .label-partial-packed{background:var(--tint-orange);color:#9a5a00;}
+        .label-packed{background:var(--tint-purple);color:var(--accent-purple);}
+        .label-box-labels{background:var(--tint-blue);color:var(--accent-blue);}
+        .label-partial-staged{background:var(--tint-orange);color:#9a5a00;}
+        .label-staged{background:var(--tint-blue);color:var(--accent-blue);}
+        .label-partial-loaded{background:var(--tint-orange);color:#9a5a00;}
+        .label-loaded{background:var(--tint-green);color:#1a8a3a;}
+        .label-dispatched{background:var(--tint-green);color:#1a8a3a;}
+        .empty-state{text-align:center;padding:40px 20px;color:var(--text-secondary);}
+        .empty-state p{font-size:13px;margin-top:10px;}
+        .loading-state{text-align:center;padding:24px;color:var(--text-muted);font-size:13px;}
+        .error-state{background:#fde8ec;color:var(--accent-red);padding:12px 16px;font-size:13px;border-radius:8px;margin:20px;}
+    </style>
+</head>
+<body>
+<nav class="top-nav">
+    <span class="nav-brand">Packhouse</span>
+    <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+    <a href="packhouse-dashboard" class="nav-link">Workflow</a>
+    <a href="sales-allocation-planning" class="nav-link">Allocation Planning</a>
+    <a href="bucket-tracker" class="nav-link">Bucket Journey</a>
+    <a href="cold-room" class="nav-link">Cold Room</a>
+    <a href="stock-visibility" class="nav-link">Stock Visibility</a>
+    <a href="order-summary" class="nav-link active">Order Summary</a>
+</nav>
+<div class="page-head">
+    <span class="page-title">Order Summary</span>
+    <div class="page-controls">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search customer / order / variety..." style="width:220px;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;">Delivery Date</label>
+        <input type="date" class="form-control" id="deliveryDate" style="width:135px;">
+        <select class="form-control" id="locationFilter" style="width:140px;"><option value="">All Locations</option></select>
+        <button class="live-badge" id="refreshBtn" onclick="loadData()"><span class="live-dot"></span>LIVE</button>
+    </div>
+</div>
+<div class="container">
+    <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-blue);"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div><div class="kpi-content"><div class="kpi-label">Orders</div><div class="kpi-value" id="kpiOrders">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-purple);"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div><div class="kpi-content"><div class="kpi-label">Lines</div><div class="kpi-value" id="kpiLines">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-blue);"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div><div class="kpi-content"><div class="kpi-label">Stems Ordered</div><div class="kpi-value" id="kpiStems">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-green);"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="kpi-content"><div class="kpi-label">Confirmed</div><div class="kpi-value" id="kpiConfirmed">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-orange);"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><div class="kpi-content"><div class="kpi-label">Boxes Ordered</div><div class="kpi-value" id="kpiBoxes">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-purple);"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div><div class="kpi-content"><div class="kpi-label">Allocated</div><div class="kpi-value" id="kpiAllocated">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-orange);"><svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><div class="kpi-content"><div class="kpi-label">Boxes Packed</div><div class="kpi-value" id="kpiBoxesPacked">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-blue);"><svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div><div class="kpi-content"><div class="kpi-label">Staged</div><div class="kpi-value" id="kpiStaged">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-purple);"><svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5a2 2 0 0 1-2 2h-1"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><div class="kpi-content"><div class="kpi-label">Loaded</div><div class="kpi-value" id="kpiLoaded">--</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon" style="background:var(--tint-green);"><svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="kpi-content"><div class="kpi-label">Dispatched</div><div class="kpi-value" id="kpiDispatched">--</div></div></div>
+    </div>
+    <div class="status-strip" id="statusStrip"></div>
+    <div class="panel">
+        <div class="panel-heading"><span class="panel-title">Order Lines</span><span style="font-size:12px;color:var(--text-secondary);" id="rowCountLabel">--</span></div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Customer</th><th>Order</th><th>Order Name</th><th class="num">Ln</th><th>Variety</th><th>Len</th><th>Box Type</th>
+                    <th class="num">Pack Rate</th><th class="num">Boxes</th><th class="num">Stems Ord</th><th class="num">Confirmed</th>
+                    <th>Location</th><th>Team</th><th class="num">Allocated</th><th class="num">Issued</th><th class="num">Packed</th>
+                    <th class="num">Box Pkd</th><th class="num">Staged</th><th class="num">Loaded</th><th class="num">Dispatched</th><th>Status</th>
+                </tr></thead>
+                <tbody id="tableBody"><tr><td colspan="21" class="loading-state">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+let G={allRows:[],filtered:[],activeStatus:'',searchTerm:'',today:new Date().toISOString().split('T')[0]};
+const STATUS_CONFIG={'Not Allocated':{cls:'label-not-allocated'},'Partially Allocated':{cls:'label-partial-alloc'},'Allocated':{cls:'label-allocated'},'Partially Issued':{cls:'label-partial-issued'},'Issued':{cls:'label-issued'},'Partially Packed':{cls:'label-partial-packed'},'Packed':{cls:'label-packed'},'Box Labels Generated':{cls:'label-box-labels'},'Partially Staged':{cls:'label-partial-staged'},'Staged':{cls:'label-staged'},'Partially Loaded':{cls:'label-partial-loaded'},'Loaded':{cls:'label-loaded'},'Dispatched':{cls:'label-dispatched'}};
+const STATUS_ORDER=['Not Allocated','Partially Allocated','Allocated','Partially Issued','Issued','Partially Packed','Packed','Box Labels Generated','Partially Staged','Staged','Partially Loaded','Loaded','Dispatched'];
+document.addEventListener('DOMContentLoaded',()=>{document.getElementById('deliveryDate').value=G.today;document.getElementById('searchInput').addEventListener('input',function(){G.searchTerm=this.value.toLowerCase().trim();applyFilters();});document.getElementById('deliveryDate').addEventListener('change',loadData);document.getElementById('locationFilter').addEventListener('change',loadData);setTimeout(loadData,400);setInterval(()=>{if(!_loading)loadData();},60000);});
+let _loading=false;
+function loadData(){if(_loading)return;_loading=true;const date=document.getElementById('deliveryDate').value||G.today;const loc=document.getElementById('locationFilter').value||'';document.getElementById('tableBody').innerHTML='<tr><td colspan="21" class="loading-state">Loading order data...</td></tr>';frappe.call({method:'fetchOrderSummaryData',args:{delivery_date:date,processing_location:loc},callback(r){_loading=false;const msg=r.message||{};if(msg.success){G.allRows=msg.data||[];populateLocations(G.allRows);buildStatusStrip(G.allRows);applyFilters();}else{document.getElementById('tableBody').innerHTML=`<tr><td colspan="21"><div class="error-state">Error: ${msg.error||'Unknown error'}</div></td></tr>`;}},error(e){_loading=false;console.error(e);document.getElementById('tableBody').innerHTML='<tr><td colspan="21"><div class="error-state">Failed to load data -- check console.</div></td></tr>';}});}
+function populateLocations(rows){const locs=[...new Set(rows.map(r=>r.processing_location).filter(Boolean))].sort();const sel=document.getElementById('locationFilter');const cur=sel.value;sel.innerHTML='<option value="">All Locations</option>';locs.forEach(l=>{const o=document.createElement('option');o.value=l;o.textContent=l;if(l===cur)o.selected=true;sel.appendChild(o);});}
+function updateKPIs(rows){const orders=new Set(rows.map(r=>r.sales_order)).size;const stems=rows.reduce((s,r)=>s+(r.stems_ordered||0),0);const confirmed=rows.reduce((s,r)=>s+(r.confirmed_stems||0),0);const boxes=rows.reduce((s,r)=>s+(r.boxes_ordered||0),0);const allocated=rows.reduce((s,r)=>s+(r.allocated_stems||0),0);const boxesPacked=rows.reduce((s,r)=>s+(r.boxes_packed||0),0);const staged=rows.reduce((s,r)=>s+(r.staged_boxes||0),0);const loaded=rows.reduce((s,r)=>s+(r.loaded_boxes||0),0);const dispatched=rows.reduce((s,r)=>s+(r.dispatched_stems||0),0);document.getElementById('kpiOrders').textContent=orders.toLocaleString();document.getElementById('kpiLines').textContent=rows.length.toLocaleString();document.getElementById('kpiStems').textContent=stems.toLocaleString();document.getElementById('kpiConfirmed').textContent=confirmed.toLocaleString();document.getElementById('kpiBoxes').textContent=boxes.toLocaleString();document.getElementById('kpiAllocated').textContent=allocated.toLocaleString();document.getElementById('kpiBoxesPacked').textContent=boxesPacked.toLocaleString();document.getElementById('kpiStaged').textContent=staged.toLocaleString();document.getElementById('kpiLoaded').textContent=loaded.toLocaleString();document.getElementById('kpiDispatched').textContent=dispatched.toLocaleString();}
+function buildStatusStrip(rows){const counts={};rows.forEach(r=>{counts[r.status]=(counts[r.status]||0)+1;});let html=`<button class="status-pill ${!G.activeStatus?'active':''}" onclick="setStatus('')">All <span class="pill-count">${rows.length}</span></button>`;STATUS_ORDER.forEach(s=>{if(!counts[s])return;const isActive=G.activeStatus===s;html+=`<button class="status-pill ${isActive?'active':''}" onclick="setStatus('${s}')">${s} <span class="pill-count">${counts[s]}</span></button>`;});document.getElementById('statusStrip').innerHTML=html;}
+function setStatus(s){G.activeStatus=s;buildStatusStrip(G.allRows);applyFilters();}
+function applyFilters(){let rows=G.allRows;if(G.activeStatus)rows=rows.filter(r=>r.status===G.activeStatus);if(G.searchTerm){rows=rows.filter(r=>(r.customer||'').toLowerCase().includes(G.searchTerm)||(r.sales_order||'').toLowerCase().includes(G.searchTerm)||(r.order_name||'').toLowerCase().includes(G.searchTerm)||(r.variety||'').toLowerCase().includes(G.searchTerm));}G.filtered=rows;document.getElementById('rowCountLabel').textContent=`${rows.length} line${rows.length!==1?'s':''}`;updateKPIs(rows);renderTable(rows);}
+function renderTable(rows){if(!rows.length){document.getElementById('tableBody').innerHTML='<tr><td colspan="21" class="empty-state"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg><p>No order lines found</p></td></tr>';return;}let html='';let lastCustomer=null,lastOrder=null;rows.forEach(r=>{const isNewCustomer=r.customer!==lastCustomer;const isNewOrder=r.sales_order!==lastOrder;const rowCls=isNewCustomer?'customer-first':'';lastCustomer=r.customer;lastOrder=r.sales_order;const cfg=STATUS_CONFIG[r.status]||{};const stemOrd=r.stems_ordered||0;const confirmed=r.confirmed_stems||0;const alloc=r.allocated_stems||0;const issued=r.issued_stems||0;const packed=r.packed_stems||0;const staged=r.staged_boxes||0;const loaded=r.loaded_boxes||0;const dispatched=r.dispatched_stems||0;html+=`<tr class="${rowCls}"><td class="td-customer">${isNewCustomer?esc(r.customer):''}</td><td class="td-order">${isNewOrder?`<a class="doc-link" onclick="openDoc('Sales Order','${r.sales_order}')">${r.sales_order}</a>`:''}</td><td class="td-muted">${isNewOrder?esc(r.order_name||'--'):''}</td><td class="td-num">${r.line_no}</td><td style="font-weight:600">${esc(r.variety||'--')}</td><td class="td-muted">${r.length||'--'}</td><td class="td-muted">${r.box_type||'--'}</td><td class="td-num">${r.pack_rate||'--'}</td><td class="td-num">${num(r.boxes_ordered)}</td><td class="td-num">${num(stemOrd)}</td><td class="td-num">${confirmed>0?num(confirmed):'<span class="td-muted">--</span>'}</td><td class="td-muted">${r.processing_location||'--'}</td><td class="td-muted">${r.team||'--'}</td><td class="td-num">${alloc>0?(r.opl_id?`<a class="doc-link" onclick="openDoc('Order Pick List','${r.opl_id}')">${num(alloc)}</a>`:num(alloc)):'<span class="td-muted">--</span>'}</td><td class="td-num">${issued>0?(r.opl_id?`<a class="doc-link" onclick="openDoc('Order Pick List','${r.opl_id}')">${num(issued)}</a>`:num(issued)):'<span class="td-muted">--</span>'}</td><td class="td-num">${packed>0?(r.fpl_id?`<a class="doc-link" onclick="openDoc('Farm Pack List','${r.fpl_id}')">${num(packed)}</a>`:num(packed)):'<span class="td-muted">--</span>'}</td><td class="td-num">${(r.boxes_packed||0)>0?(r.fpl_id?`<a class="doc-link" onclick="openDoc('Farm Pack List','${r.fpl_id}')">${num(r.boxes_packed)}</a>`:num(r.boxes_packed)):'<span class="td-muted">--</span>'}</td><td class="td-num">${staged>0?num(staged):'<span class="td-muted">--</span>'}</td><td class="td-num">${loaded>0?num(loaded):'<span class="td-muted">--</span>'}</td><td class="td-num">${dispatched>0?(r.dispatch_ref?`<a class="doc-link" onclick="openDoc('Dispatch Form','${r.dispatch_ref.split(',')[0].trim()}')">${num(dispatched)}</a>`:num(dispatched)):'<span class="td-muted">--</span>'}</td><td><span class="label ${cfg.cls}">${r.status}</span></td></tr>`;});document.getElementById('tableBody').innerHTML=html;}
+function num(n){if(!n&&n!==0)return'--';return Number(n).toLocaleString();}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function openDoc(doctype,name){if(typeof frappe!=='undefined'&&frappe.set_route)frappe.set_route('Form',doctype,name);else window.open('/app/'+doctype.toLowerCase().replace(/ /g,'-')+'/'+encodeURIComponent(name),'_blank');}
+</script>
+</body>
+</html>

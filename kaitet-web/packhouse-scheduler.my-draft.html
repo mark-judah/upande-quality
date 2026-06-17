@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Packhouse Scheduler</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh; color: #333;
+        }
+        .header {
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 10px 16px; display: flex; justify-content: space-between;
+            align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 10px;
+        }
+        .title { font-size: 1.35em; font-weight: 700; color: #1e3c72; }
+        .header-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .nav-links { display: flex; gap: 8px; }
+        .nav-link {
+            padding: 8px 14px; background: white; border: 2px solid #667eea;
+            color: #667eea; border-radius: 30px; cursor: pointer; font-weight: 600;
+            font-size: 0.82em; text-decoration: none;
+        }
+        .nav-link:hover { background: #f8f9fa; }
+        .dropdown { position: relative; }
+        .dropdown-btn {
+            padding: 8px 14px; background: white; border: 2px solid #667eea;
+            color: #667eea; border-radius: 30px; cursor: pointer; font-weight: 600;
+            font-size: 0.85em; display: flex; align-items: center; gap: 6px;
+            min-width: 110px; justify-content: space-between;
+        }
+        .dropdown-btn.active { background: #667eea; color: white; }
+        .dropdown-arrow { font-size: 0.7em; transition: transform 0.3s; }
+        .dropdown.open .dropdown-arrow { transform: rotate(180deg); }
+        .dropdown-menu {
+            display: none; position: absolute; top: calc(100% + 8px); left: 0;
+            background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 150px; z-index: 1000;
+        }
+        .dropdown.open .dropdown-menu { display: block; }
+        .dropdown-item { padding: 10px 16px; cursor: pointer; font-size: 0.9em; color: #333; border-bottom: 1px solid #f0f0f0; }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: #f8f9fa; }
+        .dropdown-item.active { background: #667eea; color: white; font-weight: 700; }
+        .date-filter-btn {
+            padding: 8px 12px; border: 2px solid #667eea; background: white; color: #667eea;
+            border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 0.82em;
+        }
+        .date-filter-btn.active { background: #667eea; color: white; }
+        .date-range-inputs { display: none; align-items: center; gap: 6px; font-size: 0.85em; }
+        .date-range-inputs.show { display: flex; }
+        .date-input { padding: 6px 10px; border: 1px solid #667eea; border-radius: 6px; font-size: 0.9em; width: 135px; }
+        .live-indicator {
+            display: flex; align-items: center; gap: 8px; background: #4caf50; color: white;
+            padding: 8px 14px; border-radius: 30px; font-weight: 600; font-size: 0.8em; cursor: pointer;
+        }
+        .live-dot { width: 8px; height: 8px; background: white; border-radius: 50%; animation: pulse-dot 2s infinite; }
+        @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .board {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+            padding: 16px; max-width: 2000px; margin: 0 auto; align-items: start;
+        }
+        @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 620px)  { .board { grid-template-columns: 1fr; } }
+
+        .column {
+            background: rgba(255,255,255,0.98); border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12); display: flex; flex-direction: column;
+            max-height: calc(100vh - 110px);
+        }
+        .column-header {
+            padding: 14px 16px; border-radius: 12px 12px 0 0; color: white;
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: 800; font-size: 1.02em; position: sticky; top: 0;
+        }
+        .col-partial  .column-header { background: linear-gradient(135deg, #FFA726, #FB8C00); }
+        .col-awaiting .column-header { background: linear-gradient(135deg, #1976D2, #1565C0); }
+        .col-ready    .column-header { background: linear-gradient(135deg, #43A047, #2E7D32); }
+        .col-packed   .column-header { background: linear-gradient(135deg, #9C27B0, #7B1FA2); }
+        .col-count { background: rgba(255,255,255,0.25); padding: 3px 11px; border-radius: 20px; font-size: 0.82em; }
+        .column-body { padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+        .column-hint { font-size: 0.68em; font-weight: 600; opacity: 0.9; }
+
+        .opl-row {
+            background: white; border-radius: 8px; padding: 10px 12px;
+            border-left: 5px solid #95a5a6; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            cursor: pointer; transition: box-shadow 0.2s, transform 0.1s;
+        }
+        .opl-row:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .col-ready .opl-row { cursor: grab; }
+        .col-ready .opl-row.dragging { opacity: 0.45; }
+        .opl-row.drag-over { border-top: 2px dashed #2E7D32; }
+
+        .opl-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+        .opl-name { font-size: 1.0em; font-weight: 800; color: #1e3c72; }
+        .opl-id { font-size: 0.72em; color: #888; margin-top: 1px; }
+        .drag-pos {
+            background: #2E7D32; color: white; font-weight: 800; font-size: 0.72em;
+            border-radius: 6px; padding: 2px 7px; min-width: 22px; text-align: center;
+        }
+        .team-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.65em; font-weight: 700; background: #95a5a6; color: white; }
+        .team-a .team-badge { background: #3498db; }
+        .team-b .team-badge { background: #2ecc71; }
+        .team-c .team-badge { background: #9b59b6; }
+        .team-d .team-badge { background: #e74c3c; }
+        .team-eldama .team-badge { background: #f39c12; }
+        .team-bravo  .team-badge { background: #16a085; }
+        .team-a { border-left-color: #3498db; }
+        .team-b { border-left-color: #2ecc71; }
+        .team-c { border-left-color: #9b59b6; }
+        .team-d { border-left-color: #e74c3c; }
+        .team-eldama { border-left-color: #f39c12; }
+        .team-bravo  { border-left-color: #16a085; }
+
+        .opl-variety { font-size: 0.92em; font-weight: 700; color: #8e44ad; margin: 4px 0 2px; }
+        .opl-customer { font-size: 0.78em; color: #555; margin-bottom: 6px; }
+        .opl-meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.7em; margin-bottom: 6px; }
+        .chip { background: #f1f3f5; border-radius: 5px; padding: 2px 7px; color: #34495e; font-weight: 600; }
+        .chip b { color: #1e3c72; }
+        .takt { background: #eef7ee; color: #2E7D32; }
+        .takt.over { background: #fdecea; color: #c0392b; }
+
+        .mini { margin-top: 5px; }
+        .mini-label { display: flex; justify-content: space-between; font-size: 0.66em; color: #777; margin-bottom: 2px; }
+        .mini-bar { background: #e0e0e0; border-radius: 5px; height: 6px; overflow: hidden; }
+        .mini-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+        .fill-issue { background: linear-gradient(90deg, #00BCD4, #26C6DA); }
+        .fill-pack  { background: linear-gradient(90deg, #9C27B0, #BA68C8); }
+
+        .empty { text-align: center; padding: 22px 8px; color: #aaa; font-size: 0.85em; }
+        .empty-icon { font-size: 1.8em; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">🛫 Packhouse Scheduler</div>
+        <div class="header-controls">
+            <div class="dropdown" id="teamDropdown">
+                <button class="dropdown-btn active"><span id="selectedTeam">All Teams</span><span class="dropdown-arrow">▼</span></button>
+                <div class="dropdown-menu">
+                    <div class="dropdown-item active" data-team="all">All Teams</div>
+                    <div class="dropdown-item" data-team="Team A">Team A</div>
+                    <div class="dropdown-item" data-team="Team B">Team B</div>
+                    <div class="dropdown-item" data-team="Team C">Team C</div>
+                    <div class="dropdown-item" data-team="Team D">Team D</div>
+                    <div class="dropdown-item" data-team="Eldama">Eldama</div>
+                    <div class="dropdown-item" data-team="Bravo">Bravo</div>
+                </div>
+            </div>
+            <button class="date-filter-btn active" data-range="today">Today</button>
+            <button class="date-filter-btn" data-range="yesterday">Yesterday</button>
+            <button class="date-filter-btn" data-range="last7">Last 7 Days</button>
+            <button class="date-filter-btn" data-range="custom">Custom</button>
+            <div class="date-range-inputs" id="customDateRange">
+                <input type="date" id="dateFrom" class="date-input" />
+                <span>–</span>
+                <input type="date" id="dateTo" class="date-input" />
+            </div>
+            <div class="nav-links">
+                <a class="nav-link" href="packhouse-dashboard">Dashboard</a>
+            </div>
+            <div class="live-indicator" id="refreshBtn"><div class="live-dot"></div><span>LIVE</span></div>
+        </div>
+    </div>
+
+    <div class="board">
+        <div class="column col-partial">
+            <div class="column-header"><span>⏳ Partially Allocated</span><span class="col-count" id="cnt-partial">0</span></div>
+            <div class="column-body" id="col-partial"></div>
+        </div>
+        <div class="column col-awaiting">
+            <div class="column-header"><span>🚚 Awaiting Transfer</span><span class="col-count" id="cnt-awaiting">0</span></div>
+            <div class="column-body" id="col-awaiting"></div>
+        </div>
+        <div class="column col-ready">
+            <div class="column-header"><span>✅ Ready Lines <span class="column-hint">· drag to set queue</span></span><span class="col-count" id="cnt-ready">0</span></div>
+            <div class="column-body" id="col-ready"></div>
+        </div>
+        <div class="column col-packed">
+            <div class="column-header"><span>📦 Packed</span><span class="col-count" id="cnt-packed">0</span></div>
+            <div class="column-body" id="col-packed"></div>
+        </div>
+    </div>
+
+    <script>
+        let team = 'all';
+        let dateRange = 'today';
+        let customFrom = '';
+        let customTo = '';
+        let taktMinutes = 0;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const teamDropdown = document.getElementById('teamDropdown');
+            teamDropdown.querySelector('.dropdown-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                teamDropdown.classList.toggle('open');
+            });
+            teamDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', function () {
+                    teamDropdown.querySelectorAll('.dropdown-item').forEach(x => x.classList.remove('active'));
+                    this.classList.add('active');
+                    document.getElementById('selectedTeam').textContent = this.textContent;
+                    team = this.dataset.team.toLowerCase() === 'all' ? 'all' : this.textContent;
+                    teamDropdown.classList.remove('open');
+                    load();
+                });
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#teamDropdown')) teamDropdown.classList.remove('open');
+            });
+
+            document.querySelectorAll('.date-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    dateRange = btn.dataset.range;
+                    document.getElementById('customDateRange').classList.toggle('show', dateRange === 'custom');
+                    if (dateRange !== 'custom') { customFrom = ''; customTo = ''; load(); }
+                });
+            });
+            ['dateFrom', 'dateTo'].forEach(id => {
+                document.getElementById(id).addEventListener('change', () => {
+                    customFrom = document.getElementById('dateFrom').value;
+                    customTo = document.getElementById('dateTo').value;
+                    if (customFrom && customTo && dateRange === 'custom') load();
+                });
+            });
+
+            document.getElementById('refreshBtn').addEventListener('click', load);
+
+            setTimeout(load, 600);
+            setInterval(load, 30000);
+            setInterval(updateTaktCounters, 60000);
+        });
+
+        function getDateArgs() {
+            if (dateRange === 'yesterday') return { period: 'yesterday' };
+            if (dateRange === 'last7') return { period: 'last_7_days' };
+            if (dateRange === 'custom' && customFrom && customTo) return { period: 'custom', from_date: customFrom, to_date: customTo };
+            return { period: 'today' };
+        }
+
+        function load() {
+            frappe.call({
+                method: 'getSchedulerData',
+                args: { team_filter: team, ...getDateArgs() },
+                callback: (r) => {
+                    if (r.message && r.message.success) render(r.message);
+                    else renderEmpty();
+                },
+                error: renderEmpty
+            });
+        }
+
+        function renderEmpty() {
+            ['partial', 'awaiting', 'ready', 'packed'].forEach(c => {
+                document.getElementById('col-' + c).innerHTML = emptyHTML();
+                document.getElementById('cnt-' + c).textContent = '0';
+            });
+        }
+
+        function emptyHTML() {
+            return '<div class="empty"><div class="empty-icon">📭</div><div>None</div></div>';
+        }
+
+        function teamClass(t) {
+            return 'team-' + (t || 'unassigned').toLowerCase().replace(/ /g, '-');
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function taktChip(o) {
+            if (!o.issued_at) return '<span class="chip takt">⏱ —</span>';
+            const start = new Date(o.issued_at.replace(' ', 'T'));
+            const end = o.staged_at ? new Date(o.staged_at.replace(' ', 'T')) : new Date();
+            const mins = Math.max(0, Math.round((end - start) / 60000));
+            const over = taktMinutes > 0 && mins > taktMinutes;
+            return '<span class="chip takt' + (over ? ' over' : '') + '">⏱ ' + mins + 'm' + (over ? ' ⚠' : '') + '</span>';
+        }
+
+        function rowHTML(o, draggable, pos) {
+            const handle = draggable ? '<span class="drag-pos">' + pos + '</span>' : '';
+            return '<div class="opl-row ' + teamClass(o.team) + '" data-opl="' + esc(o.opl_id) + '" data-issued="' + esc(o.issued_at || '') + '" data-staged="' + esc(o.staged_at || '') + '"' +
+                (draggable ? ' draggable="true"' : '') + ' onclick="openOPL(\'' + esc(o.opl_id) + '\')">' +
+                '<div class="opl-top"><div><div class="opl-name">' + esc(o.order_name) + '</div>' +
+                '<div class="opl-id">' + esc(o.opl_id) + '</div></div>' +
+                '<div style="display:flex;gap:5px;align-items:center;">' + handle +
+                '<span class="team-badge">' + esc(o.team) + '</span></div></div>' +
+                '<div class="opl-variety">' + esc(o.variety) + '</div>' +
+                '<div class="opl-customer">' + esc(o.customer) + '</div>' +
+                '<div class="opl-meta">' +
+                    '<span class="chip"><b>' + (o.total_stems || 0).toLocaleString() + '</b> stems</span>' +
+                    '<span class="chip">📦 <b>' + esc(o.box_progress) + '</b></span>' +
+                    taktChip(o) +
+                '</div>' +
+                '<div class="mini"><div class="mini-label"><span>Issuing</span><span>' + Math.round(o.issuing_percentage || 0) + '%</span></div>' +
+                '<div class="mini-bar"><div class="mini-fill fill-issue" style="width:' + (o.issuing_percentage || 0) + '%"></div></div></div>' +
+                '<div class="mini"><div class="mini-label"><span>Packing</span><span>' + Math.round(o.packing_percentage || 0) + '%</span></div>' +
+                '<div class="mini-bar"><div class="mini-fill fill-pack" style="width:' + (o.packing_percentage || 0) + '%"></div></div></div>' +
+                '</div>';
+        }
+
+        function fillColumn(colId, list, draggable) {
+            const el = document.getElementById(colId);
+            if (!list || !list.length) { el.innerHTML = emptyHTML(); return; }
+            el.innerHTML = list.map((o, i) => rowHTML(o, draggable, i + 1)).join('');
+            if (draggable) wireDrag(el);
+        }
+
+        function render(data) {
+            taktMinutes = data.takt_minutes || 0;
+            const c = data.counts || {};
+            document.getElementById('cnt-partial').textContent = c.partially_allocated || 0;
+            document.getElementById('cnt-awaiting').textContent = c.awaiting_transfer || 0;
+            document.getElementById('cnt-ready').textContent = c.ready_lines || 0;
+            document.getElementById('cnt-packed').textContent = c.packed || 0;
+            fillColumn('col-partial', data.partially_allocated, false);
+            fillColumn('col-awaiting', data.awaiting_transfer, false);
+            fillColumn('col-ready', data.ready_lines, true);
+            fillColumn('col-packed', data.packed, false);
+        }
+
+        // ── Drag to reorder the Ready Lines queue ────────────────────────────
+        let dragEl = null;
+        function wireDrag(container) {
+            container.querySelectorAll('.opl-row').forEach(row => {
+                row.addEventListener('dragstart', () => { dragEl = row; row.classList.add('dragging'); });
+                row.addEventListener('dragend', () => {
+                    row.classList.remove('dragging');
+                    container.querySelectorAll('.opl-row').forEach(r => r.classList.remove('drag-over'));
+                    renumber(container);
+                    persistOrder(container);
+                });
+                row.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const after = getDragAfter(container, e.clientY);
+                    if (after == null) container.appendChild(dragEl);
+                    else container.insertBefore(dragEl, after);
+                });
+            });
+        }
+        function getDragAfter(container, y) {
+            const els = [...container.querySelectorAll('.opl-row:not(.dragging)')];
+            let closest = { offset: -Infinity, element: null };
+            els.forEach(child => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) closest = { offset, element: child };
+            });
+            return closest.element;
+        }
+        function renumber(container) {
+            container.querySelectorAll('.opl-row .drag-pos').forEach((p, i) => { p.textContent = i + 1; });
+        }
+        function persistOrder(container) {
+            const order = [...container.querySelectorAll('.opl-row')].map(r => r.dataset.opl);
+            frappe.call({
+                method: 'setSchedulerOrder',
+                args: { order: JSON.stringify(order) },
+                callback: () => {},
+                error: () => {}
+            });
+        }
+
+        function updateTaktCounters() {
+            document.querySelectorAll('.opl-row').forEach(row => {
+                const issued = row.dataset.issued;
+                if (!issued) return;
+                const chip = row.querySelector('.takt');
+                if (!chip) return;
+                const start = new Date(issued.replace(' ', 'T'));
+                const end = row.dataset.staged ? new Date(row.dataset.staged.replace(' ', 'T')) : new Date();
+                const mins = Math.max(0, Math.round((end - start) / 60000));
+                const over = taktMinutes > 0 && mins > taktMinutes;
+                chip.classList.toggle('over', over);
+                chip.textContent = '⏱ ' + mins + 'm' + (over ? ' ⚠' : '');
+            });
+        }
+
+        function openOPL(id) {
+            window.open('/app/order-pick-list/' + encodeURIComponent(id), '_blank');
+        }
+    </script>
+</body>
+</html>

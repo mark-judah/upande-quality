@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upande Quality — Developer Guide</title>
+<style>
+  :root{
+    --ink:#000; --paper:#fff; --muted:#555; --faint:#777;
+    --line:#d8d8d8; --line2:#000; --bg-soft:#f5f5f5; --bg-soft2:#ececec;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--sans);color:var(--ink);background:var(--paper);line-height:1.55;font-size:15px}
+  a{color:var(--ink)}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--bg-soft);padding:1px 5px;border:1px solid var(--line);border-radius:3px}
+  pre{font-family:var(--mono);font-size:12.5px;background:var(--bg-soft);border:1px solid var(--line);border-radius:4px;padding:12px 14px;overflow:auto;line-height:1.5}
+  pre code{background:none;border:none;padding:0}
+
+  .layout{display:flex;max-width:1280px;margin:0 auto}
+  /* Sidebar */
+  .side{position:sticky;top:0;align-self:flex-start;height:100vh;width:268px;flex:0 0 268px;border-right:2px solid var(--ink);padding:22px 16px 40px;overflow-y:auto}
+  .side h1{font-size:17px;letter-spacing:.5px;text-transform:uppercase;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:4px}
+  .side .sub{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin:18px 0 6px}
+  .side a{display:block;text-decoration:none;color:var(--muted);font-size:13.5px;padding:3px 8px;border-left:2px solid transparent}
+  .side a:hover{color:var(--ink);background:var(--bg-soft)}
+  .side a.lvl2{padding-left:18px;font-size:12.5px}
+  /* Main */
+  main{flex:1 1 auto;min-width:0;padding:34px 44px 120px;max-width:1000px}
+  h2.sec{font-size:26px;border-bottom:2px solid var(--ink);padding-bottom:8px;margin:54px 0 18px;letter-spacing:.3px}
+  h2.sec:first-child{margin-top:0}
+  h3{font-size:19px;margin:30px 0 10px}
+  h4{font-size:15px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0 10px 22px}
+  li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--ink);color:var(--paper);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.6px}
+  tr:nth-child(even) td{background:var(--bg-soft)}
+  .lead{font-size:16px;color:var(--muted)}
+  .tag{display:inline-block;border:1px solid var(--ink);border-radius:3px;padding:1px 7px;font-size:11px;font-family:var(--mono);margin:0 4px 4px 0}
+  .callout{border:1px solid var(--ink);border-left:6px solid var(--ink);background:var(--bg-soft);padding:12px 16px;margin:16px 0;font-size:14px}
+  .callout b{text-transform:uppercase;letter-spacing:.5px;font-size:12px}
+  hr{border:none;border-top:1px solid var(--line);margin:26px 0}
+
+  /* ── Swagger-style API explorer ── */
+  .api-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;border:1px solid var(--ink);padding:14px;margin:16px 0;background:var(--bg-soft)}
+  .api-toolbar .fld{display:flex;flex-direction:column;gap:3px}
+  .api-toolbar label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint)}
+  .api-toolbar input{font-family:var(--mono);font-size:12.5px;border:1px solid var(--ink);padding:6px 8px;background:var(--paper);min-width:230px}
+  .api-toolbar .grow{flex:1 1 auto}
+  .filterbar{display:flex;gap:8px;align-items:center;margin:10px 0 4px}
+  .filterbar input{flex:1;font-size:13px;border:1px solid var(--ink);padding:7px 10px;font-family:var(--mono)}
+  .btn{font-family:var(--sans);font-size:12px;text-transform:uppercase;letter-spacing:.5px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);padding:7px 12px;cursor:pointer}
+  .btn:hover{background:var(--ink);color:var(--paper)}
+  .btn.solid{background:var(--ink);color:var(--paper)}
+  .btn.solid:hover{background:#333}
+
+  .grp{margin:22px 0}
+  .grp-h{font-size:15px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--ink);padding-bottom:5px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .grp-h .count{font-size:11px;color:var(--faint)}
+
+  .op{border:1px solid var(--ink);margin:8px 0;background:var(--paper)}
+  .op-head{display:flex;align-items:center;gap:12px;padding:9px 12px;cursor:pointer;user-select:none}
+  .op-head:hover{background:var(--bg-soft)}
+  .method{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.5px;padding:3px 9px;border:1.5px solid var(--ink);min-width:54px;text-align:center}
+  .method.post{background:var(--ink);color:var(--paper)}
+  .method.get{background:var(--paper);color:var(--ink)}
+  .op-path{font-family:var(--mono);font-size:13px;font-weight:600}
+  .op-summary{color:var(--muted);font-size:13px;margin-left:auto;text-align:right;max-width:46%}
+  .op-body{display:none;border-top:1px dashed var(--ink);padding:14px 16px}
+  .op.open .op-body{display:block}
+  .op.open .op-head{background:var(--bg-soft2)}
+  .op-body h5{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--faint);margin:14px 0 6px;border-bottom:1px solid var(--line);padding-bottom:3px}
+  .op-body h5:first-child{margin-top:0}
+  .req{font-size:10px;font-weight:700;color:var(--ink);border:1px solid var(--ink);padding:0 4px;margin-left:6px}
+  .opt{font-size:10px;color:var(--faint);margin-left:6px}
+  .chips .tag{cursor:default}
+  .tryout{border:1px solid var(--ink);padding:12px;margin-top:8px;background:var(--bg-soft)}
+  .tryout textarea{width:100%;font-family:var(--mono);font-size:12px;border:1px solid var(--ink);padding:8px;min-height:64px;background:var(--paper)}
+  .tryout .resp{margin-top:10px}
+  .statusline{font-family:var(--mono);font-size:12px;margin:6px 0;font-weight:700}
+  .muted{color:var(--muted)}
+  .small{font-size:12.5px}
+  footer{border-top:2px solid var(--ink);margin-top:60px;padding-top:14px;font-size:12px;color:var(--faint)}
+  @media(max-width:900px){.side{display:none}main{padding:24px 18px 100px}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="side">
+    <h1>Upande Quality</h1>
+    <div class="small muted">Developer Guide</div>
+    <div class="sub">Overview</div>
+    <a href="#intro">Introduction</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#tenants" class="lvl2">Multi-tenant model</a>
+    <a href="#networking" class="lvl2">Networking</a>
+    <a href="#auth" class="lvl2">Auth &amp; login</a>
+    <a href="#offline" class="lvl2">Connectivity</a>
+    <a href="#scanning" class="lvl2">Scanning</a>
+    <a href="#navigation" class="lvl2">Navigation</a>
+    <a href="#conventions" class="lvl2">Conventions</a>
+    <div class="sub">Workflows</div>
+    <a href="#wf-logistics">Logistics</a>
+    <a href="#wf-qc">Quality Control</a>
+    <a href="#wf-coldroom">Coldroom logs</a>
+    <a href="#wf-ops">Corrections &amp; ops</a>
+    <div class="sub">Reference</div>
+    <a href="#api">API explorer</a>
+    <a href="#doctypes">DocTypes</a>
+    <a href="#appendix">Appendix</a>
+  </nav>
+
+  <main>
+    <h2 class="sec" id="intro">Upande Quality — Developer Guide</h2>
+    <p class="lead">A React Native (Expo Router) field-operations app for Frappe/ERPNext flower-quality and post-harvest workflows. One binary serves several Frappe instances; the active <em>tenant</em> is resolved from the logged-in instance URL. <strong>Karen</strong> is the complete feature set; the other tenants are traceability-only over the same core.</p>
+    <p>This guide covers the architecture, the operator workflows screen-by-screen, an interactive <strong>API explorer</strong> for every backend method the app calls, and a reference of the Frappe DocTypes involved. The backend methods are Frappe whitelisted functions (Server Scripts or app methods) reached at <code>/api/method/&lt;name&gt;</code>.</p>
+    <div class="callout"><b>How to read this</b><br>The <a href="#api">API explorer</a> is the source of truth for request/response shapes — expand any endpoint for its parameters, body, response, error behaviour, and the DocTypes it touches. The workflow sections explain <em>when</em> each call fires.</div>
+
+    <!-- ARCHITECTURE -->
+    <h2 class="sec" id="architecture">Architecture</h2>
+    <h4>Stack</h4>
+    <table>
+      <tr><th>Concern</th><th>Library</th><th>Version</th></tr>
+      <tr><td>Runtime</td><td>expo (SDK 54) · react-native · react</td><td>~54.0.33 · 0.81.5 · 19.1.0</td></tr>
+      <tr><td>Routing</td><td>expo-router (file-based, typed routes)</td><td>~6.0.23</td></tr>
+      <tr><td>HTTP</td><td>axios</td><td>^1.15.2</td></tr>
+      <tr><td>State</td><td>zustand</td><td>^5.0.12</td></tr>
+      <tr><td>Camera / scan</td><td>expo-camera</td><td>~17.0.10</td></tr>
+      <tr><td>Connectivity</td><td>expo-network</td><td>~8.0.8</td></tr>
+      <tr><td>Biometric auth</td><td>expo-local-authentication</td><td>~17.0.8</td></tr>
+      <tr><td>Storage</td><td>@react-native-async-storage/async-storage</td><td>2.2.0</td></tr>
+      <tr><td>OTA updates</td><td>expo-updates (EAS Update)</td><td>~29.0.17</td></tr>
+    </table>
+    <p>New Architecture is on (<code>newArchEnabled: true</code>) with the React Compiler and typed routes enabled. Layering per feature: <code>api/</code> (raw HTTP + <code>Raw*</code> DTOs) → <code>repository/</code> (maps raw → domain) → <code>state/</code> (zustand store) → <code>features/&lt;x&gt;/Screen.tsx</code>. Shared features live in <code>src/core/features/</code>; tenant-specific code under <code>src/tenants/&lt;tenant&gt;/</code>; <code>src/composition/</code> selects the implementation per tenant.</p>
+
+    <h3 id="tenants">Multi-tenant model</h3>
+    <p>Tenants are an enum in <code>src/core/tenant/instance-mapper.ts</code>: <span class="tag">Karen</span><span class="tag">Kikwetu</span><span class="tag">Xflora</span><span class="tag">Mona</span><span class="tag">Tambuzi</span><span class="tag">Demo</span>. There is <strong>no tenant picker</strong> — <code>URL_TO_TENANT</code> maps each concrete instance URL (prod, staging, LAN IPs) to a tenant, and <code>getTenantByUrl(url)</code> resolves it after login. <code>Demo</code> reuses Karen's feature set.</p>
+    <p>Per-tenant wiring is done with resolvers in <code>src/composition/</code>: <code>getDrawerFor(tenant)</code> (navigation menu), <code>getTraceabilityRepository(tenant)</code> (all 5 implement it), and <code>getReplacementRepository(tenant)</code> (a <code>Partial</code> map — only Karen/Demo present; others render a "not available" placeholder). Karen's drawer exposes ~15 screens; Kikwetu/Mona/Xflora expose only Traceability + Receiving; Tambuzi is empty.</p>
+
+    <h3 id="networking">Networking</h3>
+    <ul>
+      <li><b>Base URL</b> is resolved <em>per request</em>: the axios request interceptor reads <code>StorageKeys.instanceUrl</code> from AsyncStorage on every call (<code>src/core/api/client.ts</code>), so the active instance can change without rebuilding the client.</li>
+      <li><b>Auth</b> is cookie-based — the interceptor forwards the stored Frappe <code>Cookie</code> (carrying <code>sid=</code>) verbatim. No Authorization/token header in the app.</li>
+      <li><b>Defaults</b>: <code>Content-Type: application/json</code> (unless set), <code>timeout: 30000ms</code>.</li>
+      <li><b><code>api&lt;T&gt;(config)</code></b> is the canonical helper — runs the request and returns <code>res.data</code> (the whole Frappe envelope) typed as <code>T</code>; unwrapping <code>message</code>/<code>data</code> is the repository's job.</li>
+      <li><b>Errors</b>: <code>HttpError{status, body}</code>; <code>mapAxiosError()</code> turns a no-response failure into <code>HttpError(0, "You're offline…")</code> and otherwise prefers the Frappe <code>message</code> field.</li>
+      <li><b>Uploads</b> bypass axios: <code>uploadImage()</code> uses raw <code>fetch</code> + <code>FormData</code> to <code>POST /api/method/upload_file</code> (the JSON content-type interceptor would break the multipart boundary).</li>
+      <li><b>Cleartext / local HTTP</b>: LAN instances are plain <code>http://</code>. Enabled via <code>expo-build-properties</code> → <code>android.usesCleartextTraffic: true</code> and iOS <code>NSAppTransportSecurity.NSAllowsLocalNetworking: true</code> in <code>app.json</code>.</li>
+    </ul>
+
+    <h3 id="auth">Auth &amp; login</h3>
+    <ul>
+      <li><b>URL probe</b> — <code>probeBaseUrl()</code> trusts a typed scheme, else tries <code>https://</code> then falls back to <code>http://</code> (5s HEAD probe).</li>
+      <li><b>Login</b> — <code>POST /api/method/login</code> with form-encoded <code>usr</code>+<code>pwd</code> (classic Frappe session login). On 200 the <code>sid=</code> cookie is extracted and persisted alongside <code>instanceUrl</code>, backups, and <code>fullName</code>.</li>
+      <li><b>Roles</b> — <code>getCurrentUserRoles</code> is fetched after login and cached; <code>hasRole()</code> treats <code>Administrator</code> as having every role. Role failure is non-fatal.</li>
+      <li><b>Biometric</b> — if enabled and a <code>password_backup</code> exists, the OS prompt re-runs the password login silently. <code>logout()</code> is soft (keeps cookie + biometric); <code>forgetDevice()</code> wipes everything.</li>
+    </ul>
+
+    <h3 id="offline">Connectivity / offline</h3>
+    <p>The network store (<code>src/core/network/store.ts</code>) blends OS connectivity (<code>expo-network</code>) with API-failure escalation: after <code>FAILURE_THRESHOLD = 2</code> consecutive no-response failures it flips to offline even if the radio is up — the practical signal is "is <em>our</em> server reachable." Polls every 15s online / 6s offline; a sticky <code>OfflineBanner</code> shows at the root. The app is online-first (no offline write queue).</p>
+
+    <h3 id="scanning">Scanning</h3>
+    <p>Scanning is the primary input. <code>ScanField</code> is a <code>TextInput</code> tuned for Honeywell-style HID scanners: since workflows scan JSON QR payloads, it treats <em>valid JSON ending in <code>}</code></em> as the scan-complete signal (no Enter needed), debounces 300ms, plays a beep, clears, and refocuses. <code>focusWhenReady()</code> defers focus past Android nav transitions so operators never tap. A camera fallback (<code>/camera-scanner</code>, <code>expo-camera</code>) returns a single result via a module-level callback bridge.</p>
+    <h4>QR payload formats</h4>
+    <table>
+      <tr><th>Entity</th><th>QR JSON</th><th>Notes</th></tr>
+      <tr><td>Bucket</td><td><code>{"&lt;bucket_id&gt;":"bucket"}</code></td><td>id is the <em>key</em>, value is <code>"bucket"</code></td></tr>
+      <tr><td>Bunch</td><td><code>{"&lt;bunch_id&gt;":"bunch"}</code> or <code>{"bunch_id":"…"}</code></td><td>traceability also accepts explicit keys</td></tr>
+      <tr><td>Trolley</td><td><code>{"&lt;trolley_id&gt;":"trolley"}</code></td><td>matches bucket pattern</td></tr>
+      <tr><td>Shelf</td><td><code>{"shelf":"&lt;id&gt;"}</code></td><td><strong>inverted</strong> — key is <code>"shelf"</code>, value is the id</td></tr>
+    </table>
+
+    <h3 id="navigation">Navigation</h3>
+    <p>Two layers via expo-router. The <b>root Stack</b> (headers off) holds <code>(tabs)</code>, <code>login</code>, <code>biometric-lock</code>, and the two camera screens as full-screen modals; an auth-gate effect routes by session/biometric state. The <b>bottom tabs</b> are icon-only with crossfading outline/filled icons; visible tabs are Home, Traceability, Replacement, Receiving, Shelving, Intake QC, Discards. Everything else (<code>href:null</code>) is reachable only from the drawer (<code>SideMenu</code>, driven by the per-tenant drawer map).</p>
+
+    <h3 id="conventions">Conventions</h3>
+    <ul>
+      <li><b>Response envelope</b> — whitelisted methods wrap results in <code>message</code>; REST resource endpoints use <code>data</code>. The code reads <code>res.data ?? res.message</code> defensively. Several methods nest deeper (<code>message.data</code>, <code>message.status</code>) or under <code>data</code> — each repository normalizes its own shape (noted per endpoint below).</li>
+      <li><b>Error shapes</b> — Frappe bodies carry <code>{ exc_type, _server_messages, message }</code> and often a custom <code>http_status_code</code> + <code>error</code>/<code>status</code>. Most custom POSTs use <code>validateStatus:()=&gt;true</code> so 4xx/5xx bodies are read as payloads rather than thrown; only <code>getTraceability</code> throws on HTTP error.</li>
+      <li><b>Request style</b> — almost everything is <code>POST /api/method/&lt;fn&gt;</code> with a JSON body; login is the one form-encoded exception; picker data uses <code>frappe.client.get_list</code> or <code>/api/resource/&lt;Doctype&gt;</code>.</li>
+    </ul>
+
+    <!-- WORKFLOWS -->
+    <h2 class="sec" id="wf-logistics">Workflow · Logistics</h2>
+    <p>The cold-chain path from a remote farm to the packing line. Screens: <b>Receiving → Shelving → Bucket Requests</b> (trolley transfer) and the shared <b>Pending Reshelving</b> inbox.</p>
+    <h3>Receiving <span class="muted small">— /receiving</span></h3>
+    <ul>
+      <li>Optional <b>Batch mode</b> generates an 8-char id that groups consecutive scans.</li>
+      <li>Scan a bucket QR → <code>createReceivingStockEntry</code> with the current batch id.</li>
+      <li><code>received</code> → success popup (variety, stems, bunches, greenhouse, harvested date) that auto-dismisses after 1.7s and refocuses; <code>already_received</code>/<code>no_harvest_on_date</code> → inline card; <code>not_harvested</code>/<code>not_exist</code>/<code>error</code> → danger alert.</li>
+    </ul>
+    <h3>Shelving <span class="muted small">— /shelving</span></h3>
+    <ul>
+      <li>Scan a <b>shelf</b> QR (sticky/active), then scan <b>bucket</b> QRs onto it → <code>createShelvingEntry({farm, shelf_id, bucket_id})</code>.</li>
+      <li><code>success</code> → "Shelved" card; <code>failed</code> → diagnostic card with a typed <code>reason</code> (e.g. <code>two_buckets_per_shelf</code>, <code>harvest_receiving_gap_too_large</code>, <code>stale_receiving_date</code>) and origin/dates/limits.</li>
+    </ul>
+    <h3>Bucket Requests (trolley transfer) <span class="muted small">— /bucket-requests</span></h3>
+    <ul>
+      <li>On entry <code>fetchAllocatedBuckets(farm)</code> loads the pick list (grouped by OPL) + the vehicle list.</li>
+      <li>Scan a trolley QR (becomes active) → scan bucket QRs onto it (matched <b>case-insensitively</b> against the pick list); duplicates rejected.</li>
+      <li>"Save N trolleys" → <code>saveTrolleyData</code> per trolley, then <code>getSavedTrolleys</code> refreshes the Saved tab.</li>
+      <li>"Load to truck" → <code>loadTrolleyInTruck({trolley_id, truck_id})</code> marks the trolley in-transit.</li>
+    </ul>
+    <h3>Pending Reshelving <span class="muted small">— /pending-reshelving · role: Harvest Details Updater</span></h3>
+    <ul>
+      <li><code>listPendingReshelving</code> lists bunches awaiting a matching shelved bucket.</li>
+      <li>Expanding a bunch → <code>listBunchDestinations</code> (matching shelved buckets); pick one → <code>moveBunch</code>.</li>
+    </ul>
+
+    <h2 class="sec" id="wf-qc">Workflow · Quality Control</h2>
+    <h3>Intake QC <span class="muted small">— /intake-qc</span></h3>
+    <ul>
+      <li>On mount: <code>fetchQcParameters</code> (+ <code>getGreenhouseData</code> if the station has a greenhouse).</li>
+      <li>Scan a bucket → <code>getBatchByBucket</code> resolves the batch (sibling buckets, stems, quarantine state).</li>
+      <li>If quarantine is active → <b>Quarantine Review</b> (<code>releaseFromQuarantine</code> looped per bucket). Otherwise the <b>Inspection</b> form: per-variety sampling, solution readings (level, hygiene, chlorine ppm, pH), quality concerns with auto tolerance %, decision Accept/Quarantine/Reject → <code>submitBatchQuality</code>.</li>
+      <li>A tolerance breach forces Quarantine (Accept disabled).</li>
+    </ul>
+    <div class="callout"><b>Note</b> <code>coldroom-qc</code> and <code>packhouse-qc</code> tabs are placeholders ("coming soon"); the QC store has Field/Coldroom/Packhouse control points but only Intake is routed. <code>submitFieldRejects</code> and Field mode are wired but not yet surfaced by a screen.</div>
+
+    <h2 class="sec" id="wf-coldroom">Workflow · Coldroom logs</h2>
+    <p>Three independent daily logs, all gated by tenant/station and backed by farm + cold-store pickers (loaded via <code>frappe.client.get_list</code>).</p>
+    <ul>
+      <li><b>Temperature Log</b> (<code>/temperature-log</code>) → <code>submitColdStoreTemperatureLog</code>: seven time-slot °C readings (8am–8pm); blanks omitted.</li>
+      <li><b>Cleaning Record</b> (<code>/cleaning-record</code>) → <code>submitColdroomCleaning</code>: mode, detergent/disinfectant (rate + unit + volume), equipment, sign-off.</li>
+      <li><b>Inspection Log</b> (<code>/inspection-log</code>) → <code>submitColdroomInspection</code>: multi-select condition flags across 8 areas (floor, roof, walls, lights, doors, shelves, drainage, evaporators); only non-empty areas sent.</li>
+    </ul>
+
+    <h2 class="sec" id="wf-ops">Workflow · Corrections &amp; ops</h2>
+    <ul>
+      <li><b>Solution Mixing</b> (<code>/solution-mixing</code>): <code>fetchMixingTanks</code> + <code>fetchColdPostHarvestChemicals</code> feed the form; photos upload first (<code>upload_file</code>), then <code>submitSolutionMix</code>.</li>
+      <li><b>Discards</b> (<code>/discards</code>): scan → <code>createDiscardEntry</code>; typed failure reasons (e.g. <code>bucket_too_young</code> = soft warning).</li>
+      <li><b>Replacement</b> (<code>/replacement</code>, role-gated): <code>getTraceability</code> → <code>listBucketOpls</code> + <code>listReplacementCandidates</code>; whole-bucket <code>replaceBucket</code>, partial <code>replaceStems</code>, or bunch <code>moveBunch</code> → <code>replaceBunchInOpl</code>.</li>
+      <li><b>Edit Details</b> (<code>/edit-details</code>, role-gated): <code>getTraceability</code> → <code>correctDetails</code> (variety/stem-length at bucket or bunch granularity), validated against <code>listVarieties</code>/<code>listStemLengths</code>.</li>
+      <li><b>Traceability</b> (<code>/traceability</code>, read-only): <code>getTraceability</code> renders the Harvest→Grading→Receiving→Shelving→Allocation→Issued timeline with mismatch warnings.</li>
+      <li><b>Configure Station</b> (<code>/configure-station</code>): generic <code>/api/resource/Farm</code> + <code>/api/resource/Warehouse</code>; persists <code>{userFarm, userGreenhouse}</code> locally (<code>RequireStation</code> gates feature routes).</li>
+    </ul>
+
+    <!-- API EXPLORER -->
+    <h2 class="sec" id="api">API explorer</h2>
+    <p class="lead">Every backend method the app calls. Click an endpoint to expand its contract; use <b>Try it</b> to fire a live request (set the base URL and, if testing outside a logged-in browser session, an <code>Authorization</code> token).</p>
+    <div class="api-toolbar">
+      <div class="fld"><label>Base URL</label><input id="baseUrl" value="https://kaitet-group.upande.com" spellcheck="false"></div>
+      <div class="fld grow"><label>Authorization header (optional · <code>token key:secret</code>)</label><input id="authHeader" placeholder="token xxxx:yyyy — or leave blank to use browser session cookie" spellcheck="false"></div>
+    </div>
+    <div class="callout small"><b>CORS / auth</b> Live "Try it" works best when this page is served from the same origin as the instance (browser sends the <code>sid</code> cookie), or when you supply an API <code>token</code> above. Opening the file via <code>file://</code> against a remote host will be blocked by CORS — that's a browser limitation, not an app one.</div>
+    <div class="filterbar">
+      <input id="apiFilter" placeholder="Filter endpoints… (name, path, doctype)" spellcheck="false">
+      <button class="btn" id="expandAll">Expand all</button>
+      <button class="btn" id="collapseAll">Collapse all</button>
+    </div>
+    <div id="apiRoot"></div>
+
+    <!-- DOCTYPES -->
+    <h2 class="sec" id="doctypes">DocType reference</h2>
+    <p>The Frappe DocTypes these workflows read and write. Field lists focus on the custom fields that drive the app; <span class="muted">italic</span> notes mark inferred/secondary types.</p>
+
+    <h3>Order Pick List <span class="muted small">(submittable · "OPL")</span></h3>
+    <p>The order being picked/packed. Header: <code>customer</code>, <code>sales_order</code>, <code>custom_order_name</code>, <code>custom_team</code> (Team A–D/Eldama/Bravo), <code>custom_total_stems</code>, <code>custom_status</code> (Partially Allocated / Ready to Pack), <code>custom_schedule_number</code> (queue position), <code>custom_issued</code>, <code>custom_farm</code>, <code>custom_item_group</code>, <code>date_created</code>. Child table <code>locations</code> = <b>Pick List Item</b>.</p>
+    <h3>Pick List Item <span class="muted small">(child of OPL · <code>locations</code>)</span></h3>
+    <p>One line/bucket on the order, carrying the whole transfer→pack lifecycle as check fields: <code>custom_awaiting_transfer</code> → <code>custom_loaded_in_trolley</code> → <code>custom_in_transit</code> → <code>custom_shelved</code> → <code>custom_ready_for_packing</code> → <code>custom_issued</code>. Plus <code>custom_line</code> (Link → Line), <code>custom_stem_length</code>, <code>custom_shelf</code>, <code>custom_bucket</code>, <code>custom_box_id</code>, <code>custom_trolley_id</code>, <code>custom_truck</code>/<code>custom_transit_truck</code>, <code>custom_available_stems_of_exact_length</code>, <code>custom_packrate</code>.</p>
+    <h3>Bucket QR Code</h3>
+    <p>The physical bucket identity. <code>id</code> (PK), <code>status</code> (Available / In Use), <code>last_stock_entry</code>. Auto-created by the harvest flow if missing. <span class="muted">DB collation is case-insensitive — bucket ids fold case.</span></p>
+    <h3>Stock Entry <span class="muted small">(+ custom fields)</span></h3>
+    <p>The movement ledger, specialized by <code>stock_entry_type</code>: <b>Harvesting</b>, <b>Receiving</b>, <b>Grading</b>, <b>Shelving</b>. Custom fields: <code>custom_bucket_id</code>, <code>custom_received_bucket_id</code>, <code>custom_bunch_id</code>, <code>custom_harvest_batch_no</code>, <code>custom_scanned</code>, <code>custom_scanned_packing</code>, <code>custom_issued_to</code> (line), <code>custom_opl_scanned</code>, <code>custom_stem_length</code>, <code>custom_greenhouse</code>, <code>custom_harvester</code>, <code>custom_farm</code>.</p>
+    <h3>Farm Pack List <span class="muted small">→ Dispatch Form Item (<code>pack_list_item</code>)</span></h3>
+    <p>Packing output per OPL+SO+farm. Rows (<b>Dispatch Form Item</b>) are box-aware: <code>box_id</code>, <code>bunch_uom</code>, <code>bunch_qty</code>, <code>custom_number_of_stems</code>, <code>stem_length</code>, <code>custom_opl_id</code> (Link → OPL), <code>custom_line</code>, <code>source_warehouse</code>.</p>
+    <h3>Shelf &amp; Shelf Item</h3>
+    <p><b>Shelf</b>: <code>shelf_id</code>. <b>Shelf Item</b> (child): <code>bucket_id</code> — a bucket physically on a shelf. The issue/discard flows delete the Shelf Item row to remove a bucket from its shelf.</p>
+    <h3>Other types</h3>
+    <ul class="small">
+      <li><b>Batch</b> — groups buckets harvested together; the unit of intake QC.</li>
+      <li><b>Quality Parameter</b> — concern names + <code>tolerance_thresholds</code> (%) for intake QC.</li>
+      <li><b>Cold Post Harvest Chemicals</b> — curated chemical list (<code>item_name</code>, <code>stock_uom</code>) for solution mixing.</li>
+      <li><b>Production Settings</b> (Single) — includes <code>custom_takt_time</code> (minutes) for the packhouse scheduler.</li>
+      <li><i>Cold Store Temperature Log / Coldroom Cleaning Record / Coldroom Inspection</i> — the three coldroom log doctypes (with condition multiselect child tables on inspection).</li>
+      <li><i>Solution Mixing</i> — header + chemical child table; <i>Trolley</i>, <i>Vehicle</i>, <i>Line</i>, <i>Stem Length</i>, <i>Bucket Allocation Summary (BAS)</i> — referenced for allocation/available qty.</li>
+      <li><b>Item</b> / <b>Warehouse</b> / <b>Farm</b> / <b>Greenhouse</b> — masters (varieties via item_group Spray Roses / Standard Roses).</li>
+    </ul>
+
+    <!-- APPENDIX -->
+    <h2 class="sec" id="appendix">Appendix</h2>
+    <h4>Response envelopes seen in this app</h4>
+    <pre><code>// whitelisted method, simple:     { "message": { ...result } }
+// whitelisted method, status:     { "message": { "status":"success", "data":[...], "message":"" } }
+// data-wrapped (shelving/replace): { "data": { "status":"success", "payload":{...} } }
+// top-level (fetchAllocatedBuckets): { "data":[...], "vehicles":[...], "http_status_code":200 }
+// REST resource:                   { "data":[ { ...doc } ] }
+// error:                           { "exc_type":"ValidationError", "_server_messages":"[...]", "message":"..." }</code></pre>
+    <h4>Glossary</h4>
+    <table>
+      <tr><th>Term</th><th>Meaning</th></tr>
+      <tr><td>OPL</td><td>Order Pick List — the order being picked &amp; packed.</td></tr>
+      <tr><td>Batch</td><td>Buckets harvested together; the intake-QC unit.</td></tr>
+      <tr><td>BAS</td><td>Bucket Allocation Summary — shelved stock + allocated/available stems.</td></tr>
+      <tr><td>Trolley</td><td>Physical cart that carries buckets from a remote farm to the facility.</td></tr>
+      <tr><td>Takt</td><td>Target time per box (issue→staging); a scheduler counter.</td></tr>
+    </table>
+
+    <footer>
+      Generated developer guide for the Upande Quality app. Endpoint contracts derived from the app's <code>api/</code> + <code>repository/</code> layers; verify against the live Frappe method definitions before relying on edge-case fields.
+    </footer>
+  </main>
+</div>
+
+<script>
+/* ============================ API SPEC ============================ */
+const SPEC = [
+  { group:'Logistics', items:[
+    { method:'POST', path:'/api/method/fetchAllocatedBuckets', summary:'Pick list of buckets awaiting transfer + vehicle list',
+      calledBy:'Bucket Requests — on mount & pull-to-refresh',
+      params:[{n:'farm',t:'string',r:true,d:'Originating farm/station (station.userFarm).'}],
+      body:null,
+      response:'{ data: AllocationItem[], vehicles: string[], message, http_status_code, error }\nAllocationItem: opl_name, customer, order_name, consignee, sales_order, opl_status, pick_list_item_id, item_code, item_name, qty, uom, stem_length, shelf_location, warehouse, bucket_id, harvest_date, harvest_time',
+      errors:'http_status_code ≥ 400 → error || message || "Failed to load pick list."',
+      doctypes:['Order Pick List','Pick List Item','Sales Order','Item','Bucket QR Code','Warehouse','Vehicle'] },
+    { method:'POST', path:'/api/method/saveTrolleyData', summary:'Persist trolley bucket assignments; clear shelves',
+      calledBy:'Bucket Requests — "Save N trolleys" (once per trolley)',
+      params:[],
+      body:'{ "data": { "trolley_id": "string (req)", "buckets": [ { "opl_name":"req", "bucket_id":"req" } ] } }',
+      response:'{ message: { status:"success"|"error", message, updated_count, shelf_removed_count, errors:[{bucket_id,error}] } }',
+      errors:'status ≠ "success" → message ?? "Save failed." (store reverts trolley to scanning)',
+      doctypes:['Trolley','Bucket QR Code','Shelf Item','Order Pick List'] },
+    { method:'GET', path:'/api/method/getSavedTrolleys', summary:'List saved trolleys for a farm',
+      calledBy:'Bucket Requests — Trolleys tab, after save, on refresh',
+      params:[{n:'farm',t:'string',r:true,d:'Farm to list saved trolleys for.'}],
+      body:null,
+      response:'{ message: { status, message, data: SavedTrolley[] } }\nSavedTrolley: trolley_id, truck_id, buckets:[{opl_name,bucket_id,item_code,item_name,shelf_location,stem_length,qty,uom,truck,warehouse}]',
+      errors:'status ≠ "success" → message ?? "Failed to load saved trolleys."',
+      doctypes:['Trolley','Bucket QR Code','Item','Vehicle'] },
+    { method:'POST', path:'/api/method/loadTrolleyInTruck', summary:'Mark a trolley\'s buckets in-transit on a truck',
+      calledBy:'Bucket Requests — Load to truck modal',
+      params:[],
+      body:'{ "data": { "trolley_id":"req", "truck_id":"req" } }',
+      response:'{ message: { status, message, updated_count, shelf_removed_count, errors } }',
+      errors:'status ≠ "success" → message ?? "Load failed."',
+      doctypes:['Trolley','Pick List Item','Vehicle'] },
+    { method:'POST', path:'/api/method/createReceivingStockEntry', summary:'Receive a scanned bucket into the facility',
+      calledBy:'Receiving — on each scan',
+      params:[{n:'bucket_id',t:'string',r:true,d:'From QR {"<id>":"bucket"}.'},{n:'custom_receiving_batch_id',t:'string|null',r:false,d:'Batch-mode group id (8 chars).'}],
+      body:null,
+      response:'{ status: received|already_received|not_harvested|not_exist|no_harvest_on_date|error, stock_entry_name, farm, greenhouse, stem_length, number_of_stems, variety, harvest_date, bunches, message, error, http_status_code }',
+      errors:'No throw on 4xx/5xx — the status enum drives the outcome; message ?? error ?? fallback.',
+      doctypes:['Bucket QR Code','Stock Entry','Item','Greenhouse','Farm'] },
+    { method:'POST', path:'/api/method/createShelvingEntry', summary:'Place a received bucket onto a shelf',
+      calledBy:'Shelving — on each bucket scan',
+      params:[{n:'farm',t:'string',r:true,d:'station.userFarm'},{n:'shelf_id',t:'string',r:true,d:'From {"shelf":"<id>"}.'},{n:'bucket_id',t:'string',r:true,d:'From {"<id>":"bucket"}.'}],
+      body:null,
+      response:'(payload under data) { status:success|failed|error, reason, message, payload }\npayload: shelf_id, bucket_id, stems, stem_length, transit_updated, bas_updated, bas_available_qty, opl_submitted[], origin_farm, received_on, harvested_on, gap_days, days_since_receiving, max_allowed_days\nreason ∈ two_buckets_per_shelf | duplicate_entry | not_received | no_matching_harvest | harvest_receiving_gap_too_large | stale_receiving_date | *_not_null | unknown_error',
+      errors:'status="failed" → ShelvingFailure(reason,payload); else ShelvingError; fallback "Shelving failed."',
+      doctypes:['Shelf','Shelf Item','Bucket QR Code','Stem Length','Bucket Allocation Summary','Order Pick List','Stock Entry'] },
+    { method:'POST', path:'/api/method/listPendingReshelving', summary:'Bunches awaiting a matching shelved bucket',
+      calledBy:'Pending Reshelving — on mount/refresh/after move',
+      params:[], body:null,
+      response:'{ data: { pending:[{grading_se,bunch_id,source_bucket,pending_since,variety,stem_length,bunch_size,farm,flagged_by}], count, error } }',
+      errors:'data.error is thrown → pendingError.',
+      doctypes:['Stock Entry (Grading)','Bunch','Bucket QR Code','Item','Stem Length'] },
+    { method:'POST', path:'/api/method/listBunchDestinations', summary:'Shelved buckets matching a bunch (reshelve targets / donors)',
+      calledBy:'Pending Reshelving & Bunch move editor',
+      params:[{n:'variety',t:'string',r:true,d:''},{n:'stem_length',t:'string',r:true,d:''},{n:'farm',t:'string',r:true,d:''},{n:'exclude_bucket',t:'string',r:false,d:'Source bucket to exclude.'}],
+      body:null,
+      response:'{ data: { criteria:{variety,stem_length,farm}, destinations|candidates: Candidate[], count, error } }\nCandidate: bucket_id, shelf, shelf_item, variety, stem_length, greenhouse, warehouse, date_added, age_days, stem_qty, allocated_qty, available_qty',
+      errors:'data.error thrown.',
+      doctypes:['Shelf Item','Bucket QR Code','Bucket Allocation Summary','Item','Stem Length'] },
+    { method:'POST', path:'/api/method/moveBunch', summary:'Reshelve/move a bunch (or flag pending)',
+      calledBy:'Pending Reshelving & Bunch move editor',
+      params:[{n:'bunch_id',t:'string',r:true,d:''},{n:'source_bucket_id',t:'string',r:true,d:''},{n:'dest_bucket_id',t:'string',r:false,d:'Destination (omit → pending).'},{n:'variety',t:'string',r:false,d:'Only if corrected.'},{n:'stem_length',t:'string',r:false,d:'Only if corrected.'}],
+      body:null,
+      response:'{ data: { status:"moved"|"pending", message, bunch_id, source_bucket, dest_bucket, dest_shelf, stems_moved, corrected_variety, corrected_stem_length, error } }',
+      errors:'data.error / message.error → {ok:false}; only "moved"/"pending" treated as ok.',
+      doctypes:['Bunch','Bucket QR Code','Shelf Item','Stock Entry (Grading)'] },
+  ]},
+  { group:'Quality Control', items:[
+    { method:'POST', path:'/api/method/getBatchByBucket', summary:'Resolve a bucket to its full batch',
+      calledBy:'Intake QC — on each scan',
+      params:[{n:'bucket_id',t:'string',r:true,d:'Bucket id (JSON key extracted if scanned).'}],
+      body:null,
+      response:'{ status, message, batch_no, farm, company, total_buckets, total_stems, scanned_bucket, has_active_quarantine, buckets:[{bucket_id,stems,item_code,item_name,warehouse,quarantine_warehouse,basic_rate,cost_center,farm,greenhouse,stock_entry,status,selected,quarantine_stems,is_in_quarantine}] }',
+      errors:'OK if status="success" OR buckets.length>0; else message ?? "No batch found for bucket <id>."',
+      doctypes:['Batch','Stock Entry','Warehouse','Cost Center','Farm'] },
+    { method:'POST', path:'/api/method/submitBatchQuality', summary:'Record an intake QC inspection for a batch',
+      calledBy:'Intake QC — Inspection mode SUBMIT',
+      params:[],
+      body:'{ "data": { batch_no, farm, company, control_point:"Intake", stems_checked_by_variety:{item_code:int}, checked_stems_sampled:int, solution_level_liters:int, solution_hygiene:"Clean"|"Not Clean"|"", chlorine_ppm:int, solution_ph:"string", batch_decision:"ACCEPT"|"QUARANTINE"|"REJECT", quarantine_scope:"buckets"|"batch"|"", quality_concerns:{variety:{paramKey:{count}}}, buckets:[{bucket_id,stems,status,selected}] } }',
+      response:'{ http_status_code, status, message, error }',
+      errors:'OK when (http_status_code ?? 200) < 400 && status ≠ "error". Client guards: concern count ≤ sampled & ≤ addressable pool.',
+      doctypes:['Batch Quality / QC Inspection','Batch','Quality Parameter','Warehouse'] },
+    { method:'POST', path:'/api/method/releaseFromQuarantine', summary:'Accept/reject a quarantined bucket',
+      calledBy:'Intake QC — Quarantine mode (looped per bucket)',
+      params:[{n:'bucket_id',t:'string',r:true,d:''},{n:'action',t:'"accept"|"reject"',r:true,d:''},{n:'batch_no',t:'string',r:true,d:''},{n:'stems_to_release',t:'number',r:false,d:'Defaults to full bucket stems.'}],
+      body:null,
+      response:'{ http_status_code, status, message, error }',
+      errors:'Loop aborts on first failure → "Failed to release <bucket>."',
+      doctypes:['Batch','Bucket QR Code','Warehouse','Stock Entry'] },
+    { method:'GET', path:'/api/method/fetchQcParameters', summary:'Quality concern parameters + tolerances',
+      calledBy:'Intake QC — on mount',
+      params:[], body:null,
+      response:'{ message: [{ name, parameter, tolerance_thresholds }] }',
+      errors:'Failure swallowed (loading indicator stays).',
+      doctypes:['Quality Parameter'] },
+    { method:'POST', path:'/api/method/getGreenhouseData', summary:'Varieties + employees for a greenhouse',
+      calledBy:'Intake QC — when station has a greenhouse (Field mode pickers)',
+      params:[{n:'greenhouse_name',t:'string',r:true,d:''}],
+      body:null,
+      response:'{ message: { varieties:[{variety,area}], employees:[{employee_name}] } }',
+      errors:'Swallowed in store; no validateStatus override (HTTP error can throw).',
+      doctypes:['Greenhouse','Item/Variety','Employee'] },
+    { method:'POST', path:'/api/method/submitFieldRejects', summary:'Record stems rejected in the field',
+      calledBy:'QC Field mode (wired; no live screen yet)',
+      params:[{n:'control_point',t:'"Field"',r:true,d:''},{n:'variety',t:'string',r:true,d:''},{n:'no_of_stems',t:'int>0',r:true,d:''},{n:'rejection_reason',t:'string',r:true,d:''},{n:'farm',t:'string',r:false,d:''},{n:'greenhouse',t:'string',r:false,d:''}],
+      body:null,
+      response:'{ http_status_code, status, message, error }',
+      errors:'OK when <400 && status≠"error"; fallback "Failed to record field rejection."',
+      doctypes:['Field Rejection / QC Reject','Greenhouse','Farm'] },
+  ]},
+  { group:'Coldroom logs', items:[
+    { method:'POST', path:'/api/method/submitColdStoreTemperatureLog', summary:'Daily cold-store temperature readings',
+      calledBy:'Temperature Log — Save log',
+      params:[],
+      body:'{ "data": { farm:"req", coldstore:"req", log_date:"YYYY-MM-DD", temp_8am, temp_10am, temp_12pm, temp_2pm, temp_4pm, temp_6pm, temp_8pm, notes } }',
+      response:'{ message: { status, name, message } }',
+      errors:'status ≠ "success" → message ?? "Save failed."',
+      doctypes:['Cold Store Temperature Log','Warehouse','Farm'] },
+    { method:'POST', path:'/api/method/submitColdroomCleaning', summary:'Cold-room cleaning/disinfection record',
+      calledBy:'Cleaning Record — Save',
+      params:[],
+      body:'{ "data": { farm:"req", coldstore, cleaning_date, mode_of_cleaning:"Sweeping"|"Washing", detergent_used, detergent_rate, detergent_rate_unit:"ml/L"|"g/L", detergent_solution_volume_l, disinfectant_used, disinfectant_rate, disinfectant_rate_unit, disinfectant_solution_volume_l, coldroom_volume_disinfected_m3, stock_quantity_stems, equipment_used, disinfected_by, supervised_by, notes } }',
+      response:'{ message: { status, name, message } }',
+      errors:'status ≠ "success" → "Save failed."',
+      doctypes:['Coldroom Cleaning Record','Warehouse','Farm'] },
+    { method:'POST', path:'/api/method/submitColdroomInspection', summary:'Cold-room facility inspection (condition flags)',
+      calledBy:'Inspection Log — Save',
+      params:[],
+      body:'{ "data": { farm:"req", coldstore, inspection_date, inspected_by, notes, floor_conditions:[], roof_conditions:[], walls_conditions:[], lights_conditions:[], doors_conditions:[], shelves_conditions:[], drainage_conditions:[], evaporators_conditions:[] } }  // only non-empty arrays sent',
+      response:'{ message: { status, name, message } }',
+      errors:'status ≠ "success" → "Save failed."',
+      doctypes:['Coldroom Inspection','Warehouse','Farm'] },
+  ]},
+  { group:'Solution mixing & discards', items:[
+    { method:'GET', path:'/api/method/fetchMixingTanks', summary:'Mixing tanks for a farm',
+      calledBy:'Solution Mixing — after farm selected',
+      params:[{n:'farm',t:'string',r:true,d:''}],
+      body:null,
+      response:'{ message: { status, data:[{name,farm,tank_name,capacity_l,location}], message } }',
+      errors:'Non-success status → empty list.',
+      doctypes:['Mixing Tank'] },
+    { method:'GET', path:'/api/method/fetchColdPostHarvestChemicals', summary:'Curated post-harvest chemical list',
+      calledBy:'Solution Mixing — on mount',
+      params:[], body:null,
+      response:'{ message: [{ name, item_name, stock_uom }] }',
+      errors:'Thrown → chemicalsError.',
+      doctypes:['Cold Post Harvest Chemicals'] },
+    { method:'POST', path:'/api/method/submitSolutionMix', summary:'Persist a solution-mixing record',
+      calledBy:'Solution Mixing — Submit',
+      params:[],
+      body:'{ "data": { farm:"req", tank:"req", mixing_date:"YYYY-MM-DD", mixing_time:"HH:MM:SS", ph:number, ppm:number, notes, chemicals:[{chemical:"req", amount:>0, unit:"g"|"ml", photo:"file_url", notes}] } }',
+      response:'{ message: { status:"success"|"error", name, message } }',
+      errors:'status ≠ "success" → message. Photos upload via upload_file first; submit blocked while uploading.',
+      doctypes:['Solution Mixing','File'] },
+    { method:'POST', path:'/api/method/createDiscardEntry', summary:'Discard a scanned bucket',
+      calledBy:'Discards — on each scan',
+      params:[{n:'bucket_id',t:'string',r:true,d:'From {"<id>":"bucket"}.'}],
+      body:null,
+      response:'{ status:success|failed, reason, message, payload:{bucket_id,variety,stems,age_days,discard_entry,removed_from_shelves[],override_age} }\nreason ∈ bucket_id_missing|not_received|already_discarded|bucket_allocated|bucket_too_young|unknown_error',
+      errors:'failed → DiscardFailure(reason,payload); bucket_too_young = soft warning.',
+      doctypes:['Bucket QR Code','Shelf Item','Stock Entry'] },
+  ]},
+  { group:'Replacement & Edit details', items:[
+    { method:'POST', path:'/api/method/listReplacementCandidates', summary:'Shelved buckets that can replace a scanned bucket',
+      calledBy:'Replacement — on bucket scan',
+      params:[{n:'bucket_id',t:'string',r:true,d:''}],
+      body:null,
+      response:'{ data: { criteria:{variety,stem_length,farm}, candidates: Candidate[], count, error } }',
+      errors:'data.error thrown.',
+      doctypes:['Shelf Item','Bucket QR Code','Bucket Allocation Summary'] },
+    { method:'POST', path:'/api/method/listBucketOpls', summary:'OPL allocations a bucket currently feeds',
+      calledBy:'Replacement / Bunch move — on scan',
+      params:[{n:'bucket_id',t:'string',r:true,d:''}],
+      body:null,
+      response:'{ data: { bucket_id, opls:[{pick_list_item,opl_name,order_name,customer,team,date_created,total_stems,opl_status,sales_order,sale_order_item,item_code,stem_length,stems_from_this_bucket,bunches_from_this_bucket,issued}], count, error } }',
+      errors:'data.error thrown.',
+      doctypes:['Pick List Item','Order Pick List','Sales Order'] },
+    { method:'POST', path:'/api/method/replaceBucket', summary:'Swap a whole allocated bucket on an order line',
+      calledBy:'Replacement — Confirm (whole bucket)',
+      params:[{n:'bucket_id',t:'string',r:true,d:''},{n:'new_bucket_id',t:'string',r:false,d:'Selected candidate.'},{n:'pick_list_item',t:'string',r:false,d:'Chosen OPL line.'}],
+      body:null,
+      response:'{ data: { status:"success", message, old_bucket, new_bucket, opl, sale_order_item, needs_pick_list_item, candidate_pick_list_items, error } }',
+      errors:'data.error / message.error → {ok:false}.',
+      doctypes:['Pick List Item','Order Pick List','Sales Order'] },
+    { method:'POST', path:'/api/method/replaceStems', summary:'Partial per-stem replacement from a donor bucket',
+      calledBy:'Replacement — Replace N stems',
+      params:[{n:'pick_list_item',t:'string',r:true,d:''},{n:'donor_bucket_id',t:'string',r:true,d:''},{n:'stems',t:'number',r:true,d:''},{n:'reason',t:'string',r:false,d:''}],
+      body:null,
+      response:'{ data: { status:"success", message, log_name, donor_bucket, donor_shelf, stems, donor_remaining_stems, destination_bucket, opl, error } }',
+      errors:'data.error → {ok:false}; client guard donor.availableQty ≥ stems.',
+      doctypes:['Stem Replacement Log','Pick List Item','Order Pick List'] },
+    { method:'POST', path:'/api/method/replaceBunchInOpl', summary:'Allocate a fresh bunch to a short order line',
+      calledBy:'Replacement — Allocate replacement (after move)',
+      params:[{n:'pick_list_item',t:'string',r:true,d:''},{n:'donor_bucket_id',t:'string',r:true,d:''},{n:'stems',t:'number',r:false,d:''},{n:'reason',t:'string',r:false,d:''}],
+      body:null,
+      response:'{ data: { status:"replaced", message, ... } }  // note: status is "replaced", not "success"',
+      errors:'data.error → {ok:false}; other status → "Unknown response from server."',
+      doctypes:['Pick List Item','Order Pick List'] },
+    { method:'POST', path:'/api/method/correctDetails', summary:'Correct variety/stem-length at bucket or bunch level',
+      calledBy:'Edit Details — role: Harvest Details Updater',
+      params:[{n:'kind',t:'"bunch"|"bucket"',r:true,d:''},{n:'id',t:'string',r:true,d:'Bucket id or bunch id.'},{n:'bucket_id',t:'string',r:false,d:'Sent for bunch corrections.'},{n:'variety',t:'string',r:false,d:'Only if changed.'},{n:'stem_length',t:'string',r:false,d:'Only if changed.'}],
+      body:null,
+      response:'{ data: { status:"success", message, kind, id, updates:[], new_variety, new_stem_length, error } }',
+      errors:'data.error → {ok:false}; validated against listVarieties/listStemLengths.',
+      doctypes:['Bunch QR Code','Stock Entry (Grading/Harvest/Receiving)','Shelf Item'] },
+    { method:'POST', path:'/api/method/getTraceability', summary:'Full journey snapshot for a bucket or bunch',
+      calledBy:'Traceability / Replacement / Edit Details',
+      params:[{n:'bucket_id',t:'string',r:false,d:'One of bucket_id or bunch_id.'},{n:'bunch_id',t:'string',r:false,d:'One of bucket_id or bunch_id.'}],
+      body:null,
+      response:'{ data|message: { kind, rose_type, bucket_id, bunch_id, status, variety, farm, greenhouse, stem_length, number_of_stems, date, batch_no, session_size, bunch_info, bunches:[...], stages:[{stage,doc,date,datetime,variety,stem_length,qty,who,who_kind,user,detail}], warnings:[], allocation:{...} } }',
+      errors:'THE EXCEPTION: no validateStatus override — HTTP errors throw; raw.error throws.',
+      doctypes:['Stock Entry (Harvest/Grading/Receiving/Shelving)','Bunch QR Code','Bucket Allocation Summary','Order Pick List'] },
+  ]},
+  { group:'Generic & infrastructure', items:[
+    { method:'POST', path:'/api/method/login', summary:'Frappe session login (form-encoded)',
+      calledBy:'Login screen',
+      params:[{n:'usr',t:'string',r:true,d:'Username/email (x-www-form-urlencoded).'},{n:'pwd',t:'string',r:true,d:'Password (x-www-form-urlencoded).'}],
+      body:null,
+      response:'200 + Set-Cookie (sid=…). body.full_name used for display.',
+      errors:'401 → "Username or Password is incorrect"; else server message.',
+      doctypes:['User'] },
+    { method:'POST', path:'/api/method/getCurrentUserRoles', summary:'Roles of the logged-in user',
+      calledBy:'After login / hydrate',
+      params:[], body:null,
+      response:'{ data?:{roles:[]} | message?:{roles:[]} }',
+      errors:'Non-fatal; defaults to [].',
+      doctypes:['User','Role'] },
+    { method:'POST', path:'/api/method/upload_file', summary:'Upload an image (multipart)',
+      calledBy:'Solution Mixing photos / camera capture (raw fetch, not axios)',
+      params:[{n:'file',t:'multipart',r:true,d:'FormData file part.'},{n:'is_private',t:'0|1',r:false,d:'Sent as 0.'},{n:'folder',t:'string',r:false,d:'"Home".'}],
+      body:null,
+      response:'{ message|data: { file_url } }',
+      errors:'Reads file_url from message ?? data ?? body.',
+      doctypes:['File'] },
+    { method:'GET', path:'/api/method/frappe.client.get_list', summary:'Generic list (farms, cold stores)',
+      calledBy:'Coldroom & Solution Mixing pickers',
+      params:[{n:'doctype',t:'string',r:true,d:'e.g. Farm / Warehouse.'},{n:'filters',t:'JSON',r:false,d:'e.g. [["company","=","Karen Roses"]].'},{n:'fields',t:'JSON',r:false,d:'e.g. ["name","farm"].'},{n:'limit_page_length',t:'int',r:false,d:''}],
+      body:null,
+      response:'{ message: [ {…fields} ] }',
+      errors:'Standard Frappe; mapped via mapAxiosError.',
+      doctypes:['(any)'] },
+    { method:'GET', path:'/api/resource/Farm', summary:'Farm master (Configure Station)',
+      calledBy:'Configure Station',
+      params:[{n:'fields',t:'JSON',r:false,d:'["*"]'},{n:'limit',t:'int',r:false,d:'1000'}],
+      body:null, response:'{ data: [{ name, farm_name }] }', errors:'Thrown → retry.', doctypes:['Farm'] },
+    { method:'GET', path:'/api/resource/Warehouse', summary:'Warehouse master → greenhouse list',
+      calledBy:'Configure Station',
+      params:[{n:'fields',t:'JSON',r:false,d:'["*"]'},{n:'filters',t:'JSON',r:false,d:'[["disabled","=","0"]]'},{n:'limit',t:'int',r:false,d:'5000'}],
+      body:null, response:'{ data: [{ name, disabled }] }  // filtered to GH-class names', errors:'Thrown → retry.', doctypes:['Warehouse'] },
+    { method:'GET', path:'/api/resource/Item', summary:'Varieties (item_group Spray/Standard Roses)',
+      calledBy:'Edit Details / Bunch move typeahead',
+      params:[{n:'filters',t:'JSON',r:false,d:'item_group in Spray Roses / Standard Roses'},{n:'fields',t:'JSON',r:false,d:'["item_code"]'}],
+      body:null, response:'{ data: [{ item_code }] }', errors:'—', doctypes:['Item'] },
+    { method:'GET', path:'/api/resource/Stem Length', summary:'Stem-length master',
+      calledBy:'Edit Details / Bunch move typeahead',
+      params:[{n:'fields',t:'JSON',r:false,d:'["name","length"]'}],
+      body:null, response:'{ data: [{ name, length }] }', errors:'—', doctypes:['Stem Length'] },
+  ]},
+];
+
+/* ============================ RENDER ============================ */
+const root = document.getElementById('apiRoot');
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+SPEC.forEach((grp, gi)=>{
+  const total = grp.items.length;
+  const g = document.createElement('div'); g.className='grp';
+  g.innerHTML = `<div class="grp-h"><span>${esc(grp.group)}</span><span class="count">${total} endpoint${total===1?'':'s'}</span></div>`;
+  grp.items.forEach((op, oi)=>{
+    const id = 'op-'+gi+'-'+oi;
+    const el = document.createElement('div'); el.className='op'; el.dataset.search = (op.path+' '+op.summary+' '+(op.doctypes||[]).join(' ')).toLowerCase();
+    const paramsRows = (op.params&&op.params.length)
+      ? '<table><tr><th>Param</th><th>Type</th><th>Req</th><th>Description</th></tr>'+op.params.map(p=>`<tr><td><code>${esc(p.n)}</code></td><td>${esc(p.t)}</td><td>${p.r?'<span class="req">REQ</span>':'<span class="opt">opt</span>'}</td><td>${esc(p.d)}</td></tr>`).join('')+'</table>'
+      : '<p class="muted small">No query/form params.</p>';
+    const bodyBlock = op.body ? `<h5>Request body</h5><pre><code>${esc(op.body)}</code></pre>` : '';
+    const dts = (op.doctypes||[]).map(d=>`<span class="tag">${esc(d)}</span>`).join('');
+    el.innerHTML = `
+      <div class="op-head" data-toggle="${id}">
+        <span class="method ${op.method.toLowerCase()}">${op.method}</span>
+        <span class="op-path">${esc(op.path)}</span>
+        <span class="op-summary">${esc(op.summary)}</span>
+      </div>
+      <div class="op-body" id="${id}">
+        <p class="small"><b>Called by:</b> ${esc(op.calledBy)}</p>
+        <h5>Parameters</h5>${paramsRows}
+        ${bodyBlock}
+        <h5>Response (success)</h5><pre><code>${esc(op.response)}</code></pre>
+        <h5>Errors</h5><p class="small">${esc(op.errors)}</p>
+        <h5>DocTypes touched</h5><div class="chips">${dts||'<span class="muted small">—</span>'}</div>
+        <h5>Try it</h5>
+        <div class="tryout">
+          <div class="small muted">Body / params (JSON — sent as POST body, or as query string for GET):</div>
+          <textarea data-try-body>${esc(defaultTryBody(op))}</textarea>
+          <button class="btn solid" data-try="${id}">Execute</button>
+          <div class="resp" data-resp></div>
+        </div>
+      </div>`;
+    g.appendChild(el);
+  });
+  root.appendChild(g);
+});
+
+function defaultTryBody(op){
+  if(op.body){ return op.body.replace(/\/\/.*$/gm,'').trim(); }
+  if(op.params&&op.params.length){
+    const o={}; op.params.forEach(p=>{ o[p.n]= p.r? '' : undefined; });
+    op.params.filter(p=>p.r).forEach(p=>o[p.n]='');
+    return JSON.stringify(Object.fromEntries(op.params.map(p=>[p.n,''])), null, 2);
+  }
+  return '{}';
+}
+
+/* toggle open/close */
+root.addEventListener('click', (e)=>{
+  const head = e.target.closest('.op-head');
+  if(head){ head.parentElement.classList.toggle('open'); return; }
+  const tryBtn = e.target.closest('[data-try]');
+  if(tryBtn){ execute(tryBtn); }
+});
+
+document.getElementById('expandAll').onclick=()=>document.querySelectorAll('.op').forEach(o=>o.classList.add('open'));
+document.getElementById('collapseAll').onclick=()=>document.querySelectorAll('.op').forEach(o=>o.classList.remove('open'));
+document.getElementById('apiFilter').addEventListener('input',(e)=>{
+  const q=e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.op').forEach(o=>{ o.style.display = !q || o.dataset.search.includes(q) ? '' : 'none'; });
+  document.querySelectorAll('.grp').forEach(g=>{ const any=[...g.querySelectorAll('.op')].some(o=>o.style.display!=='none'); g.style.display=any?'':'none'; });
+});
+
+async function execute(btn){
+  const id = btn.getAttribute('data-try');
+  const body = btn.closest('.op-body');
+  const op = findOp(id);
+  const respEl = body.querySelector('[data-resp]');
+  const raw = body.querySelector('[data-try-body]').value;
+  const base = document.getElementById('baseUrl').value.replace(/\/$/,'');
+  const auth = document.getElementById('authHeader').value.trim();
+  let payload; try{ payload = raw.trim()? JSON.parse(raw) : {}; }catch(err){ respEl.innerHTML='<div class="statusline">✗ Invalid JSON in body</div>'; return; }
+  const headers = { 'Accept':'application/json' };
+  if(auth) headers['Authorization']=auth;
+  let url = base + op.path;
+  const opts = { method: op.method, headers, credentials: auth? 'omit':'include' };
+  if(op.method==='GET'){
+    const qs = new URLSearchParams();
+    Object.entries(payload).forEach(([k,v])=>{ if(v!==undefined&&v!=='') qs.append(k, typeof v==='object'?JSON.stringify(v):v); });
+    const s=qs.toString(); if(s) url += (url.includes('?')?'&':'?')+s;
+  } else {
+    headers['Content-Type']='application/json';
+    opts.body = JSON.stringify(payload);
+  }
+  respEl.innerHTML='<div class="statusline muted">… requesting</div>';
+  const t0=performance.now();
+  try{
+    const res = await fetch(url, opts);
+    const ms = Math.round(performance.now()-t0);
+    const text = await res.text();
+    let pretty=text; try{ pretty=JSON.stringify(JSON.parse(text),null,2); }catch(_){}
+    respEl.innerHTML = `<div class="statusline">${res.ok?'✓':'✗'} ${res.status} ${esc(res.statusText)} · ${ms}ms</div><pre><code>${esc(pretty.slice(0,6000))}</code></pre>`;
+  }catch(err){
+    respEl.innerHTML = `<div class="statusline">✗ ${esc(err.message)}</div><p class="small muted">Likely CORS (serve this page from the instance origin) or the host is unreachable.</p>`;
+  }
+}
+function findOp(id){ const [_,gi,oi]=id.split('-'); return SPEC[+gi].items[+oi]; }
+</script>
+</body>
+</html>

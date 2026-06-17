@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific styles (aph tokens above are untouched) ════════ -->
+<style>
+/* Loader */
+.aph .loader{display:none;position:fixed;inset:0;z-index:2147483100;background:rgba(255,255,255,.65);backdrop-filter:blur(2px);justify-content:center;align-items:center}
+.aph .loader.on{display:flex}
+.aph .spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:aph-spin .7s linear infinite}
+@keyframes aph-spin{to{transform:rotate(360deg)}}
+
+/* Topbar filter groups + controls into aph chrome */
+.aph .fg{display:flex;flex-direction:column;gap:3px}
+.aph .fl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)}
+.aph .fc{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500;font-feature-settings:'tnum'}
+.aph .fc:focus{border-color:var(--text)}
+.aph select.fc{cursor:pointer}
+.aph .badge{font-size:11px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:3px 10px;border-radius:7px}
+
+/* LIVE / refresh badge */
+.aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
+  border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
+.aph .live-badge:hover{background:var(--bg-hover)}
+.aph .dot{width:7px;height:7px;background:var(--good);border-radius:50%;flex-shrink:0}
+
+/* Greenhouse multi-select */
+.aph .ms-wrap{position:relative}
+.aph .ms-btn{height:32px;min-width:160px;max-width:240px;padding:0 10px;font-size:12px;font-family:var(--f);font-weight:500;background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;white-space:nowrap}
+.aph .ms-btn:hover{background:var(--bg-hover)}
+.aph .ms-dd{position:absolute;top:calc(100% + 4px);left:0;min-width:240px;max-height:260px;overflow-y:auto;background:var(--bg-card);border:1px solid var(--border-2);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;display:none}
+.aph .ms-dd.open{display:block}
+.aph .ms-item{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;transition:background .1s}
+.aph .ms-item:hover{background:var(--bg-hover)}
+
+/* Workflow pipeline */
+.aph .pipe{display:flex;align-items:center;padding:18px 22px;flex-wrap:wrap;gap:6px}
+.aph .pipe-step{flex:1;min-width:90px;background:var(--bg-muted);border-radius:9px;padding:14px 10px;text-align:center}
+.aph .pipe-step .ps-val{font-size:24px;font-weight:600;letter-spacing:-0.03em;font-feature-settings:'tnum';margin-bottom:2px}
+.aph .pipe-step .ps-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-2)}
+.aph .ps-draft{border-top:3px solid var(--text-3)}.aph .ps-review{border-top:3px solid var(--warn)}
+.aph .ps-approval{border-top:3px solid #2490ef}.aph .ps-approved{border-top:3px solid #0ea5e9}
+.aph .ps-submitted{border-top:3px solid var(--good)}.aph .ps-rejected{border-top:3px solid var(--bad)}
+.aph .pipe-arrow{color:var(--text-4);font-size:16px;flex-shrink:0}
+
+/* collapsible panel header (clickable) */
+.aph .ph2c{padding:16px 22px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer;user-select:none;transition:background .15s;border-bottom:1px solid transparent}
+.aph .ph2c:hover{background:var(--bg-hover)}
+.aph .ph2c.open{border-bottom-color:var(--border)}
+.aph .pbc{display:none}
+.aph .pbc.open{display:block}
+.aph .ptl{font-weight:600;font-size:14px;letter-spacing:-0.01em}
+.aph .psub{font-size:11px;color:var(--text-3);font-weight:500}
+.aph .pchev{font-size:11px;color:var(--text-3);transition:transform .2s;display:inline-block;transform:rotate(-90deg);flex-shrink:0}
+.aph .pchev.open{transform:rotate(0deg)}
+
+/* two-up grid */
+.aph .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
+@media(max-width:900px){.aph .two{grid-template-columns:1fr}}
+
+/* tags / badges */
+.aph .tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.aph .tg{background:#e6f9ee;color:#1a8a3a}.aph .tb{background:#e8f0fe;color:#1565c0}
+.aph .to{background:#fff3e0;color:#9a5a00}.aph .tr{background:#fde8ec;color:#b71c1c}
+.aph .tp{background:#f0ecfe;color:#4527a0}.aph .tm{background:var(--bg-muted);color:var(--text-2)}
+.aph .tsp{background:#fce4ec;color:#880e4f}.aph .tteal{background:#e0f2fe;color:#0369a1}
+
+/* rank badges */
+.aph .rbadge{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;font-feature-settings:'tnum'}
+.aph .r1{background:#fff3e0;color:#e65100}.aph .r2{background:#f3f4f6;color:#374151}.aph .r3{background:#fff8e1;color:#b45309}.aph .rn{background:var(--bg-muted);color:var(--text-3)}
+
+/* progress bars in tables */
+.aph .pbar-wrap{display:flex;align-items:center;gap:8px}
+.aph .pbar{flex:1;height:6px;background:var(--bg-muted);border-radius:3px;overflow:hidden}
+.aph .pbar-fill{height:100%;border-radius:3px;transition:width .4s}
+.aph .pct{font-size:11px;font-weight:600;min-width:34px;text-align:right;font-feature-settings:'tnum'}
+
+/* inline buttons / toggles */
+.aph .ibtn{height:28px;padding:0 10px;font-size:11px;font-weight:600;font-family:var(--f);background:var(--bg-muted);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text-2);white-space:nowrap}
+.aph .ibtn:hover{background:var(--bg-hover);color:var(--text)}
+.aph .ibtn.on{background:#e8f0fe;color:#1565c0;border-color:#2490ef}
+
+/* segmented tabs */
+.aph .otabs{display:inline-flex;background:var(--bg-muted);border-radius:8px;padding:3px;gap:2px}
+.aph .otab{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--text-2);cursor:pointer;font-family:var(--f);transition:all .15s;white-space:nowrap}
+.aph .otab.active{background:var(--bg-card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.aph .otab.warn{color:var(--bad)}
+
+/* count chips */
+.aph .cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:700;margin-left:4px;padding:0 3px;font-feature-settings:'tnum'}
+.aph .cnt-r{background:#fde8ec;color:var(--bad)}.aph .cnt-o{background:#fff3e0;color:#9a5a00}
+.aph .cnt-p{background:#fce4ec;color:#880e4f}.aph .cnt-g{background:#e6f9ee;color:#1a8a3a}
+.aph .cnt-b{background:#e8f0fe;color:#1565c0}
+
+/* expandable rows */
+.aph .ov-row{border-bottom:1px solid var(--border)}
+.aph .ov-row:last-child{border-bottom:none}
+.aph .ov-head{display:flex;align-items:center;gap:10px;padding:11px 22px;cursor:pointer;transition:background .1s;user-select:none}
+.aph .ov-head:hover{background:var(--bg-hover)}
+.aph .ov-chev{font-size:10px;color:var(--text-3);transition:transform .2s;flex-shrink:0;display:inline-block;transform:rotate(-90deg)}
+.aph .ov-chev.open{transform:rotate(0deg)}
+.aph .ov-gh{font-size:12px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph .ov-detail{display:none;background:var(--bg-hover);border-top:1px solid var(--border)}
+.aph .ov-detail.open{display:block}
+.aph .ov-plan-row{display:flex;align-items:center;gap:10px;padding:9px 22px 9px 38px;border-bottom:1px solid var(--border);font-size:12px;flex-wrap:wrap}
+.aph .ov-plan-row:last-child{border-bottom:none}
+
+/* alerts */
+.aph .alert{display:flex;align-items:flex-start;gap:10px;padding:11px 16px;font-size:12px;font-weight:500;margin:14px 22px 0;border-radius:8px;border:1px solid}
+.aph .alert-r{background:#fde8ec;border-color:#fca5a5;color:#b91c1c}
+.aph .alert-o{background:#fff3e0;border-color:#fcd34d;color:#92400e}
+.aph .alert-p{background:#fce4ec;border-color:#f48fb1;color:#880e4f}
+
+/* day chips */
+.aph .day-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;background:#f0ecfe;color:#7c5cfc;margin:2px}
+
+.aph .empty{text-align:center;padding:28px;color:var(--text-3);font-size:12px}
+
+/* approval sub-tabs */
+.aph .appr-tabs{display:flex;border-bottom:1px solid var(--border)}
+.aph .appr-tab{padding:11px 18px;font-size:12px;font-weight:600;border:none;background:transparent;color:var(--text-2);cursor:pointer;font-family:var(--f);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.aph .appr-tab.active{color:#1565c0;border-bottom-color:#2490ef}
+.aph .appr-tab:hover{color:var(--text)}
+
+/* CHART: definite-height box (maintainAspectRatio:false in JS config) */
+.aph .chart-box{position:relative;height:300px;padding:16px 22px;box-sizing:border-box}
+.aph .chart-box canvas{max-height:none!important}
+
+/* tables nested inside expandable detail rows */
+.aph .ov-detail table.aph-tbl th{background:var(--bg-hover)}
+</style>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Production</small></div>
+    </div>
+    <a class="home-link" href="/app/roses-production">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Production</div>
+      <a class="nav-item" href="production-dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Production Dashboard
+      </a>
+      <a class="nav-item" href="crop-cycle-dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
+        Crop Cycle
+      </a>
+      <a class="nav-item active" href="production-planning">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Production Planning
+      </a>
+      <a class="nav-item" href="production-forecast">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        Production Forecast
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Production Planning</h1>
+      <span class="crumb">Planning</span>
+      <span class="badge" id="weekBadge">This Week</span>
+      <div class="right">
+        <div class="fg"><span class="fl">From</span><input type="date" class="fc" id="fFrom" style="width:130px"></div>
+        <div class="fg"><span class="fl">To</span><input type="date" class="fc" id="fTo" style="width:130px"></div>
+        <div class="fg"><span class="fl">Farm</span><select class="fc" id="fFarm" style="width:130px"><option value="">All Farms</option></select></div>
+        <div class="fg"><span class="fl">Plan Type</span>
+          <select class="fc" id="fType" style="width:160px">
+            <option value="">All Types</option>
+            <option value="Greenhouse Operations">Greenhouse Operations</option>
+            <option value="Irrigation">Irrigation</option>
+            <option value="Crop Protection">Crop Protection</option>
+          </select>
+        </div>
+        <button class="live-badge" onclick="pp.load()"><span class="dot"></span>Refresh</button>
+      </div>
+    </div>
+
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Production Planning</div>
+        <div class="sub">Workflow pipeline, plan approvals, conflicts &amp; supervisor performance</div>
+      </div>
+
+      <!-- Greenhouse filter bar -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-body" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+            <div class="fg"><span class="fl">Greenhouse</span>
+              <div class="ms-wrap">
+                <button class="ms-btn" id="ghBtn" onclick="pp.toggleMs()">All Greenhouses <span>&#9662;</span></button>
+                <div class="ms-dd" id="ghDD"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <div><div class="lbl">Total Plans</div><div class="v" id="kTotal">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="lbl">Submitted</div><div class="v" id="kSubmitted">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div><div class="lbl">Approved</div><div class="v" id="kApproved">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="lbl">Pend. Approval</div><div class="v" id="kPendingA">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="lbl">Pend. Review</div><div class="v" id="kPendingR">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div><div class="lbl">Rejected</div><div class="v" id="kRejected">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div><div class="lbl">Draft</div><div class="v" id="kDraft">&mdash;</div></div>
+        </div>
+      </div>
+
+      <!-- Workflow Pipeline -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Workflow Pipeline</div>
+            <span class="sub" id="weekLabel" style="margin-left:auto"></span>
+          </div>
+          <div class="pipe" id="pipeBody"></div>
+        </div>
+      </div>
+
+      <!-- Plan Approvals -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="ph2c" id="apprHeader" onclick="pp.togglePanel('appr')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="pchev" id="apprChev">&#9660;</span>
+              <span class="ptl">Plan Approvals</span>
+              <span class="psub" id="apprSub">Approval status per plan</span>
+            </div>
+            <div style="display:flex;gap:6px" onclick="event.stopPropagation()">
+              <span class="cnt cnt-g" id="apprCntA" title="Approved / Submitted">0</span>
+              <span class="cnt cnt-b" id="apprCntP" title="Pending">0</span>
+              <span class="cnt cnt-r" id="apprCntR" title="Rejected">0</span>
+            </div>
+          </div>
+          <div class="pbc" id="apprBody">
+            <div class="appr-tabs">
+              <button class="appr-tab active" id="atab0" onclick="pp.switchApprTab(0)">Approved <span class="cnt cnt-g" id="atCntA">0</span></button>
+              <button class="appr-tab" id="atab1" onclick="pp.switchApprTab(1)">Pending <span class="cnt cnt-b" id="atCntP">0</span></button>
+              <button class="appr-tab" id="atab2" onclick="pp.switchApprTab(2)">Rejected <span class="cnt cnt-r" id="atCntR">0</span></button>
+              <button class="appr-tab" id="atab3" onclick="pp.switchApprTab(3)">Draft <span class="cnt cnt-o" id="atCntD">0</span></button>
+            </div>
+            <div class="aph-card-body padless"><table class="aph-tbl tbl">
+              <thead><tr><th>Plan</th><th>Farm</th><th>Greenhouse</th><th>Type</th><th>Supervisor</th><th>Variety</th><th>Week</th><th>Status</th><th>Modified</th></tr></thead>
+              <tbody id="apprTableBody"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overlapping Plans -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="ph2c" id="ovHeader" onclick="pp.togglePanel('ov')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="pchev" id="ovChev">&#9660;</span>
+              <span class="ptl">Overlapping Plans</span>
+              <span class="psub" id="overlapSub"></span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+              <div class="otabs">
+                <button class="otab active" id="otab0" onclick="pp.switchOvTab(0)">Duplicates <span class="cnt cnt-r" id="dupCnt">0</span></button>
+                <button class="otab" id="otab1" onclick="pp.switchOvTab(1)">Cross-type <span class="cnt cnt-o" id="crossCnt">0</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="pbc" id="ovBody"></div>
+        </div>
+      </div>
+
+      <!-- Spray Plan Conflicts -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="ph2c" id="spHeader" onclick="pp.togglePanel('sp')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="pchev" id="spChev">&#9660;</span>
+              <span class="ptl">Spray Plan Conflicts</span>
+              <span class="psub" id="spraySub"></span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center" onclick="event.stopPropagation()">
+              <div class="otabs">
+                <button class="otab active" id="stab0" onclick="pp.switchSprayTab(0)">vs Harvest <span class="cnt cnt-r" id="svhCnt">0</span></button>
+                <button class="otab" id="stab1" onclick="pp.switchSprayTab(1)">vs Spray <span class="cnt cnt-p" id="svsCnt">0</span></button>
+              </div>
+            </div>
+          </div>
+          <div class="pbc" id="spBody"></div>
+        </div>
+      </div>
+
+      <!-- Greenhouse Activity Breakdown -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="ph2c" id="ghActHeader" onclick="pp.togglePanel('gha')">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="pchev" id="ghaChev">&#9660;</span>
+              <span class="ptl">Greenhouse Activity Breakdown</span>
+              <span class="psub" id="ghActSub">Click to expand</span>
+            </div>
+          </div>
+          <div class="pbc" id="ghaBody"></div>
+        </div>
+      </div>
+
+      <!-- Farm Coverage + Activity Breakdown -->
+      <div class="aph-grid two" style="margin-bottom:20px">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Farm Coverage</div>
+            <span class="sub" style="margin-left:auto">Plan status by farm</span>
+          </div>
+          <div class="aph-card-body padless"><table class="aph-tbl tbl">
+            <thead><tr><th>Farm</th><th>GH Ops</th><th>Irrigation</th><th>Crop Prot.</th><th>Total</th><th>Submitted</th></tr></thead>
+            <tbody id="farmBody"></tbody>
+          </table></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Activity Breakdown</div>
+            <span class="sub" style="margin-left:auto">Tasks per activity</span>
+          </div>
+          <div class="aph-card-body padless"><table class="aph-tbl tbl">
+            <thead><tr><th>Activity</th><th>Type</th><th>Tasks</th><th>Target</th><th>Actual</th><th>Achievement</th></tr></thead>
+            <tbody id="actBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- Target vs Actual chart -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Target vs Actual by Greenhouse</div>
+          </div>
+          <div class="chart-box"><canvas id="ghChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Supervisor Performance -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Supervisor Performance</div>
+            <div style="display:flex;gap:6px;margin-left:auto">
+              <button class="ibtn" id="svSortBtn" onclick="pp.toggleSvSort()">&#9660; Top performers</button>
+              <button class="ibtn" id="svAllBtn" onclick="pp.toggleSvAll()">Show all</button>
+            </div>
+          </div>
+          <div class="aph-card-body padless"><table class="aph-tbl tbl">
+            <thead><tr><th>#</th><th>Supervisor</th><th>Farm</th><th>Plans</th><th>Target</th><th>Actual</th><th>Achievement</th><th>Status</th></tr></thead>
+            <tbody id="svBody"></tbody>
+          </table></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="loader" id="ldr"><div class="spinner"></div></div>
+
+<script>
+var pp = (function(){
+  var ghChart = null;
+  var allData = {};
+  var selGH = [];
+  var svAsc = false, svAll = false;
+  var ovTab = 0, sprayTab = 0, apprTab = 0;
+  var panelState = {ov:false, sp:false, gha:false, appr:false};
+  var debT = null;
+
+  var TYPE_CLS = {'Greenhouse Operations':'tb','Irrigation':'tp','Crop Protection':'to','GH Ops':'tb'};
+  var STATE_CLS = {'submitted':'tg','Approved':'tteal','Pending Approval':'to','Pending Review':'to','Rejected':'tr','Draft':'tm'};
+  var DAY_ORDER = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+
+  function el(id){ return document.getElementById(id); }
+  function loader(v){ el('ldr').classList.toggle('on',v); }
+  function fmt(n){ return Number(n||0).toLocaleString(); }
+  function pct(a,t){ return t>0?Math.round(a*100/t):0; }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function debounce(fn,ms){ clearTimeout(debT); debT=setTimeout(fn,ms); }
+
+  function getWeekBounds(){
+    var now=new Date(), day=now.getDay();
+    var mon=new Date(now); mon.setDate(now.getDate()-(day===0?6:day-1));
+    var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    function iso(d){ return d.toISOString().split('T')[0]; }
+    return {from:iso(mon),to:iso(sun)};
+  }
+
+  function init(){
+    var w=getWeekBounds();
+    el('fFrom').value=w.from; el('fTo').value=w.to;
+    updateWeekBadge();
+    ['fFrom','fTo','fFarm','fType'].forEach(function(id){
+      el(id).addEventListener('change',function(){ updateWeekBadge(); debounce(load,400); });
+    });
+    document.addEventListener('click',function(e){
+      if(!e.target.closest('.ms-wrap')) el('ghDD').classList.remove('open');
+    });
+    load();
+  }
+
+  function updateWeekBadge(){
+    var from=el('fFrom').value, to=el('fTo').value, w=getWeekBounds();
+    if(from===w.from&&to===w.to){ el('weekBadge').textContent='This Week'; return; }
+    var opts={day:'numeric',month:'short'};
+    var f=new Date(from+'T00:00:00').toLocaleDateString(undefined,opts);
+    var t=new Date(to+'T00:00:00').toLocaleDateString(undefined,opts);
+    el('weekBadge').textContent=from===to?f:f+'–'+t;
+  }
+
+  function toggleMs(){ el('ghDD').classList.toggle('open'); }
+
+  function buildGHDropdown(list){
+    var dd=el('ghDD'); dd.innerHTML='';
+    if(!list||!list.length){ dd.innerHTML='<div class="ms-item" style="color:var(--text-3)">No greenhouses</div>'; return; }
+    list.forEach(function(gh){
+      var row=document.createElement('div'); row.className='ms-item';
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.value=gh;
+      cb.checked=selGH.indexOf(gh)>-1;
+      cb.addEventListener('change',function(){
+        var i=selGH.indexOf(gh);
+        if(cb.checked&&i===-1) selGH.push(gh);
+        else if(!cb.checked&&i>-1) selGH.splice(i,1);
+        updateGHBtn(); debounce(load,400);
+      });
+      var lbl=document.createElement('span'); lbl.textContent=gh;
+      row.appendChild(cb); row.appendChild(lbl); dd.appendChild(row);
+    });
+  }
+
+  function updateGHBtn(){
+    el('ghBtn').innerHTML=(selGH.length?selGH.length+' selected':'All Greenhouses')+' <span>&#9662;</span>';
+  }
+
+  function populateSel(id,list,cur){
+    var sel=el(id), first=sel.options[0].outerHTML;
+    sel.innerHTML=first;
+    list.forEach(function(v){
+      var o=document.createElement('option'); o.value=v; o.textContent=v;
+      if(v===cur) o.selected=true; sel.appendChild(o);
+    });
+  }
+
+  function togglePanel(key){
+    panelState[key]=!panelState[key];
+    var bodyId = key==='ov'?'ovBody':key==='sp'?'spBody':key==='gha'?'ghaBody':'apprBody';
+    var chevId = key==='ov'?'ovChev':key==='sp'?'spChev':key==='gha'?'ghaChev':'apprChev';
+    var headId = key==='ov'?'ovHeader':key==='sp'?'spHeader':key==='gha'?'ghActHeader':'apprHeader';
+    el(bodyId).classList.toggle('open',panelState[key]);
+    el(chevId).classList.toggle('open',panelState[key]);
+    el(headId).classList.toggle('open',panelState[key]);
+  }
+
+  function load(){
+    loader(true);
+    frappe.call({
+      method:'get_production_planning_data',
+      args:{from_date:el('fFrom').value,to_date:el('fTo').value,farm:el('fFarm').value,plan_type:el('fType').value,greenhouses:selGH.join(',')},
+      callback:function(r){ loader(false); if(r.message) render(r.message); },
+      error:function(){ loader(false); }
+    });
+  }
+
+  function render(d){
+    allData=d;
+    populateSel('fFarm',d.farms||[],el('fFarm').value);
+    if(d.greenhouses&&d.greenhouses.length) buildGHDropdown(d.greenhouses);
+
+    var wl=d.from_week===d.to_week?'Week '+d.from_week:'Weeks '+d.from_week+'–'+d.to_week;
+    el('weekLabel').textContent=wl;
+
+    var s=d.summary||{};
+    el('kTotal').textContent=fmt(s.total); el('kSubmitted').textContent=fmt(s.submitted);
+    el('kApproved').textContent=fmt(s.approved); el('kPendingA').textContent=fmt(s.pending_approval);
+    el('kPendingR').textContent=fmt(s.pending_review); el('kRejected').textContent=fmt(s.rejected);
+    el('kDraft').textContent=fmt(s.draft);
+
+    var steps=[
+      {key:'draft',label:'Draft',cls:'ps-draft'},{key:'pending_review',label:'Pending Review',cls:'ps-review'},
+      {key:'pending_approval',label:'Pend. Approval',cls:'ps-approval'},{key:'approved',label:'Approved',cls:'ps-approved'},
+      {key:'submitted',label:'Submitted',cls:'ps-submitted'},{key:'rejected',label:'Rejected',cls:'ps-rejected'}
+    ];
+    el('pipeBody').innerHTML=steps.map(function(st,i){
+      return '<div class="pipe-step '+st.cls+'"><div class="ps-val">'+fmt(s[st.key]||0)+'</div><div class="ps-lbl">'+st.label+'</div></div>'+(i<steps.length-2?'<span class="pipe-arrow">&#8594;</span>':'');
+    }).join('');
+
+    var ap=d.approvals||{};
+    var nA=(ap.approved||[]).length, nP=(ap.pending||[]).length, nR=(ap.rejected||[]).length, nD=(ap.draft||[]).length;
+    el('apprCntA').textContent=nA; el('apprCntP').textContent=nP; el('apprCntR').textContent=nR;
+    el('atCntA').textContent=nA; el('atCntP').textContent=nP; el('atCntR').textContent=nR; el('atCntD').textContent=nD;
+    el('apprSub').textContent=nA+' approved, '+nP+' pending, '+nR+' rejected';
+    el('apprBody').classList.toggle('open',panelState['appr']);
+    el('apprChev').classList.toggle('open',panelState['appr']);
+    el('apprHeader').classList.toggle('open',panelState['appr']);
+    renderApprovals();
+
+    var os=d.overlap_summary||{};
+    el('dupCnt').textContent=os.duplicate_count||0;
+    el('crossCnt').textContent=os.cross_type_count||0;
+    var tot=(os.duplicate_count||0)+(os.cross_type_count||0);
+    el('overlapSub').textContent=tot>0?tot+' greenhouse'+(tot!==1?'s':'')+' with multiple plans':'No overlapping plans';
+    el('otab0').classList.toggle('warn',(os.duplicate_count||0)>0);
+    el('ovBody').classList.toggle('open',panelState['ov']);
+    el('ovChev').classList.toggle('open',panelState['ov']);
+    el('ovHeader').classList.toggle('open',panelState['ov']);
+    renderOverlaps();
+
+    var sc=d.spray_conflict_summary||{};
+    el('svhCnt').textContent=sc.spray_vs_harvest||0;
+    el('svsCnt').textContent=sc.spray_vs_spray||0;
+    el('spraySub').textContent=sc.approved_spray_count
+      ?sc.approved_spray_count+' approved spray plan'+(sc.approved_spray_count!==1?'s':'')+' in period'
+      :'No approved spray plans in period';
+    el('stab0').classList.toggle('warn',(sc.spray_vs_harvest||0)>0);
+    el('spBody').classList.toggle('open',panelState['sp']);
+    el('spChev').classList.toggle('open',panelState['sp']);
+    el('spHeader').classList.toggle('open',panelState['sp']);
+    renderSprayConflicts();
+
+    renderGHActivities();
+
+    var farms=d.farm_coverage||[];
+    el('farmBody').innerHTML=!farms.length?'<tr><td colspan="6" class="empty">No data</td></tr>'
+      :farms.map(function(f){
+          var stCls=f.submitted===f.total&&f.total>0?'tg':f.submitted>0?'tb':'tm';
+          return '<tr><td style="font-weight:600">'+esc(f.farm)+'</td><td>'+fmt(f.gh_ops)+'</td><td>'+fmt(f.irrigation)+'</td><td>'+fmt(f.crop_protection)+'</td><td><b>'+fmt(f.total)+'</b></td><td><span class="tag '+stCls+'">'+f.submitted+' / '+f.total+'</span></td></tr>';
+        }).join('');
+
+    var acts=d.activities||[];
+    el('actBody').innerHTML=!acts.length?'<tr><td colspan="6" class="empty">No data</td></tr>'
+      :acts.map(function(a){
+          var ap2=pct(a.actual,a.target), bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+          return '<tr><td style="font-weight:600">'+esc(a.task)+'</td><td><span class="tag tm">'+esc(a.plan_type)+'</span></td><td>'+fmt(a.count)+'</td><td>'+fmt(a.target)+'</td><td>'+fmt(a.actual)+'</td><td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td></tr>';
+        }).join('');
+
+    var gh=d.greenhouse_data||[];
+    if(ghChart){ ghChart.destroy(); ghChart=null; }
+    if(gh.length){
+      ghChart=new Chart(el('ghChart'),{
+        type:'bar',
+        data:{labels:gh.map(function(g){return g.label;}),datasets:[
+          {label:'Target',data:gh.map(function(g){return g.target;}),backgroundColor:'rgba(36,144,239,.3)',borderColor:'rgba(36,144,239,.8)',borderWidth:1,borderRadius:3},
+          {label:'Actual',data:gh.map(function(g){return g.actual;}),backgroundColor:'rgba(41,205,66,.6)',borderColor:'rgba(41,205,66,.9)',borderWidth:1,borderRadius:3}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+          plugins:{legend:{position:'top',labels:{font:{size:11},usePointStyle:true}},
+            tooltip:{backgroundColor:'rgba(15,23,42,.9)',padding:10,cornerRadius:8,callbacks:{label:function(c){return ' '+c.dataset.label+': '+c.raw.toLocaleString();}}}},
+          scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#98a1a9',maxRotation:45}},
+            y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#98a1a9'}}}}
+      });
+    }
+
+    renderSupervisors();
+  }
+
+  function switchApprTab(t){
+    apprTab=t;
+    ['atab0','atab1','atab2','atab3'].forEach(function(id,i){ el(id).classList.toggle('active',i===t); });
+    renderApprovals();
+  }
+
+  function renderApprovals(){
+    var ap=allData.approvals||{};
+    var lists=['approved','pending','rejected','draft'];
+    var list=ap[lists[apprTab]]||[];
+    if(!list.length){ el('apprTableBody').innerHTML='<tr><td colspan="9" class="empty">No plans in this category.</td></tr>'; return; }
+    el('apprTableBody').innerHTML=list.map(function(p){
+      var sc=STATE_CLS[p.workflow_state]||'tm';
+      return '<tr>'+
+        '<td><a href="/app/production-plan-form/'+esc(p.name)+'" target="_blank" style="color:#1565c0;font-weight:600;font-size:11px">'+esc(p.name)+'</a></td>'+
+        '<td style="font-weight:600">'+esc(p.farm)+'</td>'+
+        '<td style="font-size:11px">'+esc(p.greenhouse)+'</td>'+
+        '<td><span class="tag '+(TYPE_CLS[p.plan_type]||'tm')+'" style="font-size:10px">'+esc(p.plan_type)+'</span></td>'+
+        '<td style="font-size:11px">'+esc(p.supervisor)+'</td>'+
+        '<td style="font-size:11px;color:var(--text-2)">'+esc(p.variety)+'</td>'+
+        '<td style="font-size:11px">Wk '+esc(String(p.week_no||''))+'</td>'+
+        '<td><span class="tag '+sc+'">'+esc(p.workflow_state)+'</span></td>'+
+        '<td style="font-size:10px;color:var(--text-3)">'+esc(p.modified)+'</td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  function switchOvTab(t){ ovTab=t; el('otab0').classList.toggle('active',t===0); el('otab1').classList.toggle('active',t===1); renderOverlaps(); }
+
+  function renderOverlaps(){
+    var list=ovTab===0?(allData.duplicate_overlaps||[]):(allData.cross_type_overlaps||[]);
+    var isDup=ovTab===0;
+    if(!list.length){ el('ovBody').innerHTML='<div class="empty">'+(isDup?'No duplicate plans found.':'No cross-type overlaps found.')+'</div>'; return; }
+    var banner=isDup
+      ?'<div class="alert alert-r">&#9888;&nbsp;<b>'+list.length+' greenhouse'+(list.length!==1?'s':'')+' have duplicate plans</b> &mdash; same type in same week.</div>'
+      :'<div class="alert alert-o">&#8505;&nbsp;<b>'+list.length+' greenhouse'+(list.length!==1?'s':'')+' have cross-type plans</b> &mdash; different plan types same week. Usually intentional.</div>';
+    var rows=list.map(function(ov,idx){
+      var uid='ov-'+idx;
+      var plans=ov.plans.map(function(p){
+        return '<div class="ov-plan-row"><span style="font-size:10px;color:var(--text-3);min-width:130px">'+esc(p.name)+'</span>'+
+          '<span class="tag '+(TYPE_CLS[p.plan_type]||'tm')+'">'+esc(p.plan_type)+'</span>'+
+          '<span class="tag '+(STATE_CLS[p.workflow_state]||'tm')+'">'+esc(p.workflow_state)+'</span>'+
+          '<span style="font-size:11px;color:var(--text-2);flex:1">'+esc(p.supervisor_name)+'</span>'+
+          '<span style="font-size:11px;color:var(--text-3)">Wk '+ov.week_no+'</span></div>';
+      }).join('');
+      return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+        '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+        '<span class="ov-gh">'+esc(ov.greenhouse)+'</span>'+
+        '<span class="tag '+(isDup?'tr':'to')+'">'+ov.plan_count+' plans</span>'+
+        '<span style="font-size:11px;color:var(--text-3);margin-left:8px">'+esc(ov.plan_types)+'</span></div>'+
+        '<div class="ov-detail" id="'+uid+'">'+plans+'</div></div>';
+    }).join('');
+    el('ovBody').innerHTML=banner+rows;
+  }
+
+  function switchSprayTab(t){ sprayTab=t; el('stab0').classList.toggle('active',t===0); el('stab1').classList.toggle('active',t===1); renderSprayConflicts(); }
+
+  function renderSprayConflicts(){
+    var body=el('spBody');
+    if(sprayTab===0){
+      var list=allData.spray_vs_harvest||[];
+      if(!list.length){ body.innerHTML='<div class="empty">No spray vs harvest conflicts found.</div>'; return; }
+      var banner='<div class="alert alert-r">&#9888;&nbsp;<b>'+list.length+' conflict'+(list.length!==1?'s':'')+' detected</b> &mdash; approved spray plan on same greenhouse and week as Harvesting tasks.</div>';
+      var rows=list.map(function(c,idx){
+        var uid='sp-'+idx;
+        var days=c.harvesting_days.map(function(d){ return '<span class="day-chip">'+esc(d)+'</span>'; }).join('');
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+          '<span class="ov-gh">'+esc(c.greenhouse)+'</span>'+
+          '<span class="tag tr">Week '+c.week_no+'</span>'+
+          '<span style="font-size:11px;color:var(--text-3);margin-left:8px">Spray: '+esc(c.spray_date)+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'" style="padding:10px 22px 10px 38px">'+
+            '<div style="display:flex;flex-wrap:wrap;gap:12px">'+
+            '<div><div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:4px">Spray Plan</div>'+
+            '<a href="/app/work-order/'+esc(c.spray_plan)+'" target="_blank" style="color:#1565c0;font-size:12px;font-weight:600">'+esc(c.spray_plan)+'</a>'+
+            '<div style="font-size:11px;color:var(--text-2);margin-top:3px">Targets: '+esc(c.spray_targets)+'</div></div>'+
+            '<div><div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:4px">Harvesting Days</div>'+days+'</div></div></div></div>';
+      }).join('');
+      body.innerHTML=banner+rows;
+    } else {
+      var list2=allData.spray_vs_spray||[];
+      if(!list2.length){ body.innerHTML='<div class="empty">No overlapping spray plans found.</div>'; return; }
+      var banner2='<div class="alert alert-p">&#8505;&nbsp;<b>'+list2.length+' greenhouse'+(list2.length!==1?'s':'')+' have multiple spray plans</b> in the same week.</div>';
+      var rows2=list2.map(function(c,idx){
+        var uid='ss-'+idx;
+        var sprays=c.sprays.map(function(s){
+          return '<div class="ov-plan-row"><a href="/app/work-order/'+esc(s.name)+'" target="_blank" style="color:#1565c0;font-size:12px;font-weight:600;min-width:160px">'+esc(s.name)+'</a>'+
+            '<span style="font-size:11px;color:var(--text-2);margin:0 8px">'+esc(s.date)+'</span>'+
+            '<span style="font-size:11px;color:var(--text-3)">'+esc(s.targets)+'</span></div>';
+        }).join('');
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span>'+
+          '<span class="ov-gh">'+esc(c.greenhouse)+'</span>'+
+          '<span class="tag tsp">'+c.spray_count+' spray plans</span>'+
+          '<span style="font-size:11px;color:var(--text-3);margin-left:8px">Wk '+c.week_no+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'">'+sprays+'</div></div>';
+        }).join('');
+      body.innerHTML=banner2+rows2;
+    }
+  }
+
+  function renderGHActivities(){
+    var list=allData.gh_weekly_activities||[];
+    if(!list.length){
+      el('ghActSub').textContent='No activity data for selected period';
+      el('ghaBody').innerHTML='<div class="empty">No activity data for selected period.</div>';
+    } else {
+      el('ghActSub').textContent=list.length+' greenhouse'+(list.length!==1?'s':'')+' — click to expand';
+      var rows=list.map(function(entry,idx){
+        var uid='gha-'+idx;
+        var dayMap={};
+        entry.tasks.forEach(function(t){ var d=t.day||'?'; if(!dayMap[d]) dayMap[d]=[]; dayMap[d].push(t); });
+        var dayOrder=Object.keys(dayMap).sort(function(a,b){ return (DAY_ORDER[a]!==undefined?DAY_ORDER[a]:99)-(DAY_ORDER[b]!==undefined?DAY_ORDER[b]:99); });
+        var taskRows=dayOrder.map(function(day){
+          var tasks=dayMap[day];
+          return tasks.map(function(t,ti){
+            var ap2=pct(t.actual,t.target), bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+            return '<tr>'+(ti===0?'<td rowspan="'+tasks.length+'" style="font-weight:700;vertical-align:top;font-size:11px;white-space:nowrap">'+esc(day)+'</td>':'')+
+              '<td><span class="tag '+(TYPE_CLS[t.type]||'tm')+'" style="font-size:10px">'+esc(t.type)+'</span></td>'+
+              '<td style="font-weight:600">'+esc(t.task)+'</td><td style="font-size:11px;color:var(--text-2)">'+esc(t.purpose)+'</td>'+
+              '<td>'+fmt(t.target)+'</td><td>'+fmt(t.actual)+'</td>'+
+              '<td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td></tr>';
+          }).join('');
+        }).join('');
+        var taskCount=entry.tasks.length;
+        return '<div class="ov-row"><div class="ov-head" onclick="pp.toggleRow(\'' + uid + '\')">'+
+          '<span class="ov-chev" id="chev-'+uid+'">&#9660;</span><span class="ov-gh">'+esc(entry.greenhouse)+'</span>'+
+          '<span class="tag tb" style="margin-left:6px">'+taskCount+' task'+(taskCount!==1?'s':'')+'</span>'+
+          '<span style="font-size:11px;color:var(--text-3);margin-left:8px">Week '+entry.week_no+'</span></div>'+
+          '<div class="ov-detail" id="'+uid+'"><table class="aph-tbl tbl"><thead><tr><th>Day</th><th>Type</th><th>Task</th><th>Purpose</th><th>Target</th><th>Actual</th><th>Achievement</th></tr></thead><tbody>'+taskRows+'</tbody></table></div></div>';
+      }).join('');
+      el('ghaBody').innerHTML=rows;
+    }
+    el('ghaBody').classList.toggle('open',panelState['gha']);
+    el('ghaChev').classList.toggle('open',panelState['gha']);
+    el('ghActHeader').classList.toggle('open',panelState['gha']);
+  }
+
+  function toggleRow(uid){
+    var d=el(uid), c=el('chev-'+uid);
+    var o=d.classList.toggle('open');
+    if(c) c.classList.toggle('open',o);
+  }
+
+  function toggleSvSort(){
+    svAsc=!svAsc;
+    el('svSortBtn').innerHTML=svAsc?'&#9650; Bottom (missed target)':'&#9660; Top performers';
+    el('svSortBtn').classList.toggle('on',svAsc); renderSupervisors();
+  }
+
+  function toggleSvAll(){
+    svAll=!svAll;
+    el('svAllBtn').textContent=svAll?'Top 10':'Show all';
+    el('svAllBtn').classList.toggle('on',svAll); renderSupervisors();
+  }
+
+  function renderSupervisors(){
+    var svs=(allData.supervisors||[]).slice();
+    svs.sort(function(a,b){ var pa=pct(a.actual,a.target),pb=pct(b.actual,b.target); return svAsc?pa-pb:pb-pa; });
+    var list=svAll?svs:svs.slice(0,10);
+    if(!list.length){ el('svBody').innerHTML='<tr><td colspan="8" class="empty">No data</td></tr>'; return; }
+    el('svBody').innerHTML=list.map(function(sv,i){
+      var ap2=pct(sv.actual,sv.target),bc=ap2>=90?'#29cd42':ap2>=60?'#fc9c30':'#e63757';
+      var stCls=ap2>=90?'tg':ap2>=60?'to':'tr', bd=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+      return '<tr><td><div class="rbadge '+bd+'">'+(i+1)+'</div></td><td style="font-weight:600">'+esc(sv.name)+'</td>'+
+        '<td style="color:var(--text-2)">'+esc(sv.farm)+'</td><td>'+fmt(sv.plans)+'</td><td>'+fmt(sv.target)+'</td><td>'+fmt(sv.actual)+'</td>'+
+        '<td><div class="pbar-wrap"><div class="pbar"><div class="pbar-fill" style="width:'+Math.min(ap2,100)+'%;background:'+bc+'"></div></div><span class="pct" style="color:'+bc+'">'+ap2+'%</span></div></td>'+
+        '<td><span class="tag '+stCls+'">'+esc(sv.workflow_state)+'</span></td></tr>';
+    }).join('');
+  }
+
+  return {init:init,load:load,toggleMs:toggleMs,togglePanel:togglePanel,switchApprTab:switchApprTab,switchOvTab:switchOvTab,switchSprayTab:switchSprayTab,toggleRow:toggleRow,toggleSvSort:toggleSvSort,toggleSvAll:toggleSvAll};
+})();
+
+document.addEventListener('DOMContentLoaded',function(){ pp.init(); });
+
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        document.getElementById('aph-foot-av').textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        document.getElementById('aph-foot-nm').textContent = fullName;
+        document.getElementById('aph-foot-em').textContent = u;
+    }
+    tryFill();
+})();
+</script>

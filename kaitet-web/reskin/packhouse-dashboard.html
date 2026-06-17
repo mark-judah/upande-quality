@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Packhouse Dashboard</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            /* Backgrounds */
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --bg-tab-group: #f4f5f6;
+
+            /* Text */
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --text-on-dark: #ffffff;
+
+            /* Borders */
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+
+            /* Accent */
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+
+            /* Interactive */
+            --btn-dark: #1a1a1a;
+            --btn-dark-hover: #333333;
+
+            /* Tints */
+            --tint-blue: #e8f0fe;
+            --tint-purple: #f0ecfe;
+            --tint-green: #e6f9ee;
+            --tint-orange: #fff3e0;
+            --tint-gray: #f4f5f6;
+
+            /* Shadow */
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ── Top Nav ── */
+        .top-nav {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            height: 44px;
+        }
+        .nav-brand {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 14px 0 0;
+            margin-right: 6px;
+            border-right: 1px solid var(--border-default);
+            white-space: nowrap;
+        }
+        .nav-link {
+            padding: 12px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: color 150ms ease, border-color 150ms ease;
+        }
+        .nav-link:hover {
+            color: var(--text-primary);
+            border-bottom-color: var(--border-default);
+        }
+        .nav-link.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+            font-weight: 600;
+        }
+        @media(max-width:600px) {
+            .nav-brand { display: none; }
+            .top-nav { overflow-x: auto; }
+        }
+
+        /* ── Page Head ── */
+        .page-head {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            position: sticky;
+            top: 44px;
+            z-index: 100;
+        }
+        .page-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .page-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+        }
+        .btn-primary {
+            background: var(--btn-dark);
+            color: var(--text-on-dark);
+            border: none;
+        }
+        .btn-primary:hover { background: var(--btn-dark-hover); }
+        .btn-secondary {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+        .btn-secondary:hover { background: var(--bg-input); }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* ── Tab Toggle Group ── */
+        .tab-group {
+            display: inline-flex;
+            background: var(--bg-tab-group);
+            border-radius: 8px;
+            padding: 3px;
+        }
+        .tab-btn {
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 150ms ease, color 150ms ease;
+        }
+        .tab-btn.active {
+            background: var(--btn-dark);
+            color: var(--text-on-dark);
+        }
+
+        /* ── Filter Pills (as tab toggle group style) ── */
+        .filter-pills {
+            display: inline-flex;
+            background: var(--bg-tab-group);
+            border-radius: 8px;
+            padding: 3px;
+            align-items: center;
+        }
+        .filter-pill {
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: background 150ms ease, color 150ms ease;
+        }
+        .filter-pill:hover { background: var(--bg-hover); }
+        .filter-pill.active {
+            background: var(--btn-dark);
+            color: var(--text-on-dark);
+        }
+
+        /* ── Live Badge ── */
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 150ms ease;
+        }
+        .live-badge:hover { background: var(--bg-input); }
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--accent-green);
+            border-radius: 50%;
+        }
+
+        /* ── Dropdown ── */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            min-width: 160px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+        .dropdown.open .dropdown-menu { display: block; }
+        .dropdown-item {
+            padding: 8px 16px;
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 150ms ease;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background: var(--bg-hover); }
+        .dropdown-item.active {
+            background: var(--accent-blue-light);
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        /* ── Form Controls ── */
+        .form-control {
+            height: 32px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-family: inherit;
+            background: var(--bg-input);
+            border: 1px solid transparent;
+            border-radius: 6px;
+            color: var(--text-primary);
+            transition: border-color 150ms ease, background 150ms ease;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            background: var(--bg-surface);
+        }
+        .form-control::placeholder { color: var(--text-muted); }
+
+        .date-range-inputs {
+            display: none;
+            align-items: center;
+            gap: 6px;
+        }
+        .date-range-inputs.show { display: flex; }
+
+        /* ── Container ── */
+        .container {
+            padding: 20px;
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+
+        /* ── KPI Cards (Stat Cards with Icon Wrappers) ── */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 10px;
+            box-shadow: var(--shadow-card);
+            padding: 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .kpi-icon {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .kpi-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+        .kpi-content { flex: 1; min-width: 0; }
+        .kpi-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+            line-height: 1.3;
+        }
+        .kpi-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        .kpi-sub {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        @media(max-width:992px) {
+            .kpi-row { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media(max-width:600px) {
+            .kpi-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media(max-width:380px) {
+            .kpi-row { grid-template-columns: 1fr; }
+        }
+
+        /* ── Panels ── */
+        .panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+        .panel-heading {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .panel-body { padding: 20px; }
+
+        /* ── Labels / Badges ── */
+        .label {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            letter-spacing: 0.3px;
+        }
+        .label-success { background: var(--tint-green); color: #1a8a3a; }
+        .label-warning { background: var(--tint-orange); color: #9a5a00; }
+        .label-danger  { background: #fde8ec; color: var(--accent-red); }
+        .label-default { background: var(--bg-input); color: var(--text-secondary); }
+        .label-info    { background: var(--tint-purple); color: var(--accent-purple); }
+        .label-primary { background: var(--tint-blue); color: var(--accent-blue); }
+
+        .team-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+        }
+
+        /* ── OPL Card Grid ── */
+        .opl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .opl-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .opl-card:hover { background: var(--bg-hover); }
+        .opl-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        .opl-order-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .opl-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .opl-id {
+            font-size: 12px;
+            color: var(--accent-blue);
+        }
+        .opl-variety {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 6px 0 2px;
+        }
+        .opl-customer {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        .opl-details {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .opl-detail {
+            background: var(--bg-input);
+            padding: 8px 6px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .opl-detail-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+        .opl-detail-value {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .shelf-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 8px 0;
+        }
+        .shelf-tag {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--tint-blue);
+            color: var(--accent-blue);
+        }
+
+        /* ── Progress Bars ── */
+        .progress-wrap { margin: 6px 0; }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .progress-label span:last-child {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+        .progress-track {
+            background: var(--bg-input);
+            border-radius: 4px;
+            height: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            border-radius: 4px;
+            transition: width 150ms ease;
+        }
+        .progress-fill.packing { background: var(--accent-purple); }
+
+        /* ── Status Indicator on OPL Cards ── */
+        .opl-card .status-stripe {
+            width: 4px;
+            min-height: 100%;
+            border-radius: 2px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .status-urgent  { background: var(--accent-red); }
+        .status-partial { background: var(--accent-orange); }
+        .status-allocated { background: var(--accent-blue); }
+        .status-ready   { background: var(--accent-green); }
+
+        /* ── Box Cards ── */
+        .box-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .box-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .box-card:hover { background: var(--bg-hover); }
+        .box-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .box-number {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .box-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 13px;
+        }
+        .box-row:last-child { border-bottom: none; }
+        .box-row-label { color: var(--text-secondary); }
+        .box-row-value { font-weight: 600; color: var(--text-primary); }
+
+        /* ── Empty / Loading States ── */
+        .empty-state {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state p {
+            font-size: 13px;
+            margin-top: 10px;
+        }
+        .loading-state {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* ── Issuing vs Packing KPI Card ── */
+        .kpi-card-wide {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 10px;
+            box-shadow: var(--shadow-card);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .kpi-card-wide-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .kpi-card-wide-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .kpi-dual-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+        @media(max-width:600px) {
+            .kpi-dual-row { grid-template-columns: 1fr; gap: 12px; }
+        }
+        .kpi-dual-item {
+            text-align: center;
+        }
+        .kpi-dual-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .kpi-dual-value {
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .kpi-dual-sub {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .kpi-dual-bar {
+            margin-top: 8px;
+        }
+        .kpi-dual-bar .progress-track {
+            height: 6px;
+            border-radius: 3px;
+        }
+        .gap-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        .gap-positive { background: var(--tint-orange); color: #9a5a00; }
+        .gap-negative { background: var(--tint-green); color: #1a8a3a; }
+        .gap-neutral  { background: var(--bg-input); color: var(--text-secondary); }
+
+        /* ── Variety chips + modal ── */
+        .variety-list { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 2px; }
+        .variety-tag { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; background:var(--tint-purple); color:var(--accent-purple); white-space:nowrap; }
+        .variety-more { background:var(--bg-input); color:var(--text-secondary); cursor:pointer; }
+        .variety-more:hover { background:var(--border-default); }
+        .vmodal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:2000; align-items:center; justify-content:center; padding:20px; }
+        .vmodal.open { display:flex; }
+        .vmodal-card { background:var(--bg-surface); border-radius:10px; width:100%; max-width:360px; max-height:70vh; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,0.25); }
+        .vmodal-head { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid var(--border-default); font-size:13px; font-weight:700; }
+        .vmodal-close { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:var(--text-muted); }
+        .vmodal-body { padding:6px 16px 14px; overflow-y:auto; }
+        .vrow { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--border-light); font-size:13px; }
+        .vrow:last-child { border-bottom:none; }
+        .vstems { font-weight:700; font-variant-numeric:tabular-nums; color:var(--text-primary); }
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">Packhouse</span>
+    <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+    <a href="packhouse-dashboard" class="nav-link active">Workflow</a>
+    <a href="sales-allocation-planning" class="nav-link">Allocation Planning</a>
+    <a href="bucket-tracker" class="nav-link">Bucket Journey</a>
+    <a href="cold-room" class="nav-link">Cold Room</a>
+    <a href="stock-visibility" class="nav-link">Stock Visibility</a>
+    <a href="order-summary" class="nav-link">Order Summary</a>
+</nav>
+
+<div class="page-head">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span class="page-title">Packhouse Workflow</span>
+        <div class="dropdown" id="teamDropdown">
+            <button class="btn btn-secondary btn-sm" id="teamBtn">
+                <span id="selectedTeam">All Teams</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dropdown-menu">
+                <div class="dropdown-item active" data-team="all">All Teams</div>
+                <div class="dropdown-item" data-team="Team A">Team A</div>
+                <div class="dropdown-item" data-team="Team B">Team B</div>
+                <div class="dropdown-item" data-team="Jamafa">Jamafa</div>
+                <div class="dropdown-item" data-team="Eldama">Eldama</div>
+                <div class="dropdown-item" data-team="Bravo">Bravo</div>
+            </div>
+        </div>
+    </div>
+    <div class="page-controls">
+        <div class="filter-pills">
+            <button class="filter-pill active" data-range="today">Today</button>
+            <button class="filter-pill" data-range="yesterday">Yesterday</button>
+            <button class="filter-pill" data-range="last7">Last 7 Days</button>
+            <button class="filter-pill" data-range="custom">Custom</button>
+        </div>
+        <div class="date-range-inputs" id="customDateRange">
+            <input type="date" id="dateFrom" class="form-control" style="width:130px">
+            <span style="color:var(--text-muted)">-</span>
+            <input type="date" id="dateTo" class="form-control" style="width:130px">
+        </div>
+        <div class="tab-group">
+            <button class="tab-btn active" data-view="team" onclick="switchView('team')">Team View</button>
+            <button class="tab-btn" data-view="all" onclick="switchView('all')">All View</button>
+        </div>
+        <button class="live-badge" id="refreshBtn">
+            <span class="live-dot"></span>LIVE
+        </button>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- KPI Row with Icon Wrappers -->
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total OPLs</div>
+                <div class="kpi-value" id="statTotalOPLs">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Ready to Issue</div>
+                <div class="kpi-value" id="statReady">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-purple);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Boxes Packed / Expected</div>
+                <div class="kpi-value" id="statTotalBoxes">0/0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-orange);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5a2 2 0 0 1-2 2h-1"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Boxes to Deliver</div>
+                <div class="kpi-value" id="ebTotalExpected">0</div>
+                <div class="kpi-sub" style="display:flex;align-items:center;gap:4px;margin-top:6px;">
+                    <label style="font-size:10px;font-weight:600;color:var(--text-muted);white-space:nowrap;">Delivery</label>
+                    <input type="date" id="ebDeliveryDate" class="form-control" style="height:22px;padding:1px 6px;font-size:10px;width:110px;border-radius:4px;">
+                </div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Orders Due</div>
+                <div class="kpi-value" id="ebTotalOrders">0</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Stems</div>
+                <div class="kpi-value" id="ebTotalStems">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── NEW: Issuing vs Packing KPI Card ── -->
+    <div class="kpi-card-wide" id="issuingPackingKpi">
+        <div class="kpi-card-wide-header">
+            <span class="kpi-card-wide-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Issuing vs Packing
+            </span>
+            <span class="gap-indicator gap-neutral" id="gapBadge">Gap: 0%</span>
+        </div>
+        <div class="kpi-dual-row">
+            <!-- Avg Issuing -->
+            <div class="kpi-dual-item">
+                <div class="kpi-dual-label">Avg Issuing</div>
+                <div class="kpi-dual-value" style="color:var(--accent-blue);" id="kpiAvgIssuing">0%</div>
+                <div class="kpi-dual-sub" id="kpiIssuingDetail">0 / 0 items</div>
+                <div class="kpi-dual-bar">
+                    <div class="progress-track"><div class="progress-fill" id="kpiIssuingBar" style="width:0%"></div></div>
+                </div>
+            </div>
+            <!-- Avg Packing -->
+            <div class="kpi-dual-item">
+                <div class="kpi-dual-label">Avg Packing</div>
+                <div class="kpi-dual-value" style="color:var(--accent-purple);" id="kpiAvgPacking">0%</div>
+                <div class="kpi-dual-sub" id="kpiPackingDetail">0 / 0 stems</div>
+                <div class="kpi-dual-bar">
+                    <div class="progress-track"><div class="progress-fill packing" id="kpiPackingBar" style="width:0%"></div></div>
+                </div>
+            </div>
+            <!-- Fulfillment Rate -->
+            <div class="kpi-dual-item">
+                <div class="kpi-dual-label">Fulfillment Rate</div>
+                <div class="kpi-dual-value" style="color:var(--accent-green);" id="kpiFulfillment">0%</div>
+                <div class="kpi-dual-sub" id="kpiFulfillmentDetail">Packed / Ordered stems</div>
+                <div class="kpi-dual-bar">
+                    <div class="progress-track"><div class="progress-fill" id="kpiFulfillmentBar" style="width:0%;background:var(--accent-green);"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ready to Issue Panel -->
+    <div class="panel">
+        <div class="panel-heading">
+            <span class="panel-title">Ready to Issue &mdash; Warehouse</span>
+            <span class="label label-primary"><span id="issueCount">0</span> OPLs</span>
+        </div>
+        <div class="panel-body">
+            <div class="opl-grid" id="issueGrid"><div class="loading-state">Loading...</div></div>
+        </div>
+    </div>
+
+    <!-- Box Labels Panel -->
+    <div class="panel">
+        <div class="panel-heading">
+            <span class="panel-title">Box Labels &mdash; Print Room</span>
+            <span class="label label-primary"><span id="boxCount">0</span> Labels</span>
+        </div>
+        <div class="panel-body">
+            <div class="box-grid" id="boxGrid"><div class="loading-state">Loading...</div></div>
+        </div>
+    </div>
+
+    <!-- All Active OPLs Panel -->
+    <div class="panel management-only" style="display:none;">
+        <div class="panel-heading">
+            <span class="panel-title">All Active OPLs</span>
+            <span class="label label-default"><span id="allCount">0</span> OPLs</span>
+        </div>
+        <div class="panel-body">
+            <div class="opl-grid" id="allGrid"><div class="loading-state">Loading...</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let team = 'all', view = 'team', dateRange = 'today', customFrom = '', customTo = '';
+    let VARIETY_MAP = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('ebDeliveryDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('ebDeliveryDate').addEventListener('change', ebLoadData);
+
+        const td = document.getElementById('teamDropdown');
+        document.getElementById('teamBtn').addEventListener('click', e => { e.stopPropagation(); td.classList.toggle('open'); });
+        td.querySelectorAll('.dropdown-item').forEach(item => {
+            item.addEventListener('click', function() {
+                td.querySelectorAll('.dropdown-item').forEach(x => x.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById('selectedTeam').textContent = this.textContent;
+                team = this.dataset.team === 'all' ? 'all' : this.textContent;
+                td.classList.remove('open');
+                load();
+            });
+        });
+        document.addEventListener('click', e => { if (!e.target.closest('#teamDropdown')) td.classList.remove('open'); });
+
+        document.querySelectorAll('.filter-pill').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                dateRange = btn.dataset.range;
+                document.getElementById('customDateRange').classList.toggle('show', dateRange === 'custom');
+                if (dateRange !== 'custom') { customFrom = ''; customTo = ''; load(); }
+            });
+        });
+
+        ['dateFrom','dateTo'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => {
+                customFrom = document.getElementById('dateFrom').value;
+                customTo   = document.getElementById('dateTo').value;
+                if (customFrom && customTo && dateRange === 'custom') load();
+            });
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => { load(); ebLoadData(); });
+        setTimeout(() => { load(); ebLoadData(); }, 800);
+        setInterval(() => { load(); ebLoadData(); }, 30000);
+    });
+
+    function switchView(v) {
+        view = v;
+        document.querySelectorAll('.tab-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+        load();
+    }
+
+    function getDateArgs() {
+        if (dateRange === 'today')     return { period: 'today' };
+        if (dateRange === 'yesterday') return { period: 'yesterday' };
+        if (dateRange === 'last7')     return { period: 'last_7_days' };
+        if (dateRange === 'custom' && customFrom && customTo) return { period: 'custom', from_date: customFrom, to_date: customTo };
+        return { period: 'today' };
+    }
+
+    function load() {
+        ['issueGrid','boxGrid','allGrid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = '<div class="loading-state">Loading...</div>'; });
+        frappe.call({
+            method: 'getDashboardData',
+            args: { team_filter: team, ...getDateArgs() },
+            callback: r => { if (r.message?.success) render(r.message); else renderEmpty(); },
+            error: () => renderEmpty()
+        });
+    }
+
+    function renderEmpty() {
+        const html = '<div class="empty-state"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg><p>No records found</p></div>';
+        ['issueGrid','boxGrid','allGrid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = html; });
+        ['statTotalOPLs','statReady','statTotalBoxes','issueCount','boxCount','allCount'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent='0'; });
+        renderIssuingPackingKpi({});
+    }
+
+    function render(data) {
+        VARIETY_MAP = {};
+        (data.opls || []).concat(data.ready_to_issue || []).forEach(o => { if (o.opl_id) VARIETY_MAP[o.opl_id] = o.varieties || []; });
+        document.getElementById('statTotalOPLs').textContent  = data.total_opls || 0;
+        document.getElementById('statReady').textContent      = data.ready_count || 0;
+        document.getElementById('statTotalBoxes').textContent = data.total_box_progress || '0/0';
+        document.getElementById('issueCount').textContent     = (data.ready_to_issue || []).length;
+        document.getElementById('boxCount').textContent       = data.boxes_printed_today || 0;
+        document.getElementById('allCount').textContent       = (data.opls || []).length;
+
+        renderIssuingPackingKpi(data);
+
+        renderOPLs('issueGrid', data.ready_to_issue || []);
+        renderBoxLabels(data.box_labels_today || []);
+        if (view === 'all') {
+            renderOPLs('allGrid', data.opls || []);
+            document.querySelector('.management-only').style.display = 'block';
+        } else {
+            document.querySelector('.management-only').style.display = 'none';
+        }
+    }
+
+    function renderIssuingPackingKpi(data) {
+        const avgIssuing  = data.avg_issuing_pct  || 0;
+        const avgPacking  = data.avg_packing_pct  || 0;
+        const globalIss   = data.global_issuing_pct || 0;
+        const fulfillment = data.global_packing_pct || 0;
+        const gap         = data.issuing_packing_gap || 0;
+        const totalPickStems  = data.total_pick_stems    || 0;
+        const totalIssuedStems = data.total_issued_stems || 0;
+        const totalPlanned = data.total_planned_stems || 0;
+        const totalPacked  = data.total_packed_stems  || 0;
+
+        document.getElementById('kpiAvgIssuing').textContent  = avgIssuing + '%';
+        document.getElementById('kpiAvgPacking').textContent  = avgPacking + '%';
+        document.getElementById('kpiFulfillment').textContent = fulfillment + '%';
+
+        document.getElementById('kpiIssuingDetail').textContent  = totalIssuedStems.toLocaleString() + ' / ' + totalPickStems.toLocaleString() + ' stems';
+        document.getElementById('kpiPackingDetail').textContent  = totalPacked.toLocaleString() + ' / ' + totalPlanned.toLocaleString() + ' stems';
+        document.getElementById('kpiFulfillmentDetail').textContent = totalPacked.toLocaleString() + ' / ' + totalPlanned.toLocaleString() + ' stems packed';
+
+        document.getElementById('kpiIssuingBar').style.width     = Math.min(avgIssuing, 100) + '%';
+        document.getElementById('kpiPackingBar').style.width     = Math.min(avgPacking, 100) + '%';
+        document.getElementById('kpiFulfillmentBar').style.width = Math.min(fulfillment, 100) + '%';
+
+        // Gap badge
+        const gapBadge = document.getElementById('gapBadge');
+        const absGap = Math.abs(gap);
+        if (gap > 0) {
+            gapBadge.textContent = 'Packing ahead by ' + absGap + '%';
+            gapBadge.className = 'gap-indicator gap-positive';
+        } else if (gap < 0) {
+            gapBadge.textContent = 'Issuing ahead by ' + absGap + '%';
+            gapBadge.className = 'gap-indicator gap-negative';
+        } else {
+            gapBadge.textContent = 'Aligned';
+            gapBadge.className = 'gap-indicator gap-neutral';
+        }
+    }
+
+    function stageInfo(stage) {
+        if (stage.includes('Partial')) return { lbl: 'label-warning', txt: 'Partial'   };
+        if (stage.includes('Fully'))   return { lbl: 'label-primary', txt: 'Allocated' };
+        return                                 { lbl: 'label-success', txt: 'Ready'     };
+    }
+
+    function renderOPLs(gridId, opls) {
+        const grid = document.getElementById(gridId);
+        if (!opls.length) { grid.innerHTML = '<div class="empty-state"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><p>No OPLs found</p></div>'; return; }
+        grid.innerHTML = opls.map(o => {
+            const si = stageInfo(o.current_stage);
+            let shelfHTML = `<span style="font-size:12px;color:var(--text-muted)">No shelf assigned</span>`;
+            if (o.shelf_locations && o.shelf_locations !== 'N/A') {
+                const shelves = o.shelf_locations.split(', ').filter(s => s.trim());
+                shelfHTML = `<div class="shelf-list">${shelves.slice(0,3).map(s=>`<span class="shelf-tag">${s}</span>`).join('')}${shelves.length>3?`<span class="shelf-tag">+${shelves.length-3}</span>`:''}</div>`;
+            }
+            const vlist = o.varieties || [];
+            let varietyHTML;
+            if (vlist.length > 1) {
+                const CAP = 4;
+                const shown = vlist.slice(0, CAP).map(v => `<span class="variety-tag">${v.name} · ${(v.stems||0).toLocaleString()}</span>`).join('');
+                const more = vlist.length > CAP
+                    ? `<span class="variety-tag variety-more" onclick="event.stopPropagation(); showVarieties('${o.opl_id}')">+${vlist.length - CAP} more</span>`
+                    : '';
+                varietyHTML = `<div class="opl-variety">Mixed · ${vlist.length} varieties</div><div class="variety-list">${shown}${more}</div>`;
+            } else {
+                varietyHTML = `<div class="opl-variety">${o.variety||'--'}</div>`;
+            }
+            return `<div class="opl-card" onclick="openDoc('${o.opl_id}')">
+                <div class="opl-header">
+                    <div>
+                        <div class="opl-order-name">${o.order_name}</div>
+                        <div class="opl-meta"><span class="opl-id">${o.opl_id}</span><span class="team-badge">${o.team||'Unassigned'}</span></div>
+                    </div>
+                    <span class="label ${si.lbl}">${si.txt}</span>
+                </div>
+                ${varietyHTML}
+                <div class="opl-customer">${o.customer||'--'}</div>
+                <div class="opl-details">
+                    <div class="opl-detail"><div class="opl-detail-label">Bunches</div><div class="opl-detail-value">${o.total_bunches||0}</div></div>
+                    <div class="opl-detail"><div class="opl-detail-label">Stems</div><div class="opl-detail-value">${(o.total_stems||0).toLocaleString()}</div></div>
+                    <div class="opl-detail"><div class="opl-detail-label">Boxes</div><div class="opl-detail-value">${o.box_progress||'0/0'}</div></div>
+                </div>
+                ${shelfHTML}
+                <div class="progress-wrap">
+                    <div class="progress-label"><span>Issuing</span><span>${Math.round(o.issuing_percentage||0)}%</span></div>
+                    <div class="progress-track"><div class="progress-fill" style="width:${o.issuing_percentage||0}%"></div></div>
+                </div>
+                <div class="progress-wrap">
+                    <div class="progress-label"><span>Packing</span><span>${Math.round(o.packing_percentage||0)}%</span></div>
+                    <div class="progress-track"><div class="progress-fill packing" style="width:${o.packing_percentage||0}%"></div></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderBoxLabels(boxes) {
+        const grid = document.getElementById('boxGrid');
+        if (!boxes.length) { grid.innerHTML = '<div class="empty-state"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><p>No box labels found</p></div>'; return; }
+        grid.innerHTML = boxes.map(box => `
+            <div class="box-card" onclick="openDoc('${box.order_pick_list}')">
+                <div class="box-card-header"><span class="box-number">Box ${box.box_number||'?'}</span><span class="label label-success">Printed</span></div>
+                <div class="box-row"><span class="box-row-label">Customer</span><span class="box-row-value">${box.customer||'--'}</span></div>
+                <div class="box-row"><span class="box-row-label">OPL</span><span class="box-row-value">${box.order_pick_list||'--'}</span></div>
+                <div class="box-row"><span class="box-row-label">Total Boxes</span><span class="box-row-value">${box.box_total_count||'?'}</span></div>
+            </div>`).join('');
+    }
+
+    function openDoc(id) {
+        if (typeof frappe !== 'undefined' && frappe.set_route) frappe.set_route('Form', 'Order Pick List', id);
+        else window.open(`/app/order-pick-list/${id}`, '_blank');
+    }
+
+    /* -- Boxes to Deliver -- */
+    function ebLoadData() {
+        const deliveryDate = document.getElementById('ebDeliveryDate').value;
+        if (!deliveryDate) return;
+        frappe.call({
+            method: 'frappe.client.get_list',
+            args: {
+                doctype: 'Sales Order',
+                filters: [
+                    ['delivery_date', '=', deliveryDate],
+                    ['docstatus', '=', 1],
+                    ['status', 'not in', ['Cancelled', 'Closed', 'Completed']]
+                ],
+                fields: ['name'],
+                limit_page_length: 100
+            },
+            callback: r => ebProcess(r.message || []),
+            error: () => ebSet(0, 0, 0)
+        });
+    }
+
+    function ebProcess(orders) {
+        if (!orders.length) { ebSet(0, 0, 0); return; }
+        let boxes = 0, stems = 0, done = 0;
+        orders.forEach(o => {
+            frappe.call({
+                method: 'frappe.client.get',
+                args: { doctype: 'Sales Order', name: o.name },
+                callback: r => {
+                    (r.message?.items || []).forEach(i => { stems += i.stock_qty || 0; boxes += i.custom_number_of_boxes || 0; });
+                    if (++done === orders.length) ebSet(orders.length, boxes, stems);
+                },
+                error: () => { if (++done === orders.length) ebSet(orders.length, boxes, stems); }
+            });
+        });
+    }
+
+    function ebSet(o, b, s) {
+        document.getElementById('ebTotalOrders').textContent   = o;
+        document.getElementById('ebTotalExpected').textContent = b;
+        document.getElementById('ebTotalStems').textContent    = s.toLocaleString();
+    }
+
+    function showVarieties(oplId) {
+        const vlist = VARIETY_MAP[oplId] || [];
+        document.getElementById('varietyModalTitle').textContent = oplId + ' — Varieties';
+        const body = document.getElementById('varietyModalBody');
+        body.innerHTML = vlist.length
+            ? vlist.map(v => `<div class="vrow"><span>${v.name}</span><span class="vstems">${(v.stems||0).toLocaleString()}</span></div>`).join('')
+            : '<div class="loading-state">No varieties</div>';
+        document.getElementById('varietyModal').classList.add('open');
+    }
+    function closeVarietyModal() { document.getElementById('varietyModal').classList.remove('open'); }
+</script>
+
+<div class="vmodal" id="varietyModal" onclick="if(event.target===this)closeVarietyModal()">
+    <div class="vmodal-card">
+        <div class="vmodal-head"><span id="varietyModalTitle">Varieties</span><button class="vmodal-close" onclick="closeVarietyModal()">&times;</button></div>
+        <div class="vmodal-body" id="varietyModalBody"></div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
+<style>
+/* Status-color tokens reused by render functions (carried from the design reference, expressed against aph tokens) */
+.aph{
+  --blue:#2490ef;--blue-light:#e8f0fe;
+  --green:#16a34a;--green-light:#e6f9ee;
+  --red:#dc2626;--red-light:#fde8ec;
+  --orange:#d97706;--orange-light:#fff3e0;
+  --purple:#7c5cfc;--purple-light:#f0ecfe;
+  --teal:#0ea5e9;--teal-light:#e0f2fe;
+}
+
+/* Full-screen loader overlay */
+.aph .pd-loader{display:none;position:fixed;inset:0;z-index:2147483100;background:rgba(255,255,255,.65);backdrop-filter:blur(2px);justify-content:center;align-items:center}
+.aph .pd-loader.active{display:flex}
+.aph .pd-spinner{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:aphspin .7s linear infinite}
+@keyframes aphspin{to{transform:rotate(360deg)}}
+
+/* Date badge in topbar */
+.aph .date-badge{font-size:12px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:0 12px;height:32px;display:inline-flex;align-items:center;border-radius:7px}
+
+/* topbar form controls (date/select) restyled to aph chrome */
+.aph .fg{display:flex;flex-direction:column;gap:3px}
+.aph .fl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)}
+.aph .fc{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);transition:border-color .12s ease;outline:0;font-weight:500}
+.aph .fc:focus{border-color:var(--text)}
+.aph select.fc{cursor:pointer}
+.aph .btn-refresh{height:32px;padding:0 14px;font-size:12px;font-weight:500;font-family:var(--f);background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--text);transition:background .12s ease}
+.aph .btn-refresh:hover{background:var(--bg-hover)}
+.aph .live-dot{width:7px;height:7px;background:var(--good);border-radius:50%;flex-shrink:0}
+
+/* ── Filter bar inside content ── */
+.aph .filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:20px}
+
+/* multiselect dropdown */
+.aph .ms-wrap{position:relative}
+.aph .ms-btn{height:32px;min-width:140px;padding:0 10px;font-size:12px;font-family:var(--f);background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;white-space:nowrap;font-weight:500}
+.aph .ms-dd{position:absolute;top:calc(100% + 4px);left:0;min-width:200px;max-height:260px;overflow-y:auto;background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;display:none}
+.aph .ms-dd.open{display:block}
+.aph .ms-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:12px;transition:background .1s}
+.aph .ms-item:hover{background:var(--bg-hover)}
+
+/* stem-length pills */
+.aph .sl-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.aph .sl-pill{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text-2);cursor:pointer;transition:all .12s ease;white-space:nowrap;font-family:var(--f)}
+.aph .sl-pill:hover{border-color:var(--text);color:var(--text)}
+.aph .sl-pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── Per-KPI override: smaller value to match dense layout ── */
+.aph .aph-kpi .v{font-feature-settings:'tnum'}
+
+/* ── Tables (farm / greenhouse breakdowns) use aph-tbl base; tags below ── */
+.aph .tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;line-height:1.5}
+.aph .tg{background:var(--green-light);color:#1a7a2a}
+.aph .tb{background:var(--blue-light);color:#1565c0}
+.aph .to{background:var(--orange-light);color:#9a5a00}
+.aph .tr{background:var(--red-light);color:#b71c1c}
+
+/* ── Rank lists (varieties / harvesters) ── */
+.aph .rank-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .1s}
+.aph .rank-item:last-child{border-bottom:none}
+.aph .rank-item:hover{background:var(--bg-hover)}
+.aph .rank-badge{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.aph .r1{background:#fff3e0;color:#e65100}
+.aph .r2{background:var(--bg-muted);color:#374151}
+.aph .r3{background:#fff8e1;color:#b45309}
+.aph .rn{background:var(--bg-muted);color:var(--text-3)}
+.aph .rank-info{flex:1;min-width:0}
+.aph .rank-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph .rank-meta{font-size:11px;color:var(--text-3)}
+.aph .rank-val{font-size:13px;font-weight:700;white-space:nowrap;color:var(--text)}
+.aph .rank-rejected{font-size:10px;font-weight:600;color:#b71c1c;background:var(--red-light);padding:1px 6px;border-radius:3px;white-space:nowrap;margin-left:4px}
+
+/* ── Harvester panel controls ── */
+.aph .harv-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.aph .tab-group{display:inline-flex;background:var(--bg-muted);border-radius:8px;padding:3px;gap:2px}
+.aph .tab-btn{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:500;border:none;background:transparent;color:var(--text-2);cursor:pointer;font-family:var(--f);transition:all .12s ease;white-space:nowrap}
+.aph .tab-btn.active{background:var(--bg-card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.aph .icon-btn{height:28px;padding:0 8px;font-size:11px;font-weight:600;font-family:var(--f);background:var(--bg-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:4px;color:var(--text-2);transition:background .12s ease;white-space:nowrap}
+.aph .icon-btn:hover{background:var(--bg-hover);color:var(--text)}
+.aph .icon-btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.aph .harv-scroll{max-height:420px;overflow-y:auto}
+
+/* ── Chart wrapper: DEFINITE height + relative for Chart.js maintainAspectRatio:false ── */
+.aph .chart-box{position:relative;height:300px;padding:16px}
+.aph .chart-box canvas{width:100%!important}
+.aph .chart-legend{display:flex;gap:16px;padding:0 16px 14px;flex-wrap:wrap}
+.aph .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
+.aph .legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+.aph .empty{text-align:center;padding:32px;color:var(--text-3);font-size:12px}
+.aph .loading-state{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
+
+/* ── Two-column grid for variety/harvester panels ── */
+.aph .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* ── Collapsible tree panels (Unreceived / Quarantine) ── */
+.aph .ur-panel{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg-card);margin-bottom:20px}
+.aph .ur-header{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);transition:background .12s ease}
+.aph .ur-header:hover{background:var(--bg-hover)}
+.aph .ur-header-left{display:flex;align-items:center;gap:10px}
+.aph .ur-chevron{width:18px;height:18px;transition:transform .25s ease;flex-shrink:0;color:var(--text-3)}
+.aph .ur-chevron.open{transform:rotate(90deg)}
+.aph .ur-title{font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
+.aph .ur-title-count{font-size:12px;font-weight:700;color:#b71c1c;background:var(--red-light);padding:2px 10px;border-radius:12px;margin-left:6px}
+.aph .ur-body{display:none}
+.aph .ur-body.open{display:block}
+.aph .ur-tree{overflow-x:auto}
+.aph .ur-row{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;user-select:none}
+.aph .ur-row:hover{background:var(--bg-hover)}
+.aph .ur-row-farm{padding-left:16px;font-weight:700;background:var(--bg-muted)}
+.aph .ur-row-sup{padding-left:38px;font-weight:600}
+.aph .ur-row-gh{padding-left:60px;cursor:default;font-size:12px}
+.aph .ur-expand{width:16px;height:16px;flex-shrink:0;transition:transform .2s ease;color:var(--text-3)}
+.aph .ur-expand.open{transform:rotate(90deg)}
+.aph .ur-expand.leaf{visibility:hidden}
+.aph .ur-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.aph .ur-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.aph .ur-stems{font-size:12px;font-weight:700;white-space:nowrap}
+.aph .ur-bkt-count{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap}
+.aph .ur-aging-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.aph .ur-aging-green{background:var(--green-light);color:#1a7a2a}
+.aph .ur-aging-orange{background:var(--orange-light);color:#9a5a00}
+.aph .ur-aging-red{background:var(--red-light);color:#b71c1c}
+.aph .ur-bucket-detail{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11px;color:var(--text-2)}
+.aph .ur-bucket-tag{padding:1px 6px;border-radius:3px;background:var(--bg-muted);font-size:10px;font-weight:600}
+.aph .ur-children{display:none}
+.aph .ur-children.open{display:block}
+.aph .ur-summary-strip{display:flex;gap:14px;align-items:center}
+.aph .ur-ss-item{display:flex;flex-direction:column;align-items:flex-end}
+.aph .ur-ss-val{font-size:16px;font-weight:700;line-height:1;color:var(--text)}
+.aph .ur-ss-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:var(--text-3)}
+.aph .q-issue-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--orange-light);color:#9a5a00;white-space:nowrap}
+.aph .q-issue-tag.reject{background:var(--red-light);color:#b71c1c}
+.aph .q-variety-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--purple-light);color:var(--purple);white-space:nowrap}
+.aph .q-gh-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
+.aph .q-date-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--teal-light);color:#0369a1;white-space:nowrap}
+
+@media(max-width:900px){
+  .aph .two-col{grid-template-columns:1fr}
+  .aph .ur-row-gh{padding-left:40px}
+  .aph .ur-row-sup{padding-left:24px}
+  .aph .ur-row-farm{padding-left:12px}
+}
+</style>
+
+<div class="pd-loader" id="pdLoader"><div class="pd-spinner"></div></div>
+
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Production</small></div>
+    </div>
+    <a class="home-link" href="/app/roses-production">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Production</div>
+      <a class="nav-item active" href="production-dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Production Dashboard
+      </a>
+      <a class="nav-item" href="crop-cycle-dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Crop Cycle
+      </a>
+      <a class="nav-item" href="production-planning">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Production Planning
+      </a>
+      <a class="nav-item" href="production-forecast">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Production Forecast
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Production Overview</h1>
+      <span class="crumb">Production</span>
+      <div class="right">
+        <span class="date-badge" id="pdDateBadge">Today</span>
+        <div class="fg"><span class="fl">From</span><input type="date" class="fc" id="pdFrom" style="width:130px"></div>
+        <div class="fg"><span class="fl">To</span><input type="date" class="fc" id="pdTo" style="width:130px"></div>
+        <div class="fg"><span class="fl">Farm</span><select class="fc" id="pdFarm" style="width:130px"><option value="">All Farms</option></select></div>
+        <button class="btn-refresh" onclick="pd.load()"><span class="live-dot"></span>Refresh</button>
+      </div>
+    </div>
+
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Production Overview</div>
+        <div class="sub">Harvest, receiving &amp; quality across all farms</div>
+      </div>
+
+      <!-- FILTER BAR -->
+      <div class="filter-bar">
+        <div class="fg"><span class="fl">Item Group</span><select class="fc" id="pdItemGroup" style="width:150px"><option value="">All Groups</option></select></div>
+        <div class="fg"><span class="fl">Greenhouse</span><select class="fc" id="pdGreenhouse" style="width:160px"><option value="">All Greenhouses</option></select></div>
+        <div class="fg">
+          <span class="fl">Varieties</span>
+          <div class="ms-wrap">
+            <button class="ms-btn" id="pdVarBtn" onclick="pd.toggleMs('pdVarDD')">All Varieties <span>&#9662;</span></button>
+            <div class="ms-dd" id="pdVarDD"></div>
+          </div>
+        </div>
+        <div class="fg">
+          <span class="fl">Stem Length</span>
+          <div id="slPills" class="sl-pills"><span style="font-size:11px;color:var(--text-3)">Loading...</span></div>
+        </div>
+      </div>
+
+      <!-- KPI ROW 1 -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#16a34a"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <div><div class="lbl">Harvested</div><div class="v" id="kHarvested">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#2490ef"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/></svg></div>
+          <div><div class="lbl">Received</div><div class="v" id="kReceived">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#dc2626"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></div>
+          <div><div class="lbl">Recv. Variance</div><div class="v" id="kRecvVariance" style="color:var(--red)">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#0ea5e9"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="lbl">Good Stems</div><div class="v" id="kGoodStems">&mdash;</div></div>
+        </div>
+      </div>
+
+      <!-- KPI ROW 2 -->
+      <div class="aph-kpis">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#d97706"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div><div class="lbl">Quarantined</div><div class="v" id="kQuarantined">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#d97706"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="lbl">Quar. Pending</div><div class="v" id="kQPending" style="color:var(--orange)">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#dc2626"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+          <div><div class="lbl">Quar. Rejects</div><div class="v" id="kQRejects">&mdash;</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24" stroke="#dc2626"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+          <div><div class="lbl">Field Rejects</div><div class="v" id="kFRejects">&mdash;</div></div>
+        </div>
+      </div>
+
+      <!-- UNRECEIVED SECTION -->
+      <div class="ur-panel" id="urPanel">
+        <div class="ur-header" id="urHeader" onclick="pd.toggleUR()">
+          <div class="ur-header-left">
+            <svg class="ur-chevron" id="urChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="ur-title">Harvested but Not Received</span>
+            <span class="ur-title-count" id="urTitleCount" style="display:none">0</span>
+          </div>
+          <div class="ur-summary-strip" id="urSummaryStrip">
+            <div class="ur-ss-item"><span class="ur-ss-val" id="urSSGreenhouses">&mdash;</span><span class="ur-ss-label">Greenhouses</span></div>
+            <div class="ur-ss-item"><span class="ur-ss-val" id="urSSSupervisors">&mdash;</span><span class="ur-ss-label">Supervisors</span></div>
+            <div class="ur-ss-item"><span class="ur-ss-val" id="urSSStems" style="color:var(--red)">&mdash;</span><span class="ur-ss-label">Variance</span></div>
+          </div>
+        </div>
+        <div class="ur-body" id="urBody">
+          <div class="ur-tree" id="urTree"><div class="loading-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- QUARANTINE PENDING REWORK -->
+      <div class="ur-panel" id="qPanel">
+        <div class="ur-header" id="qHeader" onclick="pd.toggleQ()">
+          <div class="ur-header-left">
+            <svg class="ur-chevron" id="qChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="ur-title">Quarantined &mdash; Pending Rework</span>
+            <span class="ur-title-count" id="qTitleCount" style="display:none;background:var(--orange-light);color:#9a5a00">0</span>
+          </div>
+          <div class="ur-summary-strip" id="qSummaryStrip">
+            <div class="ur-ss-item"><span class="ur-ss-val" id="qSSBuckets">&mdash;</span><span class="ur-ss-label">Buckets</span></div>
+            <div class="ur-ss-item"><span class="ur-ss-val" id="qSSHarvesters">&mdash;</span><span class="ur-ss-label">Harvesters</span></div>
+            <div class="ur-ss-item"><span class="ur-ss-val" id="qSSStems" style="color:var(--orange)">&mdash;</span><span class="ur-ss-label">Stems</span></div>
+          </div>
+        </div>
+        <div class="ur-body" id="qBody">
+          <div class="ur-tree" id="qTree"><div class="loading-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- PER FARM BREAKDOWN -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Per Farm Breakdown</div>
+            <span class="sub" id="farmSub" style="margin-left:auto">Harvested stems by farm</span>
+          </div>
+          <div class="aph-card-body padless">
+            <table class="aph-tbl">
+              <thead><tr><th>Farm</th><th>Harvested</th><th>Received</th><th>Variance</th><th>Quarantined</th><th>Quar. Pending</th><th>Quar. Rejects</th><th>Field Rejects</th><th>Start Time</th><th>End Time</th></tr></thead>
+              <tbody id="farmBody"><tr><td colspan="10" class="loading-state">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PER GREENHOUSE BREAKDOWN -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Per Greenhouse Breakdown</div>
+            <span class="sub" id="ghSub" style="margin-left:auto">All greenhouses &middot; stems vs budget</span>
+          </div>
+          <div class="aph-card-body padless">
+            <table class="aph-tbl">
+              <thead><tr>
+                <th>Greenhouse</th><th>Budget</th><th>Harvested</th><th>Received</th>
+                <th>Variance</th><th>Rejects</th><th>Reject %</th><th>Ach %</th>
+              </tr></thead>
+              <tbody id="ghBody"><tr><td colspan="8" class="loading-state">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOP VARIETIES / TOP HARVESTERS -->
+      <div class="two-col" style="margin-bottom:20px">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Top Varieties</div>
+            <span class="sub" style="margin-left:auto">By harvested stems</span>
+          </div>
+          <div id="topVarBody"><div class="loading-state">Loading...</div></div>
+        </div>
+        <div class="aph-card">
+          <div class="aph-card-hd" style="gap:6px;flex-wrap:wrap">
+            <div class="ttl">Top Harvesters</div>
+            <div class="harv-controls" style="margin-left:auto">
+              <div class="tab-group">
+                <button class="tab-btn active" id="hTab0" onclick="pd.switchHarvTab(0)">Harvesting</button>
+                <button class="tab-btn" id="hTab1" onclick="pd.switchHarvTab(1)">Receiving</button>
+                <button class="tab-btn" id="hTab2" onclick="pd.switchHarvTab(2)">Quarantine</button>
+                <button class="tab-btn" id="hTab3" onclick="pd.switchHarvTab(3)">Rejects</button>
+              </div>
+              <button class="icon-btn" id="btnSort" onclick="pd.toggleSort()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><line x1="12" y1="5" x2="12" y2="19"/><polyline id="sortArrow" points="19 12 12 19 5 12"/></svg>
+                <span id="sortLabel">Top</span>
+              </button>
+              <button class="icon-btn" id="btnShowAll" onclick="pd.toggleShowAll()">
+                <span id="showAllLabel">Show all</span>
+              </button>
+            </div>
+          </div>
+          <div class="harv-scroll" id="topHarvBody"><div class="loading-state">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- TODAY'S ACTIVITY CHART -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Today&#39;s Activity</div>
+            <span class="sub" style="margin-left:auto">Hourly distribution</span>
+          </div>
+          <div class="chart-box"><canvas id="pdChart"></canvas></div>
+          <div class="chart-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:#7c5cfc"></span>Harvested</div>
+            <div class="legend-item"><span class="legend-dot" style="background:rgba(36,144,239,.7)"></span>Received</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var pd = (function(){
+  var chart = null;
+  var selVar = [];
+  var selSL = [];
+  var harvTab = 0;
+  var harvSortDesc = true;
+  var harvShowAll = false;
+  var allHarvesters = [];
+  var debounceTimer = null;
+  var urOpen = false;
+  var urExpandState = {};
+  var qOpen = false;
+  var qExpandState = {};
+
+  var TAB_KEYS = ['harvesting_stems','receiving_stems','quarantined_stems','quarantine_rejects_stems'];
+  var TAB_IDS  = ['hTab0','hTab1','hTab2','hTab3'];
+
+  function fmt(n){ if(!n && n!==0) return '0'; return Number(n).toLocaleString(); }
+
+  function fmtTime(ts){
+    if(!ts) return '&mdash;';
+    var d = new Date(ts); if(isNaN(d)) return ts;
+    return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function agingLabel(mins){
+    if(mins < 60) return mins + 'm';
+    var h = Math.floor(mins/60);
+    var m = mins % 60;
+    return h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+  }
+
+  function el(id){ return document.getElementById(id); }
+  function loader(show){ el('pdLoader').classList.toggle('active', show); }
+  function debounce(fn, ms){ clearTimeout(debounceTimer); debounceTimer = setTimeout(fn, ms); }
+
+  function init(){
+    var today = new Date().toISOString().split('T')[0];
+    el('pdFrom').value = today; el('pdTo').value = today;
+    updateBadge();
+    var autoFields = ['pdFrom','pdTo','pdFarm','pdItemGroup','pdGreenhouse'];
+    autoFields.forEach(function(id){
+      el(id).addEventListener('change', function(){
+        if(id==='pdFrom'||id==='pdTo') updateBadge();
+        debounce(function(){ load(); }, 400);
+      });
+    });
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.ms-wrap')) document.querySelectorAll('.ms-dd').forEach(function(d){ d.classList.remove('open'); });
+    });
+    load();
+  }
+
+  function updateBadge(){
+    var from = el('pdFrom').value, to = el('pdTo').value;
+    var today = new Date().toISOString().split('T')[0];
+    if(from===today && to===today){ el('pdDateBadge').textContent='Today'; return; }
+    if(from===to){ el('pdDateBadge').textContent=new Date(from+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}); return; }
+    el('pdDateBadge').textContent = from+' → '+to;
+  }
+
+  function toggleMs(ddId){
+    var dd = el(ddId);
+    document.querySelectorAll('.ms-dd').forEach(function(d){ if(d.id!==ddId) d.classList.remove('open'); });
+    dd.classList.toggle('open');
+  }
+
+  function buildVarDD(list){
+    var dd = el('pdVarDD'); dd.innerHTML = '';
+    if(!list||!list.length){ dd.innerHTML='<div class="ms-item" style="color:var(--text-3)">No varieties</div>'; return; }
+    list.forEach(function(v){
+      var row = document.createElement('div'); row.className='ms-item';
+      var cb = document.createElement('input'); cb.type='checkbox'; cb.value=v.value;
+      cb.checked = selVar.indexOf(v.value)>-1;
+      cb.addEventListener('change', function(){
+        var i=selVar.indexOf(v.value);
+        if(cb.checked && i===-1) selVar.push(v.value);
+        else if(!cb.checked && i>-1) selVar.splice(i,1);
+        updateVarBtn(); debounce(function(){ load(); }, 400);
+      });
+      var lbl=document.createElement('span'); lbl.textContent=v.label;
+      row.appendChild(cb); row.appendChild(lbl); dd.appendChild(row);
+    });
+  }
+
+  function updateVarBtn(){
+    el('pdVarBtn').innerHTML=(selVar.length?selVar.length+' selected':'All Varieties')+' <span>&#9662;</span>';
+  }
+
+  function buildSLPills(lengths){
+    var wrap = el('slPills'); wrap.innerHTML='';
+    if(!lengths||!lengths.length){ wrap.innerHTML='<span style="font-size:11px;color:var(--text-3)">None</span>'; return; }
+    lengths.forEach(function(sl){
+      var btn = document.createElement('button');
+      btn.className = 'sl-pill' + (selSL.indexOf(sl)>-1?' active':'');
+      btn.textContent = sl;
+      btn.addEventListener('click', function(){
+        var i=selSL.indexOf(sl);
+        if(i>-1){ selSL.splice(i,1); btn.classList.remove('active'); }
+        else { selSL.push(sl); btn.classList.add('active'); }
+        debounce(function(){ load(); }, 400);
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function populateSel(selId, list, curVal){
+    var sel=el(selId); if(!list||!list.length) return;
+    var first=sel.options[0].outerHTML; sel.innerHTML=first;
+    list.forEach(function(v){
+      var o=document.createElement('option'); o.value=v; o.textContent=v;
+      if(v===curVal) o.selected=true; sel.appendChild(o);
+    });
+  }
+
+  function switchHarvTab(tab){
+    harvTab=tab;
+    TAB_IDS.forEach(function(id,i){ el(id).classList.toggle('active',i===tab); });
+    renderHarvesters();
+  }
+
+  function toggleSort(){
+    harvSortDesc=!harvSortDesc;
+    el('sortLabel').textContent=harvSortDesc?'Top':'Bottom';
+    el('btnSort').classList.toggle('on',!harvSortDesc);
+    el('sortArrow').setAttribute('points', harvSortDesc?'19 12 12 19 5 12':'5 12 12 5 19 12');
+    renderHarvesters();
+  }
+
+  function toggleShowAll(){
+    harvShowAll=!harvShowAll;
+    el('showAllLabel').textContent=harvShowAll?'Top 10':'Show all';
+    el('btnShowAll').classList.toggle('on',harvShowAll);
+    renderHarvesters();
+  }
+
+  function renderHarvesters(){
+    var sortKey=TAB_KEYS[harvTab];
+    var sorted=allHarvesters.slice().sort(function(a,b){
+      var av=a[sortKey]||0, bv=b[sortKey]||0;
+      return harvSortDesc?bv-av:av-bv;
+    });
+    var list=harvShowAll?sorted:sorted.slice(0,10);
+    if(!list.length){ el('topHarvBody').innerHTML='<div class="empty">No data</div>'; return; }
+    el('topHarvBody').innerHTML=list.map(function(h,i){
+      var rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+      var stems=h[sortKey]||0;
+      var rejected=h.rejected_stems||0;
+      var rejBadge=rejected>0?'<span class="rank-rejected">'+fmt(rejected)+' rej</span>':'';
+      return '<div class="rank-item">'+
+        '<div class="rank-badge '+rc+'">'+(i+1)+'</div>'+
+        '<div class="rank-info">'+
+          '<div class="rank-name">'+(h.harvester||'Unknown')+'</div>'+
+          '<div class="rank-meta">'+(h.farm||'')+(h.budget?' &middot; budget '+fmt(h.budget)+(h.achievement_pct?' ('+h.achievement_pct+'%)':''):'')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:4px">'+
+          '<div class="rank-val">'+fmt(stems)+'</div>'+rejBadge+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  /* ============================================================
+     UNRECEIVED — Farm → Supervisor → Greenhouse
+     ============================================================ */
+  function toggleUR(){
+    urOpen = !urOpen;
+    el('urChevron').classList.toggle('open', urOpen);
+    el('urBody').classList.toggle('open', urOpen);
+  }
+
+  function toggleTreeNode(nodeId){
+    var ch = document.getElementById('ur-ch-'+nodeId);
+    var exp = document.getElementById('ur-exp-'+nodeId);
+    if(!ch) return;
+    var isOpen = ch.classList.toggle('open');
+    if(exp) exp.classList.toggle('open', isOpen);
+    urExpandState[nodeId] = isOpen;
+  }
+
+  function renderUnreceived(data){
+    if(!data){
+      el('urTitleCount').style.display='none';
+      el('urSSGreenhouses').textContent='0';
+      el('urSSSupervisors').textContent='0';
+      el('urSSStems').textContent='0';
+      el('urTree').innerHTML='<div class="empty">No data</div>';
+      return;
+    }
+    var summary = data.summary || {};
+    var tree = data.tree || [];
+    var totalVariance = summary.total_variance_stems || 0;
+    var netVariance = summary.net_variance_stems || 0;
+    var totalGH = summary.total_greenhouses || 0;
+    var totalSup = summary.total_supervisors || 0;
+
+    if(netVariance > 0){
+      el('urTitleCount').textContent = fmt(netVariance) + ' stems';
+      el('urTitleCount').style.display = 'inline-flex';
+    } else {
+      el('urTitleCount').style.display = 'none';
+    }
+    el('urSSGreenhouses').textContent = fmt(totalGH);
+    el('urSSSupervisors').textContent = fmt(totalSup);
+    el('urSSStems').textContent = fmt(netVariance);
+
+    if(!tree.length || totalVariance === 0){
+      el('urTree').innerHTML = '<div class="empty" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="20" height="20" style="vertical-align:middle;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>All harvested stems have been received</div>';
+      return;
+    }
+
+    var html = '';
+    tree.forEach(function(farm, fi){
+      var fid = 'f'+fi;
+      var fOpen = urExpandState[fid] ? true : false;
+      html += '<div class="ur-row ur-row-farm" onclick="pd.toggleTreeNode(\''+fid+'\')" id="ur-row-'+fid+'">'+
+        '<svg id="ur-exp-'+fid+'" class="ur-expand'+(fOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+        '<div class="ur-name" style="font-size:13px">'+(farm.farm||'Unknown')+'</div>'+
+        '<div class="ur-meta">'+
+          '<span class="ur-bkt-count">'+farm.supervisors.length+' supervisor'+(farm.supervisors.length!==1?'s':'')+'</span>'+
+          '<span class="ur-stems" style="color:var(--red)">'+fmt(farm.total_variance)+' stems</span>'+
+        '</div></div>';
+      html += '<div class="ur-children'+(fOpen?' open':'')+'" id="ur-ch-'+fid+'">';
+
+      (farm.supervisors||[]).forEach(function(sup, si){
+        var sid = fid+'s'+si;
+        var sOpen = urExpandState[sid] ? true : false;
+        var supDisplay = sup.supervisor || 'Unknown';
+        if(supDisplay.indexOf('@') > 0) supDisplay = supDisplay.split('@')[0].replace(/\./g,' ');
+        supDisplay = supDisplay.replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+
+        html += '<div class="ur-row ur-row-sup" onclick="pd.toggleTreeNode(\''+sid+'\')" id="ur-row-'+sid+'">'+
+          '<svg id="ur-exp-'+sid+'" class="ur-expand'+(sOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+          '<div class="ur-name"><span style="display:inline-flex;align-items:center;gap:5px">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+            supDisplay+'</span></div>'+
+          '<div class="ur-meta">'+
+            '<span class="ur-bkt-count">'+sup.greenhouses.length+' GH'+(sup.greenhouses.length!==1?'s':'')+'</span>'+
+            '<span class="ur-stems" style="color:var(--red)">'+fmt(sup.total_variance)+' stems</span>'+
+          '</div></div>';
+        html += '<div class="ur-children'+(sOpen?' open':'')+'" id="ur-ch-'+sid+'">';
+
+        (sup.greenhouses||[]).forEach(function(gh){
+          var agingText = '';
+          var agingClass = '';
+          if(gh.aging_minutes > 0){
+            agingText = agingLabel(gh.aging_minutes) + ' ago';
+            if(gh.aging_minutes < 60) agingClass = 'ur-aging-green';
+            else if(gh.aging_minutes < 120) agingClass = 'ur-aging-orange';
+            else agingClass = 'ur-aging-red';
+          }
+          var received = gh.harvested_stems - gh.variance_stems;
+          var completionPct = gh.harvested_stems > 0
+            ? Math.round((received / gh.harvested_stems) * 100)
+            : 0;
+
+          html += '<div class="ur-row ur-row-gh">'+
+            '<svg class="ur-expand leaf" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'+
+            '<div class="ur-bucket-detail" style="flex:1;min-width:0">'+
+              '<span style="font-weight:600;color:var(--text)">'+(gh.greenhouse_name||gh.greenhouse)+'</span>'+
+              '<span class="ur-bucket-tag">'+fmt(gh.harvested_stems)+' harvested</span>'+
+              '<span class="ur-bucket-tag">'+fmt(received)+' received</span>'+
+              '<span class="ur-bucket-tag" style="background:var(--blue-light);color:#1565c0">'+completionPct+'%</span>'+
+              (gh.bucket_count > 0 ? '<span style="color:var(--text-3)">'+gh.bucket_count+' buckets</span>' : '')+
+            '</div>'+
+            '<div class="ur-meta" style="gap:6px">'+
+              (agingText ? '<span class="ur-aging-pill '+agingClass+'">'+agingText+'</span>' : '')+
+              '<span class="ur-stems" style="color:var(--red)">'+fmt(gh.variance_stems)+' missing</span>'+
+            '</div></div>';
+        });
+
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    el('urTree').innerHTML = html;
+  }
+
+  /* ============================================================
+     QUARANTINE PENDING REWORK — Farm → Harvester → Buckets
+     ============================================================ */
+  function toggleQ(){
+    qOpen = !qOpen;
+    el('qChevron').classList.toggle('open', qOpen);
+    el('qBody').classList.toggle('open', qOpen);
+  }
+
+  function toggleQNode(nodeId){
+    var ch = document.getElementById('q-ch-'+nodeId);
+    var exp = document.getElementById('q-exp-'+nodeId);
+    if(!ch) return;
+    var isOpen = ch.classList.toggle('open');
+    if(exp) exp.classList.toggle('open', isOpen);
+    qExpandState[nodeId] = isOpen;
+  }
+
+  function renderQuarantine(data){
+    if(!data){
+      el('qTitleCount').style.display='none';
+      el('qSSBuckets').textContent='0';
+      el('qSSHarvesters').textContent='0';
+      el('qSSStems').textContent='0';
+      el('qTree').innerHTML='<div class="empty">No data</div>';
+      return;
+    }
+    var summary = data.summary || {};
+    var tree = data.tree || [];
+    var totalStems = summary.total_stems || 0;
+    var totalBuckets = summary.total_buckets || 0;
+    var totalHarvesters = summary.total_harvesters || 0;
+
+    if(totalStems > 0){
+      el('qTitleCount').textContent = fmt(totalStems) + ' stems';
+      el('qTitleCount').style.display = 'inline-flex';
+    } else {
+      el('qTitleCount').style.display = 'none';
+    }
+    el('qSSBuckets').textContent = fmt(totalBuckets);
+    el('qSSHarvesters').textContent = fmt(totalHarvesters);
+    el('qSSStems').textContent = fmt(totalStems);
+
+    if(!tree.length || totalStems === 0){
+      el('qTree').innerHTML = '<div class="empty" style="padding:24px"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" width="20" height="20" style="vertical-align:middle;margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>No buckets pending rework</div>';
+      return;
+    }
+
+    var html = '';
+    tree.forEach(function(farm, fi){
+      var fid = 'qf'+fi;
+      var fOpen = qExpandState[fid] ? true : false;
+      html += '<div class="ur-row ur-row-farm" onclick="pd.toggleQNode(\''+fid+'\')" id="q-row-'+fid+'">'+
+        '<svg id="q-exp-'+fid+'" class="ur-expand'+(fOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+        '<div class="ur-name" style="font-size:13px">'+(farm.farm||'Unknown')+'</div>'+
+        '<div class="ur-meta">'+
+          '<span class="ur-bkt-count">'+farm.harvesters.length+' harvester'+(farm.harvesters.length!==1?'s':'')+'</span>'+
+          '<span class="ur-stems" style="color:var(--orange)">'+fmt(farm.total_stems)+' stems</span>'+
+        '</div></div>';
+      html += '<div class="ur-children'+(fOpen?' open':'')+'" id="q-ch-'+fid+'">';
+
+      (farm.harvesters||[]).forEach(function(harv, hi){
+        var hid = fid+'h'+hi;
+        var hOpen = qExpandState[hid] ? true : false;
+        var harvDisplay = harv.harvester || 'Unknown';
+
+        html += '<div class="ur-row ur-row-sup" onclick="pd.toggleQNode(\''+hid+'\')" id="q-row-'+hid+'">'+
+          '<svg id="q-exp-'+hid+'" class="ur-expand'+(hOpen?' open':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'+
+          '<div class="ur-name"><span style="display:inline-flex;align-items:center;gap:5px">'+
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'+
+            harvDisplay+'</span></div>'+
+          '<div class="ur-meta">'+
+            '<span class="ur-bkt-count">'+harv.buckets.length+' bucket'+(harv.buckets.length!==1?'s':'')+'</span>'+
+            '<span class="ur-stems" style="color:var(--orange)">'+fmt(harv.total_stems)+' stems</span>'+
+          '</div></div>';
+        html += '<div class="ur-children'+(hOpen?' open':'')+'" id="q-ch-'+hid+'">';
+
+        (harv.buckets||[]).forEach(function(bkt){
+          var agingText = '';
+          var agingClass = '';
+          if(bkt.aging_minutes > 0){
+            agingText = agingLabel(bkt.aging_minutes);
+            if(bkt.aging_minutes < 120) agingClass = 'ur-aging-green';
+            else if(bkt.aging_minutes < 1440) agingClass = 'ur-aging-orange';
+            else agingClass = 'ur-aging-red';
+          }
+
+          // Build issue tags
+          var issueHtml = '';
+          if(bkt.issues && bkt.issues.length){
+            bkt.issues.forEach(function(iss){
+              var cls = iss.action === 'Rejected' ? 'q-issue-tag reject' : 'q-issue-tag';
+              issueHtml += '<span class="'+cls+'">'+(iss.parameter||'Issue');
+              if(iss.count > 0) issueHtml += ' ('+iss.count+')';
+              issueHtml += '</span>';
+            });
+          }
+
+          html += '<div class="ur-row ur-row-gh" style="cursor:default">'+
+            '<svg class="ur-expand leaf" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>'+
+            '<div class="ur-bucket-detail" style="flex:1;min-width:0">'+
+              '<span class="q-variety-tag">'+(bkt.variety||'Unknown')+'</span>'+
+              '<span class="q-gh-tag">'+(bkt.greenhouse_name||'')+'</span>'+
+              '<span class="ur-bucket-tag">'+fmt(bkt.stems)+' stems</span>'+
+              (bkt.posting_date ? '<span class="q-date-tag">'+bkt.posting_date+'</span>' : '')+
+              issueHtml+
+            '</div>'+
+            '<div class="ur-meta" style="gap:6px">'+
+              (agingText ? '<span class="ur-aging-pill '+agingClass+'">'+agingText+' in quarantine</span>' : '')+
+            '</div></div>';
+        });
+
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    el('qTree').innerHTML = html;
+  }
+
+  /* ============================================================
+     DATA LOADING
+     ============================================================ */
+  function load(){
+    loader(true);
+    frappe.call({
+      method:'get_production_dashboard_data',
+      args:{
+        from_date:el('pdFrom').value, to_date:el('pdTo').value,
+        farm:el('pdFarm').value, item_group:el('pdItemGroup').value,
+        greenhouse:el('pdGreenhouse').value,
+        varieties:selVar.join(','),
+        stem_lengths:selSL.join(','),
+      },
+      callback:function(r){ loader(false); if(r.message) render(r.message); },
+      error:function(){ loader(false); }
+    });
+  }
+
+  function render(data){
+    var opts=data.filter_options||{};
+    populateSel('pdFarm',opts.farms,el('pdFarm').value);
+    populateSel('pdItemGroup',opts.item_groups,el('pdItemGroup').value);
+    populateSel('pdGreenhouse',opts.greenhouses,el('pdGreenhouse').value);
+    if(opts.varieties) buildVarDD(opts.varieties);
+    if(opts.stem_lengths) buildSLPills(opts.stem_lengths);
+
+    var kpi=data.kpi||{};
+    el('kHarvested').textContent   = fmt(kpi.harvested);
+    el('kReceived').textContent    = fmt(kpi.received);
+    el('kRecvVariance').textContent = fmt(kpi.recv_variance);
+    el('kGoodStems').textContent   = fmt(kpi.good_stems);
+    el('kQuarantined').textContent = fmt(kpi.quarantined);
+    el('kQPending').textContent    = fmt(kpi.quarantine_pending);
+    el('kQRejects').textContent    = fmt(kpi.quarantine_rejects);
+    el('kFRejects').textContent    = fmt(kpi.field_rejects);
+
+    var farms=data.farm_kpi||[];
+    if(!farms.length){
+      el('farmBody').innerHTML='<tr><td colspan="10" class="empty">No data for this period</td></tr>';
+    } else {
+      el('farmSub').textContent=farms.length+' farm'+(farms.length!==1?'s':'')+' active';
+      el('farmBody').innerHTML=farms.map(function(f){
+        var rv = (f.harvested||0) - (f.received||0);
+        var rvClass = rv > 0 ? 'tr' : (rv < 0 ? 'to' : 'tg');
+        var qp = f.quarantine_pending || 0;
+        var qpClass = qp > 0 ? 'to' : 'tg';
+        return '<tr>'+
+          '<td style="font-weight:600">'+(f.farm||'&mdash;')+'</td>'+
+          '<td><span class="tag tg">'+fmt(f.harvested)+'</span></td>'+
+          '<td><span class="tag tb">'+fmt(f.received)+'</span></td>'+
+          '<td><span class="tag '+rvClass+'">'+fmt(rv)+'</span></td>'+
+          '<td><span class="tag to">'+fmt(f.quarantined)+'</span></td>'+
+          '<td><span class="tag '+qpClass+'">'+fmt(qp)+'</span></td>'+
+          '<td><span class="tag tr">'+fmt(f.quarantine_rejects)+'</span></td>'+
+          '<td><span class="tag tr">'+fmt(f.field_rejects)+'</span></td>'+
+          '<td style="color:var(--text-2);font-size:11px">'+fmtTime(f.start_time)+'</td>'+
+          '<td style="color:var(--text-2);font-size:11px">'+fmtTime(f.end_time)+'</td>'+
+          '</tr>';
+      }).join('');
+    }
+
+    var ghs = data.greenhouse_data || [];
+    if (!ghs.length) {
+      el('ghBody').innerHTML = '<tr><td colspan="8" class="empty">No data for this period</td></tr>';
+    } else {
+      el('ghSub').textContent = ghs.length + ' greenhouse' + (ghs.length !== 1 ? 's' : '') + ' active';
+      el('ghBody').innerHTML = ghs.map(function(g) {
+        var harvested = g.Harvesting || 0;
+        var received = (g.Receiving || 0) + (g['Late Receipt'] || 0);
+        var variance = g.variance || 0;
+        var vClass = variance > 0 ? 'tr' : (variance < 0 ? 'to' : 'tg');
+        var rejects = g.total_rejects || 0;
+        return '<tr>' +
+          '<td style="font-weight:600">' + (g.greenhouse_name || g.greenhouse || '&mdash;') + '</td>' +
+          '<td>' + fmt(g.budget) + '</td>' +
+          '<td><span class="tag tg">' + fmt(harvested) + '</span></td>' +
+          '<td><span class="tag tb">' + fmt(received) + '</span></td>' +
+          '<td><span class="tag ' + vClass + '">' + fmt(variance) + '</span></td>' +
+          '<td><span class="tag tr">' + fmt(rejects) + '</span></td>' +
+          '<td>' + (g.reject_pct || 0) + '%</td>' +
+          '<td>' + (g.budget_achievement_pct || 0) + '%</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    var vars=data.top_varieties||[];
+    el('topVarBody').innerHTML=!vars.length?'<div class="empty">No data</div>'
+      :vars.slice(0,10).map(function(v,i){
+        var rc=i===0?'r1':i===1?'r2':i===2?'r3':'rn';
+        return '<div class="rank-item">'+
+          '<div class="rank-badge '+rc+'">'+(i+1)+'</div>'+
+          '<div class="rank-info">'+
+            '<div class="rank-name">'+(v.item_name||v.item_code)+'</div>'+
+            '<div class="rank-meta">'+fmt(v.received||0)+' received</div>'+
+          '</div>'+
+          '<div class="rank-val">'+fmt(v.harvested)+' stems</div>'+
+        '</div>';
+      }).join('');
+
+    allHarvesters=data.all_harvesters||[];
+    renderHarvesters();
+
+    // Unreceived
+    renderUnreceived(data.unreceived_buckets);
+
+    // Quarantine pending rework
+    renderQuarantine(data.quarantine_pending);
+
+    var hourly=data.hourly_data||{};
+    if(chart) chart.destroy();
+    if(hourly.labels && hourly.labels.length){
+      chart=new Chart(el('pdChart'),{
+        type:'bar',
+        data:{labels:hourly.labels,datasets:[
+          {label:'Harvested',data:hourly.harvested,backgroundColor:'rgba(124,92,252,.75)',borderRadius:4,stack:'a'},
+          {label:'Received', data:hourly.received, backgroundColor:'rgba(36,144,239,.6)', borderRadius:4,stack:'a'}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:400},
+          plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,23,42,.9)',padding:12,cornerRadius:8,
+            callbacks:{label:function(c){return ' '+c.dataset.label+': '+c.raw.toLocaleString()+' stems';}}}},
+          scales:{
+            x:{grid:{display:false},ticks:{font:{size:11},color:'#98a1a9'}},
+            y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#98a1a9'}}
+          }}
+      });
+    }
+  }
+
+  return {
+    init:init, load:load, toggleMs:toggleMs,
+    switchHarvTab:switchHarvTab, toggleSort:toggleSort, toggleShowAll:toggleShowAll,
+    toggleUR:toggleUR, toggleTreeNode:toggleTreeNode,
+    toggleQ:toggleQ, toggleQNode:toggleQNode
+  };
+})();
+
+document.addEventListener('DOMContentLoaded',function(){ pd.init(); });
+
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        document.getElementById('aph-foot-av').textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        document.getElementById('aph-foot-nm').textContent = fullName;
+        document.getElementById('aph-foot-em').textContent = u;
+    }
+    tryFill();
+})();
+</script>

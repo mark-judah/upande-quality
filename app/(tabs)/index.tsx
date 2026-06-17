@@ -1,98 +1,141 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Screen } from '@/src/core/ui/Screen';
+import { Card } from '@/src/core/ui/Card';
+import { useAuthStore } from '@/src/core/auth/store';
+import { useDrawerItems } from '@/src/core/ui/drawer-items-context';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import type { DrawerItem } from '@/src/core/tenant/types';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+/** Map each known drawer route to a stable Ionicon. Kept in sync with the
+ *  side drawer (src/core/ui/SideMenu.tsx) and the bottom tab bar
+ *  (app/(tabs)/_layout.tsx) so users see the same glyph everywhere. */
+const ROUTE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  traceability: 'search-outline',
+  replacement: 'swap-horizontal-outline',
+  'edit-details': 'create-outline',
+  'pending-reshelving': 'time-outline',
+  receiving: 'download-outline',
+  shelving: 'albums-outline',
+  'bucket-requests': 'cart-outline',
+  'solution-mixing': 'flask-outline',
+  'temperature-log': 'thermometer-outline',
+  'cleaning-record': 'sparkles-outline',
+  'inspection-log': 'checkbox-outline',
+  discards: 'trash-outline',
+  'intake-qc': 'checkmark-done-outline',
+  'coldroom-qc': 'snow-outline',
+  'packhouse-qc': 'cube-outline',
+};
+
+const ROUTE_HINTS: Record<string, string> = {
+  traceability: 'Scan a bucket or bunch to see its full journey',
+  replacement: 'Swap buckets, move bunches, replace stems',
+  'edit-details': 'Correct variety or stem length',
+  'pending-reshelving': 'Bunches waiting for a destination',
+  receiving: 'Daily receiving entry',
+  shelving: 'Scan shelf then buckets',
+  'bucket-requests': 'Build trolleys from the daily pick list',
+  'solution-mixing': 'Log post-harvest chemical mixes',
+  'temperature-log': 'Cold store temperatures throughout the day',
+  'cleaning-record': 'Cleaning + disinfection of cold rooms',
+  'inspection-log': 'Daily coldroom condition rounds',
+  discards: 'Discard old or rejected buckets',
+  'intake-qc': 'Inspect arriving batches',
+  'coldroom-qc': 'Quality checks in the coldroom',
+  'packhouse-qc': 'Quality checks in the packhouse',
+};
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const fullName = useAuthStore((s) => s.fullName);
+  const email = useAuthStore((s) => s.email);
+  const items = useDrawerItems();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <Screen title="Upande Quality">
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Card>
+          <Text style={s.greeting}>Welcome,</Text>
+          <Text style={s.name}>{fullName || email || 'Quality user'}</Text>
+        </Card>
+
+        <View style={s.grid}>
+          {items.map((it: DrawerItem) => (
+            <Pressable
+              key={it.route}
+              onPress={() => {
+                if (it.comingSoon) return;
+                router.push(`/${it.route}` as never);
+              }}
+              style={({ pressed }) => [
+                s.tile,
+                it.comingSoon && s.tileMuted,
+                pressed && !it.comingSoon && { opacity: 0.7 },
+              ]}
+            >
+              <View style={s.tileIcon}>
+                <Ionicons
+                  name={ROUTE_ICONS[it.route] ?? 'apps-outline'}
+                  size={22}
+                  color={it.comingSoon ? COLORS.textMuted : COLORS.text}
+                />
+              </View>
+              <Text style={[s.tileLabel, it.comingSoon && s.tileLabelMuted]}>
+                {it.label}
+              </Text>
+              {it.comingSoon ? (
+                <Text style={s.tileComingSoon}>Coming soon</Text>
+              ) : (
+                <Text style={s.tileHint} numberOfLines={2}>
+                  {ROUTE_HINTS[it.route] ?? ''}
+                </Text>
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+const s = StyleSheet.create({
+  scroll: { paddingBottom: spacing.xxl },
+  greeting: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
+  name: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, marginTop: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
+  tile: {
+    flexBasis: '48%',
+    flexGrow: 0,
+    backgroundColor: COLORS.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    gap: spacing.xs,
+  },
+  tileIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.surfaceAlt,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  tileLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
+  tileLabelMuted: { color: COLORS.textMuted },
+  tileMuted: { opacity: 0.65 },
+  tileHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, lineHeight: 16 },
+  tileComingSoon: {
+    fontFamily: fontFamily.medium,
+    fontSize: 10,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 });

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stock Visibility</title>
+    <script src="/assets/frappe/js/frappe-web.min.js"></script>
+    <style>
+        :root {
+            /* Backgrounds */
+            --bg-page: #f4f5f6;
+            --bg-surface: #ffffff;
+            --bg-input: #f4f5f6;
+            --bg-hover: #f8f9fa;
+            --bg-tab-group: #f4f5f6;
+
+            /* Text */
+            --text-primary: #1a1a1a;
+            --text-secondary: #6c7178;
+            --text-muted: #98a1a9;
+            --text-on-dark: #ffffff;
+
+            /* Borders */
+            --border-default: #e2e4e7;
+            --border-light: #f0f0f0;
+
+            /* Accent */
+            --accent-blue: #2490ef;
+            --accent-blue-light: #e8f0fe;
+            --accent-green: #29cd42;
+            --accent-red: #e63757;
+            --accent-orange: #fc9c30;
+            --accent-purple: #7c5cfc;
+
+            /* Interactive */
+            --btn-dark: #1a1a1a;
+            --btn-dark-hover: #333333;
+
+            /* Tints */
+            --tint-blue: #e8f0fe;
+            --tint-purple: #f0ecfe;
+            --tint-green: #e6f9ee;
+            --tint-orange: #fff3e0;
+            --tint-gray: #f4f5f6;
+
+            /* Shadow */
+            --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
+
+            /* Variance colour tokens */
+            --var-pos-bg:   var(--tint-green);
+            --var-pos-txt:  #1a8a3a;
+            --var-mid-bg:   var(--tint-orange);
+            --var-mid-txt:  #9a5a00;
+            --var-neg-bg:   #fde8ec;
+            --var-neg-txt:  var(--accent-red);
+            --var-zero-bg:  var(--bg-input);
+            --var-zero-txt: var(--text-muted);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ── Top Nav ── */
+        .top-nav {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 200;
+            height: 44px;
+        }
+        .nav-brand {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 0 14px 0 0; margin-right: 6px;
+            border-right: 1px solid var(--border-default); white-space: nowrap;
+        }
+        .nav-link {
+            padding: 12px 14px; font-size: 13px; font-weight: 500;
+            color: var(--text-secondary); text-decoration: none;
+            border-bottom: 2px solid transparent; margin-bottom: -1px;
+            transition: color 150ms ease, border-color 150ms ease;
+        }
+        .nav-link:hover { color: var(--text-primary); border-bottom-color: var(--border-default); }
+        .nav-link.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 600; }
+        @media(max-width:600px) { .nav-brand { display: none; } .top-nav { overflow-x: auto; } }
+
+        /* ── Page Head ── */
+        .page-head {
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border-default);
+            padding: 10px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px;
+            position: sticky; top: 44px; z-index: 100;
+        }
+        .page-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+        .page-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 8px 16px; font-size: 13px; font-weight: 500;
+            font-family: inherit; border-radius: 8px; cursor: pointer;
+            border: 1px solid transparent; display: inline-flex;
+            align-items: center; gap: 6px;
+            transition: background 150ms ease, color 150ms ease;
+        }
+        .btn-secondary {
+            background: var(--bg-surface); color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+        .btn-secondary:hover { background: var(--bg-input); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        /* ── Tab Toggle Group (for filter) ── */
+        .tab-group {
+            display: inline-flex;
+            background: var(--bg-tab-group);
+            border-radius: 8px;
+            padding: 3px;
+        }
+        .tab-btn {
+            padding: 6px 16px; border-radius: 6px;
+            font-size: 13px; font-weight: 500;
+            border: none; background: transparent;
+            color: var(--text-secondary); cursor: pointer;
+            font-family: inherit;
+            transition: background 150ms ease, color 150ms ease;
+        }
+        .tab-btn.active { background: var(--btn-dark); color: var(--text-on-dark); }
+
+        /* ── Live Badge ── */
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 12px; font-weight: 600; color: var(--text-primary);
+            background: var(--bg-surface); border: 1px solid var(--border-default);
+            border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: inherit;
+            transition: background 150ms ease;
+        }
+        .live-badge:hover { background: var(--bg-input); }
+        .live-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; }
+
+        /* ── Date Badge ── */
+        .date-badge {
+            font-size: 12px; font-weight: 600; color: var(--text-secondary);
+            background: var(--bg-input); border-radius: 6px; padding: 4px 12px;
+        }
+
+        /* ── Form Controls ── */
+        .form-control {
+            height: 32px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+            background: var(--bg-input); border: 1px solid transparent;
+            border-radius: 6px; color: var(--text-primary);
+            transition: border-color 150ms ease, background 150ms ease;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+        .form-control::placeholder { color: var(--text-muted); }
+
+        /* ── Search ── */
+        .search-input {
+            height: 32px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+            background: var(--bg-input); border: 1px solid transparent;
+            border-radius: 6px; color: var(--text-primary); min-width: 180px;
+            transition: border-color 150ms ease, background 150ms ease;
+        }
+        .search-input:focus { outline: none; border-color: var(--accent-blue); background: var(--bg-surface); }
+        .search-input::placeholder { color: var(--text-muted); }
+
+        /* ── Container ── */
+        .container { padding: 20px; max-width: 1920px; margin: 0 auto; }
+
+        /* ── KPI Cards ── */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px; margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 10px;
+            box-shadow: var(--shadow-card);
+            padding: 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .kpi-icon {
+            width: 36px; height: 36px; min-width: 36px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .kpi-icon svg { width: 16px; height: 16px; }
+        .kpi-content { flex: 1; min-width: 0; }
+        .kpi-label {
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary); margin-bottom: 2px;
+            line-height: 1.3;
+        }
+        .kpi-value {
+            font-size: 20px; font-weight: 700;
+            color: var(--text-primary); line-height: 1;
+        }
+        .kpi-sub {
+            font-size: 10px; font-weight: 600;
+            color: var(--text-muted); margin-top: 4px;
+        }
+        @media(max-width:992px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+        @media(max-width:600px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+        @media(max-width:380px) { .kpi-row { grid-template-columns: 1fr; } }
+
+        /* ── Panel ── */
+        .panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+        .panel-heading {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-default);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 10px;
+        }
+        .panel-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .panel-body { padding: 0; }
+
+        /* ── Labels ── */
+        .label {
+            display: inline-flex; align-items: center;
+            padding: 3px 8px; font-size: 11px; font-weight: 600;
+            border-radius: 4px; letter-spacing: 0.3px;
+        }
+        .label-success { background: var(--tint-green); color: #1a8a3a; }
+        .label-warning { background: var(--tint-orange); color: #9a5a00; }
+        .label-danger  { background: #fde8ec; color: var(--accent-red); }
+        .label-default { background: var(--bg-input); color: var(--text-secondary); }
+        .label-primary { background: var(--tint-blue); color: var(--accent-blue); }
+
+        /* ── Table ── */
+        .table-wrap { width: 100%; overflow: auto; max-height: calc(100vh - 260px); }
+        .stock-table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+            min-width: 900px;
+        }
+        .stock-table thead tr th {
+            padding: 8px 8px; text-align: right;
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border-default);
+            background: var(--bg-surface);
+            position: sticky; top: 0; z-index: 10;
+        }
+        .stock-table thead tr th:first-child,
+        .stock-table thead tr th:nth-child(2) { text-align: left; }
+
+        /* Header group rows */
+        .stock-table thead tr.group-row th {
+            padding: 6px 8px; font-size: 11px; font-weight: 700;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-default);
+            background: var(--bg-surface);
+            position: sticky; top: 0; z-index: 11;
+        }
+        .stock-table thead tr.group-row th.gh-length {
+            text-align: center; border-left: 1px solid var(--border-default);
+            color: var(--text-primary);
+        }
+        .stock-table thead tr.group-row th.gh-total {
+            text-align: center; border-left: 1px solid var(--border-default);
+            color: var(--accent-blue); font-weight: 700;
+        }
+
+        /* Sub-header */
+        .stock-table thead tr.sub-row th {
+            padding: 6px 8px; font-size: 10px;
+            border-bottom: 1px solid var(--border-default);
+            background: var(--bg-surface);
+            position: sticky; top: 30px; z-index: 11;
+        }
+        .stock-table thead tr.sub-row th.sh-stock   { color: #1a8a3a; }
+        .stock-table thead tr.sub-row th.sh-ordered  { color: var(--accent-blue); }
+        .stock-table thead tr.sub-row th.sh-var      { color: var(--text-muted); }
+        .stock-table thead tr.sub-row th.sh-border   { border-left: 1px solid var(--border-default); }
+        .stock-table thead tr.sub-row th.sh-total-border { border-left: 1px solid var(--border-default); }
+
+        /* Body rows */
+        .stock-table tbody tr.variety-row td {
+            padding: 8px 8px; border-top: 1px solid var(--border-default);
+            font-weight: 700; font-size: 13px; color: var(--text-primary);
+            background: var(--bg-surface);
+        }
+        .stock-table tbody tr.variety-row:hover td { background: var(--bg-hover); }
+
+        .stock-table tbody tr.farm-row td {
+            padding: 6px 8px; border-top: 1px solid var(--border-light);
+            font-size: 12px; color: var(--text-primary);
+            background: var(--bg-surface);
+        }
+        .stock-table tbody tr.farm-row:hover td { background: var(--bg-hover); }
+
+        .stock-table tbody tr.variety-total-row td {
+            padding: 6px 8px; border-top: 1px dashed var(--border-default);
+            font-size: 12px; color: var(--text-muted);
+            background: var(--bg-input);
+        }
+
+        /* Cell alignment */
+        .stock-table td { text-align: right; vertical-align: middle; }
+        .stock-table td.td-variety { text-align: left; font-weight: 700; }
+        .stock-table td.td-farm { text-align: left; padding-left: 20px; color: var(--text-secondary); font-weight: 500; }
+        .stock-table td.td-label { text-align: left; }
+
+        /* Length group separator */
+        .stock-table td.td-lg-start,
+        .stock-table th.sh-border { border-left: 1px solid var(--border-default); }
+        .stock-table td.td-total-start,
+        .stock-table th.sh-total-border { border-left: 1px solid var(--border-default); }
+
+        /* Variance cell coloring */
+        .var-pos  { background: var(--var-pos-bg) !important; color: var(--var-pos-txt) !important; font-weight: 700; }
+        .var-mid  { background: var(--var-mid-bg) !important; color: var(--var-mid-txt) !important; font-weight: 700; }
+        .var-neg  { background: var(--var-neg-bg) !important; color: var(--var-neg-txt) !important; font-weight: 700; }
+        .var-zero { background: var(--var-zero-bg) !important; color: var(--var-zero-txt) !important; }
+
+        /* Total column emphasis */
+        .td-total { font-weight: 700; }
+
+        /* Number formatting */
+        .num { font-variant-numeric: tabular-nums; font-size: 12px; }
+
+        /* Collapse toggle */
+        .variety-toggle {
+            cursor: pointer; user-select: none; margin-right: 6px;
+            color: var(--text-muted); font-size: 11px;
+            display: inline-block; width: 14px; text-align: center;
+        }
+
+        /* Legend */
+        .legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+        .legend-swatch { width: 14px; height: 14px; border-radius: 4px; }
+
+        /* Empty / loading */
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        .empty-state p { font-size: 13px; margin-top: 10px; }
+        .loading-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<nav class="top-nav">
+    <span class="nav-brand">Packhouse</span>
+    <a href="app/packhouse-%26-sales" class="nav-link">Home</a>
+    <a href="packhouse-dashboard" class="nav-link">Workflow</a>
+    <a href="sales-allocation-planning" class="nav-link">Allocation Planning</a>
+    <a href="bucket-tracker" class="nav-link">Bucket Journey</a>
+    <a href="cold-room" class="nav-link">Cold Room</a>
+    <a href="stock-visibility" class="nav-link active">Stock Visibility</a>
+    <a href="order-summary" class="nav-link">Order Summary</a>
+</nav>
+
+<div class="page-head">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span class="page-title">Stock Visibility</span>
+        <span class="date-badge" id="dateBadge">Loading...</span>
+    </div>
+    <div class="page-controls">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search variety...">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">Delivery Date</label>
+        <input type="date" id="deliveryDate" class="form-control" style="width:135px;">
+        <div class="tab-group">
+            <button class="tab-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+            <button class="tab-btn" data-filter="spray" onclick="setFilter('spray')">Sprays</button>
+            <button class="tab-btn" data-filter="standard" onclick="setFilter('standard')">Standard</button>
+        </div>
+        <button class="live-badge" id="refreshBtn" onclick="loadAll()">
+            <span class="live-dot"></span>LIVE
+        </button>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Varieties</div>
+                <div class="kpi-value" id="kpiVarieties">--</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Stock (Stems)</div>
+                <div class="kpi-value" id="kpiStock">--</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-purple);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#7c5cfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Ordered (Stems)</div>
+                <div class="kpi-value" id="kpiOrdered">--</div>
+                <div class="kpi-sub" id="kpiOrderedSub">for selected delivery</div>
+            </div>
+        </div>
+        <div class="kpi-card" id="kpiVarCard">
+            <div class="kpi-icon" id="kpiVarIcon" style="background:var(--tint-green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Overall Variance</div>
+                <div class="kpi-value" id="kpiVariance">--</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-orange);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fc9c30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Shelf Entries</div>
+                <div class="kpi-value" id="kpiShelves">--</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon" style="background:var(--tint-blue);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2490ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-label">Coverage</div>
+                <div class="kpi-value" id="kpiCoverage">--</div>
+                <div class="kpi-sub">stock vs orders</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-heading">
+            <span class="panel-title">Variety Stock vs Orders -- by Farm &amp; Length</span>
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-swatch" style="background:var(--tint-green);border:1px solid #c5e8cd"></div>Surplus</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background:var(--tint-orange);border:1px solid #f5deb3"></div>Tight</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background:#fde8ec;border:1px solid #f5c6ce"></div>Deficit</div>
+                </div>
+                <span class="label label-default" id="rowCount">--</span>
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="table-wrap">
+                <table class="stock-table" id="stockTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="20" class="loading-state">Loading stock and order data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let G = {
+        shelfData: [],
+        orderData: [],
+        lengths: [],
+        tableData: [],
+        currentFilter: 'all',
+        searchTerm: '',
+        collapsed: new Set(),
+        today: new Date().toISOString().split('T')[0]
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('deliveryDate').value = G.today;
+        updateDateBadge();
+        document.getElementById('searchInput').addEventListener('input', function() {
+            G.searchTerm = this.value.toLowerCase().trim();
+            renderTable();
+        });
+        document.getElementById('deliveryDate').addEventListener('change', () => {
+            updateDateBadge();
+            loadAll();
+        });
+        setTimeout(loadAll, 400);
+        setInterval(() => { if (!_loading) loadAll(); }, 60000);
+    });
+
+    function updateDateBadge() {
+        G.today = new Date().toISOString().split('T')[0];
+        const selected = document.getElementById('deliveryDate')?.value || G.today;
+        const d = new Date(selected + 'T00:00:00');
+        document.getElementById('dateBadge').textContent =
+            'Delivery: ' + d.toLocaleDateString(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+    }
+
+    let _loading = false;
+    function loadAll() {
+        if (_loading) return;
+        _loading = true;
+        document.getElementById('tableBody').innerHTML =
+            '<tr><td colspan="30" class="loading-state">Loading stock and order data...</td></tr>';
+        updateDateBadge();
+
+        frappe.call({
+            method: 'getStockVisibilityData',
+            args: { delivery_date: document.getElementById('deliveryDate').value || G.today },
+            callback(r) {
+                _loading = false;
+                const msg = r.message || {};
+                if (msg.success) {
+                    G.shelfData = msg.stock  || [];
+                    G.orderData = msg.orders || [];
+                    process();
+                } else {
+                    console.error('getStockVisibilityData failed:', msg.error);
+                    document.getElementById('tableBody').innerHTML =
+                        '<tr><td colspan="30" class="loading-state" style="color:var(--accent-red)">Error loading data: ' + (msg.error || 'unknown') + '</td></tr>';
+                }
+            },
+            error(e) {
+                _loading = false;
+                console.error('loadAll error:', e);
+                document.getElementById('tableBody').innerHTML =
+                    '<tr><td colspan="30" class="loading-state" style="color:var(--accent-red)">Error loading data -- check console.</td></tr>';
+            }
+        });
+    }
+
+    function process() {
+        const stockMap = {};
+        for (const item of G.shelfData) {
+            const variety = (item.variety || 'Unknown').trim();
+            const farm    = (item.farm    || 'Unknown').trim();
+            const length  = (item.length  || '--').trim();
+            const qty     = parseFloat(item.stems) || 0;
+            if (!stockMap[variety])         stockMap[variety] = {};
+            if (!stockMap[variety][farm])   stockMap[variety][farm] = {};
+            stockMap[variety][farm][length] = (stockMap[variety][farm][length] || 0) + qty;
+        }
+
+        const orderMap   = {};
+        const itemGroups = {};
+        for (const item of G.orderData) {
+            const variety = (item.variety || 'Unknown').trim();
+            const length  = (item.length  || '--').trim();
+            const qty     = parseFloat(item.stems) || 0;
+            if (!orderMap[variety])       orderMap[variety] = {};
+            orderMap[variety][length]     = (orderMap[variety][length] || 0) + qty;
+            if (!itemGroups[variety])     itemGroups[variety] = item.item_group || '';
+        }
+
+        const lengthSet = new Set();
+        for (const v of Object.keys(stockMap)) {
+            for (const f of Object.keys(stockMap[v])) {
+                for (const l of Object.keys(stockMap[v][f])) lengthSet.add(l);
+            }
+        }
+        for (const v of Object.keys(orderMap)) {
+            for (const l of Object.keys(orderMap[v])) lengthSet.add(l);
+        }
+
+        G.lengths = Array.from(lengthSet).sort((a, b) => {
+            const na = parseInt(a), nb = parseInt(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            if (!isNaN(na)) return -1;
+            if (!isNaN(nb)) return  1;
+            return a.localeCompare(b);
+        });
+
+        const allVarieties = new Set([...Object.keys(stockMap), ...Object.keys(orderMap)]);
+        const rows = [];
+
+        for (const variety of Array.from(allVarieties).sort()) {
+            const ig = itemGroups[variety] || '';
+            const farmMap = stockMap[variety] || {};
+            const ordByLen = orderMap[variety] || {};
+
+            let totalStock = 0, totalOrdered = 0;
+            const stockByLen  = {};
+            const orderedByLen = {};
+
+            const farms = Object.keys(farmMap).sort();
+            const farmRows = farms.map(farm => {
+                const lenMap = farmMap[farm];
+                let farmStock = 0;
+                const farmByLen = {};
+                for (const l of G.lengths) {
+                    const s = lenMap[l] || 0;
+                    farmByLen[l]  = s;
+                    farmStock    += s;
+                    stockByLen[l] = (stockByLen[l] || 0) + s;
+                }
+                totalStock += farmStock;
+                return { farm, byLen: farmByLen, total: farmStock };
+            });
+
+            for (const l of G.lengths) {
+                orderedByLen[l] = ordByLen[l] || 0;
+                totalOrdered   += orderedByLen[l];
+            }
+
+            rows.push({
+                variety, ig, farms: farmRows,
+                stockByLen, orderedByLen,
+                totalStock, totalOrdered,
+                variance: totalStock - totalOrdered
+            });
+        }
+
+        G.tableData = rows;
+        renderKPIs(rows);
+        renderTable();
+    }
+
+    function renderKPIs(rows) {
+        let totalStock = 0, totalOrdered = 0, totalShelves = G.shelfData.length;
+        for (const r of rows) { totalStock += r.totalStock; totalOrdered += r.totalOrdered; }
+        const variance = totalStock - totalOrdered;
+        const coverage = totalOrdered > 0 ? Math.round((totalStock / totalOrdered) * 100) : 0;
+
+        document.getElementById('kpiVarieties').textContent = rows.length;
+        document.getElementById('kpiStock').textContent     = totalStock.toLocaleString();
+        document.getElementById('kpiOrdered').textContent   = totalOrdered.toLocaleString();
+        document.getElementById('kpiVariance').textContent  = (variance >= 0 ? '+' : '') + variance.toLocaleString();
+        document.getElementById('kpiShelves').textContent   = totalShelves.toLocaleString();
+        document.getElementById('kpiCoverage').textContent  = coverage + '%';
+
+        const varIcon = document.getElementById('kpiVarIcon');
+        const varValue = document.getElementById('kpiVariance');
+        if (variance >= 0) {
+            varIcon.style.background = 'var(--tint-green)';
+            varIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#29cd42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>';
+            varValue.style.color = '#1a8a3a';
+        } else {
+            varIcon.style.background = '#fde8ec';
+            varIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#e63757" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>';
+            varValue.style.color = 'var(--accent-red)';
+        }
+    }
+
+    function setFilter(f) {
+        G.currentFilter = f;
+        document.querySelectorAll('.tab-btn[data-filter]').forEach(b =>
+            b.classList.toggle('active', b.dataset.filter === f));
+        renderTable();
+    }
+
+    function passesFilter(row) {
+        if (G.currentFilter === 'spray')    return (row.ig || '') === 'Spray Roses';
+        if (G.currentFilter === 'standard') return (row.ig || '') === 'Standard Roses';
+        return true;
+    }
+
+    function varClass(v) {
+        if (v === 0)   return 'var-zero';
+        if (v > 0)     return 'var-pos';
+        if (v >= -500) return 'var-mid';
+        return 'var-neg';
+    }
+
+    function fmtNum(n) {
+        if (n === 0 || n == null) return '<span style="color:var(--text-muted)">--</span>';
+        return n.toLocaleString();
+    }
+    function fmtVar(v) {
+        if (v == null) return '<span style="color:var(--text-muted)">--</span>';
+        return (v > 0 ? '+' : '') + v.toLocaleString();
+    }
+
+    function renderTable() {
+        const lengths = G.lengths;
+        const L = lengths.length;
+
+        let groupRow = `<tr class="group-row">
+            <th colspan="2" style="text-align:left">Variety / Farm</th>`;
+        let subRow = `<tr class="sub-row">
+            <th style="text-align:left;min-width:160px">Variety</th>
+            <th style="text-align:left;min-width:120px;color:var(--text-muted);font-weight:500">Farm</th>`;
+
+        for (let i = 0; i < L; i++) {
+            groupRow += `<th colspan="3" class="gh-length">${lengths[i]}</th>`;
+            subRow   += `<th class="sh-stock sh-border">Stock</th>
+                         <th class="sh-ordered">Ordered</th>
+                         <th class="sh-var">Var</th>`;
+        }
+        groupRow += `<th colspan="3" class="gh-total">Total</th></tr>`;
+        subRow   += `<th class="sh-stock sh-total-border td-total">Stock</th>
+                     <th class="sh-ordered td-total">Ordered</th>
+                     <th class="sh-var td-total">Variance</th></tr>`;
+
+        document.getElementById('tableHead').innerHTML = groupRow + subRow;
+
+        const visible = G.tableData.filter(r => {
+            if (!passesFilter(r)) return false;
+            if (G.searchTerm && !r.variety.toLowerCase().includes(G.searchTerm)) return false;
+            return true;
+        });
+
+        document.getElementById('rowCount').textContent = visible.length + ' varieties';
+
+        if (!visible.length) {
+            document.getElementById('tableBody').innerHTML =
+                `<tr><td colspan="${2 + L*3 + 3}" class="empty-state"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#98a1a9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><p>No varieties found</p></td></tr>`;
+            return;
+        }
+
+        let html = '';
+        for (const row of visible) {
+            const isCollapsed = G.collapsed.has(row.variety);
+            const toggleSvg = row.farms.length
+                ? (isCollapsed
+                    ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+                    : '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>')
+                : '';
+            const vClass = varClass(row.variance);
+
+            html += `<tr class="variety-row" onclick="toggleCollapse('${escQ(row.variety)}')">
+                <td class="td-variety">
+                    <span class="variety-toggle">${toggleSvg}</span>${row.variety}
+                </td>
+                <td class="td-farm" style="color:var(--text-muted);font-size:11px">${row.farms.length} farm${row.farms.length!==1?'s':''}</td>`;
+
+            for (let i = 0; i < L; i++) {
+                const l  = lengths[i];
+                const s  = row.stockByLen[l]   || 0;
+                const o  = row.orderedByLen[l]  || 0;
+                const v  = s - o;
+                const vc = (s || o) ? varClass(v) : 'var-zero';
+                html += `<td class="num td-lg-start">${fmtNum(s)}</td>
+                         <td class="num">${fmtNum(o)}</td>
+                         <td class="num ${(s||o)?vc:''}">${(s||o)?fmtVar(v):'<span style="color:var(--text-muted)">--</span>'}</td>`;
+            }
+
+            html += `<td class="num td-total td-total-start">${fmtNum(row.totalStock)}</td>
+                     <td class="num td-total">${fmtNum(row.totalOrdered)}</td>
+                     <td class="num td-total ${vClass}">${fmtVar(row.variance)}</td>
+                 </tr>`;
+
+            if (!isCollapsed && row.farms.length > 0) {
+                for (const fr of row.farms) {
+                    html += `<tr class="farm-row">
+                        <td class="td-variety" style="padding-left:8px;font-weight:400;font-size:12px;color:var(--text-muted)"></td>
+                        <td class="td-farm">${fr.farm}</td>`;
+
+                    for (let i = 0; i < L; i++) {
+                        const l  = lengths[i];
+                        const s  = fr.byLen[l] || 0;
+                        html += `<td class="num td-lg-start">${fmtNum(s)}</td>
+                                 <td class="num">--</td>
+                                 <td class="num">--</td>`;
+                    }
+
+                    html += `<td class="num td-total td-total-start">${fmtNum(fr.total)}</td>
+                             <td class="num td-total">--</td>
+                             <td class="num td-total">--</td>
+                         </tr>`;
+                }
+            }
+        }
+
+        document.getElementById('tableBody').innerHTML = html;
+    }
+
+    function toggleCollapse(variety) {
+        if (G.collapsed.has(variety)) G.collapsed.delete(variety);
+        else G.collapsed.add(variety);
+        renderTable();
+    }
+
+    function escQ(s) { return s.replace(/'/g, "\\'"); }
+</script>
+</body>
+</html>
