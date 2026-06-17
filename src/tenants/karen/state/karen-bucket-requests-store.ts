@@ -327,7 +327,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         trolleyIds: [trolleyId],
         farm,
       });
-      if (outcome.kind === 'ok') {
+      if (outcome.kind === 'ok' && outcome.clearedCount > 0) {
         set((cur) => {
           const next = { ...cur.deleting };
           delete next[trolleyId];
@@ -338,13 +338,18 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         });
         return { ok: true, message: 'Trolley cleared.' };
       }
-      // error: drop the in-flight flag and re-fetch to restore truth
+      // Either an error, OR the server cleared nothing (e.g. already loaded /
+      // wrong farm). Don't optimistically drop the card — re-fetch the truth
+      // and surface why nothing changed.
       set((cur) => {
         const next = { ...cur.deleting };
         delete next[trolleyId];
         return { deleting: next };
       });
       await get().loadSaved(farm);
+      if (outcome.kind === 'ok') {
+        return { ok: false, message: 'Nothing was cleared — the trolley may already be loaded.' };
+      }
       return { ok: false, message: outcome.message };
     } catch (err) {
       set((cur) => {
@@ -372,7 +377,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         trolleyIds: ids,
         farm,
       });
-      if (outcome.kind === 'ok') {
+      if (outcome.kind === 'ok' && outcome.clearedCount > 0) {
         const idSet = new Set(ids);
         set((cur) => {
           const next = { ...cur.deleting };
@@ -382,9 +387,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
             savedTrolleys: cur.savedTrolleys.filter((t) => !idSet.has(t.trolleyId)),
           };
         });
+        // Re-fetch to reconcile (some ids may have been skipped server-side).
+        await get().loadSaved(farm);
         return {
           ok: true,
-          message: `Cleared ${outcome.clearedCount} trolley${outcome.clearedCount === 1 ? '' : 's'}.`,
+          message: `Cleared ${outcome.clearedCount} bucket${outcome.clearedCount === 1 ? '' : 's'}.`,
         };
       }
       set((cur) => {
@@ -393,6 +400,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { deleting: next };
       });
       await get().loadSaved(farm);
+      if (outcome.kind === 'ok') {
+        return { ok: false, message: 'Nothing was cleared — the trolleys may already be loaded.' };
+      }
       return { ok: false, message: outcome.message };
     } catch (err) {
       set((cur) => {
