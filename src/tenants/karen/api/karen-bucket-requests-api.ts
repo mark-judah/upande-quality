@@ -24,6 +24,8 @@ export type RawAllocationItem = {
   bucket_id?: string;
   harvest_date?: string;
   harvest_time?: string;
+  /** Date the OPL was created = when the buckets were allocated. */
+  allocated_date?: string;
 };
 
 export type RawAllocationResponse = {

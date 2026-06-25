@@ -428,11 +428,8 @@ function PickListRow({ item }: { item: AllocationItem }) {
         <MetaPill icon="location-outline" label={item.shelfLocation || '(no shelf)'} />
         <MetaPill icon="resize-outline" label={item.stemLength || '—'} />
         <MetaPill icon="leaf-outline" label={`${Math.round(item.qty)} ${item.uom || ''}`.trim()} />
-        {item.harvestDate ? (
-          <MetaPill
-            icon="calendar-outline"
-            label={`${item.harvestDate}${item.harvestTime ? ' · ' + item.harvestTime.slice(0, 5) : ''}`}
-          />
+        {item.allocatedDate ? (
+          <MetaPill icon="calendar-outline" label={`Allocated ${item.allocatedDate}`} />
         ) : null}
       </View>
     </View>

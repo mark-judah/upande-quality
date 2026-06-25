@@ -3,13 +3,23 @@ try:
     if not farm:
         frappe.throw("farm is required")
 
+    # Today's allocations only — OPLs created today. A trolley saved against an
+    # older (yesterday's) pick list must not linger in today's list.
+    opl_today = frappe.get_all(
+        "Order Pick List",
+        filters={"creation": [">=", frappe.utils.nowdate()]},
+        fields=["name"],
+        pluck="name",
+    )
+
     rows = frappe.get_all(
         "Pick List Item",
         filters={
             "warehouse": ["like", farm + "%"],
             "custom_loaded_in_trolley": 1,
             "custom_in_transit": 0,
-            "custom_trolley_id": ["is", "set"]
+            "custom_trolley_id": ["is", "set"],
+            "parent": ["in", opl_today],
         },
         fields=[
             "parent as opl_name",

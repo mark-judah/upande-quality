@@ -6,10 +6,10 @@ else:
     farm_name = payload['farm']
     opl_name = payload.get('opl_name') # Optional: filter by specific OPL
 
-    # ── Step 1: Get all relevant OPL names up front (only last 2 days) ────────
+    # ── Step 1: Get all relevant OPL names up front (today's allocations only) ─
     opl_filters = {
         "docstatus": ["in", [0, 1]],
-        "creation": [">=", frappe.utils.add_days(frappe.utils.nowdate(), -2)]
+        "creation": [">=", frappe.utils.nowdate()]  # today only (allocated today)
     }
     if opl_name:
         opl_filters["name"] = opl_name
@@ -19,6 +19,7 @@ else:
         filters=opl_filters,
         fields=[
             "name",
+            "creation",
             "customer",
             "custom_order_name",
             "custom_consignee",
@@ -101,6 +102,8 @@ else:
                 bucket_id = item["custom_bucket"]
                 harvest_info = bucket_harvest_map.get(bucket_id, {})
                 opl_info = opl_map.get(item["parent"], {})
+                created = opl_info.get("creation")
+                allocated_date = str(created)[:10] if created else None
                 result.append({
                     # OPL Information
                     "opl_name": item["parent"],
@@ -123,6 +126,8 @@ else:
                     "bucket_id": bucket_id,
                     "harvest_date": harvest_info.get("harvest_date"),
                     "harvest_time": harvest_info.get("harvest_time"),
+                    # Allocation date (OPL creation) — what the picker should see
+                    "allocated_date": allocated_date,
                 })
 
             # ── Step 5: Fetch only vehicle names where custom_dispatch_truck is not true ─
