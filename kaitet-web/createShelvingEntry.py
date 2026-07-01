@@ -137,9 +137,9 @@ def mark_bucket_as_shelved(bucket_id, receiving_doc, result):
 # ---------------------------------------------------------
 # UPDATE OPL TRANSIT STATUS (NO RETURNS)
 # ---------------------------------------------------------
-def update_transit_status(bucket_id, result):
+def update_transit_status(bucket_id, shelf_id, result):
     result["transit_updated"] = False
-    
+
     transit_rows = frappe.get_all(
         "Pick List Item",
         filters={
@@ -150,7 +150,7 @@ def update_transit_status(bucket_id, result):
         fields=["name", "parent"],
         limit=1
     )
-    
+
     if transit_rows:
         opl_name = transit_rows[0].parent
         child_name = transit_rows[0].name
@@ -159,6 +159,7 @@ def update_transit_status(bucket_id, result):
             if row.name == child_name:
                 row.custom_in_transit = 0
                 row.custom_shelved = 1
+                row.custom_shelf = shelf_id
                 break
         opl_doc.save(ignore_permissions=True)
         result["transit_updated"] = True
@@ -415,7 +416,7 @@ try:
                         # ---------------------------------------------------------
                         # CHECK IF BUCKET WAS IN TRANSIT → update OPL
                         # ---------------------------------------------------------
-                        update_transit_status(bucket_id, result)
+                        update_transit_status(bucket_id, shelf_id, result)
                         
                         # ---------------------------------------------------------
                         # SHELVING LOGIC
