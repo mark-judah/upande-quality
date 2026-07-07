@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
@@ -32,6 +33,13 @@ export default function SettingsScreen() {
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
   const runtimeVersion = (Updates.runtimeVersion as string | undefined) || appVersion;
+  const buildNo = Application.nativeBuildVersion ?? '';
+  const otaId = (Updates.updateId ?? '').slice(0, 8);
+  const otaChannel = (Updates.channel as string | undefined) ?? '';
+  const otaDate = Updates.createdAt ? Updates.createdAt.toISOString().slice(0, 10) : '';
+  const codeLine = Updates.isEmbeddedLaunch
+    ? 'embedded build'
+    : `OTA ${otaId || '—'}${otaDate ? ' · ' + otaDate : ''}${otaChannel ? ' · ' + otaChannel : ''}`;
 
   const onToggleBiometric = async () => {
     if (!biometricEnabled) {
@@ -159,9 +167,11 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.rowLabel}>Version</Text>
             <Text style={s.rowHint}>
-              {appVersion}
+              v{appVersion}
+              {buildNo ? ` (${buildNo})` : ''}
               {runtimeVersion && runtimeVersion !== appVersion ? `  ·  runtime ${runtimeVersion}` : ''}
             </Text>
+            <Text style={s.rowHint}>{codeLine}</Text>
           </View>
         </View>
         <View style={{ height: spacing.md }} />

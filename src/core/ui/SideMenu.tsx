@@ -18,6 +18,7 @@ import { useAuthStore } from '@/src/core/auth/store';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { useDrawerItems } from './drawer-items-context';
 import { APP_VERSION } from '@/src/core/version';
+import * as Updates from 'expo-updates';
 import type { DrawerItem } from '@/src/core/tenant/types';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -211,7 +212,11 @@ export function SideMenu({
                   </View>
                   <Text style={[s.footerText, { color: COLORS.danger }]}>Sign Out</Text>
                 </Pressable>
-                <Text style={s.version}>Upande Quality v{APP_VERSION}</Text>
+                <Text style={s.version}>
+                  Upande Quality v{APP_VERSION}
+                  {Updates.channel ? ` · ${Updates.channel}` : ''}
+                  {Updates.updateId ? ` · ${Updates.updateId.slice(0, 8)}` : ''}
+                </Text>
               </View>
             </ScrollView>
           </SafeAreaView>
