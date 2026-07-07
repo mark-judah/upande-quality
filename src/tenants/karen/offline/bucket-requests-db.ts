@@ -28,7 +28,7 @@ export type ReqOpl = {
 /** Requests tab: OPLs grouped under their order name. */
 export type OrderGroup = { orderName: string; opls: ReqOpl[] };
 
-/** Trolley tab: a fully-scanned OPL + the trolley(s) it sits on. */
+/** Trolley / In-Transit tab: a fully-scanned OPL + the trolley(s) it sits on. */
 export type TrolleyOpl = {
   oplName: string;
   orderName: string;
@@ -36,6 +36,10 @@ export type TrolleyOpl = {
   customer: string;
   trolleys: string[];
   buckets: ReqBucket[];
+  loadedToTruck: boolean;
+  inTransit: boolean;
+  /** Pick List Item names of this OPL's buckets — the sync target. */
+  pliIds: string[];
 };
 
 export type ScanResult =
@@ -54,7 +58,8 @@ const DDL = `
 PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS opl (
   opl_name TEXT PRIMARY KEY, order_name TEXT, customer TEXT, sales_order TEXT,
-  farm TEXT, created_on TEXT, downloaded_at TEXT, total_buckets INTEGER NOT NULL DEFAULT 0
+  farm TEXT, created_on TEXT, downloaded_at TEXT, total_buckets INTEGER NOT NULL DEFAULT 0,
+  loaded_to_truck INTEGER NOT NULL DEFAULT 0, in_transit INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS bucket (
   id INTEGER PRIMARY KEY AUTOINCREMENT, opl_name TEXT NOT NULL, bucket_id TEXT NOT NULL,
@@ -70,6 +75,15 @@ CREATE INDEX IF NOT EXISTS idx_bucket_scan ON bucket(bucket_id, scanned);
 export async function initDb(): Promise<void> {
   const d = await db();
   await d.execAsync(DDL);
+  // Migrate DBs created before the loaded/transit columns existed.
+  const cols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(opl)');
+  const have = new Set(cols.map((c) => c.name));
+  if (!have.has('loaded_to_truck')) {
+    await d.execAsync('ALTER TABLE opl ADD COLUMN loaded_to_truck INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!have.has('in_transit')) {
+    await d.execAsync('ALTER TABLE opl ADD COLUMN in_transit INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 /** Insert downloaded picklists, skipping any OPL already on device. */
@@ -143,6 +157,7 @@ type BucketRow = {
   uom: string | null;
   scanned: number;
   trolley_id: string | null;
+  pick_list_item_id: string | null;
 };
 
 function mapBucketRow(r: BucketRow): ReqBucket {
@@ -198,21 +213,30 @@ export async function listRequests(): Promise<OrderGroup[]> {
   return Array.from(groups.values());
 }
 
-export async function listTrolley(): Promise<TrolleyOpl[]> {
+type CompletedRow = OplRow & { loaded_to_truck: number; in_transit: number };
+
+/** Fully-scanned OPLs, filtered by their in_transit flag (0 = Trolley tab,
+ *  1 = In Transit tab). */
+async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
   const d = await db();
-  const opls = await d.getAllAsync<OplRow>(`
+  const opls = await d.getAllAsync<CompletedRow>(`
     SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.total_buckets AS total,
+           o.loaded_to_truck, o.in_transit,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1) AS scanned
     FROM opl o ORDER BY o.created_on DESC, o.opl_name ASC`);
   const out: TrolleyOpl[] = [];
   for (const o of opls) {
     if (o.total <= 0 || o.scanned < o.total) continue; // only fully scanned
+    if ((o.in_transit === 1 ? 1 : 0) !== inTransitValue) continue;
     const brows = await d.getAllAsync<BucketRow>(
       'SELECT * FROM bucket WHERE opl_name = ? ORDER BY id ASC',
       [o.opl_name],
     );
     const trolleys = Array.from(
       new Set(brows.map((b) => b.trolley_id).filter((t): t is string => !!t)),
+    );
+    const pliIds = Array.from(
+      new Set(brows.map((b) => b.pick_list_item_id).filter((p): p is string => !!p)),
     );
     out.push({
       oplName: o.opl_name,
@@ -221,24 +245,48 @@ export async function listTrolley(): Promise<TrolleyOpl[]> {
       customer: o.customer || '',
       trolleys,
       buckets: brows.map(mapBucketRow),
+      loadedToTruck: o.loaded_to_truck === 1,
+      inTransit: o.in_transit === 1,
+      pliIds,
     });
   }
   return out;
 }
 
-export async function counts(): Promise<{ requests: number; trolley: number }> {
+export async function listTrolley(): Promise<TrolleyOpl[]> {
+  return listCompleted(0);
+}
+
+export async function listInTransit(): Promise<TrolleyOpl[]> {
+  return listCompleted(1);
+}
+
+/** Mark an OPL loaded-to-truck / in-transit locally (after server sync). */
+export async function markLoadedLocal(oplName: string): Promise<void> {
   const d = await db();
-  const rows = await d.getAllAsync<{ total: number; scanned: number }>(`
-    SELECT o.total_buckets AS total,
+  await d.runAsync('UPDATE opl SET loaded_to_truck = 1 WHERE opl_name = ?', [oplName]);
+}
+export async function markInTransitLocal(oplName: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('UPDATE opl SET in_transit = 1 WHERE opl_name = ?', [oplName]);
+}
+
+export async function counts(): Promise<{ requests: number; trolley: number; inTransit: number }> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ total: number; scanned: number; in_transit: number }>(`
+    SELECT o.total_buckets AS total, o.in_transit,
       (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1) AS scanned
     FROM opl o`);
   let requests = 0;
   let trolley = 0;
+  let inTransit = 0;
   for (const r of rows) {
-    if (r.total > 0 && r.scanned >= r.total) trolley++;
-    else requests++;
+    const complete = r.total > 0 && r.scanned >= r.total;
+    if (!complete) requests++;
+    else if (r.in_transit === 1) inTransit++;
+    else trolley++;
   }
-  return { requests, trolley };
+  return { requests, trolley, inTransit };
 }
 
 export async function upsertTrolley(trolleyId: string): Promise<void> {
