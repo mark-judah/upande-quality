@@ -20,6 +20,10 @@ try:
         doc[f] = data.get(f)
         i = i + 1
     doc["is_connected"] = 1 if data.get("is_connected") else 0
+    # Device sends ISO-8601 with a 'Z'/'T' which MySQL Datetime rejects — normalise
+    # to 'YYYY-MM-DD HH:MM:SS.ffffff'.
+    ts = data.get("captured_at")
+    doc["captured_at"] = str(ts).replace("T", " ").replace("Z", "")[:26] if ts else None
     doc["raw_json"] = json.dumps(data)
 
     d = frappe.get_doc(doc)
