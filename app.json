@@ -8,6 +8,7 @@
     "scheme": "upandequality",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "platforms": ["ios", "android"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.upande.quality",
@@ -65,7 +66,8 @@
           "backgroundColor": "#FFFFFF"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
