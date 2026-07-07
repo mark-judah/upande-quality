@@ -23,6 +23,8 @@ export type AllocationItem = {
   harvestTime: string;
   /** Date the buckets were allocated (OPL creation date). */
   allocatedDate: string;
+  salesOrder: string;
+  pickListItemId: string;
 };
 
 export type SavedTrolleyBucket = {
@@ -75,6 +77,8 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     harvestDate: r.harvest_date ?? '',
     harvestTime: r.harvest_time ?? '',
     allocatedDate: r.allocated_date ?? '',
+    salesOrder: r.sales_order ?? '',
+    pickListItemId: r.pick_list_item_id ?? '',
   };
 }
 
