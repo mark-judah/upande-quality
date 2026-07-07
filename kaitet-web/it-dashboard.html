@@ -281,6 +281,10 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         System Health <span class="badge" id="b-system">·</span>
       </a>
+      <a class="nav-item" data-nav="devices" href="javascript:void(0)">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+        Devices <span class="badge" id="b-devices">·</span>
+      </a>
     </div>
     <div class="footer">
       <div class="av" id="foot-av">—</div>
@@ -497,6 +501,11 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
           <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Equipment needing attention</div><div class="sub">assets out of order or in maintenance</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>Asset</th><th>Category</th><th>Location</th><th>Custodian</th><th>Status</th></tr></thead><tbody id="sy-assets"></tbody></table></div></div></div>
         </div>
       </section>
+
+      <section class="panel" data-panel="devices" style="display:none">
+        <div class="aph-page-hd"><div class="ttl">Devices</div><div class="sub">App check-ins &middot; latest telemetry per device</div></div>
+        <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Registered devices</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>Device</th><th>Model</th><th>OS</th><th>App / OTA</th><th>Battery</th><th>Network</th><th>Last seen</th></tr></thead><tbody id="dev-body"></tbody></table></div></div></div>
+      </section>
     </div>
   </div>
 
@@ -638,7 +647,6 @@ async function loadHelpdesk(){
 
   var hi=open.filter(function(t){return /high|urgent|critical/i.test(t.priority||'');});
   var un=open.filter(function(t){return !t.custom_allocated_user;});
-  var slaDue=open.filter(function(t){return /due|failed|overdue/i.test(t.agreement_status||'');});
   var closedP=per.filter(function(t){return t.status==='Closed';});
   var resolved=per.filter(function(t){return Number(t.resolution_time)>0;});
   var avgRes=resolved.length?resolved.reduce(function(s,t){return s+Number(t.resolution_time);},0)/resolved.length:0;
@@ -649,7 +657,6 @@ async function loadHelpdesk(){
     kpi('Open tickets',fmt(open.length),catNote(),'ticket',drill('Open tickets',oCols,open)),
     kpi('High priority',fmt(hi.length),'open · high/urgent','alert',drill('High priority — open',oCols,hi)),
     kpi('Unassigned',fmt(un.length),'no allocated user','user',drill('Unassigned — open',oCols,un)),
-    kpi('SLA at risk',fmt(slaDue.length),'response/resolution due','clock',drill('SLA at risk — open',oCols,slaDue)),
     kpi('Created (period)',fmt(per.length),'in selected range','ticket'),
     kpi('Avg resolution',durH(avgRes),'<strong>'+fmt(closedP.length)+'</strong> closed in period','check')
   ]);
@@ -1122,7 +1129,7 @@ document.addEventListener('click',function(e){var t=e.target;
   var pu=t.closest&&t.closest('[data-pfusers]');if(pu){showUsersWithProfile(pu.getAttribute('data-pfusers'));return;}
 });
 var LOADERS={helpdesk:loadHelpdesk,assets:loadAssets,users:loadUsers,roles:loadRoleMgr,workspaces:loadWorkspaces,profiles:loadProfiles,rolecaps:loadRoleCaps,doctypes:loadDoctypes,errors:loadErrors,audit:loadAudit,system:loadSystem};
-var TITLES={helpdesk:'Helpdesk',assets:'Assets',users:'Users & Access',roles:'Role Manager',workspaces:'Workspace Access',profiles:'Role Profiles',rolecaps:'Role Capabilities',doctypes:'Doctype Access',errors:'Error Messages',audit:'Audit Trail',system:'System Health'};
+var TITLES={helpdesk:'Helpdesk',assets:'Assets',users:'Users & Access',roles:'Role Manager',workspaces:'Workspace Access',profiles:'Role Profiles',rolecaps:'Role Capabilities',doctypes:'Doctype Access',errors:'Error Messages',audit:'Audit Trail',system:'System Health',devices:'Devices'};
 var CAT_PANELS={helpdesk:1,assets:1,system:1};
 
 function loadPanel(p,force){
@@ -1222,6 +1229,22 @@ function rmRemoveUser(email){var role=RM.role;if(!role)return;
 function rmToggle(email,enable){frp('it_set_user_enabled',{user:email,enabled:enable?1:0}).then(renderRoleUsers).catch(function(e){alert((e&&e.message)||'Failed.');});}
 function rmReset(email){var pw=prompt('New temporary password for '+email+':');if(!pw)return;
   frp('it_reset_password',{user:email,password:pw}).then(function(){alert('Password reset for '+email);}).catch(function(e){alert((e&&e.message)||'Failed.');});}
+function loadDevices(){
+  frp('getDeviceTelemetry',{}).then(function(m){
+    var rows=(m&&m.devices)||[];
+    var badge=$('b-devices');if(badge)badge.textContent=rows.length;
+    var tb=$('dev-body');if(!tb)return;
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7"><div class="aph-empty">No device check-ins yet</div></td></tr>';return;}
+    tb.innerHTML=rows.map(function(d){
+      var batt=(d.battery_level!=null&&d.battery_level>=0)?Math.round(d.battery_level*100)+'%':'—';
+      var net=(d.network_type||'—')+(d.cellular_generation&&d.cellular_generation!=='unknown'?(' '+d.cellular_generation):'');
+      var app='v'+(d.app_version||'—')+(d.ota_channel?(' · '+d.ota_channel):'');
+      var seen=String(d.captured_at||d.creation||'').slice(0,16).replace('T',' ');
+      var os=((d.os||'')+' '+(d.os_version||'')).trim();
+      return '<tr><td>'+esc(d.device_name||d.device_id||'—')+'</td><td>'+esc(d.model||'—')+'</td><td>'+esc(os||'—')+'</td><td>'+esc(app)+'</td><td>'+batt+'</td><td>'+esc(net)+'</td><td>'+esc(seen||'—')+'</td></tr>';
+    }).join('');
+  }).catch(function(){});
+}
 function switchPanel(p){
   State.panel=p;closeModal();
   document.querySelectorAll('.nav-item').forEach(function(n){n.classList.toggle('active',n.getAttribute('data-nav')===p);});
@@ -1230,6 +1253,7 @@ function switchPanel(p){
   $('catWrap').style.display=CAT_PANELS[p]?'':'none';
   var mn=document.querySelector('.aph-main');if(mn)mn.scrollTo({top:0});
   loadPanel(p);
+  if(p==='devices')loadDevices();
 }
 
 /* delegated clicks */
