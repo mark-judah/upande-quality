@@ -201,6 +201,19 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Load failed.' };
   },
 
+  async setOfflineTrolleyFlags(args: {
+    pliIds: string[];
+    flag: 'loaded' | 'transit';
+  }): Promise<{ kind: 'ok'; updated: number } | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.setOfflineTrolleyFlags({
+      pli_ids: args.pliIds,
+      flag: args.flag,
+    });
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', updated: m.updated ?? 0 };
+    return { kind: 'error', message: m.message ?? 'Sync failed.' };
+  },
+
   async deleteSavedTrolleys(args: {
     trolleyIds: string[];
     farm: string;

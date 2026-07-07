@@ -72,6 +72,8 @@ export type RawTrolleyActionResponse = {
     shelf_removed_count?: number;
     cleared_count?: number;
     skipped_loaded?: string[];
+    updated?: number;
+    missing?: number;
     errors?: { bucket_id?: string; error?: string }[];
   };
 };
@@ -136,6 +138,20 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/deleteSavedTrolleys',
       data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** Offline app sync: additively mark Pick List Item rows loaded-in-trolley
+   *  or in-transit on the server (never submits the OPL). */
+  setOfflineTrolleyFlags(payload: {
+    pli_ids: string[];
+    flag: 'loaded' | 'transit';
+  }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/setOfflineTrolleyFlags',
+      data: { data: payload },
       validateStatus: () => true,
     });
   },

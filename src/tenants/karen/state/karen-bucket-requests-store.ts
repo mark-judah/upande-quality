@@ -9,11 +9,14 @@ type State = {
   error: string | null;
   requests: OrderGroup[];
   trolley: TrolleyOpl[];
+  inTransit: TrolleyOpl[];
   reqCount: number;
   trolleyCount: number;
+  inTransitCount: number;
   activeTrolleyId: string | null;
   online: boolean;
   downloading: boolean;
+  syncingOpl: string | null;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -22,6 +25,8 @@ type State = {
   setTrolleyFromScan: (raw: string) => { ok: boolean; message?: string; trolleyId?: string };
   clearActiveTrolley: () => void;
   scanBucketFromScan: (raw: string) => Promise<{ ok: boolean; message: string }>;
+  loadToTruck: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
+  markInTransit: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
   clearAll: () => Promise<void>;
 };
 
@@ -30,11 +35,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   error: null,
   requests: [],
   trolley: [],
+  inTransit: [],
   reqCount: 0,
   trolleyCount: 0,
+  inTransitCount: 0,
   activeTrolleyId: null,
   online: false,
   downloading: false,
+  syncingOpl: null,
 
   init: async () => {
     try {
@@ -48,12 +56,20 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, c] = await Promise.all([
+    const [requests, trolley, inTransit, c] = await Promise.all([
       db.listRequests(),
       db.listTrolley(),
+      db.listInTransit(),
       db.counts(),
     ]);
-    set({ requests, trolley, reqCount: c.requests, trolleyCount: c.trolley });
+    set({
+      requests,
+      trolley,
+      inTransit,
+      reqCount: c.requests,
+      trolleyCount: c.trolley,
+      inTransitCount: c.inTransit,
+    });
   },
 
   refreshOnline: async () => {
@@ -113,6 +129,46 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       ok: true,
       message: `${res.bucketId} → ${trolley}` + (res.oplComplete ? ' · order complete' : ''),
     };
+  },
+
+  loadToTruck: async (oplName, pliIds) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
+    set({ syncingOpl: oplName });
+    try {
+      const res = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded' });
+      if (res.kind !== 'ok') {
+        set({ syncingOpl: null });
+        return { ok: false, message: res.message };
+      }
+      await db.markLoadedLocal(oplName);
+      set({ syncingOpl: null });
+      await get().refresh();
+      return { ok: true, message: 'Loaded to truck.' };
+    } catch (e) {
+      set({ syncingOpl: null });
+      return { ok: false, message: (e as Error)?.message || 'Load failed.' };
+    }
+  },
+
+  markInTransit: async (oplName, pliIds) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to mark in transit.' };
+    set({ syncingOpl: oplName });
+    try {
+      const res = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'transit' });
+      if (res.kind !== 'ok') {
+        set({ syncingOpl: null });
+        return { ok: false, message: res.message };
+      }
+      await db.markInTransitLocal(oplName);
+      set({ syncingOpl: null });
+      await get().refresh();
+      return { ok: true, message: 'Marked in transit.' };
+    } catch (e) {
+      set({ syncingOpl: null });
+      return { ok: false, message: (e as Error)?.message || 'Failed to mark in transit.' };
+    }
   },
 
   clearAll: async () => {
