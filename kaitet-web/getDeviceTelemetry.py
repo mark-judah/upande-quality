@@ -21,7 +21,7 @@ try:
         rows = frappe.get_all(
             "Device Telemetry",
             fields=["device_id", "device_name", "model", "brand", "os", "os_version",
-                    "app_version", "build", "ota_update_id", "ota_channel", "battery_level",
+                    "app_name", "app_version", "build", "ota_update_id", "ota_channel", "battery_level",
                     "battery_state", "network_type", "cellular_generation", "is_connected",
                     "captured_at", "creation"],
             order_by="creation desc",

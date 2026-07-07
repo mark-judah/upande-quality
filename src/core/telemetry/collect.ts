@@ -5,6 +5,7 @@ import * as Application from 'expo-application';
 import * as Network from 'expo-network';
 import * as Cellular from 'expo-cellular';
 import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 
 export type TelemetryPayload = {
   device_id: string;
@@ -13,6 +14,7 @@ export type TelemetryPayload = {
   brand: string;
   os: string;
   os_version: string;
+  app_name: string;
   app_version: string;
   build: string;
   ota_update_id: string;
@@ -71,7 +73,10 @@ export async function collectTelemetry(): Promise<TelemetryPayload> {
     brand: Device.brand ?? '',
     os: Platform.OS,
     os_version: String(Device.osVersion ?? Platform.Version ?? ''),
-    app_version: Application.nativeApplicationVersion ?? '',
+    // Match what the app UI shows (Constants.expoConfig.version); nativeApplicationVersion
+    // returns the host app (e.g. Expo Go / SDK) version in some builds.
+    app_name: Application.applicationName ?? Constants.expoConfig?.name ?? '',
+    app_version: Constants.expoConfig?.version ?? Application.nativeApplicationVersion ?? '',
     build: Application.nativeBuildVersion ?? '',
     ota_update_id: Updates.updateId ?? '',
     ota_channel: (Updates.channel as string) ?? '',

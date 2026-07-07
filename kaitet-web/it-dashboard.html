@@ -1238,7 +1238,7 @@ function loadDevices(){
     tb.innerHTML=rows.map(function(d){
       var batt=(d.battery_level!=null&&d.battery_level>=0)?Math.round(d.battery_level*100)+'%':'—';
       var net=(d.network_type||'—')+(d.cellular_generation&&d.cellular_generation!=='unknown'?(' '+d.cellular_generation):'');
-      var app='v'+(d.app_version||'—')+(d.ota_channel?(' · '+d.ota_channel):'');
+      var app=(d.app_name?d.app_name+' ':'')+'v'+(d.app_version||'—')+(d.ota_channel?(' · '+d.ota_channel):'');
       var seen=String(d.captured_at||d.creation||'').slice(0,16).replace('T',' ');
       var os=((d.os||'')+' '+(d.os_version||'')).trim();
       return '<tr><td>'+esc(d.device_name||d.device_id||'—')+'</td><td>'+esc(d.model||'—')+'</td><td>'+esc(os||'—')+'</td><td>'+esc(app)+'</td><td>'+batt+'</td><td>'+esc(net)+'</td><td>'+esc(seen||'—')+'</td></tr>';
