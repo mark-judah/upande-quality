@@ -13,7 +13,6 @@ import { OfflineBanner } from '@/src/core/ui/OfflineBanner';
 import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
 import { useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
-import { reportVersionIfDue } from '@/src/core/version';
 import { startTelemetry } from '@/src/core/telemetry/service';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
 
@@ -53,7 +52,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (hydrated && hasSession && !biometricLocked) {
-      reportVersionIfDue();
+      // Device telemetry (hourly, offline-queued) reports app version + OTA per
+      // device, superseding the legacy per-user reportAppVersion call.
       startTelemetry();
     }
   }, [hydrated, hasSession, biometricLocked]);
