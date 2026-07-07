@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert as RNAlert,
   Pressable,
@@ -25,7 +25,7 @@ import {
 } from '@/src/tenants/karen/state/karen-bucket-requests-store';
 import type { ReqOpl, ReqBucket } from '@/src/tenants/karen/offline/bucket-requests-db';
 
-type Tab = 'requests' | 'trolley';
+type Tab = 'requests' | 'trolley' | 'transit';
 
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const trolleyRef = useRef<ScanFieldHandle>(null);
@@ -33,23 +33,29 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const { showSuccess, showError } = useToast();
   const [tab, setTab] = useState<Tab>('requests');
   const [refreshing, setRefreshing] = useState(false);
+  const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   const {
     ready,
     error,
     requests,
     trolley,
+    inTransit,
     reqCount,
     trolleyCount,
+    inTransitCount,
     activeTrolleyId,
     online,
     downloading,
+    syncingOpl,
     init,
     refresh,
     download,
     setTrolleyFromScan,
     clearActiveTrolley,
     scanBucketFromScan,
+    loadToTruck,
+    markInTransit,
     clearAll,
   } = useKarenBucketRequestsStore();
 
@@ -69,10 +75,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const onTrolleyScan = (raw: string) => {
     const r = setTrolleyFromScan(raw);
     if (!r.ok) {
-      showError(r.message ?? 'Invalid trolley QR.');
+      const msg = r.message ?? 'Invalid trolley QR.';
+      setScanStatus({ ok: false, message: msg });
+      showError(msg);
       trolleyRef.current?.clear();
       focusWhenReady(trolleyRef);
     } else {
+      const msg = `Trolley ${r.trolleyId} active`;
+      setScanStatus({ ok: true, message: msg });
       showSuccess(`Trolley ${r.trolleyId}`);
       trolleyRef.current?.clear();
     }
@@ -80,10 +90,22 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   const onBucketScan = async (raw: string) => {
     const r = await scanBucketFromScan(raw);
+    setScanStatus({ ok: r.ok, message: r.message });
     if (r.ok) showSuccess(r.message);
     else showError(r.message);
     bucketRef.current?.clear();
     focusWhenReady(bucketRef);
+  };
+
+  const onLoad = async (o: TrolleyOpl) => {
+    const r = await loadToTruck(o.oplName, o.pliIds);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
+  };
+  const onTransit = async (o: TrolleyOpl) => {
+    const r = await markInTransit(o.oplName, o.pliIds);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
   };
 
   const onDownload = async () => {
@@ -196,19 +218,41 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           </View>
         </Card>
 
+        {scanStatus ? (
+          <View style={[s.statusBanner, scanStatus.ok ? s.statusOk : s.statusErr]}>
+            <Ionicons
+              name={scanStatus.ok ? 'checkmark-circle' : 'alert-circle'}
+              size={18}
+              color={scanStatus.ok ? (COLORS.success ?? '#12B76A') : (COLORS.danger ?? '#EF4444')}
+            />
+            <Text
+              style={[
+                s.statusText,
+                { color: scanStatus.ok ? (COLORS.success ?? '#067647') : (COLORS.danger ?? '#B42318') },
+              ]}
+              numberOfLines={2}
+            >
+              {scanStatus.message}
+            </Text>
+          </View>
+        ) : null}
+
         <Segmented
           value={tab}
           onChange={(v) => setTab(v as Tab)}
           options={[
             { value: 'requests', label: `Requests (${reqCount})` },
             { value: 'trolley', label: `Trolley (${trolleyCount})` },
+            { value: 'transit', label: `In Transit (${inTransitCount})` },
           ]}
         />
 
         {tab === 'requests' ? (
           <RequestsTab groups={requests} />
+        ) : tab === 'trolley' ? (
+          <TrolleyTab items={trolley} syncingOpl={syncingOpl} onLoad={onLoad} onTransit={onTransit} />
         ) : (
-          <TrolleyTab items={trolley} />
+          <InTransitTab items={inTransit} />
         )}
       </ScrollView>
     </Screen>
@@ -281,14 +325,58 @@ function OplCard({ opl }: { opl: ReqOpl }) {
   );
 }
 
-function TrolleyTab({ items }: { items: TrolleyOpl[] }) {
+function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
+  return (
+    <Card>
+      <View style={s.oplHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.bId}>{o.orderName}</Text>
+          <Text style={s.oplMeta}>
+            {o.createdOn} · trolley {o.trolleys.join(', ') || '—'}
+          </Text>
+        </View>
+        <View style={s.badge}>
+          <Text style={s.badgeTxt}>{o.buckets.length}</Text>
+        </View>
+      </View>
+      <View style={s.divider} />
+      {o.buckets.map((b: ReqBucket) => (
+        <View key={b.id} style={s.bRow}>
+          <Ionicons name="checkmark-circle" size={16} color={COLORS.success ?? '#12B76A'} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.bId}>{b.bucketId}</Text>
+            <Text style={s.bMeta} numberOfLines={1}>
+              {b.variety}
+              {b.shelf ? ` · ${b.shelf}` : ''}
+            </Text>
+          </View>
+          <Text style={s.bQty}>{b.trolleyId || ''}</Text>
+        </View>
+      ))}
+      <View style={s.divider} />
+      {footer}
+    </Card>
+  );
+}
+
+function TrolleyTab({
+  items,
+  syncingOpl,
+  onLoad,
+  onTransit,
+}: {
+  items: TrolleyOpl[];
+  syncingOpl: string | null;
+  onLoad: (o: TrolleyOpl) => void;
+  onTransit: (o: TrolleyOpl) => void;
+}) {
   if (!items.length) {
     return (
       <Card>
         <View style={s.empty}>
           <Ionicons name="cart-outline" size={26} color={COLORS.textMuted} />
           <Text style={s.emptyTitle}>No completed orders</Text>
-          <Text style={s.emptyHint}>Fully-scanned orders appear here with their trolley.</Text>
+          <Text style={s.emptyHint}>Fully-scanned orders appear here to load to a truck.</Text>
         </View>
       </Card>
     );
@@ -296,33 +384,57 @@ function TrolleyTab({ items }: { items: TrolleyOpl[] }) {
   return (
     <>
       {items.map((o) => (
-        <Card key={o.oplName}>
-          <View style={s.oplHead}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bId}>{o.orderName}</Text>
-              <Text style={s.oplMeta}>
-                {o.createdOn} · trolley {o.trolleys.join(', ') || '—'}
-              </Text>
+        <CompletedCard
+          key={o.oplName}
+          o={o}
+          footer={
+            o.loadedToTruck ? (
+              <Button
+                label="Mark in transit"
+                iconLeft="swap-horizontal"
+                loading={syncingOpl === o.oplName}
+                onPress={() => onTransit(o)}
+              />
+            ) : (
+              <Button
+                label="Load to truck"
+                iconLeft="car-outline"
+                loading={syncingOpl === o.oplName}
+                onPress={() => onLoad(o)}
+              />
+            )
+          }
+        />
+      ))}
+    </>
+  );
+}
+
+function InTransitTab({ items }: { items: TrolleyOpl[] }) {
+  if (!items.length) {
+    return (
+      <Card>
+        <View style={s.empty}>
+          <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
+          <Text style={s.emptyTitle}>Nothing in transit</Text>
+          <Text style={s.emptyHint}>Orders marked in transit appear here.</Text>
+        </View>
+      </Card>
+    );
+  }
+  return (
+    <>
+      {items.map((o) => (
+        <CompletedCard
+          key={o.oplName}
+          o={o}
+          footer={
+            <View style={s.loadedInline}>
+              <Ionicons name="car" size={16} color={COLORS.text} />
+              <Text style={s.loadedInlineText}>In transit</Text>
             </View>
-            <View style={s.badge}>
-              <Text style={s.badgeTxt}>{o.buckets.length}</Text>
-            </View>
-          </View>
-          <View style={s.divider} />
-          {o.buckets.map((b: ReqBucket) => (
-            <View key={b.id} style={s.bRow}>
-              <Ionicons name="checkmark-circle" size={16} color={COLORS.success ?? '#12B76A'} />
-              <View style={{ flex: 1 }}>
-                <Text style={s.bId}>{b.bucketId}</Text>
-                <Text style={s.bMeta} numberOfLines={1}>
-                  {b.variety}
-                  {b.shelf ? ` · ${b.shelf}` : ''}
-                </Text>
-              </View>
-              <Text style={s.bQty}>{b.trolleyId || ''}</Text>
-            </View>
-          ))}
-        </Card>
+          }
+        />
       ))}
     </>
   );
@@ -407,4 +519,27 @@ const s = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
   },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: spacing.sm,
+  },
+  statusOk: { backgroundColor: '#ECFDF3', borderColor: '#ABEFC6' },
+  statusErr: { backgroundColor: '#FEF3F2', borderColor: '#FECDCA' },
+  statusText: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm },
+  loadedInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
 });
