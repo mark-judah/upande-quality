@@ -429,6 +429,9 @@ export const useKarenQcStore = create<State>((set, get) => ({
       quarantine_scope:
         s.batchAction === 'quarantine' ? (s.quarantineScope === 'buckets' ? 'buckets' : 'batch') : '',
       quality_concerns: concernsPayload,
+      // Forward the full bucket detail the scan already gave us so the backend
+      // can build Quality Reports without re-deriving it from a Receiving Stock
+      // Entry (which may not exist). Keeps reporting independent of stock state.
       buckets: batch.buckets.map((b) => ({
         bucket_id: b.bucketId,
         stems: b.stems,
@@ -437,6 +440,15 @@ export const useKarenQcStore = create<State>((set, get) => ({
           s.quarantineScope === 'buckets'
             ? !!s.selectedBucketsForQuarantine[b.bucketId.toUpperCase()]
             : true,
+        item_code: b.itemCode,
+        item_name: b.itemName,
+        warehouse: b.warehouse,
+        quarantine_warehouse: b.quarantineWarehouse,
+        basic_rate: b.basicRate,
+        cost_center: b.costCenter,
+        farm: b.farm,
+        greenhouse: b.greenhouse,
+        stock_entry: b.stockEntry,
       })),
     };
 
