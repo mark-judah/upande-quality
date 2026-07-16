@@ -504,7 +504,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
       <section class="panel" data-panel="devices" style="display:none">
         <div class="aph-page-hd"><div class="ttl">Devices</div><div class="sub">App check-ins &middot; latest telemetry per device</div></div>
-        <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Registered devices</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>Device</th><th>Model</th><th>OS</th><th>App / OTA</th><th>Battery</th><th>Network</th><th>Last seen</th></tr></thead><tbody id="dev-body"></tbody></table></div></div></div>
+        <div class="aph-card"><div class="aph-card-hd"><div class="ttl">Registered devices</div></div><div class="aph-card-body padless"><div class="scroll"><table class="aph-tbl"><thead><tr><th>Device</th><th>User</th><th>Model</th><th>OS</th><th>App / OTA</th><th>Battery</th><th>Network</th><th>Storage</th><th>Last seen</th></tr></thead><tbody id="dev-body"></tbody></table></div></div></div>
       </section>
     </div>
   </div>
@@ -1234,14 +1234,23 @@ function loadDevices(){
     var rows=(m&&m.devices)||[];
     var badge=$('b-devices');if(badge)badge.textContent=rows.length;
     var tb=$('dev-body');if(!tb)return;
-    if(!rows.length){tb.innerHTML='<tr><td colspan="7"><div class="aph-empty">No device check-ins yet</div></td></tr>';return;}
+    if(!rows.length){tb.innerHTML='<tr><td colspan="9"><div class="aph-empty">No device check-ins yet</div></td></tr>';return;}
     tb.innerHTML=rows.map(function(d){
       var batt=(d.battery_level!=null&&d.battery_level>=0)?Math.round(d.battery_level*100)+'%':'—';
       var net=(d.network_type||'—')+(d.cellular_generation&&d.cellular_generation!=='unknown'?(' '+d.cellular_generation):'');
       var app=(d.app_name?d.app_name+' ':'')+'v'+(d.app_version||'—')+(d.ota_channel?(' · '+d.ota_channel):'');
       var seen=String(d.captured_at||d.creation||'').slice(0,16).replace('T',' ');
       var os=((d.os||'')+' '+(d.os_version||'')).trim();
-      return '<tr><td>'+esc(d.device_name||d.device_id||'—')+'</td><td>'+esc(d.model||'—')+'</td><td>'+esc(os||'—')+'</td><td>'+esc(app)+'</td><td>'+batt+'</td><td>'+esc(net)+'</td><td>'+esc(seen||'—')+'</td></tr>';
+      // storage_free / storage_total are raw bytes; -1/null when unreported.
+      var stor='—',storTitle='';
+      if(d.storage_total!=null&&d.storage_total>0){
+        var totG=Math.round(d.storage_total/1e9);
+        var freeG=(d.storage_free!=null&&d.storage_free>=0)?Math.round(d.storage_free/1e9):null;
+        stor=(freeG!=null?freeG:'?')+' / '+totG+' GB';
+        if(freeG!=null)storTitle=(totG-freeG)+' GB used · '+freeG+' GB free';
+      }
+      var usr=d.user_full_name||d.user||'—';var usrTitle=(d.user&&d.user_full_name)?d.user:'';
+      return '<tr><td>'+esc(d.device_name||d.device_id||'—')+'</td><td'+(usrTitle?' title="'+esc(usrTitle)+'"':'')+'>'+esc(usr)+'</td><td>'+esc(d.model||'—')+'</td><td>'+esc(os||'—')+'</td><td>'+esc(app)+'</td><td>'+batt+'</td><td>'+esc(net)+'</td><td'+(storTitle?' title="'+esc(storTitle)+'"':'')+'>'+esc(stor)+'</td><td>'+esc(seen||'—')+'</td></tr>';
     }).join('');
   }).catch(function(){});
 }

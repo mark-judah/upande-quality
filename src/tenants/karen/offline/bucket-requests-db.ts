@@ -46,6 +46,10 @@ export type ScanResult =
   | { ok: true; oplName: string; oplComplete: boolean; bucketId: string }
   | { ok: false; reason: 'not_found' | 'already'; message: string };
 
+/** A dispatch/collection truck, cached offline so the Load-to-truck picker
+ *  works without connectivity. `name` is the Vehicle docname (= license plate). */
+export type Vehicle = { name: string; licensePlate: string };
+
 let _db: SQLite.SQLiteDatabase | null = null;
 
 async function db(): Promise<SQLite.SQLiteDatabase> {
@@ -68,6 +72,7 @@ CREATE TABLE IF NOT EXISTS bucket (
   UNIQUE(opl_name, bucket_id)
 );
 CREATE TABLE IF NOT EXISTS trolley (trolley_id TEXT PRIMARY KEY, created_at TEXT);
+CREATE TABLE IF NOT EXISTS vehicle (name TEXT PRIMARY KEY, license_plate TEXT);
 CREATE INDEX IF NOT EXISTS idx_bucket_opl ON bucket(opl_name);
 CREATE INDEX IF NOT EXISTS idx_bucket_scan ON bucket(bucket_id, scanned);
 `;
@@ -333,7 +338,30 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
   return { ok: true, oplName: row.opl_name, oplComplete, bucketId };
 }
 
+/** Replace the cached truck list wholesale (called after each download). */
+export async function replaceVehicles(vehicles: Vehicle[]): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync('DELETE FROM vehicle');
+    for (const v of vehicles) {
+      if (!v.name) continue;
+      await d.runAsync('INSERT OR REPLACE INTO vehicle (name, license_plate) VALUES (?, ?)', [
+        v.name,
+        v.licensePlate || '',
+      ]);
+    }
+  });
+}
+
+export async function listVehicles(): Promise<Vehicle[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ name: string; license_plate: string | null }>(
+    'SELECT name, license_plate FROM vehicle ORDER BY name ASC',
+  );
+  return rows.map((r) => ({ name: r.name, licensePlate: r.license_plate || '' }));
+}
+
 export async function clearAll(): Promise<void> {
   const d = await db();
-  await d.execAsync('DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley;');
+  await d.execAsync('DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle;');
 }

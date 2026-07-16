@@ -1,4 +1,4 @@
-import { storage, StorageKeys } from '@/src/core/storage';
+import { storage, secureStorage, StorageKeys } from '@/src/core/storage';
 import { loginRequest, probeBaseUrl } from './api';
 import { fetchCurrentUserRoles } from './roles-api';
 
@@ -32,7 +32,10 @@ export const authRepository = {
         storage.set(StorageKeys.instanceUrlBackup, fullUrl),
         storage.set(StorageKeys.emailBackup, email),
         storage.set(StorageKeys.fullName, fullName),
-        storage.set(StorageKeys.passwordBackup, password),
+        // Password goes to the Keychain/Keystore, and any pre-migration
+        // plaintext copy in AsyncStorage is cleared so it can't linger.
+        secureStorage.set(StorageKeys.passwordBackup, password),
+        storage.remove(StorageKeys.passwordBackup),
       ]);
 
       // Fetch roles in the background. Failure is non-fatal — login still succeeds.
@@ -56,6 +59,37 @@ export const authRepository = {
 
   async logout(): Promise<void> {
     await storage.clearExcept([StorageKeys.emailBackup, StorageKeys.instanceUrlBackup]);
+    // clearExcept only touches AsyncStorage — the password lives in secure store.
+    await secureStorage.remove(StorageKeys.passwordBackup);
+  },
+
+  /** Read the stored login password from secure store, migrating a legacy
+   *  plaintext AsyncStorage copy (pre-secure-store builds) on first read. */
+  async getPassword(): Promise<string | null> {
+    const secure = await secureStorage.get(StorageKeys.passwordBackup);
+    if (secure != null) return secure;
+    const legacy = await storage.get(StorageKeys.passwordBackup);
+    if (legacy != null) {
+      await secureStorage.set(StorageKeys.passwordBackup, legacy);
+      await storage.remove(StorageKeys.passwordBackup);
+      return legacy;
+    }
+    return null;
+  },
+
+  /** Silently mint a fresh session cookie from the stored credentials. Called by
+   *  the API client when a request fails with an expired session. Uses the bare
+   *  `loginRequest` (not the shared client) so it can't recurse through the
+   *  reauth interceptor. Returns false when creds are missing or login fails. */
+  async reauthenticate(): Promise<boolean> {
+    const { email, password, url } = await this.loadFullCredentials();
+    if (!email || !password || !url) return false;
+    const res = await loginRequest(url, email, password);
+    if (res.status !== 200) return false;
+    const cookie = extractSidCookie(res.setCookie);
+    if (!cookie) return false;
+    await storage.set(StorageKeys.cookie, cookie);
+    return true;
   },
 
   async loadBackupCredentials(): Promise<{ email: string | null; url: string | null }> {
@@ -75,7 +109,7 @@ export const authRepository = {
   }> {
     const [email, password, url] = await Promise.all([
       storage.get(StorageKeys.emailBackup),
-      storage.get(StorageKeys.passwordBackup),
+      this.getPassword(),
       storage.get(StorageKeys.instanceUrlBackup),
     ]);
     return { email, password, url };

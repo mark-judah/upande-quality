@@ -12,8 +12,17 @@ import { COLORS } from '@/src/core/theme';
 export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
-  const { shelfId, loading, lastOutcome, setShelfFromScan, submitBucket, clearShelf, reset } =
-    useKarenShelvingStore();
+  const {
+    shelfId,
+    shelfCount,
+    shelfCapacity,
+    loading,
+    lastOutcome,
+    setShelfFromScan,
+    submitBucket,
+    clearShelf,
+    reset,
+  } = useKarenShelvingStore();
   const { showSuccess, showError } = useToast();
 
   useEffect(() => () => reset(), [reset]);
@@ -50,10 +59,12 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
     } else {
       showError(outcome.message);
     }
-    // Shelf is sticky — only clear the bucket field and refocus it so the
-    // operator can keep loading buckets onto the same shelf.
     bucketRef.current?.clear();
-    focusWhenReady(bucketRef);
+    // After SHELF_CAPACITY successful buckets the store auto-clears the shelf;
+    // when that happens jump to the shelf field for the next shelf, otherwise
+    // keep loading buckets onto the current one.
+    const stillOnShelf = !!useKarenShelvingStore.getState().shelfId;
+    focusWhenReady(stillOnShelf ? bucketRef : shelfRef);
   };
 
   return (
@@ -69,7 +80,9 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
         />
         {shelfId ? (
           <View style={s.shelfStatusRow}>
-            <Text style={s.shelfStatusLabel}>Active shelf</Text>
+            <Text style={s.shelfStatusLabel}>
+              Active shelf · {shelfCount}/{shelfCapacity}
+            </Text>
             <Pressable onPress={clearShelf} hitSlop={8}>
               <Text style={s.changeLink}>Change shelf</Text>
             </Pressable>

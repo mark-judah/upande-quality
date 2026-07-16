@@ -47,7 +47,7 @@ export default function Login() {
       if (u) setUrl(u.replace(/^https?:\/\//i, ''));
 
       const [pw, bioFlag] = await Promise.all([
-        storage.get(StorageKeys.passwordBackup),
+        authRepository.getPassword(),
         storage.get(StorageKeys.biometricEnabled),
       ]);
       setBioAvailable(!!pw && bioFlag === '1' && Biometric.isModuleAvailable());

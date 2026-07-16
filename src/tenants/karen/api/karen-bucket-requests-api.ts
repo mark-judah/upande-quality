@@ -78,6 +78,13 @@ export type RawTrolleyActionResponse = {
   };
 };
 
+/** One truck from /getDispatchTrucks (Vehicle where custom_dispatch_truck = 0). */
+export type RawDispatchTruck = { name?: string; license_plate?: string };
+
+export type RawDispatchTrucksResponse = {
+  message?: { status?: string; trucks?: RawDispatchTruck[]; message?: string };
+};
+
 export const karenBucketRequestsApi = {
   /** Pull every bucket currently awaiting transfer for `farm`, plus the
    *  vehicle list the operator can later load each trolley into. */
@@ -86,6 +93,16 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/fetchAllocatedBuckets',
       data: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** The dispatch/collection trucks the operator can load a completed order
+   *  onto — Vehicles with "Dispatch Truck?" unchecked. Cached offline. */
+  getDispatchTrucks(): Promise<RawDispatchTrucksResponse> {
+    return api<RawDispatchTrucksResponse>({
+      method: 'GET',
+      url: '/api/method/getDispatchTrucks',
       validateStatus: () => true,
     });
   },
@@ -147,6 +164,8 @@ export const karenBucketRequestsApi = {
   setOfflineTrolleyFlags(payload: {
     pli_ids: string[];
     flag: 'loaded' | 'transit';
+    /** Vehicle name to stamp onto each row's custom_transit_truck (loaded only). */
+    truck?: string;
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',

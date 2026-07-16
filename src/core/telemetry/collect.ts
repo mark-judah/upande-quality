@@ -6,6 +6,7 @@ import * as Network from 'expo-network';
 import * as Cellular from 'expo-cellular';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
+import { Paths } from 'expo-file-system';
 
 export type TelemetryPayload = {
   device_id: string;
@@ -27,8 +28,23 @@ export type TelemetryPayload = {
   is_connected: boolean;
   is_internet_reachable: boolean;
   cellular_generation: string;
+  /** Internal storage in bytes. -1 when the platform can't report it. */
+  storage_free: number;
+  storage_total: number;
   captured_at: string;
 };
+
+/** Read internal disk free/total in bytes. `Paths.*DiskSpace` are synchronous
+ *  getters on SDK 54's file-system API; the legacy async variants now throw at
+ *  runtime. Guard each independently — a throw yields -1, matching the battery
+ *  / network fail-safe convention. */
+function diskSpace(): { free: number; total: number } {
+  let free = -1;
+  let total = -1;
+  try { free = Paths.availableDiskSpace; } catch {}
+  try { total = Paths.totalDiskSpace; } catch {}
+  return { free, total };
+}
 
 async function deviceId(): Promise<string> {
   try {
@@ -66,6 +82,7 @@ export async function collectTelemetry(): Promise<TelemetryPayload> {
     Cellular.getCellularGenerationAsync().catch(() => Cellular.CellularGeneration.UNKNOWN),
   ]);
   const netState = net as Network.NetworkState;
+  const disk = diskSpace();
   return {
     device_id: id,
     device_name: Device.deviceName ?? '',
@@ -88,6 +105,8 @@ export async function collectTelemetry(): Promise<TelemetryPayload> {
     is_connected: !!netState.isConnected,
     is_internet_reachable: netState.isInternetReachable !== false,
     cellular_generation: GEN[gen] ?? 'unknown',
+    storage_free: disk.free,
+    storage_total: disk.total,
     captured_at: new Date().toISOString(),
   };
 }

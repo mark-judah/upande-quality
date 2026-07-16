@@ -23,6 +23,7 @@ try:
             fields=["device_id", "device_name", "model", "brand", "os", "os_version",
                     "app_name", "app_version", "build", "ota_update_id", "ota_channel", "battery_level",
                     "battery_state", "network_type", "cellular_generation", "is_connected",
+                    "storage_free", "storage_total", "user", "user_full_name",
                     "captured_at", "creation"],
             order_by="creation desc",
             limit_page_length=2000,

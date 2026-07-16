@@ -5,9 +5,17 @@ import {
 } from '../repository/karen-shelving-repository';
 import { mapAxiosError } from '@/src/core/api/client';
 
+/** Buckets per shelf — after this many successful scans the shelf auto-clears so
+ *  the operator flows straight to the next shelf without tapping "Change shelf". */
+const SHELF_CAPACITY = 2;
+
 type State = {
-  /** Sticky between bucket scans — operators load many buckets onto one shelf. */
+  /** Sticky between bucket scans — operators load buckets onto one shelf. */
   shelfId: string | null;
+  /** Successful buckets shelved on the CURRENT shelf (0..SHELF_CAPACITY). */
+  shelfCount: number;
+  /** Exposed so the UI can show a "n / capacity" hint. */
+  shelfCapacity: number;
   loading: boolean;
   lastOutcome: ShelvingOutcome | null;
 
@@ -22,6 +30,8 @@ type State = {
 
 export const useKarenShelvingStore = create<State>((set, get) => ({
   shelfId: null,
+  shelfCount: 0,
+  shelfCapacity: SHELF_CAPACITY,
   loading: false,
   lastOutcome: null,
 
@@ -30,11 +40,12 @@ export const useKarenShelvingStore = create<State>((set, get) => ({
     if (!shelfId) {
       return { ok: false, message: 'Please scan a valid shelf QR code.' };
     }
-    set({ shelfId, lastOutcome: null });
+    // Fresh shelf — reset its bucket tally.
+    set({ shelfId, shelfCount: 0, lastOutcome: null });
     return { ok: true, shelfId };
   },
 
-  clearShelf: () => set({ shelfId: null, lastOutcome: null }),
+  clearShelf: () => set({ shelfId: null, shelfCount: 0, lastOutcome: null }),
 
   submitBucket: async (rawBucket, userFarm) => {
     const state = get();
@@ -62,7 +73,18 @@ export const useKarenShelvingStore = create<State>((set, get) => ({
         shelfId: state.shelfId,
         bucketId,
       });
-      set({ loading: false, lastOutcome: outcome });
+      if (outcome.kind === 'success') {
+        const nextCount = get().shelfCount + 1;
+        if (nextCount >= SHELF_CAPACITY) {
+          // Shelf full — auto-clear so focus returns to the shelf field and the
+          // operator moves to the next shelf.
+          set({ loading: false, lastOutcome: outcome, shelfId: null, shelfCount: 0 });
+        } else {
+          set({ loading: false, lastOutcome: outcome, shelfCount: nextCount });
+        }
+      } else {
+        set({ loading: false, lastOutcome: outcome });
+      }
       return outcome;
     } catch (err) {
       const message = mapAxiosError(err).message;
@@ -72,5 +94,5 @@ export const useKarenShelvingStore = create<State>((set, get) => ({
     }
   },
 
-  reset: () => set({ shelfId: null, loading: false, lastOutcome: null }),
+  reset: () => set({ shelfId: null, shelfCount: 0, loading: false, lastOutcome: null }),
 }));

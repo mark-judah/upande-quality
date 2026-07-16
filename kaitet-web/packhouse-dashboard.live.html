@@ -343,6 +343,14 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>
         Stock Visibility
       </a>
+      <a class="nav-item" href="avails">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+        Avails
+      </a>
+      <a class="nav-item" href="stem-movement">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        Stem Movement
+      </a>
       <a class="nav-item" href="order-summary">
         <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
         Order Summary
@@ -445,15 +453,15 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
           <div class="aph-card-body">
             <div class="kpi-dual-row">
               <div class="kpi-dual-item">
-                <div class="kpi-dual-label">Avg Issuing</div>
+                <div class="kpi-dual-label">Issuing</div>
                 <div class="kpi-dual-value" id="kpiAvgIssuing">0%</div>
-                <div class="kpi-dual-sub" id="kpiIssuingDetail">0 / 0 items</div>
+                <div class="kpi-dual-sub" id="kpiIssuingDetail">0 / 0 allocated stems</div>
                 <div class="kpi-dual-bar"><div class="progress-track"><div class="progress-fill" id="kpiIssuingBar" style="width:0%"></div></div></div>
               </div>
               <div class="kpi-dual-item">
-                <div class="kpi-dual-label">Avg Packing</div>
+                <div class="kpi-dual-label">Packing</div>
                 <div class="kpi-dual-value" id="kpiAvgPacking">0%</div>
-                <div class="kpi-dual-sub" id="kpiPackingDetail">0 / 0 stems</div>
+                <div class="kpi-dual-sub" id="kpiPackingDetail">0 / 0 allocated stems</div>
                 <div class="kpi-dual-bar"><div class="progress-track"><div class="progress-fill packing" id="kpiPackingBar" style="width:0%"></div></div></div>
               </div>
               <div class="kpi-dual-item">
@@ -656,11 +664,14 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     }
 
     function renderIssuingPackingKpi(data) {
-        const avgIssuing  = data.avg_issuing_pct  || 0;
-        const avgPacking  = data.avg_packing_pct  || 0;
+        // Headline % is the ratio of totals (issued/allocated, packed/planned),
+        // so it agrees with the fraction shown beneath it. avg_*_pct is a mean of
+        // per-OPL percentages (capped at 100) and does NOT equal the totals.
+        const avgIssuing  = data.global_issuing_pct || 0;
+        const avgPacking  = data.global_packing_pct || 0;
         const globalIss   = data.global_issuing_pct || 0;
         const fulfillment = data.global_fulfillment_pct || 0;
-        const gap         = data.issuing_packing_gap || 0;
+        const gap         = avgPacking - avgIssuing;
         const totalPickStems  = data.total_pick_stems    || 0;
         const totalIssuedStems = data.total_issued_stems || 0;
         const totalPlanned = data.total_planned_stems || 0;
@@ -672,8 +683,8 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         document.getElementById('kpiAvgPacking').textContent  = avgPacking + '%';
         document.getElementById('kpiFulfillment').textContent = fulfillment + '%';
 
-        document.getElementById('kpiIssuingDetail').textContent  = totalIssuedStems.toLocaleString() + ' / ' + totalPickStems.toLocaleString() + ' stems';
-        document.getElementById('kpiPackingDetail').textContent  = totalPacked.toLocaleString() + ' / ' + totalPlanned.toLocaleString() + ' stems';
+        document.getElementById('kpiIssuingDetail').textContent  = totalIssuedStems.toLocaleString() + ' / ' + totalPickStems.toLocaleString() + ' allocated stems';
+        document.getElementById('kpiPackingDetail').textContent  = totalPacked.toLocaleString() + ' / ' + totalPlanned.toLocaleString() + ' allocated stems';
         document.getElementById('kpiFulfillmentDetail').textContent = boxesPacked.toLocaleString() + ' / ' + boxesOrdered.toLocaleString() + ' boxes packed';
 
         document.getElementById('kpiIssuingBar').style.width     = Math.min(avgIssuing, 100) + '%';

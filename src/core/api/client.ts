@@ -5,6 +5,47 @@ import { attachStartTime, elapsed, logError, logRequest, logResponse } from './l
 
 let client: AxiosInstance | null = null;
 
+/** In-flight silent reauth, shared so a burst of simultaneously-expired requests
+ *  triggers exactly ONE re-login; each awaits the same result then retries. */
+let reauthInFlight: Promise<boolean> | null = null;
+
+function reauthOnce(): Promise<boolean> {
+  if (!reauthInFlight) {
+    reauthInFlight = (async () => {
+      try {
+        // Dynamic import breaks the client → repository → roles-api → client
+        // require cycle (repository/roles-api both import this module).
+        const { authRepository } = await import('@/src/core/auth/repository');
+        return await authRepository.reauthenticate();
+      } catch {
+        return false;
+      }
+    })();
+    // Let a later expiry reauth again once this attempt settles.
+    reauthInFlight.finally(() => {
+      reauthInFlight = null;
+    });
+  }
+  return reauthInFlight;
+}
+
+/** A response that means "your session is gone", as opposed to a genuine
+ *  permission denial. Frappe returns 403 (request downgraded to Guest) with a
+ *  `session_expired` flag on an expired sid — NOT 401 — so we must key on that
+ *  flag, or we'd both miss real expiries and loop on legitimate 403s. */
+function isSessionExpired(err: AxiosError): boolean {
+  const res = err.response;
+  if (!res) return false;
+  if (res.status === 401) return true;
+  if (res.status === 403) {
+    const body = res.data as { session_expired?: unknown; exc_type?: string } | null;
+    return !!(body && (body.session_expired || body.exc_type === 'AuthenticationError'));
+  }
+  return false;
+}
+
+type RetryableConfig = AxiosRequestConfig & { _reauthRetry?: boolean };
+
 function buildClient(): AxiosInstance {
   const instance = axios.create({ timeout: 30000 });
   instance.interceptors.request.use(async (config) => {
@@ -26,13 +67,33 @@ function buildClient(): AxiosInstance {
       try { useNetworkStore.getState().notifyApiSuccess(); } catch {}
       return response;
     },
-    (error) => {
+    async (error) => {
       if (isAxiosError(error)) {
         logError(error, elapsed(error.config));
-        // No response means the request never landed — treat as a network
-        // failure so the offline banner can flip on.
-        if (!error.response) {
+        // A request with no response is EITHER a genuine connectivity loss OR a
+        // slow server that blew past our timeout. Only a real connectivity loss
+        // should flip the offline banner — a timeout against a reachable server
+        // must NOT (that produced the false "no internet" on heavy submits).
+        if (isConnectivityError(error)) {
           try { useNetworkStore.getState().notifyApiFailure(); } catch {}
+        }
+        // Expired session → silently reauth with the stored password and retry
+        // the request ONCE. _reauthRetry guards against a reauth-then-401 loop.
+        const cfg = error.config as RetryableConfig | undefined;
+        if (cfg && !cfg._reauthRetry && isSessionExpired(error)) {
+          const ok = await reauthOnce();
+          if (ok) {
+            cfg._reauthRetry = true;
+            // Re-issue through the same instance so the request interceptor
+            // re-reads the freshly-stored cookie.
+            return instance.request(cfg);
+          }
+          // Stored credentials are missing or no longer valid — hard logout so
+          // the root layout routes the user back to the login screen.
+          try {
+            const { useAuthStore } = await import('@/src/core/auth/store');
+            await useAuthStore.getState().forgetDevice();
+          } catch {}
         }
       } else {
         console.log('[API] ✗ non-axios error:', error);
@@ -63,22 +124,44 @@ export class HttpError extends Error {
   }
 }
 
-/** A connectivity failure — the request never reached the server. */
-function isNetworkError(err: AxiosError): boolean {
+/** The request exceeded our client timeout. The server is reachable but slow —
+ *  this is NOT an offline condition, and the request may still be processing
+ *  server-side. */
+function isTimeout(err: AxiosError): boolean {
   if (err.response) return false;
-  if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') return true;
-  if (typeof err.message === 'string' && /network\s*error|failed to fetch|timeout/i.test(err.message)) {
-    return true;
-  }
-  return false;
+  if (err.code === 'ECONNABORTED') return true;
+  return typeof err.message === 'string' && /timeout|timed out|exceeded/i.test(err.message);
+}
+
+/** A genuine connectivity failure — the request never reached the server
+ *  because the network is unreachable. Deliberately excludes timeouts. */
+function isConnectivityError(err: AxiosError): boolean {
+  if (err.response || isTimeout(err)) return false;
+  if (err.code === 'ERR_NETWORK') return true;
+  return typeof err.message === 'string' && /network\s*error|failed to fetch/i.test(err.message);
 }
 
 export function mapAxiosError(err: unknown): HttpError {
   if (isAxiosError(err)) {
-    if (isNetworkError(err)) {
+    if (isTimeout(err)) {
+      // Don't cry "offline" — the server just took too long. The write may have
+      // gone through, so steer the user to verify rather than blindly resubmit.
       return new HttpError(
         0,
-        "You're offline. Check your network connection and try again.",
+        'The server is taking longer than usual to respond. Your submission may still be processing — please check before submitting again.',
+        null,
+      );
+    }
+    if (isConnectivityError(err)) {
+      // If the OS still reports connectivity, don't claim the user is offline —
+      // the request just couldn't reach this server.
+      let online = false;
+      try { online = useNetworkStore.getState().online; } catch {}
+      return new HttpError(
+        0,
+        online
+          ? "Couldn't reach the server. Please try again in a moment."
+          : "You're offline. Check your network connection and try again.",
         null,
       );
     }

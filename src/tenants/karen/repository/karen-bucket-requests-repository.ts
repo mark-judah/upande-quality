@@ -201,13 +201,32 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Load failed.' };
   },
 
+  /** Trucks for the Load-to-truck picker (Vehicle, custom_dispatch_truck = 0). */
+  async fetchDispatchTrucks(): Promise<
+    { kind: 'ok'; trucks: { name: string; licensePlate: string }[] } | { kind: 'error'; message: string }
+  > {
+    const raw = await karenBucketRequestsApi.getDispatchTrucks();
+    const m = raw.message ?? {};
+    if (m.status === 'success') {
+      return {
+        kind: 'ok',
+        trucks: (m.trucks ?? [])
+          .filter((t) => !!t.name)
+          .map((t) => ({ name: t.name as string, licensePlate: t.license_plate || (t.name as string) })),
+      };
+    }
+    return { kind: 'error', message: m.message ?? 'Failed to load trucks.' };
+  },
+
   async setOfflineTrolleyFlags(args: {
     pliIds: string[];
     flag: 'loaded' | 'transit';
+    truck?: string;
   }): Promise<{ kind: 'ok'; updated: number } | { kind: 'error'; message: string }> {
     const raw = await karenBucketRequestsApi.setOfflineTrolleyFlags({
       pli_ids: args.pliIds,
       flag: args.flag,
+      ...(args.truck ? { truck: args.truck } : {}),
     });
     const m = raw.message ?? {};
     if (m.status === 'success') return { kind: 'ok', updated: m.updated ?? 0 };

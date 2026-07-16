@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import * as Network from 'expo-network';
 import { karenBucketRequestsRepository } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
-import type { OrderGroup, TrolleyOpl, ScanResult } from '../offline/bucket-requests-db';
+import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
 
 type State = {
   ready: boolean;
@@ -10,6 +10,7 @@ type State = {
   requests: OrderGroup[];
   trolley: TrolleyOpl[];
   inTransit: TrolleyOpl[];
+  vehicles: Vehicle[];
   reqCount: number;
   trolleyCount: number;
   inTransitCount: number;
@@ -25,7 +26,7 @@ type State = {
   setTrolleyFromScan: (raw: string) => { ok: boolean; message?: string; trolleyId?: string };
   clearActiveTrolley: () => void;
   scanBucketFromScan: (raw: string) => Promise<{ ok: boolean; message: string }>;
-  loadToTruck: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
+  loadToTruck: (oplName: string, pliIds: string[], truck: string) => Promise<{ ok: boolean; message: string }>;
   markInTransit: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
   clearAll: () => Promise<void>;
 };
@@ -36,6 +37,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   requests: [],
   trolley: [],
   inTransit: [],
+  vehicles: [],
   reqCount: 0,
   trolleyCount: 0,
   inTransitCount: 0,
@@ -56,16 +58,18 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, inTransit, c] = await Promise.all([
+    const [requests, trolley, inTransit, vehicles, c] = await Promise.all([
       db.listRequests(),
       db.listTrolley(),
       db.listInTransit(),
+      db.listVehicles(),
       db.counts(),
     ]);
     set({
       requests,
       trolley,
       inTransit,
+      vehicles,
       reqCount: c.requests,
       trolleyCount: c.trolley,
       inTransitCount: c.inTransit,
@@ -94,6 +98,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { ok: false, message: outcome.message };
       }
       const res = await db.downloadOpls(outcome.items, farm);
+      // Also refresh the offline truck list. Non-fatal: a truck-fetch failure
+      // must not fail the picklist download — we keep any previously cached list.
+      try {
+        const trucks = await karenBucketRequestsRepository.fetchDispatchTrucks();
+        if (trucks.kind === 'ok') await db.replaceVehicles(trucks.trucks);
+      } catch {
+        /* keep the cached trucks */
+      }
       await get().refresh();
       set({ downloading: false });
       const skip = res.skipped ? ` (${res.skipped} already on device)` : '';
@@ -131,12 +143,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     };
   },
 
-  loadToTruck: async (oplName, pliIds) => {
+  loadToTruck: async (oplName, pliIds, truck) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
     set({ syncingOpl: oplName });
     try {
-      const res = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded' });
+      const res = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded', truck });
       if (res.kind !== 'ok') {
         set({ syncingOpl: null });
         return { ok: false, message: res.message };

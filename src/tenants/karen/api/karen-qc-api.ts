@@ -92,6 +92,10 @@ export const karenQcApi = {
       url: '/api/method/submitBatchQuality',
       data: { data: payload },
       validateStatus: () => true,
+      // Heavy server-side write (stock entries, quarantine, CAR). The default
+      // 30s ceiling was aborting slow-but-successful submits and mislabelling
+      // them as "offline"; give this endpoint room to finish.
+      timeout: 120000,
     });
   },
 
@@ -114,6 +118,8 @@ export const karenQcApi = {
       url: '/api/method/releaseFromQuarantine',
       data: body,
       validateStatus: () => true,
+      // Server-side stock movements — same slow-write profile as submit.
+      timeout: 120000,
     });
   },
 
@@ -131,6 +137,7 @@ export const karenQcApi = {
       url: '/api/method/submitFieldRejects',
       data: payload,
       validateStatus: () => true,
+      timeout: 120000,
     });
   },
 };

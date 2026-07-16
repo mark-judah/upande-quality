@@ -11,7 +11,8 @@ try:
     fields = [
         "device_id", "device_name", "model", "brand", "os", "os_version",
         "app_name", "app_version", "build", "ota_update_id", "ota_channel", "battery_level",
-        "battery_state", "network_type", "cellular_generation", "captured_at",
+        "battery_state", "network_type", "cellular_generation",
+        "storage_free", "storage_total", "user", "user_full_name", "captured_at",
     ]
     doc = {"doctype": "Device Telemetry"}
     i = 0

@@ -1,8 +1,38 @@
 import {
   karenDiscardApi,
+  type RawDiscardListBucket,
   type RawDiscardPayload,
   type RawDiscardResponse,
 } from '../api/karen-discard-api';
+
+/** A bucket on the farm's discard work-list, as the UI consumes it. */
+export type DiscardListBucket = {
+  bucketId: string;
+  shelf: string;
+  variety: string;
+  stems: number | null;
+  ageDays: number | null;
+  isShelved: boolean;
+  greenhouse: string;
+  discardRequest: string;
+};
+
+export type DiscardListOutcome =
+  | { kind: 'ok'; buckets: DiscardListBucket[] }
+  | { kind: 'error'; message: string };
+
+function mapListBucket(r: RawDiscardListBucket): DiscardListBucket {
+  return {
+    bucketId: r.bucket_id ?? '',
+    shelf: r.shelf ?? '',
+    variety: r.variety ?? '',
+    stems: typeof r.stem_qty === 'number' ? r.stem_qty : null,
+    ageDays: typeof r.age_days === 'number' ? r.age_days : null,
+    isShelved: !!r.is_shelved,
+    greenhouse: r.greenhouse ?? '',
+    discardRequest: r.discard_request ?? '',
+  };
+}
 
 export type DiscardSuccess = {
   kind: 'success';
@@ -52,8 +82,24 @@ export const karenDiscardRepository = {
     }
   },
 
-  async submit(bucketId: string): Promise<DiscardOutcome> {
-    const raw = await karenDiscardApi.createDiscardEntry(bucketId);
+  /** Fetch the farm's discard work-list (buckets on Approved Discard Requests). */
+  async fetchDiscardList(farm: string): Promise<DiscardListOutcome> {
+    const raw = await karenDiscardApi.getDiscardRequestBuckets(farm);
+    const m = raw.message ?? {};
+    if (m.status === 'success') {
+      return {
+        kind: 'ok',
+        buckets: (m.buckets ?? []).filter((b) => !!b.bucket_id).map(mapListBucket),
+      };
+    }
+    return { kind: 'error', message: m.message ?? 'Failed to load discard list.' };
+  },
+
+  async submit(
+    bucketId: string,
+    opts?: { fromDiscardRequest?: boolean; farm?: string },
+  ): Promise<DiscardOutcome> {
+    const raw = await karenDiscardApi.createDiscardEntry(bucketId, opts);
     const p = raw.payload ?? {};
     if (raw.status === 'success') {
       return {

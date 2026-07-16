@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export { secureStorage } from './secure';
+
 export const StorageKeys = {
   cookie: 'cookie',
   instanceUrl: 'instanceurl',
@@ -10,11 +12,12 @@ export const StorageKeys = {
   versionLastReportedOn: 'versionLastReportedOn',
   userRoles: 'userRoles',
   biometricEnabled: 'biometric_enabled',
-  // Password is saved on every successful password login so the biometric
-  // flow can re-authenticate by feeding it back to the same login endpoint.
-  // Stored in AsyncStorage (not encrypted); access is gated by the OS
-  // biometric prompt. On a rooted device this is readable — accept that
-  // trade-off or migrate to expo-secure-store with a native rebuild.
+  // Password is saved on every successful password login so the biometric flow
+  // AND the silent 403-reauth can re-authenticate by feeding it back to the
+  // login endpoint. Stored in expo-secure-store (Keychain/Keystore), NOT
+  // AsyncStorage — read/written via `secureStorage`, not `storage`. This same
+  // key names the legacy plaintext AsyncStorage entry that `getPassword()`
+  // migrates from on first read.
   passwordBackup: 'password_backup',
 } as const;
 

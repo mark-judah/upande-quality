@@ -205,8 +205,9 @@ function apply_spec_to_order(frm, cdt, cdn, spec) {
     }
 }
 
-// Mono: one straight line per box item. First box item fills the triggering row;
-// the rest are appended as their own straight lines.
+// Mono: one straight line per chosen box item. A popup lists the spec's
+// varieties with a multiselect ("Use") and a per-variety box count, so the
+// ordered quantity (stems/box × boxes) is filled automatically — no manual fix.
 function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
     const varieties = items.filter(bi => bi.variety);
     if (!varieties.length) {
@@ -214,35 +215,39 @@ function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
         return;
     }
 
-    // Single variety -> fill straight away. Multiple -> let the user pick which
-    // variety/varieties this order actually needs (multi-select).
-    if (varieties.length === 1) {
-        do_fill_mono(frm, cdt, cdn, spec, varieties, cons);
-        return;
-    }
-
-    const options = varieties.map((bi, idx) => ({
-        label: bi.variety + (bi.length ? ' · ' + bi.length : '') + (bi.box_type ? ' · ' + bi.box_type : ''),
-        value: String(idx),
-        checked: 1
+    const data = varieties.map((bi, idx) => ({
+        idx: idx,
+        include: 1,
+        variety: bi.variety,
+        length: bi.length || '',
+        pack_rate: cint(bi.pack_rate),
+        number_of_boxes: 1
     }));
 
-    let d = new frappe.ui.Dialog({
-        title: __('Select varieties — {0}', [spec.name]),
+    const d = new frappe.ui.Dialog({
+        title: __('Select varieties & boxes — {0}', [spec.spec_name || spec.name]),
+        size: 'large',
         fields: [
-            {
-                fieldtype: 'MultiCheck', fieldname: 'picks', columns: 1,
-                label: __('Which varieties does this order need?'),
-                options: options
+            { fieldtype: 'HTML', options: '<div style="font-size:12px;color:#6b6b6b;margin-bottom:6px">Tick the varieties this order needs and set the number of boxes. Ordered quantity (stems/box × boxes) is filled automatically.</div>' },
+            { fieldtype: 'Table', fieldname: 'rows', cannot_add_rows: 1, cannot_delete_rows: 1,
+              in_place_edit: 1, data: data, get_data: () => data,
+              fields: [
+                { fieldtype: 'Check', fieldname: 'include', label: __('Use'), in_list_view: 1, columns: 1 },
+                { fieldtype: 'Data', fieldname: 'variety', label: __('Variety'), in_list_view: 1, read_only: 1, columns: 4 },
+                { fieldtype: 'Data', fieldname: 'length', label: __('Length'), in_list_view: 1, read_only: 1, columns: 2 },
+                { fieldtype: 'Int', fieldname: 'pack_rate', label: __('Stems/Box'), in_list_view: 1, read_only: 1, columns: 2 },
+                { fieldtype: 'Int', fieldname: 'number_of_boxes', label: __('Boxes'), in_list_view: 1, columns: 2 },
+                { fieldtype: 'Int', fieldname: 'idx', hidden: 1 }
+              ]
             }
         ],
         primary_action_label: __('Add Selected'),
-        primary_action(values) {
-            let chosen = (values.picks || []).map(i => varieties[cint(i)]).filter(Boolean);
-            if (!chosen.length) {
-                frappe.msgprint(__('Select at least one variety.'));
-                return;
-            }
+        primary_action() {
+            const rows = d.fields_dict.rows.grid.get_data() || [];
+            const chosen = rows.filter(r => r.include)
+                .map(r => ({ bi: varieties[cint(r.idx)], boxes: cint(r.number_of_boxes) || 1 }))
+                .filter(c => c.bi);
+            if (!chosen.length) { frappe.msgprint(__('Tick at least one variety.')); return; }
             d.hide();
             do_fill_mono(frm, cdt, cdn, spec, chosen, cons);
         }
@@ -250,14 +255,14 @@ function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
     d.show();
 }
 
-// Fill one straight (mono) line per chosen box item. First fills the triggering
-// row; the rest are appended.
+// Fill one straight (mono) line per chosen {bi, boxes}. First fills the
+// triggering row; the rest are appended.
 function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
-    Promise.all([fetch_item_names(chosen.map(bi => bi.variety)), load_roses_map()])
+    Promise.all([fetch_item_names(chosen.map(c => c.bi.variety)), load_roses_map()])
         .then(([names, map]) => {
             SPEC_AUTOFILL_BUSY = true;
             try {
-                chosen.forEach((bi, i) => {
+                chosen.forEach((c, i) => {
                     let rcdt, rcdn;
                     if (i === 0) {
                         rcdt = cdt; rcdn = cdn;            // triggering row
@@ -265,7 +270,7 @@ function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
                         let r = frm.add_child('items');     // extra straight line
                         rcdt = r.doctype; rcdn = r.name;
                     }
-                    fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map);
+                    fill_mono_row(rcdt, rcdn, spec, c.bi, cons, names, map, c.boxes);
                 });
             } finally {
                 SPEC_AUTOFILL_BUSY = false;
@@ -278,9 +283,11 @@ function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
         });
 }
 
-function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map) {
+function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map, boxes) {
     const set = (f, v) => frappe.model.set_value(rcdt, rcdn, f, v);
     const row = locals[rcdt][rcdn];
+    const boxesN = cint(boxes) || 1;
+    const stems_per_box = cint(bi.pack_rate);
 
     // custom_line is the trigger field for this whole handler — assign it
     // DIRECTLY (never via set_value, which is async and would re-fire the
@@ -298,11 +305,17 @@ function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map) {
     let uom = uom_for(bi.stems_per_bunch);
     if (uom) set('uom', uom);
 
+    // Boxes + ordered quantity (stems/box × boxes) — autofilled so the user
+    // does not have to fix it (set explicitly in case the Packrate link below
+    // is missing and the reactive engine can't derive it).
+    set('custom_number_of_boxes', boxesN);
+    set('custom_ordered_quantity', stems_per_box * boxesN);
+
     // Packrate is a Link -> Packrate; set only if a matching record exists.
-    let pr = String(cint(bi.pack_rate));
+    let pr = String(stems_per_box);
     frappe.db.exists('Packrate', pr).then(exists => {
         if (exists) set('custom_packrate', pr);
-        else frappe.show_alert({ message: __('No Packrate record "{0}" — set boxes/packrate manually.', [pr]), indicator: 'orange' }, 6);
+        else frappe.show_alert({ message: __('No Packrate record "{0}" — set packrate manually.', [pr]), indicator: 'orange' }, 6);
     });
 
     // Delivery warehouse from Roses-MAP when a source warehouse is already on the row.
@@ -317,47 +330,116 @@ function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map) {
 
 /* ---------- mixed ---------- */
 
+// A mixed box has one variety per COLOUR. When a colour lists several
+// varieties they are interchangeable (customer is OK with either), so the
+// operator picks one — informed by live shelf availability per farm for that
+// stem length. Per-colour stems default to the colour's max pack_rate but are
+// editable in the dialog.
 function prompt_and_apply_mixed(frm, cdt, cdn, spec, items, cons) {
-    load_roses_map().then(map => {
-        let sources = Object.keys(map);
-        let d = new frappe.ui.Dialog({
-            title: __('Mixed Box from {0}', [spec.name]),
-            fields: [
-                { fieldtype: 'Data', fieldname: 'mix_name', label: __('Mix Name'), default: spec.spec_name, reqd: 1 },
-                {
-                    fieldtype: 'Select', fieldname: 'source_warehouse', label: __('Source Warehouse'),
-                    options: sources.join('\n'), reqd: 1,
-                    description: __('Delivery warehouse is set automatically from Roses-MAP.')
-                },
-                { fieldtype: 'Int', fieldname: 'number_of_boxes', label: __('Number of Boxes'), default: 1, reqd: 1 }
-            ],
+    const varieties = items.filter(bi => bi.variety);
+    if (!varieties.length) {
+        frappe.msgprint(__('Specification {0} has no varieties.', [spec.name]));
+        return;
+    }
+
+    // Group box items by colour (fall back to the variety itself if blank).
+    const groups = {};
+    const order = [];
+    varieties.forEach(bi => {
+        const key = bi.colour || ('__' + bi.variety);
+        if (!groups[key]) { groups[key] = []; order.push(key); }
+        groups[key].push(bi);
+    });
+
+    // Fetch shelf availability per stem length present in the spec.
+    const lengths = Array.from(new Set(varieties.map(bi => bi.length).filter(Boolean)));
+    const availCalls = (lengths.length ? lengths : [null]).map(L =>
+        frappe.call({
+            method: 'getShelfAvailability',
+            args: {
+                varieties: varieties.filter(bi => !L || bi.length === L).map(bi => bi.variety),
+                stem_length: L || ''
+            }
+        }).then(r => (r.message && r.message.availability) || {}).catch(() => ({}))
+    );
+
+    Promise.all([load_roses_map(), Promise.all(availCalls)]).then(([map, availList]) => {
+        const avail = Object.assign({}, ...availList);   // { variety: { farm: stems } }
+        const sources = Object.keys(map);
+
+        const total_for = (v) => Object.values(avail[v] || {}).reduce((a, b) => a + b, 0);
+        const avail_html = (grp) => grp.map(bi => {
+            const farms = avail[bi.variety] || {};
+            const parts = Object.keys(farms).sort((a, b) => farms[b] - farms[a])
+                .map(f => `${f}: ${format_number(farms[f])}`);
+            const total = total_for(bi.variety);
+            return `<div style="padding:2px 0"><b>${bi.variety}</b> — ${format_number(total)} stems`
+                + (parts.length ? ` <span style="color:#6b6b6b">(${parts.join(', ')})</span>` : ' <span style="color:#b45309">(no shelf stock)</span>')
+                + `</div>`;
+        }).join('');
+
+        const fields = [
+            { fieldtype: 'Data', fieldname: 'mix_name', label: __('Mix Name'), default: spec.spec_name, reqd: 1 },
+            { fieldtype: 'Select', fieldname: 'source_warehouse', label: __('Source Warehouse'),
+              options: sources.join('\n'), reqd: 1,
+              description: __('Delivery warehouse is set automatically from Roses-MAP.') },
+            { fieldtype: 'Int', fieldname: 'number_of_boxes', label: __('Number of Boxes'), default: 1, reqd: 1 },
+            { fieldtype: 'Section Break', label: __('Box contents — one variety per colour') }
+        ];
+
+        order.forEach((key, i) => {
+            const grp = groups[key];
+            const colour = grp[0].colour || grp[0].variety;
+            const defStems = Math.max.apply(null, grp.map(bi => cint(bi.pack_rate)).concat([0]));
+            // Default to the variety with the most shelf stock.
+            let best = grp[0].variety, bestQty = -1;
+            grp.forEach(bi => { const q = total_for(bi.variety); if (q > bestQty) { bestQty = q; best = bi.variety; } });
+
+            fields.push({ fieldtype: 'HTML', fieldname: 'avail_' + i,
+                options: `<div style="font-size:12px;margin-bottom:4px"><div style="font-weight:600;margin-bottom:2px">${colour} — shelf availability @ ${grp[0].length || 'any'}</div>${avail_html(grp)}</div>` });
+            fields.push({ fieldtype: 'Select', fieldname: 'variety_' + i, label: __('{0} variety', [colour]),
+                options: grp.map(bi => bi.variety).join('\n'), default: best, reqd: 1 });
+            fields.push({ fieldtype: 'Int', fieldname: 'stems_' + i, label: __('{0} stems per box', [colour]), default: defStems, reqd: 1 });
+        });
+
+        const d = new frappe.ui.Dialog({
+            title: __('Mixed Box from {0}', [spec.spec_name || spec.name]),
+            size: 'large',
+            fields: fields,
             primary_action_label: __('Generate Rows'),
             primary_action(values) {
+                const selections = order.map((key, i) => {
+                    const grp = groups[key];
+                    const chosen = values['variety_' + i];
+                    const bi = grp.find(b => b.variety === chosen) || grp[0];
+                    return { bi: bi, stems: cint(values['stems_' + i]) };
+                }).filter(s => s.bi && s.stems > 0);
+                if (!selections.length) { frappe.msgprint(__('Enter stems for at least one colour.')); return; }
                 d.hide();
-                generate_mixed_rows(frm, cdt, cdn, spec, items, cons, values, map);
+                generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections);
             }
         });
         d.show();
     });
 }
 
-function generate_mixed_rows(frm, cdt, cdn, spec, items, cons, values, map) {
+// One row per chosen colour/variety, sharing a mix group. Mirrors the manual
+// mixed-box rows (custom_farm left blank — the SO header carries the farm).
+function generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections) {
     const boxes = cint(values.number_of_boxes) || 1;
     const source = values.source_warehouse || '';
     const delivery = map[source] || '';
-    const farm = derive_farm(source);
     const group = next_mix_group(frm);
-    const varieties = items.filter(bi => bi.variety);
 
-    fetch_item_names(varieties.map(bi => bi.variety)).then(names => {
+    fetch_item_names(selections.map(s => s.bi.variety)).then(names => {
         SPEC_AUTOFILL_BUSY = true;
-        // Remove the triggering placeholder row.
         frm.doc.items = (frm.doc.items || []).filter(r => r.name !== cdn);
 
-        varieties.forEach(bi => {
+        selections.forEach(sel => {
+            const bi = sel.bi;
+            const stems_per_box = cint(sel.stems);
+            const uom = uom_for(bi.stems_per_bunch);
             let row = frm.add_child('items');
-            let stems_per_box = cint(bi.pack_rate);
-            let uom = uom_for(bi.stems_per_bunch);
             row.item_code = bi.variety;
             row.item_name = names[bi.variety] || bi.variety;
             row.uom = uom;
@@ -371,7 +453,6 @@ function generate_mixed_rows(frm, cdt, cdn, spec, items, cons, values, map) {
             row.custom_box_type = bi.box_type;
             row.custom_ordered_quantity = stems_per_box * boxes;
             row.custom_truck = 0;
-            row.custom_farm = farm;
             row.custom_source_warehouse = source;
             row.warehouse = delivery;
             let total_stems = stems_per_box * boxes;
@@ -384,7 +465,8 @@ function generate_mixed_rows(frm, cdt, cdn, spec, items, cons, values, map) {
         SPEC_AUTOFILL_BUSY = false;
         frm.refresh_field('items');
         frappe.show_alert({
-            message: __('Mix "{0}" added: {1} varieties × {2} boxes → {3}', [values.mix_name, varieties.length, boxes, delivery || '(no map)']),
+            message: __('Mix "{0}" added: {1} colour(s) × {2} box(es) → {3}',
+                [values.mix_name, selections.length, boxes, delivery || '(no map)']),
             indicator: 'green'
         }, 4);
     });

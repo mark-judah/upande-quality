@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert as RNAlert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -23,7 +25,7 @@ import {
   type OrderGroup,
   type TrolleyOpl,
 } from '@/src/tenants/karen/state/karen-bucket-requests-store';
-import type { ReqOpl, ReqBucket } from '@/src/tenants/karen/offline/bucket-requests-db';
+import type { ReqOpl, ReqBucket, Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 
 type Tab = 'requests' | 'trolley' | 'transit';
 
@@ -34,6 +36,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const [tab, setTab] = useState<Tab>('requests');
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  // The completed OPL awaiting a truck choice (null = picker closed).
+  const [truckPickerFor, setTruckPickerFor] = useState<TrolleyOpl | null>(null);
+  const [truckQuery, setTruckQuery] = useState('');
 
   const {
     ready,
@@ -41,6 +46,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     requests,
     trolley,
     inTransit,
+    vehicles,
     reqCount,
     trolleyCount,
     inTransitCount,
@@ -97,8 +103,16 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     focusWhenReady(bucketRef);
   };
 
-  const onLoad = async (o: TrolleyOpl) => {
-    const r = await loadToTruck(o.oplName, o.pliIds);
+  // "Load to truck" now needs a truck: open the picker instead of loading straight away.
+  const onLoad = (o: TrolleyOpl) => {
+    setTruckQuery('');
+    setTruckPickerFor(o);
+  };
+  const onPickTruck = async (truck: string) => {
+    const target = truckPickerFor;
+    setTruckPickerFor(null);
+    if (!target) return;
+    const r = await loadToTruck(target.oplName, target.pliIds, truck);
     if (r.ok) showSuccess(r.message);
     else showError(r.message);
   };
@@ -255,7 +269,96 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           <InTransitTab items={inTransit} />
         )}
       </ScrollView>
+
+      <TruckPicker
+        visible={!!truckPickerFor}
+        orderName={truckPickerFor?.orderName ?? ''}
+        vehicles={vehicles}
+        query={truckQuery}
+        onQuery={setTruckQuery}
+        online={online}
+        onClose={() => setTruckPickerFor(null)}
+        onPick={onPickTruck}
+      />
     </Screen>
+  );
+}
+
+function TruckPicker({
+  visible,
+  orderName,
+  vehicles,
+  query,
+  onQuery,
+  online,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  orderName: string;
+  vehicles: Vehicle[];
+  query: string;
+  onQuery: (q: string) => void;
+  online: boolean;
+  onClose: () => void;
+  onPick: (truck: string) => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? vehicles.filter(
+        (v) =>
+          v.name.toLowerCase().includes(q) || v.licensePlate.toLowerCase().includes(q),
+      )
+    : vehicles;
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={s.sheetBackdrop} onPress={onClose} />
+      <View style={s.sheet}>
+        <View style={s.sheetHandle} />
+        <Text style={s.sheetTitle}>Load to truck</Text>
+        <Text style={s.sheetSub} numberOfLines={1}>
+          {orderName}
+        </Text>
+        <View style={s.sheetHint}>
+          <Ionicons name="wifi-outline" size={14} color={COLORS.textMuted} />
+          <Text style={s.sheetHintText}>Loading to a truck needs internet.</Text>
+        </View>
+        {!online ? (
+          <Text style={s.sheetOffline}>You’re offline — connect before choosing a truck.</Text>
+        ) : null}
+        {vehicles.length === 0 ? (
+          <View style={s.empty}>
+            <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
+            <Text style={s.emptyTitle}>No trucks downloaded</Text>
+            <Text style={s.emptyHint}>Tap “Download picklists” while online to fetch trucks.</Text>
+          </View>
+        ) : (
+          <>
+            <TextInput
+              value={query}
+              onChangeText={onQuery}
+              placeholder="Search truck / plate"
+              placeholderTextColor={COLORS.textMuted}
+              autoCorrect={false}
+              autoCapitalize="characters"
+              style={s.sheetSearch}
+            />
+            <ScrollView style={s.sheetList} keyboardShouldPersistTaps="handled">
+              {filtered.map((v) => (
+                <Pressable key={v.name} style={s.truckRow} onPress={() => onPick(v.name)}>
+                  <Ionicons name="car-outline" size={18} color={COLORS.text} />
+                  <Text style={s.truckName}>{v.licensePlate || v.name}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                </Pressable>
+              ))}
+              {filtered.length === 0 ? (
+                <Text style={s.emptyHint}>No truck matches “{query}”.</Text>
+              ) : null}
+            </ScrollView>
+          </>
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -542,4 +645,68 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surfaceAlt,
   },
   loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: '80%',
+    backgroundColor: COLORS.surface ?? '#fff',
+    borderTopLeftRadius: borderRadius.lg ?? 16,
+    borderTopRightRadius: borderRadius.lg ?? 16,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    marginBottom: spacing.sm,
+  },
+  sheetTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text },
+  sheetSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  sheetHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  sheetHintText: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
+  sheetOffline: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.danger ?? '#B42318',
+    marginTop: spacing.xs,
+  },
+  sheetSearch: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.text,
+  },
+  sheetList: { marginTop: spacing.sm },
+  truckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  truckName: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
 });

@@ -1,10 +1,36 @@
 # Frappe Server Script (Type: API), api_method = setOfflineTrolleyFlags
 # Additive-only sync for the offline Bucket Requests app. Marks specific
-# Pick List Item rows as loaded-in-trolley or in-transit WITHOUT touching any
-# other field and WITHOUT submitting the OPL (stays draft). Targets exact rows
-# by their Pick List Item name (the app stored pick_list_item_id at download),
-# so bucket-QR reuse can never hit the wrong OPL.
-# Payload: { "data": { "pli_ids": ["<name>", ...], "flag": "loaded" | "transit" } }
+# Pick List Item rows as loaded-in-trolley or in-transit WITHOUT submitting the
+# OPL (stays draft). Targets exact rows by their Pick List Item name (the app
+# stored pick_list_item_id at download), so bucket-QR reuse can never hit the
+# wrong OPL. Once a bucket is loaded/in-transit it has physically left its
+# shelf, so its Shelf Item is deleted too (mirrors the discard flow).
+# Payload: { "data": { "pli_ids": ["<name>", ...], "flag": "loaded" | "transit",
+#                       "truck": "<Vehicle name>" (optional, only used on loaded) } }
+
+
+def remove_bucket_from_shelf(bucket_id):
+    """Delete the bucket's Shelf Item row(s) so it no longer shows on its shelf.
+    Idempotent — no Shelf Item is a no-op. Returns the shelves touched."""
+    removed = []
+    if not bucket_id:
+        return removed
+    try:
+        shelf_items = frappe.db.get_all(
+            "Shelf Item",
+            filters={"bucket_id": bucket_id},
+            fields=["name", "parent"],
+        )
+        for item in shelf_items:
+            frappe.delete_doc("Shelf Item", item.name, force=1)
+            removed.append(item.parent)
+            # Touch parent Shelf (keeps UI + modified in sync)
+            frappe.db.set_value("Shelf", item.parent, "modified", frappe.utils.now())
+    except Exception:
+        # Shelf removal is not critical to the flag sync — never fail on it.
+        pass
+    return removed
+
 
 frappe.response["message"] = {"status": "error", "message": "Script failed"}
 
@@ -16,6 +42,7 @@ try:
 
     pli_ids = data.get("pli_ids") or []
     flag = data.get("flag") or ""
+    truck = data.get("truck") or ""
 
     field = None
     if flag == "loaded":
@@ -30,18 +57,32 @@ try:
     else:
         updated = 0
         missing = 0
+        removed_shelves = []
         i = 0
         while i < len(pli_ids):
             name = pli_ids[i]
             if name and frappe.db.exists("Pick List Item", name):
                 # Additive only: set the one flag to 1, leave everything else.
                 frappe.db.set_value("Pick List Item", name, field, 1, update_modified=True)
+                # On load, also stamp the chosen truck onto the row (Data field).
+                if flag == "loaded" and truck:
+                    frappe.db.set_value("Pick List Item", name, "custom_transit_truck", truck, update_modified=True)
+                # The bucket has left the shelf now it's on the trolley/truck —
+                # remove its Shelf Item so the shelf reflects reality.
+                bucket = frappe.db.get_value("Pick List Item", name, "custom_bucket")
+                removed_shelves = removed_shelves + remove_bucket_from_shelf(bucket)
                 updated = updated + 1
             else:
                 missing = missing + 1
             i = i + 1
         frappe.db.commit()
-        frappe.response["message"] = {"status": "success", "updated": updated, "missing": missing, "flag": flag}
+        frappe.response["message"] = {
+            "status": "success",
+            "updated": updated,
+            "missing": missing,
+            "flag": flag,
+            "removed_from_shelves": list(set(removed_shelves)),
+        }
 
 except Exception as e:
     frappe.response["message"] = {"status": "error", "message": str(e)}

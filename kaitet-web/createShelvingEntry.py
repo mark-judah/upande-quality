@@ -138,32 +138,47 @@ def mark_bucket_as_shelved(bucket_id, receiving_doc, result):
 # UPDATE OPL TRANSIT STATUS (NO RETURNS)
 # ---------------------------------------------------------
 def update_transit_status(bucket_id, shelf_id, result):
+    # Once a transfer bucket is shelved it has left the transfer pipeline, so
+    # clear EVERY transfer flag (in_transit / awaiting_transfer / loaded_in_trolley)
+    # and mark it shelved. Leaving any of these set keeps the bucket "awaiting
+    # transfer" and blocks the OPL from ever submitting. Handles all transfer
+    # entry paths (in-transit AND offline load-to-trolley), not just in_transit.
+    # Local (non-transfer) rows carry no flag, so they're left untouched.
     result["transit_updated"] = False
 
-    transit_rows = frappe.get_all(
+    rows = frappe.get_all(
         "Pick List Item",
-        filters={
-            "custom_bucket": bucket_id,
-            "custom_in_transit": 1,
-            "custom_shelved": 0
-        },
+        filters={"custom_bucket": bucket_id},
         fields=["name", "parent"],
-        limit=1
     )
-
-    if transit_rows:
-        opl_name = transit_rows[0].parent
-        child_name = transit_rows[0].name
-        opl_doc = frappe.get_doc("Order Pick List", opl_name)
+    updated_opls = []
+    for r in rows:
+        opl_doc = frappe.get_doc("Order Pick List", r.parent)
+        if opl_doc.docstatus != 0:
+            continue
+        changed = False
         for row in opl_doc.locations:
-            if row.name == child_name:
-                row.custom_in_transit = 0
-                row.custom_shelved = 1
-                row.custom_shelf = shelf_id
+            if row.name == r.name:
+                is_transfer = (
+                    (row.custom_in_transit or 0) == 1
+                    or (row.custom_awaiting_transfer or 0) == 1
+                    or (row.custom_loaded_in_trolley or 0) == 1
+                )
+                if is_transfer:
+                    row.custom_in_transit = 0
+                    row.custom_awaiting_transfer = 0
+                    row.custom_loaded_in_trolley = 0
+                    row.custom_shelved = 1
+                    row.custom_shelf = shelf_id
+                    changed = True
                 break
-        opl_doc.save(ignore_permissions=True)
+        if changed:
+            opl_doc.save(ignore_permissions=True)
+            updated_opls.append(r.parent)
+
+    if updated_opls:
         result["transit_updated"] = True
-        result["transit_opl"] = opl_name
+        result["transit_opl"] = updated_opls[0]
 
 
 # ─────────────────────────────────────────────────────
@@ -241,20 +256,21 @@ def check_and_submit_opl(bucket_id, result):
                 continue
             
             # Submit only when EVERY transfer bucket has been shelved at the sales farm.
-            # A bucket still being transferred is one that is in transit
-            # (custom_in_transit = 1), not yet moved (custom_awaiting_transfer = 1),
-            # OR saved to a trolley but not yet shelved (custom_loaded_in_trolley = 1
-            # and custom_shelved != 1 — saveTrolleyData clears awaiting_transfer, so
-            # this state would otherwise slip past and let the OPL submit early).
-            # Local sales-shelf buckets carry none of these flags, so they never block.
-            # (Requiring custom_shelved = 1 on EVERY row would wrongly block local
-            # buckets, which never get shelved-at-kapkolia; hence the loaded gate.)
+            # A row is "part of a transfer" if it carries ANY transfer flag: in
+            # transit (custom_in_transit), awaiting transfer (custom_awaiting_transfer),
+            # or saved to a trolley (custom_loaded_in_trolley). Such a row blocks the
+            # submit ONLY while it is not yet shelved (custom_shelved != 1) — once
+            # shelved it counts as done, no matter which stale transfer flags linger
+            # (the offline setOfflineTrolleyFlags path leaves awaiting_transfer=1).
+            # Local sales-shelf buckets carry no transfer flag, so they never block.
             all_ready = True
             for loc in opl_doc.locations:
-                if loc.custom_in_transit == 1 or loc.custom_awaiting_transfer == 1:
-                    all_ready = False
-                    break
-                if (loc.custom_loaded_in_trolley or 0) == 1 and (loc.custom_shelved or 0) != 1:
+                is_transfer = (
+                    loc.custom_in_transit == 1
+                    or loc.custom_awaiting_transfer == 1
+                    or (loc.custom_loaded_in_trolley or 0) == 1
+                )
+                if is_transfer and (loc.custom_shelved or 0) != 1:
                     all_ready = False
                     break
             
