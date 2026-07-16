@@ -15,5 +15,5 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Discards',           route: 'discards',           icon: 'trash-outline' },
   { label: 'Intake QC',          route: 'intake-qc',          icon: 'checkmark-done-outline' },
   { label: 'Coldroom QC',        route: 'coldroom-qc',        icon: 'snow-outline',     comingSoon: true },
-  { label: 'Packhouse QC',       route: 'packhouse-qc',       icon: 'cube-outline',     comingSoon: true },
+  { label: 'Packhouse QC',       route: 'packhouse-qc',       icon: 'cube-outline' },
 ];

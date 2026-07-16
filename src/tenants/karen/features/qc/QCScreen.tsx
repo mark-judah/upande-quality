@@ -29,8 +29,8 @@ export function KarenQcScreen({ userFarm: _userFarm, userGreenhouse }: Props) {
   const resetAll = useKarenQcStore((s) => s.resetAll);
 
   useEffect(() => {
-    // This screen is always Intake QC — Coldroom / Packhouse will be separate
-    // drawer entries once implemented.
+    // This screen is always Intake QC — Coldroom / Packhouse are separate
+    // drawer entries with their own screens.
     setControlPoint('Intake');
     loadParameters();
     return () => resetAll();
