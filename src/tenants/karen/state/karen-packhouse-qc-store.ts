@@ -18,9 +18,10 @@ import { mapAxiosError } from '@/src/core/api/client';
 export type QcType = 'Online QC' | 'Final QC';
 export type OnlineMode = 'Reject Recorder' | 'Grading QC';
 export type IssueAction = 'Quarantine' | 'Reject';
-/** The operator's manual, order-level call for Final QC — authoritative
- *  over any per-issue tally, since Quarantine/Reject means the WHOLE
- *  order, not just the boxes actually sampled. */
+/** Final QC's order-level call. It's AUTO-SUGGESTED from the tolerance checks
+ *  (any issue over its parameter's threshold → Quarantine, else Accept), but
+ *  the operator can override it. Accept keeps in-tolerance issues as partial
+ *  bunch-rejects; Quarantine/Reject apply to the WHOLE order. */
 export type FinalDecision = 'Accept' | 'Quarantine' | 'Reject';
 
 /** The three physical checks the operator verifies against the box while
@@ -123,11 +124,12 @@ type State = {
 
   bunchSampling: BunchSamplingState;
 
-  /** Final QC only — the operator's manual Accept/Quarantine/Reject call,
-   *  and how many boxes they actually sampled (for the record; not part of
-   *  the disposition math). */
-  finalDecision: FinalDecision | null;
+  /** Final QC only — how many boxes the operator actually sampled. Every
+   *  bunch in these boxes is inspected; issues are counted in bunches. */
   boxesChecked: string;
+  /** Final QC's manual override of the auto-suggested decision — null means
+   *  "follow the suggestion", which tracks the tolerance checks live. */
+  finalDecisionOverride: FinalDecision | null;
 
   issues: IssueRow[];
 
@@ -160,10 +162,15 @@ type State = {
   recordBunchReject: (reasonParamName: string) => void;
   finishBunchSampling: () => void;
 
-  /** Final QC's overall order-level call — Accept, or Quarantine/Reject the
-   *  WHOLE order for rework. */
-  setFinalDecision: (d: FinalDecision) => void;
   setBoxesChecked: (v: string) => void;
+  /** Override the auto-suggested Final QC decision (or pass the suggestion
+   *  itself — it just pins the choice manually). */
+  setFinalDecision: (d: FinalDecision) => void;
+  /** The decision auto-suggested purely from the tolerance checks. */
+  suggestedFinalDecision: () => FinalDecision;
+  /** What will actually be submitted — the override if set, else the
+   *  suggestion. */
+  effectiveFinalDecision: () => FinalDecision;
 
   /** Selecting a parameter adds it straight to the issues list — no
    *  separate draft/count-then-confirm step. Starts at count 1; adjust it
@@ -212,10 +219,11 @@ export function computeOverallResult(issues: IssueRow[], totalStemsChecked: numb
   return 'Accepted';
 }
 
-/** The unit being counted differs by mode. */
+/** The unit being counted differs by mode. Final QC now samples every bunch
+ *  in the sampled boxes, so its issues are counted in bunches too. */
 export function issueCountLabel(onlineMode: OnlineMode | null, qcType: QcType | null): string {
   if (onlineMode === 'Grading QC') return 'Bunches Affected';
-  if (qcType === 'Final QC') return 'Boxes Affected';
+  if (qcType === 'Final QC') return 'Bunches Affected';
   return 'Stems Affected';
 }
 
@@ -246,6 +254,57 @@ export function packRatePerBox(boxes: BoxLabelOption[], specification: Specifica
   if (specification?.packRate) return specification.packRate;
   const box = boxes.find((b) => b.packRate > 0);
   return box?.packRate ?? 1;
+}
+
+/** Final QC samples EVERY bunch in the sampled boxes, so the inspected bunch
+ *  count is boxes checked × the spec's bunches-per-box. Zero when either input
+ *  is unknown — callers treat an unknown sample size conservatively. */
+export function sampledBunches(boxesChecked: number, bunchesPerBox: number): number {
+  if (boxesChecked <= 0 || bunchesPerBox <= 0) return 0;
+  return boxesChecked * bunchesPerBox;
+}
+
+/** Affected bunches as a percentage of the bunches actually sampled — 0 when
+ *  the sample size can't be derived. */
+export function affectedPercent(affectedBunches: number, sampled: number): number {
+  if (sampled <= 0) return 0;
+  return (affectedBunches / sampled) * 100;
+}
+
+/** Whether an issue breaches its parameter's tolerance — which quarantines
+ *  the WHOLE order. Zero-tolerance parameters (pests, disease) breach on any
+ *  affected bunch; a percentage tolerance breaches once affected% exceeds it.
+ *  When the sample size can't be derived we treat any affected bunch as a
+ *  breach, since we can't prove it's within tolerance. */
+export function isThresholdBreached(affectedBunches: number, sampled: number, thresholdPercent: number): boolean {
+  if (affectedBunches <= 0) return false;
+  if (thresholdPercent <= 0) return true;
+  if (sampled <= 0) return true;
+  return affectedPercent(affectedBunches, sampled) > thresholdPercent;
+}
+
+/** The Specification actually on screen for Final QC — a directly picked /
+ *  overridden spec wins over the per-variety auto-match, same as the UI. */
+function resolveFinalQcSpec(s: State): SpecificationMatch | null {
+  return s.specificationDetail ?? (s.selectedVariety ? s.specifications[s.selectedVariety] ?? null : null);
+}
+
+/** Bunches inspected in Final QC = boxes sampled × the spec's bunches-per-box
+ *  (falls back to the 30% suggestion when the operator hasn't typed a count). */
+function finalQcSampled(s: State): number {
+  const spec = resolveFinalQcSpec(s);
+  const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
+  return sampledBunches(boxes, spec?.bunchesPerBox ?? 0);
+}
+
+/** Whether any recorded issue breaches its parameter's tolerance — the signal
+ *  that auto-suggests quarantining the whole order. */
+function finalQcAnyBreach(s: State): boolean {
+  const sampled = finalQcSampled(s);
+  return s.issues.some((i) => {
+    const threshold = s.params.find((p) => p.name === i.paramName)?.toleranceThresholds ?? 0;
+    return isThresholdBreached(i.count, sampled, threshold);
+  });
 }
 
 function extractBoxLabelFromScan(raw: string): string {
@@ -292,9 +351,8 @@ function freshOrderState() {
     scannedBoxDetail: null as ScannedBoxDetail | null,
     pendingQuarantineStems: 0,
     bunchSampling: emptyBunchSampling(),
-    // Accepted is the default until an issue says otherwise.
-    finalDecision: 'Accept' as FinalDecision | null,
     boxesChecked: '' as string,
+    finalDecisionOverride: null as FinalDecision | null,
     issues: [] as IssueRow[],
   };
 }
@@ -332,8 +390,8 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   scannedBoxDetail: null,
 
   bunchSampling: emptyBunchSampling(),
-  finalDecision: 'Accept',
   boxesChecked: '',
+  finalDecisionOverride: null,
 
   issues: [],
 
@@ -509,37 +567,26 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   finishBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, finished: true } })),
 
-  setFinalDecision: (d) => set({ finalDecision: d }),
   setBoxesChecked: (v) => set({ boxesChecked: v }),
+  setFinalDecision: (d) => set({ finalDecisionOverride: d }),
+  suggestedFinalDecision: () => (finalQcAnyBreach(get()) ? 'Quarantine' : 'Accept'),
+  effectiveFinalDecision: () => {
+    const s = get();
+    return s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
+  },
 
   addIssueForParam: (paramName) => {
     const id = issueSeed++;
-    // Reject Recorder only ever rejects — there's no Quarantine option here;
-    // Final QC's action gets overridden by the overall decision at submit.
-    set((s) => {
-      const issues = [...s.issues, { id, paramName, count: 1, action: 'Reject' as const }];
-      // An order with an issue is never Accepted by default — Quarantine is
-      // the safe assumption unless the operator has already decided this
-      // is bad enough to Reject, which we shouldn't second-guess.
-      const finalDecision =
-        s.isBoxSamplingMode() && (s.finalDecision === 'Accept' || !s.finalDecision)
-          ? 'Quarantine'
-          : s.finalDecision;
-      return { issues, finalDecision };
-    });
+    // Reject Recorder only ever rejects; Final QC's action is derived from
+    // the parameter's tolerance at submit (breach → Quarantine, else Reject),
+    // so the stored action here is just a harmless default.
+    set((s) => ({ issues: [...s.issues, { id, paramName, count: 1, action: 'Reject' as const }] }));
   },
   updateIssueCount: (id, count) =>
     set((s) => ({
       issues: s.issues.map((i) => (i.id === id ? { ...i, count: Math.max(0, count) } : i)),
     })),
-  removeIssue: (id) =>
-    set((s) => {
-      const issues = s.issues.filter((i) => i.id !== id);
-      // Accept is the only valid decision once there's nothing left to
-      // quarantine or reject.
-      const finalDecision = s.isBoxSamplingMode() && issues.length === 0 ? 'Accept' : s.finalDecision;
-      return { issues, finalDecision };
-    }),
+  removeIssue: (id) => set((s) => ({ issues: s.issues.filter((i) => i.id !== id) })),
 
   setTotalChecked: (v) => set({ totalChecked: v }),
   setQcIncharge: (v) => set({ selectedQcIncharge: v }),
@@ -588,12 +635,17 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     // Grading QC must go through Start → Finish sampling; Reject Recorder
     // can submit with zero issues (a clean check).
     if (s.isBunchSamplingMode()) return s.bunchSampling.started && s.bunchSampling.finished;
-    // Final QC needs an explicit decision, consistent with the issues list:
-    // Accept requires a clean list, Quarantine/Reject require at least one
-    // documented reason.
+    // Final QC: a sample size must be resolvable (typed, or the 30% default
+    // once boxes are known), and every recorded issue needs a bunch count.
+    // Zero issues is a valid clean Accept; Quarantine/Reject need at least one
+    // documented issue.
     if (s.isBoxSamplingMode()) {
-      if (!s.finalDecision) return false;
-      return s.finalDecision === 'Accept' ? s.issues.length === 0 : s.issues.length > 0;
+      const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
+      if (boxes <= 0) return false;
+      if (!s.issues.every((i) => i.count > 0)) return false;
+      const decision = s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
+      if (decision !== 'Accept' && s.issues.length === 0) return false;
+      return true;
     }
     return true;
   },
@@ -611,12 +663,14 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       return out;
     }
     if (s.isBoxSamplingMode()) {
-      if (!s.finalDecision) {
-        const out: SubmitOutcome = { kind: 'error', message: 'Pick Accept, Quarantine, or Reject.' };
+      const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
+      if (boxes <= 0) {
+        const out: SubmitOutcome = { kind: 'error', message: 'Enter how many boxes you sampled.' };
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;
       }
-      if (s.finalDecision !== 'Accept' && s.issues.length === 0) {
+      const decision = s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
+      if (decision !== 'Accept' && s.issues.length === 0) {
         const out: SubmitOutcome = {
           kind: 'error',
           message: 'Add at least one issue before quarantining or rejecting.',
@@ -663,23 +717,30 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       // "Affected" means had an issue — accepted bunches don't count here.
       payload.bunches_affected = s.bunchSampling.rejected;
     } else if (s.isBoxSamplingMode()) {
-      // The operator's decision is authoritative and applies to the WHOLE
-      // order, not just the boxes sampled — the server re-derives
-      // stems_checked from the order's own total and overrides the tally
-      // accordingly when final_decision is present, so the issues below are
-      // just the documented reasons, not what drives the disposition math.
-      const decision = s.finalDecision ?? 'Accept';
+      // The order-level decision is auto-suggested from the tolerance checks
+      // (any issue over threshold → Quarantine, else Accept) but the operator
+      // may have overridden it. Accept keeps issues as partial bunch-rejects;
+      // Quarantine/Reject apply to the whole order (the server re-derives the
+      // order's full stem total for those).
+      const decision = s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
+      const spec = resolveFinalQcSpec(s);
+      const boxesChecked = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
+      // Prefer the spec's stems-per-bunch; fall back to the order's own
+      // bunches/stems ratio so a rejected bunch still converts to real stems.
+      const perBunch = spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
+      const action: IssueAction = decision === 'Quarantine' ? 'Quarantine' : 'Reject';
+      issuesPayload = s.issues.map((i) => ({
+        parameter: i.paramName,
+        // The server tallies in stems, so convert affected bunches to stems.
+        // For a whole-order Quarantine/Reject the count is documentation only;
+        // for Accept it drives the partial bunch-reject stock movement.
+        count: Math.max(0, Math.round(i.count * perBunch)),
+        action,
+      }));
       payload.final_decision = decision;
-      // Same pattern as stems_affected below: fall back to the suggested
-      // sample size if the operator left the field blank, rather than
-      // silently submitting 0 boxes checked.
-      payload.boxes_checked =
-        Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
-      // "Total boxes" for the order — distinct from boxes_checked, which is
-      // just the sample the operator actually inspected.
+      payload.boxes_checked = boxesChecked;
+      // "Total boxes" for the order — distinct from boxes_checked, the sample.
       payload.boxes_staged = s.boxTotalCount;
-      issuesPayload =
-        decision === 'Accept' ? [] : s.issues.map((i) => ({ parameter: i.paramName, count: i.count, action: decision }));
     } else {
       payload.stems_affected = totalChecked;
     }

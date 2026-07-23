@@ -16,6 +16,10 @@ import {
   issueCountLabel,
   packRatePerBox,
   suggestedBoxSampleSize,
+  sampledBunches,
+  affectedPercent,
+  isThresholdBreached,
+  stemsPerBunch,
   totalBunches,
   type IssueRow,
   type OnlineMode,
@@ -103,8 +107,9 @@ export function PackhouseQcScreen() {
   const customerOptionsFn = useKarenPackhouseQcStore((s) => s.customerOptions);
   const specificationsForSelectedCustomer = useKarenPackhouseQcStore((s) => s.specificationsForSelectedCustomer);
   const bunchSampling = useKarenPackhouseQcStore((s) => s.bunchSampling);
-  const finalDecision = useKarenPackhouseQcStore((s) => s.finalDecision);
   const boxesChecked = useKarenPackhouseQcStore((s) => s.boxesChecked);
+  const finalDecisionOverride = useKarenPackhouseQcStore((s) => s.finalDecisionOverride);
+  const effectiveDecision = useKarenPackhouseQcStore((s) => s.effectiveFinalDecision());
   const orderDetailLoading = useKarenPackhouseQcStore((s) => s.orderDetailLoading);
   const pendingQuarantineStems = useKarenPackhouseQcStore((s) => s.pendingQuarantineStems);
   const selectedVariety = useKarenPackhouseQcStore((s) => s.selectedVariety);
@@ -129,8 +134,8 @@ export function PackhouseQcScreen() {
   const recordBunchReject = useKarenPackhouseQcStore((s) => s.recordBunchReject);
   const finishBunchSampling = useKarenPackhouseQcStore((s) => s.finishBunchSampling);
   const isBunchSamplingMode = useKarenPackhouseQcStore((s) => s.isBunchSamplingMode);
-  const setFinalDecision = useKarenPackhouseQcStore((s) => s.setFinalDecision);
   const setBoxesChecked = useKarenPackhouseQcStore((s) => s.setBoxesChecked);
+  const setFinalDecision = useKarenPackhouseQcStore((s) => s.setFinalDecision);
   const isBoxSamplingMode = useKarenPackhouseQcStore((s) => s.isBoxSamplingMode);
   const addIssueForParam = useKarenPackhouseQcStore((s) => s.addIssueForParam);
   const updateIssueCount = useKarenPackhouseQcStore((s) => s.updateIssueCount);
@@ -187,8 +192,24 @@ export function PackhouseQcScreen() {
   const customerOptions = customerOptionsFn();
   const specsForCustomer = specificationsForSelectedCustomer();
   const stemsPerBox = packRatePerBox(boxes, specification);
-  const finalDecisionResult: PackhouseOverallResult =
-    finalDecision === 'Reject' ? 'Rejected' : finalDecision === 'Quarantine' ? 'Quarantined' : 'Accepted';
+  // Final QC: every bunch in the sampled boxes is inspected. An issue whose
+  // affected bunches breach its parameter's tolerance quarantines the WHOLE
+  // order; in-tolerance issues are partial rejects of just those bunches.
+  const boxesCheckedNum = Number.parseInt(boxesChecked, 10) || boxSampleTarget;
+  const bunchesPerBox = specification?.bunchesPerBox ?? 0;
+  const sampledBunchCount = sampledBunches(boxesCheckedNum, bunchesPerBox);
+  const stemsPerBunchVal =
+    specification?.stemsPerBunch && specification.stemsPerBunch > 0
+      ? specification.stemsPerBunch
+      : stemsPerBunch(itemLocations);
+  const issueThresholdFor = (paramName: string) => params.find((p) => p.name === paramName)?.toleranceThresholds ?? 0;
+  const issueBreached = (issue: IssueRow) =>
+    isThresholdBreached(issue.count, sampledBunchCount, issueThresholdFor(issue.paramName));
+  // Total bunches recorded — all of them are partial-rejected when the
+  // decision is Accept.
+  const allIssueBunches = issues.reduce((sum, i) => sum + i.count, 0);
+  const finalQcDisposition: PackhouseOverallResult =
+    effectiveDecision === 'Reject' ? 'Rejected' : effectiveDecision === 'Quarantine' ? 'Quarantined' : 'Accepted';
   const readyToSubmit = canSubmit();
 
   const onSubmit = async () => {
@@ -620,7 +641,7 @@ export function PackhouseQcScreen() {
           <Card title="Boxes Checked">
             <Text style={s.hint}>
               {boxTotalCount > 0 ? `${boxTotalCount} total boxes · suggested sample (30%): ${boxSampleTarget}. ` : ''}
-              Check a sample of boxes against the specification above.
+              Inspect every bunch in the sampled boxes, then record issues below in bunches.
             </Text>
             <View style={{ height: 12 }} />
             <LabeledInput
@@ -631,9 +652,18 @@ export function PackhouseQcScreen() {
               keyboardType="number-pad"
               placeholder={boxSampleTarget ? `${boxSampleTarget}` : '0'}
             />
-            {stemsPerBox > 1 ? (
+            {sampledBunchCount > 0 ? (
+              <Text style={s.muted}>
+                ≈ {sampledBunchCount} bunches inspected ({boxesCheckedNum} × {bunchesPerBox}/box)
+                {stemsPerBunchVal > 0 ? ` · ${stemsPerBunchVal} stems/bunch` : ''}
+              </Text>
+            ) : stemsPerBox > 1 ? (
               <Text style={s.muted}>Each box ≈ {stemsPerBox} stems, per the order specification.</Text>
-            ) : null}
+            ) : (
+              <Text style={s.warn}>
+                Bunches-per-box unknown for this spec — any recorded issue will quarantine the order.
+              </Text>
+            )}
           </Card>
         ) : null}
 
@@ -666,6 +696,16 @@ export function PackhouseQcScreen() {
                     onRemove={() => removeIssue(issue.id)}
                     onCountChange={(n) => updateIssueCount(issue.id, n)}
                     showAction={!boxSamplingMode}
+                    tolerance={
+                      boxSamplingMode
+                        ? {
+                            thresholdPercent: issueThresholdFor(issue.paramName),
+                            affectedBunches: issue.count,
+                            sampled: sampledBunchCount,
+                            breached: issueBreached(issue),
+                          }
+                        : undefined
+                    }
                   />
                 );
               })
@@ -676,30 +716,33 @@ export function PackhouseQcScreen() {
         {boxSamplingMode ? (
           <Card title="Decision">
             <Text style={s.hint}>
-              Accept if the boxes match the specification. Quarantine or Reject applies to the WHOLE
-              order — not just the boxes checked.
+              Auto-set from the tolerance checks — override if the sample tells you otherwise.
+              Quarantine and Reject apply to the WHOLE order, not just the sampled boxes.
             </Text>
             <View style={{ height: 12 }} />
             <View style={s.actionRow}>
               <DecisionChip
                 label="Accept"
-                selected={finalDecision === 'Accept'}
-                disabled={issues.length > 0}
+                selected={effectiveDecision === 'Accept'}
                 onPress={() => setFinalDecision('Accept')}
               />
               <DecisionChip
                 label="Quarantine"
-                selected={finalDecision === 'Quarantine'}
-                disabled={issues.length === 0}
+                selected={effectiveDecision === 'Quarantine'}
                 onPress={() => setFinalDecision('Quarantine')}
               />
               <DecisionChip
                 label="Reject"
-                selected={finalDecision === 'Reject'}
-                disabled={issues.length === 0}
+                selected={effectiveDecision === 'Reject'}
                 onPress={() => setFinalDecision('Reject')}
               />
             </View>
+            <View style={{ height: 8 }} />
+            <Text style={s.muted}>
+              {finalDecisionOverride === null
+                ? `Auto-suggested (${effectiveDecision}) from the tolerance checks.`
+                : 'Manual override.'}
+            </Text>
           </Card>
         ) : null}
 
@@ -713,12 +756,14 @@ export function PackhouseQcScreen() {
           <View style={{ height: 12 }} />
           {boxSamplingMode ? (
             <>
-              <Text style={finalDecision === 'Accept' ? s.empty : s.warn}>
-                {finalDecision === 'Accept'
-                  ? 'Accepted — no issues found.'
-                  : `${finalDecision ?? 'Decision pending'} — whole order (${selectedOrderPickList?.totalStems ?? 0} stems) ${
-                      finalDecision === 'Reject' ? 'rejected' : 'quarantined for rework'
-                    }.`}
+              <Text style={effectiveDecision === 'Accept' ? s.empty : s.warn}>
+                {effectiveDecision === 'Accept'
+                  ? issues.length === 0
+                    ? 'Accepted — no issues found.'
+                    : `Accepted — ${allIssueBunches} bunch(es) rejected; the rest of the order passes.`
+                  : effectiveDecision === 'Quarantine'
+                    ? `Quarantined — whole order (${selectedOrderPickList?.totalStems ?? 0} stems) held for rework.`
+                    : `Rejected — whole order (${selectedOrderPickList?.totalStems ?? 0} stems) rejected.`}
               </Text>
               {issues.length > 0 ? (
                 <>
@@ -732,6 +777,12 @@ export function PackhouseQcScreen() {
                         displayName={param?.parameter ?? issue.paramName}
                         onRemove={() => removeIssue(issue.id)}
                         showAction={false}
+                        tolerance={{
+                          thresholdPercent: issueThresholdFor(issue.paramName),
+                          affectedBunches: issue.count,
+                          sampled: sampledBunchCount,
+                          breached: issueBreached(issue),
+                        }}
                       />
                     );
                   })}
@@ -805,7 +856,7 @@ export function PackhouseQcScreen() {
           />
         </Card>
 
-        <ResultBadge result={boxSamplingMode ? finalDecisionResult : overallResult} />
+        <ResultBadge result={boxSamplingMode ? finalQcDisposition : overallResult} />
         </>
       ) : null}
 
@@ -951,6 +1002,7 @@ function IssueRowCard({
   showAction = true,
   countLabel,
   onCountChange,
+  tolerance,
 }: {
   issue: IssueRow;
   displayName: string;
@@ -961,6 +1013,15 @@ function IssueRowCard({
    *  not the read-only Review summary. */
   countLabel?: string;
   onCountChange?: (count: number) => void;
+  /** Final QC only — the parameter's tolerance and this issue's affected
+   *  bunches, so the row can show whether it quarantines the order (breach)
+   *  or is a partial reject (within tolerance). */
+  tolerance?: {
+    thresholdPercent: number;
+    affectedBunches: number;
+    sampled: number;
+    breached: boolean;
+  };
 }) {
   const editable = !!onCountChange;
   return (
@@ -994,6 +1055,45 @@ function IssueRowCard({
           ) : null}
         </View>
       )}
+      {tolerance ? <ToleranceLine {...tolerance} /> : null}
+    </View>
+  );
+}
+
+/** Shows a parameter's tolerance and whether this issue breaches it —
+ *  breach quarantines the whole order; within tolerance is a partial reject
+ *  of just the affected bunches. */
+function ToleranceLine({
+  thresholdPercent,
+  affectedBunches,
+  sampled,
+  breached,
+}: {
+  thresholdPercent: number;
+  affectedBunches: number;
+  sampled: number;
+  breached: boolean;
+}) {
+  const toleranceText =
+    thresholdPercent <= 0 ? 'Zero tolerance' : `Tolerance ${thresholdPercent}%`;
+  const affectedText =
+    sampled > 0 ? `${affectedPercent(affectedBunches, sampled).toFixed(1)}% of ${sampled} sampled` : 'sample size unknown';
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text style={s.muted}>
+        {toleranceText} · {affectedText}
+      </Text>
+      <View style={{ height: 6 }} />
+      <View style={[s.chip, breached ? s.chipDanger : s.chipAccepted, { alignSelf: 'flex-start' }]}>
+        <MaterialCommunityIcons
+          name={breached ? 'alert-circle' : 'content-cut'}
+          size={14}
+          color={breached ? COLORS.danger : COLORS.success}
+        />
+        <Text style={[s.chipText, { color: breached ? COLORS.danger : COLORS.success }]}>
+          {breached ? 'Exceeds tolerance' : `Within tolerance — reject ${affectedBunches} bunch(es)`}
+        </Text>
+      </View>
     </View>
   );
 }
