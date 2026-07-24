@@ -8,6 +8,7 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Receiving',          route: 'receiving',          icon: 'download-outline' },
   { label: 'Shelving',           route: 'shelving',           icon: 'albums-outline' },
   { label: 'Bucket Requests',    route: 'bucket-requests',    icon: 'cart-outline' },
+  { label: 'Bucket Transfers',   route: 'bucket-transfers',   icon: 'car-outline' },
   { label: 'Solution Mixing',    route: 'solution-mixing',    icon: 'flask-outline' },
   { label: 'Temperature Log',    route: 'temperature-log',    icon: 'thermometer-outline' },
   { label: 'Cleaning Record',    route: 'cleaning-record',    icon: 'sparkles-outline' },

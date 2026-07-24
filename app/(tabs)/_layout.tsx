@@ -22,6 +22,7 @@ const ICONS: Record<string, TabIconPair> = {
   receiving:            { outline: 'download-outline',          filled: 'download' },
   shelving:             { outline: 'albums-outline',            filled: 'albums' },
   'bucket-requests':    { outline: 'cart-outline',               filled: 'cart' },
+  'bucket-transfers':   { outline: 'car-outline',                filled: 'car' },
   'solution-mixing':    { outline: 'flask-outline',              filled: 'flask' },
   'temperature-log':    { outline: 'thermometer-outline',        filled: 'thermometer' },
   'cleaning-record':    { outline: 'sparkles-outline',           filled: 'sparkles' },
@@ -75,6 +76,7 @@ export default function TabLayout() {
       <Tabs.Screen name="edit-details" options={{ title: 'Edit Details', href: null }} />
       <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', href: null }} />
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', href: null }} />
+      <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
       <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', href: null }} />

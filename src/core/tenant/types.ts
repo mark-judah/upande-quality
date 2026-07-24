@@ -10,6 +10,7 @@ export type DrawerItem = {
     | 'shelving'
     | 'discards'
     | 'bucket-requests'
+    | 'bucket-transfers'
     | 'solution-mixing'
     | 'temperature-log'
     | 'cleaning-record'
