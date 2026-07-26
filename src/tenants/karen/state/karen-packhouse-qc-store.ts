@@ -28,11 +28,19 @@ export type FinalDecision = 'Accept' | 'Quarantine' | 'Reject';
  *  reading the Order Specification card — tap Accepted when it matches, or
  *  note what was actually found when it doesn't. */
 export type SpecCheckKey = 'cutStage' | 'defoliationLength' | 'rubberBand';
-export type SpecCheckState = { accepted: boolean; actualValue: string };
+export type SpecCheckState = { accepted: boolean; actualValue: string; bunchesAffected: string };
 export type SpecChecks = Record<SpecCheckKey, SpecCheckState>;
 
+/** Human-readable parameter name each spec check contributes to the issues
+ *  list under when the operator records affected bunches against it. */
+const SPEC_CHECK_LABELS: Record<SpecCheckKey, string> = {
+  cutStage: 'Cut Stage',
+  defoliationLength: 'Defoliation Length',
+  rubberBand: 'Rubber Band',
+};
+
 function emptySpecCheckState(): SpecCheckState {
-  return { accepted: false, actualValue: '' };
+  return { accepted: false, actualValue: '', bunchesAffected: '' };
 }
 
 function emptySpecChecks(): SpecChecks {
@@ -41,6 +49,13 @@ function emptySpecChecks(): SpecChecks {
     defoliationLength: emptySpecCheckState(),
     rubberBand: emptySpecCheckState(),
   };
+}
+
+/** Which auto-generated issue (if any) each spec check currently owns, so an
+ *  edited affected-bunch count updates that same issue instead of piling up
+ *  duplicates. */
+function emptySpecCheckIssueIds(): Record<SpecCheckKey, number | null> {
+  return { cutStage: null, defoliationLength: null, rubberBand: null };
 }
 
 export type IssueRow = {
@@ -54,20 +69,25 @@ export type SubmitOutcome =
   | { kind: 'ok'; message: string }
   | { kind: 'error'; message: string };
 
-/** Bunches inspected one at a time during Grading QC — Accept moves straight
- *  to the next bunch; Reject needs a reason before moving on. Reject Recorder
- *  and Grading QC never quarantine — only Final QC does. */
+/** Grading QC sampling — the operator records the total bunches they accepted
+ *  and adds a row per rejection reason (with its affected bunch count), then
+ *  finishes. Reject Recorder and Grading QC never quarantine — only Final QC
+ *  does. */
 type BunchSamplingState = {
   started: boolean;
   finished: boolean;
-  bunchIndex: number;
-  accepted: number;
-  rejected: number;
+  /** Bunches the operator passed, entered as a whole number. */
+  acceptedBunches: string;
 };
 
 function emptyBunchSampling(): BunchSamplingState {
-  return { started: false, finished: false, bunchIndex: 1, accepted: 0, rejected: 0 };
+  return { started: false, finished: false, acceptedBunches: '' };
 }
+
+/** One rejection reason recorded during Grading QC sampling, with the number
+ *  of bunches it affected. Each mirrors an issue row (id-matched) so the QC
+ *  tally, tolerance badges and submit payload all see it. */
+export type BunchRejection = { id: number; reason: string; bunches: string };
 
 type State = {
   qcType: QcType | null;
@@ -84,10 +104,18 @@ type State = {
    *  browsed. Orders can only be picked from the list once a spec is
    *  chosen — scanning a box still bypasses this entirely. */
   specificationsList: SpecificationListItem[];
+  /** Count of active orders (today + yesterday) keyed by Specification
+   *  name — used to show a green tick against specs that have orders to QC
+   *  in the spec picker, before one is chosen. */
+  specOrderCounts: Record<string, number>;
   /** The operator picks a customer first, then a spec — narrows the
    *  (potentially long) spec list down to just that customer's. */
   selectedCustomer: string | null;
   selectedSpecificationFilter: SpecificationListItem | null;
+  /** Alternative to the customer→spec path: pick a team to reach orders that
+   *  have no specification linked (they never show under any spec). Mutually
+   *  exclusive with selectedSpecificationFilter. */
+  selectedTeamFilter: string | null;
   orderPickListsLoading: boolean;
 
   /** Derived automatically from the selected order's team once it's picked —
@@ -111,6 +139,9 @@ type State = {
   /** Cut stage / defoliation length / rubber band — ticked once the
    *  operator has physically confirmed each against the box. */
   specChecks: SpecChecks;
+  /** The issue-list row each failed spec check owns, so its affected-bunch
+   *  count stays in sync instead of adding duplicates. */
+  specCheckIssueIds: Record<SpecCheckKey, number | null>;
   orderDetailLoading: boolean;
   pendingQuarantineStems: number;
 
@@ -123,6 +154,9 @@ type State = {
   scannedBoxDetail: ScannedBoxDetail | null;
 
   bunchSampling: BunchSamplingState;
+  /** Grading QC only — one row per rejection reason with its affected bunch
+   *  count; kept id-matched to the corresponding issue rows. */
+  bunchRejections: BunchRejection[];
 
   /** Final QC only — how many boxes the operator actually sampled. Every
    *  bunch in these boxes is inspected; issues are counted in bunches. */
@@ -152,14 +186,25 @@ type State = {
    *  against this spec — the operator must pick a spec before browsing
    *  orders (scanning a box still bypasses this). */
   selectSpecificationFilter: (spec: SpecificationListItem) => Promise<void>;
+  /** Loads the spec-less orders for a team (Team A/B, Jamafa, Eldama, Bravo). */
+  selectTeamFilter: (team: string) => Promise<void>;
+  /** Clears both the spec and team filters and the loaded order list — used
+   *  when the operator switches between the two filter paths. */
+  resetOrderFilters: () => void;
   selectOrderPickList: (opl: OrderPickListOption) => Promise<void>;
   /** Scans a box to resolve its order directly — an alternative to searching
    *  the Order Pick List picker. */
   scanBoxLabel: (raw: string) => Promise<{ ok: boolean; message?: string }>;
 
   startBunchSampling: () => void;
-  recordBunchAccept: () => void;
-  recordBunchReject: (reasonParamName: string) => void;
+  /** Sets the whole-number count of bunches the operator accepted. */
+  setBunchesAccepted: (value: string) => void;
+  /** Adds a rejection reason row (default 1 bunch) and its mirrored issue. */
+  addBunchRejection: (reasonParamName: string) => void;
+  /** Updates a rejection row's affected bunch count and its mirrored issue. */
+  setBunchRejectionBunches: (id: number, value: string) => void;
+  /** Removes a rejection row and its mirrored issue. */
+  removeBunchRejection: (id: number) => void;
   finishBunchSampling: () => void;
 
   setBoxesChecked: (v: string) => void;
@@ -188,11 +233,16 @@ type State = {
   isBoxSamplingMode: () => boolean;
   /** The spec matching the currently selected variety, if any. */
   currentSpecification: () => SpecificationMatch | null;
-  /** Marks a spec check as matching — clears any noted actual value. */
+  /** Toggles a spec check's Accepted state — accepting clears any noted
+   *  actual value / affected count and removes the issue it had raised. */
   acceptSpecCheck: (key: SpecCheckKey) => void;
   /** Notes what was actually found for a spec check — implies it doesn't
    *  match, so this un-accepts it. */
   setSpecCheckActualValue: (key: SpecCheckKey, value: string) => void;
+  /** Records how many bunches failed a spec check (cut stage, defoliation,
+   *  rubber band). Any positive count auto-adds/updates a matching row in the
+   *  issues list; clearing it back to zero removes that row again. */
+  setSpecCheckBunchesAffected: (key: SpecCheckKey, value: string) => void;
   /** Distinct customers across every loaded Specification, alphabetical. */
   customerOptions: () => string[];
   /** Specs belonging to the selected customer only; empty until one's picked. */
@@ -289,6 +339,19 @@ function resolveFinalQcSpec(s: State): SpecificationMatch | null {
   return s.specificationDetail ?? (s.selectedVariety ? s.specifications[s.selectedVariety] ?? null : null);
 }
 
+/** Turn a spec check's affected-bunch count into the unit the current mode's
+ *  issue tally expects, mirroring the submit-time conversion exactly: Final QC
+ *  counts issues in bunches (it converts them to stems at submit), while every
+ *  other mode counts issues in stems — so multiply by stems-per-bunch there,
+ *  or the rejected stems would be under-counted by that factor. */
+function specCheckIssueCount(s: State, bunches: number): number {
+  if (bunches <= 0) return 0;
+  if (s.qcType === 'Final QC') return bunches;
+  const spec = resolveFinalQcSpec(s);
+  const perBunch = spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
+  return Math.max(1, Math.round(bunches * perBunch));
+}
+
 /** Bunches inspected in Final QC = boxes sampled × the spec's bunches-per-box
  *  (falls back to the 30% suggestion when the operator hasn't typed a count). */
 function finalQcSampled(s: State): number {
@@ -346,11 +409,13 @@ function freshOrderState() {
     specifications: {} as Record<string, SpecificationMatch>,
     specificationDetail: null as SpecificationMatch | null,
     specChecks: emptySpecChecks(),
+    specCheckIssueIds: emptySpecCheckIssueIds(),
     selectedVariety: null as string | null,
     scannedBoxName: null as string | null,
     scannedBoxDetail: null as ScannedBoxDetail | null,
     pendingQuarantineStems: 0,
     bunchSampling: emptyBunchSampling(),
+    bunchRejections: [] as BunchRejection[],
     boxesChecked: '' as string,
     finalDecisionOverride: null as FinalDecision | null,
     issues: [] as IssueRow[],
@@ -369,8 +434,10 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   loadingInitial: false,
 
   specificationsList: [],
+  specOrderCounts: {},
   selectedCustomer: null,
   selectedSpecificationFilter: null,
+  selectedTeamFilter: null,
   orderPickListsLoading: false,
 
   selectedControlPoint: null,
@@ -382,6 +449,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   specifications: {},
   specificationDetail: null,
   specChecks: emptySpecChecks(),
+  specCheckIssueIds: emptySpecCheckIssueIds(),
   orderDetailLoading: false,
   pendingQuarantineStems: 0,
 
@@ -390,6 +458,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   scannedBoxDetail: null,
 
   bunchSampling: emptyBunchSampling(),
+  bunchRejections: [],
   boxesChecked: '',
   finalDecisionOverride: null,
 
@@ -416,6 +485,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           // List card stays disabled until then.
           orderPickLists: [],
           specificationsList: outcome.specificationsList,
+          specOrderCounts: outcome.specOrderCounts,
           params: outcome.params,
           reasons: outcome.reasons,
           qcIncharges: outcome.qcIncharges,
@@ -437,6 +507,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       // A new customer invalidates whatever spec/order was picked under
       // the previous one.
       selectedSpecificationFilter: null,
+      selectedTeamFilter: null,
       orderPickLists: [],
       selectedOrderPickList: null,
       selectedControlPoint: null,
@@ -446,6 +517,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   selectSpecificationFilter: async (spec) => {
     set({
       selectedSpecificationFilter: spec,
+      selectedTeamFilter: null,
       orderPickListsLoading: true,
       orderPickLists: [],
       selectedOrderPickList: null,
@@ -467,6 +539,44 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       set({ orderPickListsLoading: false });
     }
   },
+
+  selectTeamFilter: async (team) => {
+    set({
+      selectedTeamFilter: team,
+      selectedSpecificationFilter: null,
+      orderPickListsLoading: true,
+      orderPickLists: [],
+      selectedOrderPickList: null,
+      selectedControlPoint: null,
+      ...freshOrderState(),
+    });
+    try {
+      const outcome = await karenPackhouseQcRepository.fetchFormData({ team });
+      if (outcome.kind === 'ok') {
+        set({
+          orderPickListsLoading: false,
+          orderPickLists: outcome.orderPickLists,
+          // Team-filtered orders have no spec — clear any lingering detail.
+          specificationDetail: null,
+        });
+      } else {
+        set({ orderPickListsLoading: false });
+      }
+    } catch {
+      set({ orderPickListsLoading: false });
+    }
+  },
+
+  resetOrderFilters: () =>
+    set({
+      selectedSpecificationFilter: null,
+      selectedTeamFilter: null,
+      orderPickLists: [],
+      orderPickListsLoading: false,
+      selectedOrderPickList: null,
+      selectedControlPoint: null,
+      ...freshOrderState(),
+    }),
 
   selectOrderPickList: async (opl) => {
     const matchedControlPoint = get().controlPoints.find((cp) => oplMatchesControlPoint(opl, cp)) ?? null;
@@ -543,27 +653,37 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   startBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, started: true } })),
 
-  recordBunchAccept: () =>
-    set((s) => ({
-      bunchSampling: {
-        ...s.bunchSampling,
-        accepted: s.bunchSampling.accepted + 1,
-        bunchIndex: s.bunchSampling.bunchIndex + 1,
-      },
-    })),
+  setBunchesAccepted: (value) =>
+    set((s) => ({ bunchSampling: { ...s.bunchSampling, acceptedBunches: value } })),
 
-  recordBunchReject: (reasonParamName) => {
+  addBunchRejection: (reasonParamName) => {
     const id = issueSeed++;
-    const size = stemsPerBunch(get().itemLocations);
+    // Grading QC issues are tallied in stems (the server sums issue counts as
+    // stems and compares to the order's full stem total), so mirror each
+    // rejection's bunches into stems on the linked issue while keeping the
+    // operator-entered bunch count on the row itself. Default to 1 bunch.
+    const perBunch = stemsPerBunch(get().itemLocations);
     set((s) => ({
-      issues: [...s.issues, { id, paramName: reasonParamName, count: size, action: 'Reject' }],
-      bunchSampling: {
-        ...s.bunchSampling,
-        rejected: s.bunchSampling.rejected + 1,
-        bunchIndex: s.bunchSampling.bunchIndex + 1,
-      },
+      bunchRejections: [...s.bunchRejections, { id, reason: reasonParamName, bunches: '1' }],
+      issues: [...s.issues, { id, paramName: reasonParamName, count: perBunch, action: 'Reject' as const }],
     }));
   },
+
+  setBunchRejectionBunches: (id, value) =>
+    set((s) => {
+      const bunches = Math.max(0, Number.parseInt(value, 10) || 0);
+      const perBunch = stemsPerBunch(s.itemLocations);
+      return {
+        bunchRejections: s.bunchRejections.map((r) => (r.id === id ? { ...r, bunches: value } : r)),
+        issues: s.issues.map((i) => (i.id === id ? { ...i, count: bunches * perBunch } : i)),
+      };
+    }),
+
+  removeBunchRejection: (id) =>
+    set((s) => ({
+      bunchRejections: s.bunchRejections.filter((r) => r.id !== id),
+      issues: s.issues.filter((i) => i.id !== id),
+    })),
 
   finishBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, finished: true } })),
 
@@ -586,7 +706,25 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     set((s) => ({
       issues: s.issues.map((i) => (i.id === id ? { ...i, count: Math.max(0, count) } : i)),
     })),
-  removeIssue: (id) => set((s) => ({ issues: s.issues.filter((i) => i.id !== id) })),
+  removeIssue: (id) =>
+    set((s) => {
+      // If this row was raised by a spec check, release the link and clear
+      // that check's affected-bunch field so the two stay consistent.
+      const specKey = (Object.keys(s.specCheckIssueIds) as SpecCheckKey[]).find(
+        (k) => s.specCheckIssueIds[k] === id,
+      );
+      return {
+        issues: s.issues.filter((i) => i.id !== id),
+        // Keep the Grading QC rejection list in step if this row came from it.
+        bunchRejections: s.bunchRejections.some((r) => r.id === id)
+          ? s.bunchRejections.filter((r) => r.id !== id)
+          : s.bunchRejections,
+        specCheckIssueIds: specKey ? { ...s.specCheckIssueIds, [specKey]: null } : s.specCheckIssueIds,
+        specChecks: specKey
+          ? { ...s.specChecks, [specKey]: { ...s.specChecks[specKey], bunchesAffected: '' } }
+          : s.specChecks,
+      };
+    }),
 
   setTotalChecked: (v) => set({ totalChecked: v }),
   setQcIncharge: (v) => set({ selectedQcIncharge: v }),
@@ -604,13 +742,57 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     return s.specifications[s.selectedVariety] ?? null;
   },
   acceptSpecCheck: (key) =>
-    set((s) => ({
-      specChecks: { ...s.specChecks, [key]: { accepted: true, actualValue: '' } },
-    })),
+    set((s) => {
+      // Toggle: tapping an already-accepted check re-opens it for editing.
+      if (s.specChecks[key].accepted) {
+        return {
+          specChecks: { ...s.specChecks, [key]: { ...s.specChecks[key], accepted: false } },
+        };
+      }
+      // Accepting clears any noted value / affected count and drops the issue
+      // this check had raised.
+      const issueId = s.specCheckIssueIds[key];
+      return {
+        specChecks: { ...s.specChecks, [key]: { accepted: true, actualValue: '', bunchesAffected: '' } },
+        issues: issueId != null ? s.issues.filter((i) => i.id !== issueId) : s.issues,
+        specCheckIssueIds: { ...s.specCheckIssueIds, [key]: null },
+      };
+    }),
   setSpecCheckActualValue: (key, value) =>
     set((s) => ({
-      specChecks: { ...s.specChecks, [key]: { accepted: false, actualValue: value } },
+      specChecks: { ...s.specChecks, [key]: { ...s.specChecks[key], accepted: false, actualValue: value } },
     })),
+  setSpecCheckBunchesAffected: (key, value) =>
+    set((s) => {
+      const bunches = Math.max(0, Number.parseInt(value, 10) || 0);
+      const count = specCheckIssueCount(s, bunches);
+      const existingId = s.specCheckIssueIds[key];
+      // Recording an affected count always means the check didn't pass.
+      const specChecks = {
+        ...s.specChecks,
+        [key]: { ...s.specChecks[key], accepted: false, bunchesAffected: value },
+      };
+      if (count > 0) {
+        if (existingId != null) {
+          return {
+            specChecks,
+            issues: s.issues.map((i) => (i.id === existingId ? { ...i, count } : i)),
+          };
+        }
+        const id = issueSeed++;
+        return {
+          specChecks,
+          issues: [...s.issues, { id, paramName: SPEC_CHECK_LABELS[key], count, action: 'Reject' as const }],
+          specCheckIssueIds: { ...s.specCheckIssueIds, [key]: id },
+        };
+      }
+      // Cleared back to zero → drop the linked issue.
+      return {
+        specChecks,
+        issues: existingId != null ? s.issues.filter((i) => i.id !== existingId) : s.issues,
+        specCheckIssueIds: existingId != null ? { ...s.specCheckIssueIds, [key]: null } : s.specCheckIssueIds,
+      };
+    }),
   customerOptions: () => {
     const seen = new Set<string>();
     for (const spec of get().specificationsList) {
@@ -715,7 +897,21 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
     if (s.isBunchSamplingMode()) {
       // "Affected" means had an issue — accepted bunches don't count here.
-      payload.bunches_affected = s.bunchSampling.rejected;
+      // Total rejected bunches across every recorded rejection reason.
+      const rejectedBunches = s.bunchRejections.reduce(
+        (sum, r) => sum + (Number.parseInt(r.bunches, 10) || 0),
+        0,
+      );
+      payload.bunches_affected = rejectedBunches;
+      // FTR denominator for the CAR 6% rule: everything inspected (accepted +
+      // rejected bunches), converted to stems to match the issue counts.
+      const acceptedBunches = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
+      const gradingSpec = resolveFinalQcSpec(s);
+      const gradingPerBunch =
+        gradingSpec?.stemsPerBunch && gradingSpec.stemsPerBunch > 0
+          ? gradingSpec.stemsPerBunch
+          : stemsPerBunch(s.itemLocations);
+      payload.sampled_stems = (acceptedBunches + rejectedBunches) * gradingPerBunch;
     } else if (s.isBoxSamplingMode()) {
       // The order-level decision is auto-suggested from the tolerance checks
       // (any issue over threshold → Quarantine, else Accept) but the operator
@@ -741,8 +937,13 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       payload.boxes_checked = boxesChecked;
       // "Total boxes" for the order — distinct from boxes_checked, the sample.
       payload.boxes_staged = s.boxTotalCount;
+      // FTR denominator for the CAR 6% rule: bunches actually sampled (boxes
+      // checked × bunches/box), converted to stems to match the issue counts.
+      payload.sampled_stems = sampledBunches(boxesChecked, spec?.bunchesPerBox ?? 0) * perBunch;
     } else {
       payload.stems_affected = totalChecked;
+      // FTR denominator for the CAR 6% rule: the stems the operator inspected.
+      payload.sampled_stems = totalChecked;
     }
     payload.issues = issuesPayload;
 
@@ -774,6 +975,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       orderDetailLoading: false,
       selectedCustomer: null,
       selectedSpecificationFilter: null,
+      selectedTeamFilter: null,
       orderPickLists: [],
       orderPickListsLoading: false,
       ...freshOrderState(),

@@ -150,6 +150,10 @@ export type RawPackhouseFormData = {
   /** All Active Specifications, for the "pick a spec before browsing
    *  orders" filter — not affected by any request params. */
   specifications_list?: RawSpecificationListItem[];
+  /** Count of active OPLs (today + yesterday) per Specification name, via
+   *  the same custom_line FK chain the order filter uses. Drives the
+   *  "has orders" tick in the spec picker. Not affected by request params. */
+  spec_order_counts?: Record<string, number>;
   /** Full detail for a directly picked/overridden spec — independent of
    *  any order/variety match, set whenever a `specification` param is
    *  passed. Covers cases where the resolved order's own Sales Order Item
@@ -200,6 +204,7 @@ export const karenPackhouseQcApi = {
     orderPickList?: string;
     boxLabel?: string;
     specification?: string;
+    team?: string;
   }): Promise<RawPackhouseFormDataResponse> {
     return api<RawPackhouseFormDataResponse>({
       method: 'GET',
@@ -210,7 +215,9 @@ export const karenPackhouseQcApi = {
           ? { box_label: params.boxLabel }
           : params?.specification
             ? { specification: params.specification }
-            : undefined,
+            : params?.team
+              ? { team: params.team }
+              : undefined,
     });
   },
 

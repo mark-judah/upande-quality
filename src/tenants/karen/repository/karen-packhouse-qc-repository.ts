@@ -170,6 +170,9 @@ export type PackhouseFormDataOutcome =
       /** All Active Specifications, for the "pick a spec before browsing
        *  orders" filter — unaffected by any request params. */
       specificationsList: SpecificationListItem[];
+      /** Count of active orders (today + yesterday) keyed by Specification
+       *  name — powers the "has orders" tick in the spec picker. */
+      specOrderCounts: Record<string, number>;
       /** Full detail for a directly picked/overridden spec, independent of
        *  any order/variety match — set whenever a specification param was
        *  passed in the request. */
@@ -353,6 +356,7 @@ export const karenPackhouseQcRepository = {
     orderPickList?: string;
     boxLabel?: string;
     specification?: string;
+    team?: string;
   }): Promise<PackhouseFormDataOutcome> {
     const raw = await karenPackhouseQcApi.fetchFormData(params);
     const m = raw.message ?? {};
@@ -376,6 +380,7 @@ export const karenPackhouseQcRepository = {
       boxTotalCount: Number(m.box_total_count) || 0,
       specifications: toSpecifications(m.specifications),
       specificationsList: (m.specifications_list ?? []).map(toSpecificationListItem),
+      specOrderCounts: m.spec_order_counts ?? {},
       specificationDetail: m.specification_detail ? toSpecification(m.specification_detail) : null,
       scannedBoxDetail: m.scanned_box_detail ? toScannedBoxDetail(m.scanned_box_detail) : null,
       scannedBoxVariety: m.scanned_box_variety ?? '',
