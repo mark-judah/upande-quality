@@ -63,7 +63,8 @@ PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS opl (
   opl_name TEXT PRIMARY KEY, order_name TEXT, customer TEXT, sales_order TEXT,
   farm TEXT, created_on TEXT, downloaded_at TEXT, total_buckets INTEGER NOT NULL DEFAULT 0,
-  loaded_to_truck INTEGER NOT NULL DEFAULT 0, in_transit INTEGER NOT NULL DEFAULT 0
+  loaded_to_truck INTEGER NOT NULL DEFAULT 0, in_transit INTEGER NOT NULL DEFAULT 0,
+  last_activity TEXT
 );
 CREATE TABLE IF NOT EXISTS bucket (
   id INTEGER PRIMARY KEY AUTOINCREMENT, opl_name TEXT NOT NULL, bucket_id TEXT NOT NULL,
@@ -88,6 +89,9 @@ export async function initDb(): Promise<void> {
   }
   if (!have.has('in_transit')) {
     await d.execAsync('ALTER TABLE opl ADD COLUMN in_transit INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!have.has('last_activity')) {
+    await d.execAsync('ALTER TABLE opl ADD COLUMN last_activity TEXT');
   }
 }
 
@@ -117,6 +121,11 @@ export async function downloadOpls(
       continue;
     }
     const head = rows[0];
+    // A bucket can appear on several rows of the same OPL (mixed-box / split
+    // allocations). The bucket table is UNIQUE(opl_name, bucket_id), so it stores
+    // one row per bucket — total must count DISTINCT buckets, else scanned can
+    // never reach total and the OPL is stuck "incomplete".
+    const distinctBuckets = new Set(rows.map((r) => r.bucketId)).size;
     await d.withTransactionAsync(async () => {
       await d.runAsync(
         'INSERT INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets) VALUES (?,?,?,?,?,?,?,?)',
@@ -128,7 +137,7 @@ export async function downloadOpls(
           farm || '',
           head.allocatedDate || '',
           now,
-          rows.length,
+          distinctBuckets,
         ],
       );
       for (const r of rows) {
@@ -186,15 +195,20 @@ type OplRow = {
   customer: string | null;
   total: number;
   scanned: number;
+  last_activity?: string | null;
 };
 
 export async function listRequests(): Promise<OrderGroup[]> {
   const d = await db();
+  // Most-recently-scanned OPL first (the one the operator is processing now
+  // jumps to the top), then the rest by order name / creation.
   const opls = await d.getAllAsync<OplRow>(`
     SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.total_buckets AS total,
+           o.last_activity AS last_activity,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1) AS scanned
     FROM opl o
-    ORDER BY o.order_name ASC, o.created_on ASC, o.opl_name ASC`);
+    ORDER BY (o.last_activity IS NULL) ASC, o.last_activity DESC,
+             o.order_name ASC, o.created_on ASC, o.opl_name ASC`);
   const groups = new Map<string, OrderGroup>();
   for (const o of opls) {
     if (o.scanned >= o.total) continue; // complete → Trolley tab
@@ -323,11 +337,15 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
     }
     return { ok: false, reason: 'not_found', message: 'Bucket not in downloaded picklists' };
   }
+  const nowIso = new Date().toISOString();
   await d.runAsync('UPDATE bucket SET scanned = 1, trolley_id = ?, scanned_at = ? WHERE id = ?', [
     trolleyId,
-    new Date().toISOString(),
+    nowIso,
     row.id,
   ]);
+  // Stamp the OPL as most-recently-touched so the request the operator is
+  // actively scanning floats to the top of the Requests list.
+  await d.runAsync('UPDATE opl SET last_activity = ? WHERE opl_name = ?', [nowIso, row.opl_name]);
   const tot = await d.getFirstAsync<{ total: number; scanned: number }>(
     `SELECT total_buckets AS total,
             (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = ? AND b.scanned = 1) AS scanned

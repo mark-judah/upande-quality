@@ -330,7 +330,7 @@ function TruckPicker({
           <View style={s.empty}>
             <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
             <Text style={s.emptyTitle}>No trucks downloaded</Text>
-            <Text style={s.emptyHint}>Tap “Download picklists” while online to fetch trucks.</Text>
+            <Text style={s.emptyHint}>Tap “Download picklists” while Download pickonline to fetch trucks.</Text>
           </View>
         ) : (
           <>
@@ -363,6 +363,8 @@ function TruckPicker({
 }
 
 function RequestsTab({ groups }: { groups: OrderGroup[] }) {
+  const [query, setQuery] = useState('');
+
   if (!groups.length) {
     return (
       <Card>
@@ -374,16 +376,56 @@ function RequestsTab({ groups }: { groups: OrderGroup[] }) {
       </Card>
     );
   }
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? groups.filter((g) => {
+        const inName = g.orderName.toLowerCase().includes(q);
+        const inCustomer = g.opls.some((o) => (o.customer || '').toLowerCase().includes(q));
+        return inName || inCustomer;
+      })
+    : groups;
+
   return (
     <>
-      {groups.map((g) => (
-        <View key={g.orderName}>
-          <Text style={s.groupHdr}>{g.orderName}</Text>
-          {g.opls.map((o) => (
-            <OplCard key={o.oplName} opl={o} />
-          ))}
-        </View>
-      ))}
+      <View style={s.searchRow}>
+        <Ionicons name="search" size={16} color={COLORS.textMuted} />
+        <TextInput
+          style={s.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by order or customer"
+          placeholderTextColor={COLORS.textMuted}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {filtered.length === 0 ? (
+        <Card>
+          <View style={s.empty}>
+            <Text style={s.emptyHint}>No orders match “{query}”.</Text>
+          </View>
+        </Card>
+      ) : null}
+
+      {filtered.map((g) => {
+        const customer = g.opls.find((o) => o.customer)?.customer;
+        return (
+          <View key={g.orderName}>
+            <Text style={s.groupHdr}>{g.orderName}</Text>
+            {customer ? <Text style={s.groupCustomer}>{customer}</Text> : null}
+            {g.opls.map((o) => (
+              <OplCard key={o.oplName} opl={o} />
+            ))}
+          </View>
+        );
+      })}
     </>
   );
 }
@@ -583,6 +625,13 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     color: COLORS.text,
     marginTop: spacing.md,
+    marginBottom: 2,
+    marginLeft: spacing.xs,
+  },
+  groupCustomer: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
     marginBottom: spacing.xs,
     marginLeft: spacing.xs,
   },
@@ -700,6 +749,25 @@ const s = StyleSheet.create({
     color: COLORS.text,
   },
   sheetList: { marginTop: spacing.sm },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    marginBottom: spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.text,
+    padding: 0,
+  },
   truckRow: {
     flexDirection: 'row',
     alignItems: 'center',

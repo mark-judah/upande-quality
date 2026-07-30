@@ -62,14 +62,30 @@ try:
         while i < len(pli_ids):
             name = pli_ids[i]
             if name and frappe.db.exists("Pick List Item", name):
+                # A bucket may occupy MULTIPLE rows of the same OPL (mixed-box /
+                # split allocations); the app only holds ONE row per bucket, so
+                # flag every sibling row for that bucket in the same OPL — scanning
+                # the bucket once must update them all, or the OPL never completes.
+                parent = frappe.db.get_value("Pick List Item", name, "parent")
+                bucket = frappe.db.get_value("Pick List Item", name, "custom_bucket")
+                sibs = []
+                if parent and bucket:
+                    sibs = frappe.get_all(
+                        "Pick List Item",
+                        filters={"parent": parent, "parenttype": "Order Pick List",
+                                 "custom_bucket": bucket},
+                        fields=["name"],
+                    )
+                if not sibs:
+                    sibs = [{"name": name}]
                 # Additive only: set the one flag to 1, leave everything else.
-                frappe.db.set_value("Pick List Item", name, field, 1, update_modified=True)
-                # On load, also stamp the chosen truck onto the row (Data field).
-                if flag == "loaded" and truck:
-                    frappe.db.set_value("Pick List Item", name, "custom_transit_truck", truck, update_modified=True)
+                for sib in sibs:
+                    frappe.db.set_value("Pick List Item", sib["name"], field, 1, update_modified=True)
+                    # On load, also stamp the chosen truck onto the row (Data field).
+                    if flag == "loaded" and truck:
+                        frappe.db.set_value("Pick List Item", sib["name"], "custom_transit_truck", truck, update_modified=True)
                 # The bucket has left the shelf now it's on the trolley/truck —
                 # remove its Shelf Item so the shelf reflects reality.
-                bucket = frappe.db.get_value("Pick List Item", name, "custom_bucket")
                 removed_shelves = removed_shelves + remove_bucket_from_shelf(bucket)
                 updated = updated + 1
             else:

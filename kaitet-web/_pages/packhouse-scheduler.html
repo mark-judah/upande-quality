@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/assets/frappe/js/frappe-web.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg-card:#fff;--bg-hover:#fafafa;--bg-muted:#f5f5f5;
+  --border:#ececec;--border-2:#d0d0d0;
+  --text:#000;--text-2:#6b6b6b;--text-3:#9a9a9a;--text-4:#cfcfcf;
+  --accent:#000;
+  --good:#16a34a;--warn:#d97706;--bad:#dc2626;--plan:#d4d4d4;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --f:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+}
+/* Take dashboard out of Frappe layout entirely — fill viewport */
+html,body{margin:0!important;padding:0!important;overflow:hidden!important;height:100vh!important}
+.navbar,header,.page-breadcrumbs,.page-header,.page-header-wrapper,.web-footer,footer,
+.website-edit-button,.btn-edit-page,.edit-page-btn,.scroll-to-top,.back-to-top,
+.website-banner,.call-to-action,.frappe-chat,#frappe-chat,.telegram-share,.share-buttons,
+.web-page-edit,.published-edit{display:none!important}
+.aph *{box-sizing:border-box;margin:0;padding:0}
+.aph{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:2147483000;
+  font-family:var(--f);background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  display:grid;grid-template-columns:240px 1fr;font-feature-settings:'cv11','ss01','ss03'}
+
+.aph svg.ic{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aph .aph-side svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+.aph .aph-side .nav-item.active svg.ic{color:#fff}
+.aph .aph-kpi svg.ic{width:18px;height:18px;color:var(--text-3);stroke-width:1.5}
+
+/* SIDEBAR */
+.aph-side{background:var(--bg-card);border-right:1px solid var(--border);height:100vh;position:sticky;top:0;display:flex;flex-direction:column;overflow:hidden}
+.aph-side .brand{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-side .brand .mark{width:36px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;letter-spacing:-0.02em;border-radius:7px}
+.aph-side .brand .name{font-weight:600;font-size:14px;line-height:1.15;letter-spacing:-0.015em}
+.aph-side .brand .name small{display:block;font-size:11px;color:var(--text-3);font-weight:400;margin-top:2px}
+/* Note: "nav" collides with Bootstrap's .nav (flex-wrap:wrap) loaded by Frappe —
+   force nowrap + column here or items wrap into a phantom second column */
+.aph-side .nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:6px 0 16px;margin:0;list-style:none;display:flex;flex-direction:column;flex-wrap:nowrap!important}
+.aph-side .group-lbl{padding:14px 20px 4px;font-size:10px;color:var(--text-3);letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:block}
+.aph-side .group-lbl:first-child{padding-top:10px}
+.aph-side .nav-item{display:flex;align-items:center;gap:11px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text-2);font-weight:500;user-select:none;transition:background .12s ease,color .12s ease;margin:1px 8px;border-radius:6px;box-sizing:border-box;text-decoration:none}
+.aph-side .nav-item:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .nav-item.active{background:var(--accent);color:#fff;font-weight:500}
+.aph-side .nav-item .badge{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:1px 7px;border-radius:9px;line-height:1.4}
+.aph-side .nav-item.active .badge{color:#fff;background:rgba(255,255,255,.18)}
+.aph-side .nav-item.stub{color:var(--text-3)}
+.aph-side .nav-item.stub svg.ic{opacity:.55}
+.aph-side .footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-2)}
+.aph-side .footer .av{width:24px;height:24px;border-radius:50%;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:10px;color:var(--text)}
+.aph-side .footer .who{flex:1;line-height:1.2;overflow:hidden}
+.aph-side .footer .who .nm{font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .footer .who .em{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph-side .home-link{display:flex;align-items:center;gap:11px;margin:8px 8px 0;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;transition:background .12s ease,color .12s ease}
+.aph-side .home-link:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+.aph-side .home-link svg.ic{width:15px;height:15px;stroke-width:1.6;color:var(--text-3)}
+
+/* MAIN */
+.aph-main{min-width:0;height:100vh;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.aph-content{flex:1}
+.aph-topbar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+.aph-topbar h1{font-size:18px;font-weight:600;letter-spacing:-0.02em}
+.aph-topbar .crumb{color:var(--text-3);font-size:11px;font-weight:500;padding-left:14px;border-left:1px solid var(--border);height:18px;line-height:18px;letter-spacing:.02em}
+.aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aph-topbar .date-pill{display:inline-flex;align-items:center;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);overflow:hidden;height:32px}
+.aph-topbar .date-pill input{border:0;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:transparent;outline:0;width:118px;font-weight:500}
+.aph-topbar .date-pill .sep{padding:0 4px;color:var(--text-3);font-size:12px}
+.aph-topbar .date-pill .clear{padding:0 10px;color:var(--text-3);font-size:15px;cursor:pointer;border-left:1px solid var(--border);height:100%;display:flex;align-items:center}
+.aph-topbar .presets{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph-topbar .presets .p{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border-right:1px solid var(--border);display:flex;align-items:center}
+.aph-topbar .presets .p:last-child{border-right:0}
+.aph-topbar .presets .p:hover{background:var(--bg-hover);color:var(--text)}
+.aph-topbar .presets .p.active{background:var(--accent);color:#fff}
+.aph-topbar .btn{padding:0 14px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:flex;align-items:center;gap:6px}
+.aph-topbar .btn:hover{background:var(--bg-hover)}
+.aph-topbar .btn svg{width:14px;height:14px}
+
+.aph-content{padding:28px}
+.aph-page-hd{margin-bottom:24px}
+.aph-page-hd .ttl{font-size:24px;font-weight:600;letter-spacing:-0.025em;line-height:1.15}
+.aph-page-hd .sub{font-size:13px;color:var(--text-2);margin-top:4px}
+
+.aph-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+.aph-kpi{background:var(--bg-card);border:1px solid var(--border);padding:20px 22px;border-radius:10px;position:relative;min-height:118px;display:flex;flex-direction:column;justify-content:space-between;transition:border-color .12s ease,box-shadow .12s ease}
+.aph-kpi:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph-kpi .ic-wrap{position:absolute;top:18px;right:20px;width:30px;height:30px;border-radius:7px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center}
+.aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph-kpi .v{font-size:32px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:10px;line-height:1}
+.aph-kpi .sub{font-size:11px;color:var(--text-3);margin-top:8px;font-weight:500}
+.aph-kpi .sub strong{color:var(--text-2);font-weight:600}
+
+.aph-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+/* full-width rows — !important so no theme/global CSS can shrink them */
+.aph-grid.col-1{display:grid!important;grid-template-columns:1fr!important;width:100%!important;max-width:none!important}
+.aph-grid.col-1 > .aph-card{width:100%!important;max-width:none!important;box-sizing:border-box}
+.aph-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-sizing:border-box;width:100%;min-width:0}
+.aph-card-hd{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.aph-card-hd .ttl{font-weight:600;font-size:14px;letter-spacing:-0.01em;white-space:nowrap}
+.aph-card-hd .sub{color:var(--text-3);font-size:11px;font-weight:500}
+.aph-card-body{padding:18px 22px}
+.aph-card-body.padless{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.aph-tbl th{text-align:left;padding:11px 16px;background:var(--bg-card);font-size:11px;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.aph-tbl td{padding:11px 16px;border-bottom:1px solid var(--border);font-feature-settings:'tnum';white-space:nowrap}
+.aph-tbl tr:last-child td{border-bottom:0}
+.aph-tbl tr:hover td{background:var(--bg-hover)}
+.aph-tbl td.num,.aph-tbl th.num{text-align:right}
+.aph-tbl td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2)}
+.aph-tbl td.dim{color:var(--text-3)}
+.aph-tbl td.strong{font-weight:600}
+
+.aph-empty{padding:40px;text-align:center;color:var(--text-3);font-size:13px}
+.aph-loading{padding:60px;text-align:center;color:var(--text-3);font-size:12px}
+.aph-err{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;margin:14px 28px;font-family:var(--mono)}
+.aph-stub{padding:56px 28px;text-align:center;background:var(--bg-card);border:1px dashed var(--border-2);border-radius:10px}
+.aph-stub .ttl{font-size:16px;font-weight:600;margin-bottom:6px}
+.aph-stub .sub{font-size:13px;color:var(--text-2)}
+
+.aph-bar-row{display:flex;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--border)}
+.aph-bar-row:last-child{border-bottom:0}
+.aph-bar-row .lbl{width:54px;font-size:13px;font-weight:600}
+.aph-bar-row .bar{flex:1;height:8px;background:var(--bg-muted);border-radius:4px;overflow:hidden}
+.aph-bar-row .bar .fill{height:100%;background:var(--text);border-radius:4px}
+.aph-bar-row .val{width:170px;text-align:right;font-size:12px;color:var(--text-2);font-feature-settings:'tnum'}
+
+.aph-tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:10px;font-size:11px;background:var(--bg-muted);color:var(--text);font-weight:500;line-height:1.5}
+
+/* Chart wrappers: the scroll container always spans the full card; the inner
+   div's width is set in px by JS = max(available width, minimum), so the chart
+   always fills the page on wide screens and scrolls sideways on narrow ones */
+.aph-chart-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;box-sizing:border-box}
+.aph-chart-inner{position:relative;width:100%}
+
+/* Wide table scroll wrapper (proforma / non-export invoice ledgers) */
+.aph-tbl-scroll{display:block;width:100%!important;max-width:none!important;overflow-x:auto;-webkit-overflow-scrolling:touch;box-sizing:border-box}
+
+/* ── Narrow screens / mobile ─────────────────────────────────────────── */
+@media (max-width: 900px){
+  html,body{overflow:auto!important}
+  .aph{display:flex;flex-direction:column;position:fixed}
+  /* sidebar becomes a compact top bar with a horizontally scrolling nav */
+  .aph-side{width:100%;height:auto;position:relative;flex:0 0 auto;border-right:0;border-bottom:1px solid var(--border);overflow:visible}
+  .aph-side .brand{padding:10px 16px;border-bottom:0}
+  .aph-side .home-link{margin:0 8px 8px;width:max-content}
+  .aph-side .nav{flex-direction:row;align-items:center;overflow-x:auto;overflow-y:hidden;padding:0 8px 8px;-webkit-overflow-scrolling:touch}
+  .aph-side .group-lbl{display:none}
+  .aph-side .nav-item{flex:0 0 auto;margin:0 2px;white-space:nowrap;padding:7px 12px}
+  .aph-side .footer{display:none}
+  .aph-main{flex:1 1 auto;height:auto;min-height:0}
+  .aph-topbar{position:static;flex-wrap:wrap;gap:8px;padding:10px 14px}
+  .aph-topbar .crumb{display:none}
+  .aph-topbar .right{margin-left:0;width:100%;flex-wrap:wrap}
+  .aph-content{padding:14px}
+  .aph-err{margin:14px}
+  /* everything single-column */
+  .aph-grid{grid-template-columns:1fr}
+  .aph-kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .aph-kpi{min-height:100px;padding:16px 18px}
+  .aph-kpi .v{font-size:26px}
+  .aph-page-hd .ttl{font-size:20px}
+}
+</style>
+
+<!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
+<style>
+/* Topbar: team dropdown + view toggle, restyled into aph chrome */
+.aph .dropdown{position:relative;display:inline-block}
+.aph .dropdown-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg-card);
+  border:1px solid var(--border-2);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:1000;overflow:hidden}
+.aph .dropdown.open .dropdown-menu{display:block}
+.aph .dropdown-item{padding:8px 14px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s ease;font-weight:500}
+.aph .dropdown-item:last-child{border-bottom:none}
+.aph .dropdown-item:hover{background:var(--bg-hover)}
+.aph .dropdown-item.active{background:var(--bg-muted);color:var(--text);font-weight:600}
+/* multi-select team items */
+.aph .dropdown-item.ms-item{display:flex;align-items:center;gap:9px;background:var(--bg-card);font-weight:500}
+.aph .dropdown-item.ms-item:hover{background:var(--bg-hover)}
+.aph .ms-check{width:14px;height:14px;border:1px solid var(--border-2);border-radius:4px;flex:0 0 auto;position:relative;background:var(--bg-card)}
+.aph .dropdown-item.ms-item.active{background:var(--bg-card);font-weight:600}
+.aph .dropdown-item.ms-item.active .ms-check{background:var(--accent);border-color:var(--accent)}
+.aph .dropdown-item.ms-item.active .ms-check::after{content:'';position:absolute;left:4px;top:1px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.aph .dropdown-item.ms-sep{padding:0;height:1px;background:var(--border);cursor:default}
+.aph .date-range-inputs{display:none;align-items:center;gap:6px}
+.aph .date-range-inputs.show{display:flex}
+.aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
+.aph .form-control:focus{border-color:var(--text)}
+/* LIVE badge */
+.aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
+  border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
+.aph .live-badge:hover{background:var(--bg-hover)}
+.aph .live-dot{width:7px;height:7px;background:var(--good);border-radius:50%}
+
+/* KPI value/sub override so the JS-set values + Boxes-to-Deliver date input sit nicely in aph-kpi */
+.aph .aph-kpi .v{font-feature-settings:'tnum'}
+.aph .kpi-date-row{display:flex;align-items:center;gap:4px;margin-top:8px}
+.aph .kpi-date-row label{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
+.aph .kpi-date-row input{height:24px;padding:0 6px;font-size:11px;width:120px;border-radius:5px;border:1px solid var(--border-2);background:var(--bg-card);font-family:var(--f);outline:0}
+
+/* ── Issuing vs Packing wide card (lives inside an aph-card body) ── */
+.aph .kpi-dual-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.aph .kpi-dual-item{text-align:center}
+.aph .kpi-dual-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:6px}
+.aph .kpi-dual-value{font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.03em;font-feature-settings:'tnum'}
+.aph .kpi-dual-sub{font-size:11px;font-weight:500;color:var(--text-3);margin-top:6px}
+.aph .kpi-dual-bar{margin-top:10px}
+.aph .gap-indicator{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px}
+.aph .gap-positive{background:#fff3e0;color:#9a5a00}
+.aph .gap-negative{background:#e6f9ee;color:#1a8a3a}
+.aph .gap-neutral{background:var(--bg-muted);color:var(--text-2)}
+@media(max-width:600px){.aph .kpi-dual-row{grid-template-columns:1fr;gap:12px}}
+
+/* ── Progress bars (used by render functions) ── */
+.aph .progress-wrap{margin:8px 0}
+.aph .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-bottom:4px;font-weight:600}
+.aph .progress-label span:last-child{color:var(--text);font-weight:600;font-feature-settings:'tnum'}
+.aph .progress-track{background:var(--bg-muted);border-radius:4px;height:6px;overflow:hidden}
+.aph .progress-fill{height:100%;background:var(--text);border-radius:4px;transition:width .15s ease}
+.aph .progress-fill.packing{background:#7c5cfc}
+.aph .progress-fill.packing.complete{background:var(--good)}
+
+/* ── Labels / badges produced by render functions ── */
+.aph .label{display:inline-flex;align-items:center;padding:2px 9px;font-size:11px;font-weight:600;border-radius:10px;letter-spacing:.02em}
+.aph .label-success{background:#e6f9ee;color:#1a8a3a}
+.aph .label-warning{background:#fff3e0;color:#9a5a00}
+.aph .label-danger{background:#fde8ec;color:var(--bad)}
+.aph .label-default{background:var(--bg-muted);color:var(--text-2)}
+.aph .label-info{background:#f0ecfe;color:#7c5cfc}
+.aph .label-primary{background:var(--bg-muted);color:var(--text)}
+.aph .team-badge{display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;background:var(--bg-muted);color:var(--text-2)}
+.aph .rose-badge{display:inline-block;margin-left:6px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px}
+.aph .rose-badge.rose-spray{background:#f0ecfe;color:#7c5cfc}
+.aph .rose-badge.rose-std{background:#e6f1ff;color:#1a5fb4}
+.aph .rose-badge.rose-mixed{background:var(--bg-muted);color:var(--text-2)}
+
+/* ── OPL card grid (render output) ── */
+.aph .opl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.aph .opl-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
+.aph .opl-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph .opl-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.aph .opl-order-name{font-size:13px;font-weight:600;color:var(--text)}
+.aph .opl-meta{display:flex;align-items:center;gap:6px;margin-top:4px}
+.aph .opl-id{font-size:12px;color:var(--text-2);font-family:var(--mono)}
+.aph .opl-variety{font-size:13px;font-weight:600;color:var(--text);margin:6px 0 2px}
+.aph .opl-customer{font-size:12px;color:var(--text-2);margin-bottom:10px}
+.aph .opl-details{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.aph .opl-detail{background:var(--bg-muted);padding:8px 6px;border-radius:7px;text-align:center}
+.aph .opl-detail-label{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);margin-bottom:2px}
+.aph .opl-detail-value{font-size:13px;font-weight:600;color:var(--text);font-feature-settings:'tnum'}
+.aph .shelf-list{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.aph .shelf-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
+.aph .variety-list{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
+.aph .variety-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
+.aph .variety-more{cursor:pointer}
+.aph .variety-more:hover{background:var(--border-2)}
+
+/* ── Box card grid (render output) ── */
+.aph .box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.aph .box-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
+.aph .box-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph .box-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.aph .box-number{font-size:15px;font-weight:600;color:var(--text)}
+.aph .box-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.aph .box-row:last-child{border-bottom:none}
+.aph .box-row-label{color:var(--text-2)}
+.aph .box-row-value{font-weight:600;color:var(--text)}
+
+/* ── Empty / Loading states (render output) ── */
+.aph .empty-state{text-align:center;padding:40px 20px;color:var(--text-3)}
+.aph .empty-state p{font-size:13px;margin-top:10px}
+.aph .loading-state{text-align:center;padding:30px;color:var(--text-3);font-size:12px}
+
+/* ── Variety modal ── */
+.vmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2147483100;align-items:center;justify-content:center;padding:20px}
+.vmodal.open{display:flex}
+.vmodal-card{background:var(--bg-card);border-radius:10px;width:100%;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);font-family:var(--f)}
+.vmodal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
+.vmodal-close{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text-3)}
+.vmodal-body{padding:6px 16px 14px;overflow-y:auto}
+.vrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.vrow:last-child{border-bottom:none}
+.vstems{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+</style>
+
+
+<style>
+.aph .sch-board{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;height:calc(100vh - 232px);min-height:360px}
+.aph .sch-col{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.aph .sch-colh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.aph .sch-colh .dot{width:9px;height:9px;border-radius:50%}
+.aph .sch-colh .nm{font-weight:600;font-size:13px}
+.aph .sch-colh .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:9px;padding:1px 8px}
+.aph .sch-colh .hint{width:100%;font-size:10px;color:var(--text-3);font-weight:500;margin-top:2px}
+.aph .sch-colb{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.aph .sch-card{border:1px solid var(--border);border-radius:9px;padding:10px 11px;background:var(--bg-card);transition:box-shadow .12s,border-color .12s}
+.aph .sch-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
+.aph .sch-col.ready .sch-card{cursor:grab}
+.aph .sch-card.dragging{opacity:.4}
+.aph .sch-r1{display:flex;align-items:flex-start;gap:8px}
+.aph .sch-seq{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+.aph .sch-seq.none{background:var(--bg-muted);color:var(--text-3)}
+.aph .sch-seq.done{background:var(--good)}
+.aph .sch-seq.draft{background:#7c3aed}
+.aph .sch-cnm{flex:1;min-width:0}
+.aph .sch-cnm .o{font-weight:600;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph .sch-cnm .sub{font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph .sch-next{flex:0 0 auto;border:1px solid var(--border);background:var(--bg-card);color:var(--text-2);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1}
+.aph .sch-next:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.aph .sch-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.aph .sch-chip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
+.aph .sch-chip.farm{background:#eef2ff;color:#3730a3}
+.aph .sch-specs{margin-top:7px;display:flex;flex-direction:column;gap:2px}
+.aph .sch-spec{font-size:11px;display:flex;justify-content:space-between;gap:8px}
+.aph .sch-spec .b{color:var(--text-2)}
+.aph .sch-meta{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+.aph .sch-meta .mv{font-size:13px;font-weight:700;font-feature-settings:'tnum'}
+.aph .sch-meta .ml{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em}
+.aph .sch-bar{height:5px;border-radius:3px;background:var(--bg-muted);overflow:hidden;margin-top:7px}
+.aph .sch-bar i{display:block;height:100%;background:var(--good)}
+.aph .sch-empty{padding:28px;text-align:center;color:var(--text-3);font-size:12px}
+.aph .sch-sel{height:32px;padding:0 9px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg-card);color:var(--text);font-weight:500;outline:0}
+.aph .aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+.aph .aph-kpi .v{font-size:30px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:8px;line-height:1}
+.aph .sch-search{margin-top:8px;width:100%;height:30px;padding:0 10px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg);color:var(--text);outline:0}
+.aph .sch-search:focus{border-color:var(--accent)}
+.aph .sch-chk{flex:0 0 auto;width:16px;height:16px;margin-top:5px;cursor:pointer;accent-color:var(--accent)}
+.aph .sch-card.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.aph .sch-nextbadge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--good);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.aph .sch-selbar{display:none;align-items:center;gap:8px;width:100%;margin-top:9px;padding:7px 9px;background:var(--accent);border-radius:8px}
+.aph .sch-selbar.on{display:flex}
+.aph .sch-selbar .lbl{color:#fff;font-size:11px;font-weight:700;flex:1}
+.aph .sch-selbar button{border:0;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
+.aph .sch-selbar .mk{background:#fff;color:var(--accent)}
+.aph .sch-selbar .cl{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
+.aph .sch-farmbar{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.aph .sch-farmbar .fb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
+.aph .sch-farmbar .sch-tabs{margin-top:0;width:auto}
+.aph .sch-tabs{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:9px}
+.aph .sch-tab{flex:0 0 auto;padding:4px 11px;border:1px solid var(--border-2);background:var(--bg);border-radius:7px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.aph .sch-tab:hover{border-color:var(--accent)}
+.aph .sch-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.aph .sch-tab .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.65;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
+.aph .sch-tab.active .tc{background:rgba(255,255,255,.22);opacity:.95}
+.aph .sch-pager{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-2)}
+.aph .sch-pager:empty{display:none}
+.aph .sch-pginfo{flex:1;text-align:center;font-family:var(--mono)}
+.aph .sch-pg{border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer}
+.aph .sch-pg:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
+.aph .sch-pg:disabled{opacity:.4;cursor:default}
+.aph .sch-modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;z-index:9999}
+.aph .sch-modal.open{display:flex}
+.aph .sch-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:380px;max-width:92vw;overflow:hidden}
+.aph .smh{display:flex;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.aph .smt{font-weight:600;font-size:15px;line-height:1.25}
+.aph .sms{font-size:11px;color:var(--text-2);margin-top:3px;font-family:var(--mono)}
+.aph .sch-x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--text-3);cursor:pointer;padding:0 2px}
+.aph .smb{padding:18px}
+.aph .sml{font-size:12px;color:var(--text-2);margin-bottom:13px}
+.aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
+.aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
+.aph .sch-numinp:focus{border-color:var(--accent)}
+.aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
+.aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
+.aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.aph .smf .btn.ghost{background:none;text-decoration:none}
+@media(max-width:900px){.aph{display:block!important;position:static!important;height:auto!important}html,body{overflow:auto!important;height:auto!important}.aph-side{display:none}.aph .sch-board{grid-template-columns:1fr;height:auto}.aph .sch-col{min-height:300px}}
+</style>
+<div class="aph">
+  <aside class="aph-side">
+    <div class="brand">
+      <div class="mark">KR</div>
+      <div class="name">Karen Roses<small>Packhouse</small></div>
+    </div>
+    <a class="home-link" href="app/packhouse-%26-sales">
+      <svg class="ic" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      Back to Home
+    </a>
+    <div class="nav">
+
+      <div class="group-lbl">Workflow</div>
+      <a class="nav-item" href="packhouse-dashboard">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Workflow
+      </a>
+      <a class="nav-item active" href="packhouse-scheduler">
+        <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Scheduler
+      </a>
+      <a class="nav-item" href="sales-allocation-planning">
+        <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Allocation Planning
+      </a>
+      <a class="nav-item" href="packhouse-production">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Production
+      </a>
+      <div class="group-lbl">Tracking</div>
+      <a class="nav-item" href="bucket-tracker">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+        Bucket Journey
+      </a>
+      <a class="nav-item" href="bucket-logistics">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>
+        Bucket Logistics
+      </a>
+      <a class="nav-item" href="cold-room">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m19.07 4.93-14.14 14.14"/></svg>
+        Cold Room
+      </a>
+      <a class="nav-item" href="handover-tracker">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        Bunch Handover
+      </a>
+      <a class="nav-item" href="packhouse-discards">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+        Discards
+      </a>
+      <a class="nav-item" href="packhouse-downgrades">
+        <svg class="ic" viewBox="0 0 24 24"><polyline points="19 12 12 19 5 12"/><line x1="12" y1="5" x2="12" y2="19"/></svg>
+        Downgrades
+      </a>
+      <div class="group-lbl">Stock &amp; Orders</div>
+      <a class="nav-item" href="stock-visibility">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>
+        Stock Visibility
+      </a>
+      <a class="nav-item" href="avails">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+        Avails
+      </a>
+      <a class="nav-item" href="stem-movement">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        Stem Movement
+      </a>
+      <a class="nav-item" href="order-summary">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+        Order Summary
+      </a>
+      <a class="nav-item" href="order-fulfilment">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Order Fulfilment
+      </a>
+
+    </div>
+    <div class="footer">
+      <div class="av" id="aph-foot-av">—</div>
+      <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
+    </div>
+  </aside>
+  <div class="aph-main">
+    <div class="aph-topbar">
+      <h1>Scheduler</h1><span class="crumb">Workflow &middot; sequence processing</span>
+      <div class="right">
+        <input type="date" id="fDate" class="sch-sel" style="width:140px">
+        <select id="fTeam" class="sch-sel"><option value="">All teams</option></select>
+        <button class="btn" id="btnRefresh">&#8635; Refresh</button>
+        <a class="btn" href="bucket-logistics" style="text-decoration:none">Transfers &rarr;</a>
+      </div>
+    </div>
+    <div class="aph-content">
+      <div class="aph-kpis" id="kpis"></div>
+      <div class="sch-farmbar"><span class="fb-lbl">Farm</span><div class="sch-tabs" id="farmTabs"></div></div>
+      <div class="sch-board">
+        <div class="sch-col" id="colDraft"><div class="sch-colh"><span class="dot" style="background:#7c3aed"></span><span class="nm">Draft</span><span class="cnt" id="cDraft">0</span><span class="hint">Allocated, not yet released for processing</span></div><div class="sch-colb" id="bDraft"><div class="sch-empty">Loading&hellip;</div></div></div>
+        <div class="sch-col ready" id="colReady"><div class="sch-colh"><span class="dot" style="background:var(--accent)"></span><span class="nm">Ready</span><span class="cnt" id="cReady">0</span><span class="hint" id="readyHint">Drag to set order &middot; top = next &middot; tap a card to set #</span><input type="text" id="readySearch" class="sch-search" placeholder="Search sales order, OPL, order name, customer&hellip;" autocomplete="off"><div class="sch-selbar" id="readySelBar"></div></div><div class="sch-colb" id="bReady"><div class="sch-empty">Loading&hellip;</div></div><div class="sch-pager" id="readyPager"></div></div>
+        <div class="sch-col" id="colPacked"><div class="sch-colh"><span class="dot" style="background:var(--good)"></span><span class="nm">Packed</span><span class="cnt" id="cPacked">0</span><span class="hint">Packing complete or in progress</span></div><div class="sch-colb" id="bPacked"><div class="sch-empty">Loading&hellip;</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="schModal" class="sch-modal">
+  <div class="sch-modal-card">
+    <div class="smh"><div><div class="smt" id="smTitle"></div><div class="sms" id="smSub"></div></div><button class="sch-x" id="smClose" title="Close">&times;</button></div>
+    <div class="smb">
+      <div class="sml" id="smPos"></div>
+      <label class="smfl" for="smNum">Schedule number</label>
+      <input type="number" id="smNum" min="1" class="sch-numinp">
+      <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
+    </div>
+    <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
+  </div>
+  </div>
+</div>
+
+<script>(function f(){function t(){if(!window.frappe||!frappe.session||!frappe.session.user){setTimeout(t,100);return;}var u=frappe.session.user||'';var fn=(frappe.session.user_fullname||(frappe.boot&&frappe.boot.user&&frappe.boot.user.full_name))||u.split('@')[0];var a=document.getElementById('aph-foot-av'),n=document.getElementById('aph-foot-nm'),e=document.getElementById('aph-foot-em');if(a)a.textContent=(fn||u||'?').substring(0,1).toUpperCase();if(n)n.textContent=fn;if(e)e.textContent=u;}t();})();</script>
+
+<script>
+
+(function(){
+  var el=function(id){return document.getElementById(id);};
+  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
+  var num=function(v){var n=typeof v==='number'?v:parseFloat(String(v||''));return isFinite(n)?n:0;};
+  var fmt=function(n){return Number(n||0).toLocaleString();};
+  function frp(method,args){return new Promise(function(res){frappe.call({method:method,args:args||{},callback:function(r){res((r&&r.message)||{});},error:function(){res({});}});});}
+  function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function todayISO(){return isoOf(new Date());}
+  // Default delivery date = tomorrow: the packhouse processes tomorrow's orders today.
+  function defaultISO(){var d=new Date();d.setDate(d.getDate()+1);return isoOf(d);}
+
+  var STATE={drafts:[],ready:[],packed:[],date:''};
+
+  function issuingPct(o){var L=o.locations||[];if(!L.length)return num(o.custom_issuing_percentage);var iss=0;L.forEach(function(b){if(b.custom_issued)iss++;});return Math.round(100*iss/L.length);}
+  function specHtml(o){var s=o.specs||[];if(!s.length)return '';return '<div class="sch-specs">'+s.slice(0,4).map(function(x){return '<div class="sch-spec"><span>'+esc(x.spec||x.variety||'—')+'</span><span class="b">'+esc(x.length||'')+(x.boxes?(' · '+x.boxes+'bx'):'')+'</span></div>';}).join('')+(s.length>4?'<div class="sch-spec b">+'+(s.length-4)+' more</div>':'')+'</div>';}
+
+  var G={readyPage:1,farm:'',sel:new Set()};
+  var PAGE=25;
+  // Mirrors scheduler_issue_threshold in the "Issue Bucket To Sale Order Item" server
+  // script: a team's NEXT-to-issue line is its lowest-numbered line still below this %.
+  var SCHED_THRESHOLD=50;
+
+  // Board-level filters: farm (tabs) + team (topbar) apply to ALL three columns.
+  function readyView(){return applyFilters(STATE.ready);}
+
+  function card(o,lane,idx,canDrag,opts){
+    opts=opts||{};
+    var name=esc(o.custom_order_name||o.name);
+    var sub=[o.customer,o.custom_team].filter(Boolean).map(esc).join('  ·  ');
+    var stems=fmt(num(o.custom_total_stems));
+    var boxes=o.planned_boxes!=null?o.planned_boxes:'';
+    var pct=issuingPct(o);
+    var seqHtml,nextBtn='',chk='',nextBadge='';
+    if(lane==='ready'){
+      seqHtml='<div class="sch-seq">'+(idx+1)+'</div>';
+      nextBtn='<button class="sch-next" title="Send to front" data-next="'+esc(o.name)+'">⤴</button>';
+      chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
+      if(opts.isNext) nextBadge='<span class="sch-nextbadge" title="Next to issue for this team">NEXT</span>';
+    }
+    else if(lane==='packed'){seqHtml='<div class="sch-seq done">✓</div>';}
+    else {seqHtml='<div class="sch-seq draft">D</div>';}
+    var chips=o.custom_farm?'<div class="sch-chips"><span class="sch-chip farm">'+esc(o.custom_farm)+'</span></div>':'';
+    var meta='<div class="sch-meta"><div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
+      (boxes!==''?'<div class="m"><div class="mv">'+boxes+'</div><div class="ml">boxes</div></div>':'')+
+      (lane!=='draft'?'<div class="m"><div class="mv">'+pct+'%</div><div class="ml">issued</div></div>':'')+'</div>';
+    var bar=(lane!=='draft')?'<div class="sch-bar"><i style="width:'+Math.min(100,pct)+'%"></i></div>':'';
+    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+(lane==='ready'&&canDrag?' draggable="true"':'')+'>'+
+      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+name+nextBadge+'</div><div class="sub">'+sub+'</div></div>'+nextBtn+'</div>'+
+      chips+specHtml(o)+meta+bar+'</div>';
+  }
+
+  // Per-team NEXT-to-issue set: lowest-numbered Ready line per team still below the
+  // issue threshold (mirrors the per-team server-side enforcement). Lines already at/
+  // above threshold are "cleared" and skipped; the next sub-threshold line is the team's next.
+  function computeNextSet(){
+    var nextSet={}, seen={};
+    STATE.ready.forEach(function(o){
+      var tm=o.custom_team||'—';
+      if(seen[tm]) return;
+      if(issuingPct(o) < SCHED_THRESHOLD){ nextSet[o.name]=1; seen[tm]=1; }
+    });
+    return nextSet;
+  }
+
+  function renderCol(bodyId,cntId,list,lane){
+    el(cntId).textContent=list.length;
+    el(bodyId).innerHTML=list.length?list.map(function(o,i){return card(o,lane,i);}).join(''):'<div class="sch-empty">No orders</div>';
+  }
+
+  function applyFilters(arr){
+    var f=G.farm, t=el('fTeam').value;
+    return arr.filter(function(o){return (!f||o.custom_farm===f)&&(!t||o.custom_team===t);});
+  }
+
+  // searchable haystack: sales order, OPL name, order name, customer, farm, team, spec lines
+  function hay(o){
+    var parts=[o.name,o.custom_order_name,o.customer,o.custom_farm,o.custom_team,o.sales_order,o.custom_sales_order];
+    (o.specs||[]).forEach(function(s){parts.push(s.spec);parts.push(s.variety);});
+    return parts.filter(Boolean).join('  ').toLowerCase();
+  }
+
+  // Farm tabs span every farm present in the day's data (draft+ready+packed), so a farm
+  // stays selectable even when it has 0 ready lines (e.g. all already packed). Chip = ready count.
+  function buildFarmTabs(){
+    var box=el('farmTabs');if(!box)return;
+    var t=el('fTeam').value;
+    var inTeam=function(o){return !t||o.custom_team===t;};
+    var all=STATE.drafts.concat(STATE.ready,STATE.packed).filter(inTeam);
+    var farms={};all.forEach(function(o){var f=o.custom_farm||'—';if(!farms[f])farms[f]={ready:0,tot:0};farms[f].tot++;});
+    STATE.ready.filter(inTeam).forEach(function(o){var f=o.custom_farm||'—';if(farms[f])farms[f].ready++;});
+    var keys=Object.keys(farms).sort();
+    var readyTot=STATE.ready.filter(inTeam).length;
+    var tabs=[['','All',readyTot]].concat(keys.map(function(k){return [k,k,farms[k].ready];}));
+    box.innerHTML=tabs.map(function(x){var act=(G.farm===x[0])?' active':'';return '<button class="sch-tab'+act+'" data-farm="'+esc(x[0])+'" title="'+x[2]+' ready">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
+    box.querySelectorAll('.sch-tab').forEach(function(b){b.onclick=function(){G.farm=b.getAttribute('data-farm');G.readyPage=1;render();};});
+  }
+
+  function render(){
+    var draft=applyFilters(STATE.drafts), packed=applyFilters(STATE.packed);
+    var readyF=readyView();
+    var all=draft.concat(readyF,packed);
+    var stems=0,pctSum=0,pctN=0,custs={};
+    all.forEach(function(o){stems+=num(o.custom_total_stems);if(o.customer)custs[o.customer]=1;});
+    readyF.concat(packed).forEach(function(o){pctSum+=issuingPct(o);pctN++;});
+    var avgPct=pctN?Math.round(pctSum/pctN):0;
+    el('kpis').innerHTML=[['Total OPLs',all.length],['Draft',draft.length],['Ready',readyF.length],['Packed',packed.length],['Total stems',fmt(stems)],['Avg issued',avgPct+'%'],['Customers',Object.keys(custs).length]]
+      .map(function(k){return '<div class="aph-kpi"><div class="lbl">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>';}).join('');
+    buildFarmTabs();
+    renderCol('bDraft','cDraft',draft,'draft');
+    renderReady();
+    renderCol('bPacked','cPacked',packed,'packed');
+  }
+
+  // ---- Ready column: full global order is STATE.ready; farm/team + search + pagination are view filters ----
+  function renderReady(){
+    var ft=readyView();                         // team filter + active farm tab
+    el('cReady').textContent=ft.length;
+    var term=(el('readySearch')?el('readySearch').value:'').toLowerCase().trim();
+    var list=term?ft.filter(function(o){return hay(o).indexOf(term)>=0;}):ft;
+    // drag is safe only when the visible list is the full ordered list (All farms tab, no search/team) — else reorder via the popup
+    var canDrag=!term && !G.farm && !el('fTeam').value;
+    var pages=Math.max(1,Math.ceil(list.length/PAGE));
+    if(G.readyPage>pages)G.readyPage=pages; if(G.readyPage<1)G.readyPage=1;
+    var start=(G.readyPage-1)*PAGE, end=Math.min(list.length,start+PAGE);
+    var view=list.slice(start,end);
+    var body=el('bReady');
+    var nextSet=computeNextSet();
+    var emptyMsg;
+    if(term){emptyMsg='No ready orders match &ldquo;'+esc(term)+'&rdquo;';}
+    else if(G.farm){
+      var packedN=applyFilters(STATE.packed).length, draftN=applyFilters(STATE.drafts).length;
+      emptyMsg='No <b>ready</b> orders for '+esc(G.farm)+'.'+((packedN||draftN)?'<br>'+(packedN?packedN+' already packed':'')+(packedN&&draftN?' · ':'')+(draftN?draftN+' in draft':'')+' — see the other columns.':'');
+    } else {emptyMsg='No ready orders';}
+    body.innerHTML=view.length
+      ? view.map(function(o){return card(o,'ready',STATE.ready.indexOf(o),canDrag,{isNext:!!nextSet[o.name],isSel:G.sel.has(o.name)});}).join('')
+      : '<div class="sch-empty">'+emptyMsg+'</div>';
+    var hint=el('readyHint');
+    if(hint)hint.textContent='Tick lines → “Make next to issue” · '+(canDrag?'or drag to reorder · ':'')+'tap a card to set #';
+    renderSelBar();
+    renderPager(list.length,pages,start,end);
+    wireReady(canDrag);
+  }
+
+  function renderSelBar(){
+    var bar=el('readySelBar'); if(!bar) return;
+    var n=G.sel.size;
+    if(!n){ bar.className='sch-selbar'; bar.innerHTML=''; return; }
+    bar.className='sch-selbar on';
+    bar.innerHTML='<span class="lbl">'+n+' selected → next to issue</span>'+
+      '<button class="mk">Make next to issue</button><button class="cl">Clear</button>';
+    bar.querySelector('.mk').onclick=makeSelectedNext;
+    bar.querySelector('.cl').onclick=function(){G.sel.clear();renderReady();};
+  }
+
+  // Move the selected lines to the front of the global order (keeping their relative
+  // order). Front = lowest schedule numbers, so each selected line becomes the lowest
+  // in its own team -> that team's next to issue. Several teams can be "next" at once.
+  function makeSelectedNext(){
+    if(!G.sel.size) return;
+    var picked=[], rest=[];
+    STATE.ready.forEach(function(o){ (G.sel.has(o.name)?picked:rest).push(o); });
+    if(!picked.length) return;
+    STATE.ready=picked.concat(rest);
+    reseq(); persist();
+    G.sel.clear(); G.readyPage=1; render();
+    frappe.show_alert&&frappe.show_alert({message:picked.length+' line(s) set as next to issue',indicator:'green'},4);
+  }
+
+  function renderPager(total,pages,start,end){
+    var p=el('readyPager');if(!p)return;
+    if(total<=PAGE){p.innerHTML='';return;}
+    p.innerHTML='<button class="sch-pg" id="rPrev"'+(G.readyPage<=1?' disabled':'')+'>&lsaquo; Prev</button>'+
+      '<span class="sch-pginfo">'+(start+1)+'–'+end+' of '+total+' · pg '+G.readyPage+'/'+pages+'</span>'+
+      '<button class="sch-pg" id="rNext"'+(G.readyPage>=pages?' disabled':'')+'>Next &rsaquo;</button>';
+    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;renderReady();}};
+    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;renderReady();}};
+  }
+
+  // ---- order mutation (always persist the FULL ready order) ----
+  function reseq(){STATE.ready.forEach(function(o,i){o._sched=i+1;});}
+  function persist(){var order=STATE.ready.map(function(o){return o.name;});if(!order.length)return;frp('setSchedulerOrder',{order:order.join('|~|')});}
+  function moveTo(name,pos){
+    var idx=-1;STATE.ready.forEach(function(o,i){if(o.name===name)idx=i;});
+    if(idx<0)return;
+    var o=STATE.ready.splice(idx,1)[0];
+    var p=Math.max(1,Math.min(STATE.ready.length+1,pos))-1;
+    STATE.ready.splice(p,0,o);
+    reseq();persist();
+    G.readyPage=Math.floor(p/PAGE)+1;
+    render();
+  }
+  function commitDrag(){
+    var start=(G.readyPage-1)*PAGE;
+    var pageOpls=Array.prototype.map.call(el('bReady').querySelectorAll('.sch-card'),function(c){return c.getAttribute('data-opl');});
+    var byName={};STATE.ready.forEach(function(o){byName[o.name]=o;});
+    var newPage=pageOpls.map(function(n){return byName[n];}).filter(Boolean);
+    STATE.ready.splice.apply(STATE.ready,[start,newPage.length].concat(newPage));
+    reseq();persist();render();
+  }
+
+  var dragEl=null;
+  function wireReady(canDrag){
+    var body=el('bReady');
+    if(canDrag){
+      body.querySelectorAll('.sch-card').forEach(function(c){
+        c.addEventListener('dragstart',function(){dragEl=c;c.classList.add('dragging');});
+        c.addEventListener('dragend',function(){c.classList.remove('dragging');dragEl=null;commitDrag();});
+      });
+      body.ondragover=function(e){e.preventDefault();if(!dragEl)return;var after=afterEl(body,e.clientY);if(after==null)body.appendChild(dragEl);else body.insertBefore(dragEl,after);};
+    } else { body.ondragover=null; }
+    body.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);renderReady();});});
+    body.querySelectorAll('[data-next]').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();moveTo(b.getAttribute('data-next'),1);});});
+    body.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.closest('[data-next]')||e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
+    el('bDraft').querySelectorAll('.sch-card').forEach(function(c){c.onclick=function(){openDoc(c.getAttribute('data-opl'));};});
+    el('bPacked').querySelectorAll('.sch-card').forEach(function(c){c.onclick=function(){openDoc(c.getAttribute('data-opl'));};});
+  }
+  function afterEl(container,y){var els=Array.prototype.slice.call(container.querySelectorAll('.sch-card:not(.dragging)'));return els.reduce(function(closest,child){var box=child.getBoundingClientRect();var off=y-box.top-box.height/2;if(off<0&&off>closest.offset)return {offset:off,element:child};return closest;},{offset:-Infinity}).element;}
+  function openDoc(name){if(window.frappe&&frappe.set_route)frappe.set_route('Form','Order Pick List',name);else window.open('/app/order-pick-list/'+encodeURIComponent(name),'_blank');}
+
+  // ---- manual schedule-number popup ----
+  function openSchedModal(name){
+    var o=null;STATE.ready.forEach(function(x){if(x.name===name)o=x;});if(!o)return;
+    var pos=STATE.ready.indexOf(o)+1, total=STATE.ready.length;
+    el('smTitle').textContent=o.custom_order_name||o.name;
+    el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
+    el('smPos').textContent='Currently #'+pos+' of '+total+' ready orders';
+    var inp=el('smNum');inp.value=pos;inp.min=1;inp.max=total;
+    el('schModal').setAttribute('data-opl',name);
+    el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
+    el('schModal').classList.add('open');
+    setTimeout(function(){inp.focus();inp.select();},30);
+  }
+  function closeSchedModal(){el('schModal').classList.remove('open');}
+  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();moveTo(name,v);}
+
+  // ---- load ----
+  function populateFilters(){
+    var teams={};STATE.drafts.concat(STATE.ready,STATE.packed).forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
+    var sel=el('fTeam'),cur=sel.value;
+    sel.innerHTML='<option value="">All teams</option>'+Object.keys(teams).sort().map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
+    // drop a farm selection that no longer exists in this date's data
+    var farms={};STATE.drafts.concat(STATE.ready,STATE.packed).forEach(function(o){if(o.custom_farm)farms[o.custom_farm]=1;});
+    if(G.farm&&!farms[G.farm])G.farm='';
+  }
+  function load(){
+    var dd=el('fDate').value||defaultISO();STATE.date=dd;
+    ['bDraft','bReady','bPacked'].forEach(function(id){el(id).innerHTML='<div class="sch-empty">Loading…</div>';});
+    Promise.all([frp('getSchedulerDrafts',{delivery_date:dd}),frp('getSchedulerData',{delivery_date:dd})]).then(function(r){
+      var drafts=(r[0]&&r[0].data)||[];var subs=(r[1]&&r[1].data)||[];
+      var names=drafts.map(function(o){return o.name;}).concat(subs.map(function(o){return o.name;}));
+      frp('getSchedulerMeta',{names:names.join('|~|')}).then(function(meta){
+        var sched=(meta&&meta.schedule)||{},packed=(meta&&meta.packed)||{};
+        STATE.drafts=drafts;
+        STATE.ready=[];STATE.packed=[];
+        subs.forEach(function(o){o._sched=num(sched[o.name])||0;if(packed[o.name])STATE.packed.push(o);else STATE.ready.push(o);});
+        // Ready sorted by schedule number (asc); unscheduled (0) sink to the bottom by name.
+        STATE.ready.sort(function(a,b){var sa=a._sched,sb=b._sched;if(sa&&sb)return sa-sb;if(sa)return -1;if(sb)return 1;return String(a.name).localeCompare(String(b.name));});
+        STATE.packed.sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+        populateFilters();render();
+      });
+    });
+  }
+
+  el('fDate').value=defaultISO();
+  el('btnRefresh').onclick=load;
+  el('fDate').onchange=load;
+  function filterChanged(){G.readyPage=1;render();}
+  el('fTeam').onchange=filterChanged;
+  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;renderReady();};
+  if(el('smClose'))el('smClose').onclick=closeSchedModal;
+  if(el('smCancel'))el('smCancel').onclick=closeSchedModal;
+  if(el('smSave'))el('smSave').onclick=saveSchedModal;
+  if(el('schModal'))el('schModal').addEventListener('click',function(e){if(e.target===el('schModal'))closeSchedModal();});
+  if(el('smNum'))el('smNum').addEventListener('keydown',function(e){if(e.key==='Enter')saveSchedModal();});
+  function boot(){if(window.frappe&&frappe.call){load();setInterval(load,60000);}else if(boot._n++<80){setTimeout(boot,100);}}
+  boot._n=0;boot();
+})();
+
+</script>

@@ -139,6 +139,37 @@ def is_in_approved_discard_request(bucket_id, farm):
 
 
 # ---------------------------------------------------------
+# CHECK IF BUCKET IS ON A FINAL DISCARD REQUEST (farm-agnostic)
+# ---------------------------------------------------------
+def is_on_final_discard_request(bucket_id):
+    """True if the bucket is a row on a FINAL Discard Request — one that has been
+    approved and submitted (workflow_state 'Approved' AND docstatus 1). Once a
+    request is final the manager has authorised the discard, so the age check
+    must NOT block it (a listed bucket is discarded regardless of age). This is
+    intentionally farm-agnostic and independent of the from_discard_request flag,
+    so the age bypass holds even for an older app build or a re-shelved bucket
+    whose row farm no longer matches the station."""
+    rows = frappe.get_all(
+        "Discard Request Bucket",
+        filters={"bucket_id": bucket_id, "parenttype": "Discard Request"},
+        fields=["parent"],
+        limit=50
+    )
+    i = 0
+    while i < len(rows):
+        dr = frappe.get_all(
+            "Discard Request",
+            filters={"name": rows[i].parent, "workflow_state": "Approved", "docstatus": 1},
+            fields=["name"],
+            limit=1
+        )
+        if dr:
+            return True
+        i = i + 1
+    return False
+
+
+# ---------------------------------------------------------
 # CHECK IF BUCKET IS ALLOCATED TO AN ORDER
 # ---------------------------------------------------------
 def is_bucket_allocated(bucket_id):
@@ -258,6 +289,30 @@ def remove_bucket_from_shelf(bucket_id, result):
 
 
 # ---------------------------------------------------------
+# MARK BUCKET DISCARDED ON EVERY DISCARD REQUEST
+# ---------------------------------------------------------
+def mark_discarded_on_requests(bucket_id):
+    """Set discarded=1 on ALL Discard Request Bucket rows for this bucket, across
+    every request (a bucket is often listed on several requests — nightly re-lists
+    plus manual ones). Keeps the requests' checkbox in sync so a discarded bucket
+    never shows as pending. Filter is case-insensitive at the DB layer."""
+    try:
+        rows = frappe.get_all(
+            "Discard Request Bucket",
+            filters={"bucket_id": bucket_id, "parenttype": "Discard Request"},
+            fields=["name"]
+        )
+        for row in rows:
+            frappe.db.set_value(
+                "Discard Request Bucket", row["name"], "discarded", 1,
+                update_modified=False
+            )
+    except Exception as e:
+        frappe.log_error(f"Error marking discarded on requests: {str(e)}", "Discard Flag Error")
+        # Don't raise - flagging is not critical to the discard itself
+
+
+# ---------------------------------------------------------
 # MAIN EXECUTION BLOCK
 # ---------------------------------------------------------
 try:
@@ -343,8 +398,11 @@ try:
                     variety = receiving_doc.items[0].item_code
                     qty = receiving_doc.items[0].qty
 
-                    # Age check — bypassed for approved discard-list buckets.
-                    if age_days < 5 and not override_age and not bypass:
+                    # Age check — bypassed for discard-list buckets AND for any
+                    # bucket already on a FINAL (approved + submitted) discard
+                    # request, since the manager has authorised that discard.
+                    on_final_dr = is_on_final_discard_request(bucket_id)
+                    if age_days < 5 and not override_age and not bypass and not on_final_dr:
                         frappe.response["data"] = {
                             "status": "failed",
                             "reason": "bucket_too_young",
@@ -363,9 +421,12 @@ try:
                         # Remove bucket from shelf
                         remove_bucket_from_shelf(bucket_id, result)
 
+                        # Flag the bucket discarded on every Discard Request that lists it
+                        mark_discarded_on_requests(bucket_id)
+
                         success_message = f"Bucket {bucket_id} discarded successfully. Age: {age_days} days, Variety: {variety}, Stems: {qty}."
-                        if bypass and age_days < 5:
-                            success_message += " (Discard-list override applied)"
+                        if (bypass or on_final_dr) and age_days < 5:
+                            success_message += " (Discard-request age override applied)"
 
                         if result.get("removed_from_shelf"):
                             success_message += f" Removed from shelf(s): {', '.join(result['removed_from_shelf'])}."

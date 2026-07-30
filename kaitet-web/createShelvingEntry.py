@@ -62,6 +62,17 @@ def validation(data, result):
                                    f"Bucket {bucket_id} already exists on shelf {shelf_id}. Data: {data}")
         
         # duplicate_entry - CHECK ALL OTHER SHELVES
+        #
+        # A bucket sitting on ANOTHER shelf is normally a true duplicate and is
+        # blocked. BUT a transfer bucket whose load-to-truck sync failed (no
+        # internet) is still physically on its REMOTE origin shelf even though it
+        # has been carried to the sales farm. Blocking it here strands the order.
+        # So: if the bucket is a transfer bucket (a Pick List Item on a draft OPL
+        # carrying any transfer flag), do NOT block — record the stale remote
+        # shelves so the main flow can remove them (self-heal the skipped
+        # transfer) and log a Skipped Transfer anomaly. Non-transfer duplicates
+        # are still blocked as before.
+        result["stale_transfer_shelves"] = []
         if result["passed"]:
             other_shelves = frappe.get_all(
                 "Shelf Item",
@@ -69,16 +80,31 @@ def validation(data, result):
                     "bucket_id": bucket_id,
                     "parent": ["!=", shelf_id]  # Exclude current shelf
                 },
-                fields=["parent"],
-                limit=1
+                fields=["name", "parent"],
             )
-            
+
             if other_shelves:
-                result["passed"] = False
-                result["reason"] = validation_rule[3][0]
-                result["message"] = f"The bucket has already been shelved on shelf {other_shelves[0].parent}."
-                frappe.log_error("Duplicate Entry Validation Failed", 
-                               f"Bucket {bucket_id} already shelved on shelf {other_shelves[0].parent}. Data: {data}")
+                transfer_rows = frappe.db.sql("""
+                    SELECT pli.name
+                    FROM `tabPick List Item` pli
+                    JOIN `tabOrder Pick List` opl ON opl.name = pli.parent AND opl.docstatus = 0
+                    WHERE pli.parenttype = 'Order Pick List'
+                      AND pli.custom_bucket = %s
+                      AND (pli.custom_awaiting_transfer = 1
+                           OR pli.custom_in_transit = 1
+                           OR pli.custom_loaded_in_trolley = 1)
+                    LIMIT 1
+                """, bucket_id, as_dict=True)
+
+                if transfer_rows:
+                    # Skipped transfer: keep going, clean up the remote shelves.
+                    result["stale_transfer_shelves"] = other_shelves
+                else:
+                    result["passed"] = False
+                    result["reason"] = validation_rule[3][0]
+                    result["message"] = f"The bucket has already been shelved on shelf {other_shelves[0].parent}."
+                    frappe.log_error("Duplicate Entry Validation Failed",
+                                   f"Bucket {bucket_id} already shelved on shelf {other_shelves[0].parent}. Data: {data}")
         
         # two_buckets_per_shelf (2 max)
         if result["passed"] and shelf_doc.items and len(shelf_doc.items) >= 2:
@@ -504,7 +530,46 @@ try:
                         
                         # Mark bucket as shelved in receiving entry
                         mark_bucket_as_shelved(bucket_id, receiving_doc, result)
-                        
+
+                        # ─────────────────────────────────────────────────────
+                        # SKIPPED TRANSFER SELF-HEAL
+                        # The load-to-truck sync failed, so the bucket is still on
+                        # its remote origin shelf. It has now physically arrived and
+                        # been shelved here, so remove the stale remote Shelf Item(s)
+                        # and record a Skipped Transfer anomaly. update_transit_status()
+                        # above already moved the OPL row to this shelf + cleared the
+                        # transfer flags, so the order no longer fails on a skipped step.
+                        # ─────────────────────────────────────────────────────
+                        stale_shelves = result.get("stale_transfer_shelves") or []
+                        if stale_shelves:
+                            removed_from = []
+                            for shi in stale_shelves:
+                                try:
+                                    old_shelf = shi.get("parent")
+                                    frappe.delete_doc("Shelf Item", shi.get("name"), force=1, ignore_permissions=True)
+                                    removed_from.append(old_shelf)
+                                    frappe.db.set_value("Shelf", old_shelf, "modified", frappe.utils.now())
+                                except Exception:
+                                    pass
+                            try:
+                                prev_shelf = removed_from[0] if removed_from else None
+                                opl_ref = result.get("transit_opl")
+                                frappe.get_doc({
+                                    "doctype": "Bucket Reuse Anomaly",
+                                    "bucket_id": bucket_id,
+                                    "skipped_step": "Skipped Transfer",
+                                    "detected_on": frappe.utils.now(),
+                                    "farm": farm,
+                                    "greenhouse": origin_greenhouse,
+                                    "variety": variety,
+                                    "stems": qty,
+                                    "previous_shelf": prev_shelf,
+                                    "discard_request": None,
+                                }).insert(ignore_permissions=True)
+                            except Exception:
+                                frappe.log_error("Skipped Transfer anomaly log failed", frappe.get_traceback())
+                            result["skipped_transfer"] = {"removed_from": removed_from}
+
                         # ─────────────────────────────────────────────────────
                         # NEW: UPDATE BUCKET ALLOCATION STATUS
                         # ─────────────────────────────────────────────────────
@@ -521,6 +586,9 @@ try:
                             msg += f" Updated receiving entry: {result['shelved_info']['stock_entry']}."
                         if result.get("transit_updated"):
                             msg += f" Transit status updated on {result['transit_opl']}."
+                        if result.get("skipped_transfer"):
+                            removed_list = result["skipped_transfer"].get("removed_from") or []
+                            msg += f" Skipped transfer recovered — removed from {', '.join(removed_list)}."
                         if result.get("bas_updated"):
                             msg += f" BAS cleared: {result['bas_available_qty']} stems now available."
                         if result.get("opl_submitted"):
@@ -537,7 +605,8 @@ try:
                                 "transit_updated": result.get("transit_updated", False),
                                 "bas_updated": result.get("bas_updated", False),
                                 "bas_available_qty": result.get("bas_available_qty", 0),
-                                "opl_submitted": result.get("opl_submitted", [])
+                                "opl_submitted": result.get("opl_submitted", []),
+                                "skipped_transfer": result.get("skipped_transfer", None)
                             }
                         }
                         
