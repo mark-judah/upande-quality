@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
@@ -27,6 +27,12 @@ import {
   type SpecCheckState,
 } from '@/src/tenants/karen/state/karen-packhouse-qc-store';
 import type { PackhouseOverallResult } from '@/src/tenants/karen/repository/karen-packhouse-qc-repository';
+import { categoryForParam, categoryOrder } from '@/src/tenants/karen/features/packhouse-qc/qc-parameter-categories';
+
+/** Grading / Reject teams — mirrors the Order Pick List `custom_team` options.
+ *  The team filter uses these to reach orders that have no specification linked
+ *  (which the customer→spec path can never list). */
+const TEAMS = ['Team A', 'Team B', 'Jamafa', 'Eldama', 'Bravo'];
 
 /** Which Frappe Role unlocks which workflow, plus the copy for its landing
  *  tile — the operator never has to pick between things they're not
@@ -77,6 +83,7 @@ export function PackhouseQcScreen() {
 
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
   const [paramPickerOpen, setParamPickerOpen] = useState(false);
   const [reasonPickerOpen, setReasonPickerOpen] = useState(false);
@@ -103,9 +110,11 @@ export function PackhouseQcScreen() {
   const specChecks = useKarenPackhouseQcStore((s) => s.specChecks);
   const acceptSpecCheck = useKarenPackhouseQcStore((s) => s.acceptSpecCheck);
   const setSpecCheckActualValue = useKarenPackhouseQcStore((s) => s.setSpecCheckActualValue);
+  const setSpecCheckBunchesAffected = useKarenPackhouseQcStore((s) => s.setSpecCheckBunchesAffected);
   const specificationDetail = useKarenPackhouseQcStore((s) => s.specificationDetail);
   const customerOptionsFn = useKarenPackhouseQcStore((s) => s.customerOptions);
   const specificationsForSelectedCustomer = useKarenPackhouseQcStore((s) => s.specificationsForSelectedCustomer);
+  const specOrderCounts = useKarenPackhouseQcStore((s) => s.specOrderCounts);
   const bunchSampling = useKarenPackhouseQcStore((s) => s.bunchSampling);
   const boxesChecked = useKarenPackhouseQcStore((s) => s.boxesChecked);
   const finalDecisionOverride = useKarenPackhouseQcStore((s) => s.finalDecisionOverride);
@@ -127,11 +136,16 @@ export function PackhouseQcScreen() {
   const setOnlineMode = useKarenPackhouseQcStore((s) => s.setOnlineMode);
   const selectCustomer = useKarenPackhouseQcStore((s) => s.selectCustomer);
   const selectSpecificationFilter = useKarenPackhouseQcStore((s) => s.selectSpecificationFilter);
+  const selectedTeamFilter = useKarenPackhouseQcStore((s) => s.selectedTeamFilter);
+  const selectTeamFilter = useKarenPackhouseQcStore((s) => s.selectTeamFilter);
   const selectOrderPickList = useKarenPackhouseQcStore((s) => s.selectOrderPickList);
   const scanBoxLabel = useKarenPackhouseQcStore((s) => s.scanBoxLabel);
   const startBunchSampling = useKarenPackhouseQcStore((s) => s.startBunchSampling);
-  const recordBunchAccept = useKarenPackhouseQcStore((s) => s.recordBunchAccept);
-  const recordBunchReject = useKarenPackhouseQcStore((s) => s.recordBunchReject);
+  const setBunchesAccepted = useKarenPackhouseQcStore((s) => s.setBunchesAccepted);
+  const addBunchRejection = useKarenPackhouseQcStore((s) => s.addBunchRejection);
+  const setBunchRejectionBunches = useKarenPackhouseQcStore((s) => s.setBunchRejectionBunches);
+  const removeBunchRejection = useKarenPackhouseQcStore((s) => s.removeBunchRejection);
+  const bunchRejections = useKarenPackhouseQcStore((s) => s.bunchRejections);
   const finishBunchSampling = useKarenPackhouseQcStore((s) => s.finishBunchSampling);
   const isBunchSamplingMode = useKarenPackhouseQcStore((s) => s.isBunchSamplingMode);
   const setBoxesChecked = useKarenPackhouseQcStore((s) => s.setBoxesChecked);
@@ -181,7 +195,14 @@ export function PackhouseQcScreen() {
   const selectedReasonOption = reasons.find((r) => r.name === selectedReason) ?? null;
   const issuesTotal = issues.reduce((sum, i) => sum + i.count, 0);
   const orderTotalBunches = totalBunches(itemLocations);
-  const bunchesInspected = bunchSampling.accepted + bunchSampling.rejected;
+  // QC parameters grouped into their inspection categories, ordered by category
+  // then name — drives the sectioned parameter / rejection-reason picker.
+  const paramPickerOptions = params
+    .map((p) => ({ value: p.name, label: p.parameter, group: categoryForParam(p.name) }))
+    .sort((a, b) => categoryOrder(a.group) - categoryOrder(b.group) || a.label.localeCompare(b.label));
+  const acceptedBunchesNum = Number.parseInt(bunchSampling.acceptedBunches, 10) || 0;
+  const rejectedBunchesTotal = bunchRejections.reduce((sum, r) => sum + (Number.parseInt(r.bunches, 10) || 0), 0);
+  const bunchesInspected = acceptedBunchesNum + rejectedBunchesTotal;
   const gradingQcMode = isBunchSamplingMode();
   const boxSamplingMode = isBoxSamplingMode();
   const boxSampleTarget = suggestedBoxSampleSize(boxTotalCount);
@@ -205,6 +226,22 @@ export function PackhouseQcScreen() {
   const issueThresholdFor = (paramName: string) => params.find((p) => p.name === paramName)?.toleranceThresholds ?? 0;
   const issueBreached = (issue: IssueRow) =>
     isThresholdBreached(issue.count, sampledBunchCount, issueThresholdFor(issue.paramName));
+  // Outside Final QC, issues are counted in stems. The parameter's % tolerance
+  // is measured against what was actually checked: for Grading QC that's the
+  // bunches inspected (converted to stems); elsewhere the order's full stem
+  // total. Null/zero total → show the threshold only, no over/within verdict.
+  const totalStemsChecked = gradingQcMode
+    ? bunchesInspected * stemsPerBunchVal
+    : selectedOrderPickList?.totalStems ?? 0;
+  const issueToleranceInfo = (issue: IssueRow) => {
+    const thresholdPercent = issueThresholdFor(issue.paramName);
+    const affectedPercent = totalStemsChecked > 0 ? (issue.count / totalStemsChecked) * 100 : null;
+    return {
+      thresholdPercent,
+      affectedPercent,
+      breached: totalStemsChecked > 0 && isThresholdBreached(issue.count, totalStemsChecked, thresholdPercent),
+    };
+  };
   // Total bunches recorded — all of them are partial-rejected when the
   // decision is Accept.
   const allIssueBunches = issues.reduce((sum, i) => sum + i.count, 0);
@@ -357,9 +394,23 @@ export function PackhouseQcScreen() {
             )}
           </Card>
 
+          <Card title="No specification? Filter by team">
+            <Text style={s.hint}>
+              Some orders have no specification and never appear above — pick a team to QC those.
+            </Text>
+            <View style={{ height: 12 }} />
+            <Pressable onPress={() => setTeamPickerOpen(true)} style={s.pickerRow}>
+              <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.textMuted} />
+              <Text style={s.pickerText} numberOfLines={1}>
+                {selectedTeamFilter ?? 'Select team'}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+            </Pressable>
+          </Card>
+
           <Card title="Order Pick List">
-            {!selectedSpecificationFilter ? (
-              <Text style={s.hint}>Select a specification above to see matching orders.</Text>
+            {!(selectedSpecificationFilter || selectedTeamFilter) ? (
+              <Text style={s.hint}>Pick a specification or a team above to see orders.</Text>
             ) : (
               <Pressable
                 onPress={() => setOrderPickerOpen(true)}
@@ -373,7 +424,9 @@ export function PackhouseQcScreen() {
                     : selectedOrderPickList
                       ? selectedOrderPickList.orderName || selectedOrderPickList.name
                       : orderPickLists.length === 0
-                        ? 'No orders found for this spec'
+                        ? selectedTeamFilter
+                          ? 'No spec-less orders for this team'
+                          : 'No orders found for this spec'
                         : 'Select order pick list'}
                 </Text>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
@@ -500,6 +553,7 @@ export function PackhouseQcScreen() {
             check={specChecks.cutStage}
             onAccept={() => acceptSpecCheck('cutStage')}
             onActualValueChange={(v) => setSpecCheckActualValue('cutStage', v)}
+            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('cutStage', v)}
           />
           <SpecCheckRow
             label="Defoliation Length"
@@ -507,6 +561,7 @@ export function PackhouseQcScreen() {
             check={specChecks.defoliationLength}
             onAccept={() => acceptSpecCheck('defoliationLength')}
             onActualValueChange={(v) => setSpecCheckActualValue('defoliationLength', v)}
+            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('defoliationLength', v)}
           />
           <SpecCheckRow
             label="Rubber Band"
@@ -520,6 +575,7 @@ export function PackhouseQcScreen() {
             check={specChecks.rubberBand}
             onAccept={() => acceptSpecCheck('rubberBand')}
             onActualValueChange={(v) => setSpecCheckActualValue('rubberBand', v)}
+            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('rubberBand', v)}
           />
           {specification.validFrom || specification.expiryDate ? (
             <Text style={s.muted}>
@@ -578,7 +634,8 @@ export function PackhouseQcScreen() {
           <Card title="Bunch Inspection">
             <Text style={s.muted}>
               {orderTotalBunches > 0 ? `${orderTotalBunches} total bunches in this order. ` : ''}
-              Inspect bunches one at a time — accept or reject each before moving to the next.
+              Enter how many bunches you accepted, then add a row for each rejection reason with the
+              bunches it affected. Finish sampling when done.
             </Text>
             <View style={{ height: 16 }} />
 
@@ -586,38 +643,68 @@ export function PackhouseQcScreen() {
               <Button label="Start Bunch Sampling" onPress={startBunchSampling} />
             ) : (
               <>
-                {!bunchSampling.finished ? (
-                  <>
-                    <Text style={s.section}>BUNCH {bunchSampling.bunchIndex}</Text>
-                    <View style={{ height: 12 }} />
-                    <View style={s.actionRow}>
-                      <Button label="Accept" onPress={recordBunchAccept} style={{ flex: 1 }} />
-                      <Button
-                        label="Reject"
-                        variant="outline"
-                        onPress={() => {
-                          setPendingSampleUnit('bunch');
-                          setParamPickerOpen(true);
-                        }}
-                        style={{ flex: 1 }}
-                      />
-                    </View>
-                    <View style={{ height: 16 }} />
-                  </>
+                <LabeledInput
+                  label="Bunches Accepted"
+                  iconName="check-circle-outline"
+                  value={bunchSampling.acceptedBunches}
+                  onChangeText={setBunchesAccepted}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  editable={!bunchSampling.finished}
+                />
+
+                <View style={{ height: 16 }} />
+                <Text style={s.section}>REJECTIONS ({bunchRejections.length})</Text>
+                <View style={{ height: 8 }} />
+                {bunchRejections.length === 0 ? (
+                  <Text style={s.empty}>No rejections recorded.</Text>
                 ) : (
-                  <Text style={s.warn}>Sampling finished for this order.</Text>
+                  bunchRejections.map((r) => {
+                    const param = params.find((p) => p.name === r.reason);
+                    return (
+                      <BunchRejectionRow
+                        key={r.id}
+                        displayName={param?.parameter ?? r.reason}
+                        bunches={r.bunches}
+                        thresholdPercent={issueThresholdFor(r.reason)}
+                        editable={!bunchSampling.finished}
+                        onBunchesChange={(v) => setBunchRejectionBunches(r.id, v)}
+                        onRemove={() => removeBunchRejection(r.id)}
+                      />
+                    );
+                  })
                 )}
 
-                <View style={{ height: 8 }} />
+                {!bunchSampling.finished ? (
+                  <>
+                    <View style={{ height: 8 }} />
+                    <Pressable
+                      onPress={() => {
+                        setPendingSampleUnit('bunch');
+                        setParamPickerOpen(true);
+                      }}
+                      style={s.pickerRow}
+                      disabled={params.length === 0}
+                    >
+                      <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.textMuted} />
+                      <Text style={s.pickerText} numberOfLines={1}>
+                        {params.length === 0 ? 'Loading reasons…' : 'Add rejection reason'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+                    </Pressable>
+                  </>
+                ) : null}
+
+                <View style={{ height: 16 }} />
                 <View style={s.chipRow}>
                   <View style={s.chip}>
                     <Text style={s.chipText}>Inspected: {bunchesInspected}</Text>
                   </View>
                   <View style={s.chip}>
-                    <Text style={s.chipText}>Accepted: {bunchSampling.accepted}</Text>
+                    <Text style={s.chipText}>Accepted: {acceptedBunchesNum}</Text>
                   </View>
                   <View style={[s.chip, s.chipDanger]}>
-                    <Text style={s.chipText}>Rejected: {bunchSampling.rejected}</Text>
+                    <Text style={s.chipText}>Rejected: {rejectedBunchesTotal}</Text>
                   </View>
                 </View>
 
@@ -631,7 +718,12 @@ export function PackhouseQcScreen() {
                       disabled={bunchesInspected === 0}
                     />
                   </>
-                ) : null}
+                ) : (
+                  <>
+                    <View style={{ height: 8 }} />
+                    <Text style={s.warn}>Sampling finished for this order.</Text>
+                  </>
+                )}
               </>
             )}
           </Card>
@@ -696,6 +788,7 @@ export function PackhouseQcScreen() {
                     onRemove={() => removeIssue(issue.id)}
                     onCountChange={(n) => updateIssueCount(issue.id, n)}
                     showAction={!boxSamplingMode}
+                    toleranceInfo={issueToleranceInfo(issue)}
                     tolerance={
                       boxSamplingMode
                         ? {
@@ -800,6 +893,7 @@ export function PackhouseQcScreen() {
                   issue={issue}
                   displayName={param?.parameter ?? issue.paramName}
                   onRemove={() => removeIssue(issue.id)}
+                  toleranceInfo={issueToleranceInfo(issue)}
                 />
               );
             })
@@ -875,17 +969,33 @@ export function PackhouseQcScreen() {
         open={specPickerOpen}
         title="Select Specification"
         onClose={() => setSpecPickerOpen(false)}
-        options={specsForCustomer.map((spec) => ({
-          value: spec.name,
-          label: spec.specName,
-          subtitle: [spec.boxAssortment, spec.cutStage].filter(Boolean).join(' · '),
-        }))}
+        options={specsForCustomer.map((spec) => {
+          const orderCount = specOrderCounts[spec.name] ?? 0;
+          return {
+            value: spec.name,
+            label: spec.specName,
+            subtitle: [spec.boxAssortment, spec.cutStage].filter(Boolean).join(' · '),
+            hasOrders: orderCount > 0,
+            orderCount,
+          };
+        })}
         onPick={(value) => {
           const spec = specsForCustomer.find((sp) => sp.name === value);
           if (spec) {
             selectSpecificationFilter(spec);
           }
           setSpecPickerOpen(false);
+        }}
+      />
+
+      <PickerModal
+        open={teamPickerOpen}
+        title="Select Team"
+        onClose={() => setTeamPickerOpen(false)}
+        options={TEAMS.map((t) => ({ value: t, label: t }))}
+        onPick={(value) => {
+          selectTeamFilter(value);
+          setTeamPickerOpen(false);
         }}
       />
 
@@ -913,10 +1023,10 @@ export function PackhouseQcScreen() {
           setParamPickerOpen(false);
           setPendingSampleUnit(null);
         }}
-        options={params.map((p) => ({ value: p.name, label: p.parameter }))}
+        options={paramPickerOptions}
         onPick={(value) => {
           if (pendingSampleUnit === 'bunch') {
-            recordBunchReject(value);
+            addBunchRejection(value);
           } else {
             addIssueForParam(value);
           }
@@ -946,13 +1056,16 @@ function SpecCheckRow({
   check,
   onAccept,
   onActualValueChange,
+  onBunchesAffectedChange,
 }: {
   label: string;
   expected: string;
   check: SpecCheckState;
   onAccept: () => void;
   onActualValueChange: (value: string) => void;
+  onBunchesAffectedChange: (value: string) => void;
 }) {
+  const affected = Number.parseInt(check.bunchesAffected, 10) || 0;
   return (
     <View style={s.specCheckRow}>
       <View style={s.specCheckHead}>
@@ -973,13 +1086,34 @@ function SpecCheckRow({
         </Pressable>
       </View>
       {!check.accepted ? (
-        <TextInput
-          value={check.actualValue}
-          onChangeText={onActualValueChange}
-          placeholder={`Actual ${label.toLowerCase()} found on box, if different`}
-          placeholderTextColor={COLORS.textMuted}
-          style={s.specCheckInput}
-        />
+        <>
+          <TextInput
+            value={check.actualValue}
+            onChangeText={onActualValueChange}
+            placeholder={`Actual ${label.toLowerCase()} found on box, if different`}
+            placeholderTextColor={COLORS.textMuted}
+            style={s.specCheckInput}
+          />
+          <View style={s.specCheckAffectedRow}>
+            <Text style={s.specCheckAffectedLabel}>Bunches affected</Text>
+            <TextInput
+              value={check.bunchesAffected}
+              onChangeText={onBunchesAffectedChange}
+              placeholder="0"
+              keyboardType="number-pad"
+              placeholderTextColor={COLORS.textMuted}
+              style={s.specCheckAffectedInput}
+            />
+          </View>
+          {affected > 0 ? (
+            <View style={s.specCheckAffectedHintRow}>
+              <MaterialCommunityIcons name="arrow-down-right" size={14} color={COLORS.danger} />
+              <Text style={s.specCheckAffectedHint}>
+                Added to the issues list as “{label}” — {affected} bunch{affected === 1 ? '' : 'es'}.
+              </Text>
+            </View>
+          ) : null}
+        </>
       ) : null}
     </View>
   );
@@ -995,6 +1129,62 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
+/** One Grading QC rejection reason — the operator types how many bunches it
+ *  affected. The parameter's tolerance threshold is shown for reference; the
+ *  affected/tolerance verdict lives on the Review summary's issue rows. */
+function BunchRejectionRow({
+  displayName,
+  bunches,
+  thresholdPercent,
+  editable,
+  onBunchesChange,
+  onRemove,
+}: {
+  displayName: string;
+  bunches: string;
+  thresholdPercent: number;
+  editable: boolean;
+  onBunchesChange: (value: string) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <View style={s.issueCard}>
+      <View style={s.issueHead}>
+        <Text style={s.issueTitle}>{displayName}</Text>
+        {editable ? (
+          <Pressable onPress={onRemove} hitSlop={8}>
+            <MaterialCommunityIcons name="close" size={18} color={COLORS.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={{ height: 8 }} />
+      <View style={s.issueCountRow}>
+        <Text style={s.issueCountLabel}>Bunches affected</Text>
+        {editable ? (
+          <TextInput
+            value={bunches}
+            onChangeText={onBunchesChange}
+            keyboardType="number-pad"
+            style={s.issueCountInput}
+          />
+        ) : (
+          <View style={s.chip}>
+            <Text style={s.chipText}>{Number.parseInt(bunches, 10) || 0}</Text>
+          </View>
+        )}
+      </View>
+      <View style={s.toleranceChipWrap}>
+        <View style={[s.chip, { alignSelf: 'flex-start' }]}>
+          <MaterialCommunityIcons name="scale-balance" size={14} color={COLORS.textMuted} />
+          <Text style={s.chipText}>
+            {thresholdPercent <= 0 ? 'Zero tolerance' : `Tolerance ${thresholdPercent}%`}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function IssueRowCard({
   issue,
   displayName,
@@ -1002,6 +1192,7 @@ function IssueRowCard({
   showAction = true,
   countLabel,
   onCountChange,
+  toleranceInfo,
   tolerance,
 }: {
   issue: IssueRow;
@@ -1013,6 +1204,15 @@ function IssueRowCard({
    *  not the read-only Review summary. */
   countLabel?: string;
   onCountChange?: (count: number) => void;
+  /** The parameter's tolerance threshold (%) plus this issue's affected share
+   *  of the total checked — shown as a compare-to-tolerance badge on the row
+   *  when the full sample-based line below isn't available (outside Final QC).
+   *  `affectedPercent` is null when the checked total isn't known yet. */
+  toleranceInfo?: {
+    thresholdPercent: number;
+    affectedPercent: number | null;
+    breached: boolean;
+  };
   /** Final QC only — the parameter's tolerance and this issue's affected
    *  bunches, so the row can show whether it quarantines the order (breach)
    *  or is a partial reject (within tolerance). */
@@ -1055,7 +1255,55 @@ function IssueRowCard({
           ) : null}
         </View>
       )}
-      {tolerance ? <ToleranceLine {...tolerance} /> : null}
+      {tolerance ? (
+        <ToleranceLine {...tolerance} />
+      ) : toleranceInfo ? (
+        <IssueToleranceBadge {...toleranceInfo} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Compares an issue's affected share against its parameter's tolerance
+ *  threshold (from the QC Parameters list) and flags whether it exceeds it.
+ *  Display only — the operator still decides the final result. When the
+ *  checked total isn't known yet we show just the threshold, no verdict. */
+function IssueToleranceBadge({
+  thresholdPercent,
+  affectedPercent,
+  breached,
+}: {
+  thresholdPercent: number;
+  affectedPercent: number | null;
+  breached: boolean;
+}) {
+  const toleranceText = thresholdPercent <= 0 ? 'Zero tolerance' : `Tolerance ${thresholdPercent}%`;
+  if (affectedPercent === null) {
+    return (
+      <View style={s.toleranceChipWrap}>
+        <View style={[s.chip, { alignSelf: 'flex-start' }]}>
+          <MaterialCommunityIcons name="scale-balance" size={14} color={COLORS.textMuted} />
+          <Text style={s.chipText}>{toleranceText}</Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={s.toleranceChipWrap}>
+      <Text style={s.muted}>
+        {toleranceText} · {affectedPercent.toFixed(1)}% affected
+      </Text>
+      <View style={{ height: 6 }} />
+      <View style={[s.chip, breached ? s.chipDanger : s.chipAccepted, { alignSelf: 'flex-start' }]}>
+        <MaterialCommunityIcons
+          name={breached ? 'alert-circle' : 'check-circle'}
+          size={14}
+          color={breached ? COLORS.danger : COLORS.success}
+        />
+        <Text style={[s.chipText, { color: breached ? COLORS.danger : COLORS.success }]}>
+          {breached ? 'Exceeds tolerance' : 'Within tolerance'}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -1112,6 +1360,37 @@ function ResultBadge({ result }: { result: PackhouseOverallResult }) {
   );
 }
 
+type PickerOption = {
+  label: string;
+  value: string;
+  subtitle?: string;
+  /** Show a green tick on the row — e.g. a spec that has orders to QC. */
+  hasOrders?: boolean;
+  /** Optional count shown next to the tick. */
+  orderCount?: number;
+  /** When set on any option, the list renders labelled sections in the order
+   *  the groups first appear (e.g. QC parameter categories). */
+  group?: string;
+};
+
+/** Groups options into sections, preserving the order each group first appears
+ *  in — callers pass options already sorted into the desired category order. */
+function toPickerSections(items: PickerOption[]): { title: string; data: PickerOption[] }[] {
+  const sections: { title: string; data: PickerOption[] }[] = [];
+  const byTitle = new Map<string, { title: string; data: PickerOption[] }>();
+  for (const item of items) {
+    const title = item.group ?? '';
+    let section = byTitle.get(title);
+    if (!section) {
+      section = { title, data: [] };
+      byTitle.set(title, section);
+      sections.push(section);
+    }
+    section.data.push(item);
+  }
+  return sections;
+}
+
 function PickerModal({
   open,
   title,
@@ -1122,13 +1401,33 @@ function PickerModal({
   open: boolean;
   title: string;
   onClose: () => void;
-  options: { label: string; value: string; subtitle?: string }[];
+  options: PickerOption[];
   onPick: (value: string) => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = search
     ? options.filter((o) => `${o.label} ${o.subtitle ?? ''}`.toLowerCase().includes(search.toLowerCase()))
     : options;
+  const grouped = filtered.some((o) => o.group);
+
+  const renderRow = ({ item }: { item: PickerOption }) => (
+    <Pressable onPress={() => onPick(item.value)} style={s.modalRow}>
+      <View style={s.modalRowMain}>
+        <Text style={s.modalRowText}>{item.label}</Text>
+        {item.subtitle ? <Text style={s.modalRowSubtitle}>{item.subtitle}</Text> : null}
+      </View>
+      {item.hasOrders ? (
+        <View style={s.modalRowBadge}>
+          <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.success} />
+          {item.orderCount ? (
+            <Text style={s.modalRowBadgeText}>
+              {item.orderCount} {item.orderCount === 1 ? 'order' : 'orders'}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </Pressable>
+  );
 
   return (
     <Modal visible={open} animationType="slide" onRequestClose={onClose}>
@@ -1147,19 +1446,33 @@ function PickerModal({
           autoCapitalize="none"
           style={s.modalSearch}
         />
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.value}
-          ItemSeparatorComponent={() => <View style={s.modalSep} />}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <Pressable onPress={() => onPick(item.value)} style={s.modalRow}>
-              <Text style={s.modalRowText}>{item.label}</Text>
-              {item.subtitle ? <Text style={s.modalRowSubtitle}>{item.subtitle}</Text> : null}
-            </Pressable>
-          )}
-          ListEmptyComponent={<Text style={s.modalEmpty}>No matches.</Text>}
-        />
+        {grouped ? (
+          <SectionList
+            sections={toPickerSections(filtered)}
+            keyExtractor={(item) => item.value}
+            ItemSeparatorComponent={() => <View style={s.modalSep} />}
+            keyboardShouldPersistTaps="handled"
+            stickySectionHeadersEnabled
+            renderSectionHeader={({ section }) =>
+              section.title ? (
+                <View style={s.modalSectionHeader}>
+                  <Text style={s.modalSectionHeaderText}>{section.title}</Text>
+                </View>
+              ) : null
+            }
+            renderItem={renderRow}
+            ListEmptyComponent={<Text style={s.modalEmpty}>No matches.</Text>}
+          />
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.value}
+            ItemSeparatorComponent={() => <View style={s.modalSep} />}
+            keyboardShouldPersistTaps="handled"
+            renderItem={renderRow}
+            ListEmptyComponent={<Text style={s.modalEmpty}>No matches.</Text>}
+          />
+        )}
       </View>
     </Modal>
   );
@@ -1291,6 +1604,23 @@ const s = StyleSheet.create({
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
+  specCheckAffectedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  specCheckAffectedLabel: { fontSize: 13, color: COLORS.text, flex: 1 },
+  specCheckAffectedInput: {
+    width: 72,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: COLORS.text,
+    backgroundColor: COLORS.bg,
+    textAlign: 'center',
+  },
+  specCheckAffectedHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  specCheckAffectedHint: { fontSize: 12, color: COLORS.danger, flex: 1 },
+  toleranceChipWrap: { marginTop: 8 },
   issueCountRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   issueCountLabel: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
   issueCountInput: {
@@ -1348,9 +1678,33 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
-  modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
+  modalRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalRowMain: { flex: 1 },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   modalRowText: { fontSize: 15, color: COLORS.text },
   modalRowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  modalRowBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  modalRowBadgeText: { fontSize: 12, fontWeight: '700', color: COLORS.success },
+  modalSectionHeader: {
+    backgroundColor: COLORS.bgMuted,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+  },
+  modalSectionHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });
