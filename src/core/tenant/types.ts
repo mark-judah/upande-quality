@@ -17,7 +17,11 @@ export type DrawerItem = {
     | 'inspection-log'
     | 'intake-qc'
     | 'coldroom-qc'
-    | 'packhouse-qc';
+    | 'packhouse-qc'
+    | 'packhouse-checks'
+    | 'packhouse-inspection'
+    | 'packhouse-cleaning'
+    | 'packhouse-glass';
   icon: string; // Ionicons name
   /** When true, the screen renders a "Coming soon" placeholder regardless of
    *  tenant — used for surfaced-but-not-yet-built control points. */

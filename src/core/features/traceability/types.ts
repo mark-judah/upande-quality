@@ -8,7 +8,14 @@ export type TraceabilityStatus =
 
 export type RoseType = 'Standards' | 'Spray Roses';
 
-export type StageName = 'Harvest' | 'Grading' | 'Receiving' | 'Shelving' | 'Allocation' | 'Issued';
+export type StageName =
+  | 'Harvest'
+  | 'Grading'
+  | 'Receiving'
+  | 'Quarantine Rejects'
+  | 'Shelving'
+  | 'Allocation'
+  | 'Issued';
 
 export type WhoKind = 'payroll' | 'user' | '';
 
