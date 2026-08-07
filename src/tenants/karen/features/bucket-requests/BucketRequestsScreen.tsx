@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Alert as RNAlert,
   Modal,
@@ -24,10 +24,16 @@ import {
   useKarenBucketRequestsStore,
   type OrderGroup,
   type TrolleyOpl,
+  type PlannedTrip,
+  type PlannedTripStop,
 } from '@/src/tenants/karen/state/karen-bucket-requests-store';
 import type { ReqOpl, ReqBucket, Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 
-type Tab = 'requests' | 'trolley' | 'transit';
+type Tab = 'requests' | 'trips' | 'trolley' | 'transit';
+
+/** OPL name -> its planned trip, so the Requests tab can grey unscheduled ones. */
+type OplTripInfo = { tripId: string; confirmed: boolean; status: string };
+type OplTripMap = Record<string, OplTripInfo>;
 
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const trolleyRef = useRef<ScanFieldHandle>(null);
@@ -47,16 +53,20 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     trolley,
     inTransit,
     vehicles,
+    plannedTrips,
     reqCount,
     trolleyCount,
     inTransitCount,
+    tripsCount,
     activeTrolleyId,
     online,
     downloading,
+    loadingTrips,
     syncingOpl,
     init,
     refresh,
     download,
+    loadPlannedTrips,
     setTrolleyFromScan,
     clearActiveTrolley,
     scanBucketFromScan,
@@ -64,6 +74,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     markInTransit,
     clearAll,
   } = useKarenBucketRequestsStore();
+
+  // OPL name -> the planned trip it sits on (for greying the Requests tab).
+  const oplTrip = useMemo(() => {
+    const m: OplTripMap = {};
+    for (const t of plannedTrips) {
+      for (const o of t.orders ?? []) {
+        if (o.opl) m[o.opl] = { tripId: t.tripId, confirmed: t.confirmed, status: t.status };
+      }
+    }
+    return m;
+  }, [plannedTrips]);
 
   useEffect(() => {
     init();
@@ -149,10 +170,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      // On the Trips tab a pull also re-pulls the live plan (when online).
+      if (tab === 'trips' && online) await loadPlannedTrips(userFarm);
       await refresh();
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const onRefreshTrips = async () => {
+    const r = await loadPlannedTrips(userFarm);
+    if (!r.ok && r.message) showError(r.message);
   };
 
   if (!ready && error) {
@@ -256,13 +284,22 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           onChange={(v) => setTab(v as Tab)}
           options={[
             { value: 'requests', label: `Requests (${reqCount})` },
+            { value: 'trips', label: `Trips (${tripsCount})` },
             { value: 'trolley', label: `Trolley (${trolleyCount})` },
             { value: 'transit', label: `In Transit (${inTransitCount})` },
           ]}
         />
 
         {tab === 'requests' ? (
-          <RequestsTab groups={requests} />
+          <RequestsTab groups={requests} oplTrip={oplTrip} />
+        ) : tab === 'trips' ? (
+          <TripsTab
+            trips={plannedTrips}
+            farm={userFarm}
+            online={online}
+            loading={loadingTrips}
+            onRefresh={onRefreshTrips}
+          />
         ) : tab === 'trolley' ? (
           <TrolleyTab items={trolley} syncingOpl={syncingOpl} onLoad={onLoad} onTransit={onTransit} />
         ) : (
@@ -362,7 +399,7 @@ function TruckPicker({
   );
 }
 
-function RequestsTab({ groups }: { groups: OrderGroup[] }) {
+function RequestsTab({ groups, oplTrip }: { groups: OrderGroup[]; oplTrip: OplTripMap }) {
   const [query, setQuery] = useState('');
 
   if (!groups.length) {
@@ -386,6 +423,11 @@ function RequestsTab({ groups }: { groups: OrderGroup[] }) {
       })
     : groups;
 
+  // Orders on a trip come first; unscheduled ones sink to the bottom (greyed).
+  const isScheduled = (g: OrderGroup) => g.opls.some((o) => !!oplTrip[o.oplName]);
+  const sorted = [...filtered].sort((a, b) => Number(isScheduled(b)) - Number(isScheduled(a)));
+  const firstUnschedIdx = sorted.findIndex((g) => !isScheduled(g));
+
   return (
     <>
       <View style={s.searchRow}>
@@ -406,7 +448,7 @@ function RequestsTab({ groups }: { groups: OrderGroup[] }) {
         ) : null}
       </View>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <Card>
           <View style={s.empty}>
             <Text style={s.emptyHint}>No orders match “{query}”.</Text>
@@ -414,14 +456,20 @@ function RequestsTab({ groups }: { groups: OrderGroup[] }) {
         </Card>
       ) : null}
 
-      {filtered.map((g) => {
+      {sorted.map((g, idx) => {
         const customer = g.opls.find((o) => o.customer)?.customer;
+        const scheduled = isScheduled(g);
         return (
           <View key={g.orderName}>
-            <Text style={s.groupHdr}>{g.orderName}</Text>
-            {customer ? <Text style={s.groupCustomer}>{customer}</Text> : null}
+            {firstUnschedIdx > 0 && idx === firstUnschedIdx ? (
+              <Text style={s.sectionHdr}>Not on a trip yet</Text>
+            ) : null}
+            <Text style={[s.groupHdr, !scheduled ? s.groupHdrDim : null]}>{g.orderName}</Text>
+            {customer ? (
+              <Text style={[s.groupCustomer, !scheduled ? s.groupHdrDim : null]}>{customer}</Text>
+            ) : null}
             {g.opls.map((o) => (
-              <OplCard key={o.oplName} opl={o} />
+              <OplCard key={o.oplName} opl={o} trip={oplTrip[o.oplName]} />
             ))}
           </View>
         );
@@ -430,10 +478,39 @@ function RequestsTab({ groups }: { groups: OrderGroup[] }) {
   );
 }
 
-function OplCard({ opl }: { opl: ReqOpl }) {
+/** Bucket meta line: "Variety · 40cm · Shelf", omitting any empty part. A bare
+ *  numeric stem length gets a "cm" suffix; anything else is shown as-is. */
+function bucketMeta(variety: string, stemLength: string, shelf: string): string {
+  const stem = (stemLength || '').trim();
+  const stemLabel = stem ? (/^\d+(\.\d+)?$/.test(stem) ? `${stem}cm` : stem) : '';
+  return [variety, stemLabel, shelf].filter(Boolean).join(' · ');
+}
+
+function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
   const pct = opl.total > 0 ? Math.round((opl.scanned / opl.total) * 100) : 0;
+  const dimmed = !trip;
   return (
+    <View style={dimmed ? s.dimmed : undefined}>
     <Card>
+      <View style={s.oplTagRow}>
+        {trip ? (
+          <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
+            <Ionicons
+              name="car"
+              size={12}
+              color={trip.confirmed ? (COLORS.textOnPrimary ?? '#fff') : COLORS.text}
+            />
+            <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]} numberOfLines={1}>
+              {trip.tripId} · {trip.confirmed ? 'Confirmed' : 'Planned'}
+            </Text>
+          </View>
+        ) : (
+          <View style={s.oplTagUnsched}>
+            <Ionicons name="ellipse-outline" size={11} color={COLORS.textMuted} />
+            <Text style={s.oplTagUnschedText}>Unscheduled</Text>
+          </View>
+        )}
+      </View>
       <View style={s.oplHead}>
         <View style={{ flex: 1 }}>
           <Text style={s.oplDate}>{opl.createdOn || '—'}</Text>
@@ -457,8 +534,7 @@ function OplCard({ opl }: { opl: ReqOpl }) {
           <View style={{ flex: 1 }}>
             <Text style={s.bId}>{b.bucketId}</Text>
             <Text style={s.bMeta} numberOfLines={1}>
-              {b.variety}
-              {b.shelf ? ` · ${b.shelf}` : ''}
+              {bucketMeta(b.variety, b.stemLength, b.shelf)}
             </Text>
           </View>
           <Text style={s.bQty}>
@@ -467,6 +543,7 @@ function OplCard({ opl }: { opl: ReqOpl }) {
         </View>
       ))}
     </Card>
+    </View>
   );
 }
 
@@ -491,8 +568,7 @@ function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
           <View style={{ flex: 1 }}>
             <Text style={s.bId}>{b.bucketId}</Text>
             <Text style={s.bMeta} numberOfLines={1}>
-              {b.variety}
-              {b.shelf ? ` · ${b.shelf}` : ''}
+              {bucketMeta(b.variety, b.stemLength, b.shelf)}
             </Text>
           </View>
           <Text style={s.bQty}>{b.trolleyId || ''}</Text>
@@ -585,6 +661,134 @@ function InTransitTab({ items }: { items: TrolleyOpl[] }) {
   );
 }
 
+/** Upcoming planned trips coming to collect from this farm — so the attendant
+ *  can pre-stage trolleys before the truck arrives. */
+function TripsTab({
+  trips,
+  farm,
+  online,
+  loading,
+  onRefresh,
+}: {
+  trips: PlannedTrip[];
+  farm: string;
+  online: boolean;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <>
+      <View style={s.tripsHead}>
+        <Text style={s.tripsHint} numberOfLines={2}>
+          {farm ? `Trucks coming for ${farm}` : 'Upcoming trips'} — start staging trolleys before they
+          arrive.
+        </Text>
+        <Pressable style={s.refreshTrips} hitSlop={8} onPress={onRefresh} disabled={loading}>
+          <Ionicons name="refresh" size={15} color={COLORS.text} />
+          <Text style={s.refreshTripsText}>{loading ? '…' : 'Refresh'}</Text>
+        </Pressable>
+      </View>
+
+      {!trips.length ? (
+        <Card>
+          <View style={s.empty}>
+            <Ionicons name="bus-outline" size={26} color={COLORS.textMuted} />
+            <Text style={s.emptyTitle}>No planned trips</Text>
+            <Text style={s.emptyHint}>
+              {online
+                ? 'No trucks are scheduled to collect from your farm yet. Pull down to refresh.'
+                : 'Connect to the internet and pull down to load the trip plan.'}
+            </Text>
+          </View>
+        </Card>
+      ) : (
+        trips.map((t) => <TripCard key={t.tripId} trip={t} />)
+      )}
+    </>
+  );
+}
+
+/** Visual treatment per stop status. */
+const STOP_UI: Record<
+  PlannedTripStop['status'],
+  { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
+  waiting: { label: 'Not loaded', color: COLORS.danger, icon: 'ellipse-outline' },
+  loading: { label: 'Loading', color: COLORS.warn, icon: 'time-outline' },
+  ready: { label: 'Trolleys ready', color: COLORS.success, icon: 'checkmark-circle' },
+  transit: { label: 'On the truck', color: '#2E90FA', icon: 'car' },
+  done: { label: 'Delivered', color: COLORS.textMuted, icon: 'checkmark-done-circle' },
+};
+
+function StopRow({ stop }: { stop: PlannedTripStop }) {
+  const ui = STOP_UI[stop.status] ?? STOP_UI.waiting;
+  const progress = stop.total > 0 ? `${stop.doneCount}/${stop.total}` : `${stop.planned}`;
+  return (
+    <View style={[s.stopRow, stop.isYou ? s.stopRowYou : null]}>
+      <Text style={[s.stopNum, stop.isYou ? s.stopNumYou : null]}>{stop.stop}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={s.stopFarm} numberOfLines={1}>
+          {stop.farm}
+          {stop.isYou ? '  · you' : ''}
+          {stop.delaying ? '  ⚠︎' : ''}
+        </Text>
+        <Text style={[s.stopStatus, { color: ui.color }]} numberOfLines={1}>
+          {ui.label} · {progress}
+          {stop.delaying ? ' · holding up the run' : ''}
+        </Text>
+      </View>
+      <Ionicons name={ui.icon} size={16} color={ui.color} />
+    </View>
+  );
+}
+
+function TripCard({ trip }: { trip: PlannedTrip }) {
+  return (
+    <Card>
+      <View style={s.tripHead}>
+        <View style={s.tripTruck}>
+          <Ionicons name="car" size={16} color={COLORS.text} />
+          <Text style={s.tripTruckText} numberOfLines={1}>
+            {trip.vehicle || 'No truck yet'}
+          </Text>
+        </View>
+        {trip.inTransit ? (
+          <View style={[s.tripPill, s.tripPillTransit]}>
+            <Text style={[s.tripPillText, s.tripPillTextConfirmed]}>In transit</Text>
+          </View>
+        ) : null}
+        <View style={[s.tripPill, trip.confirmed ? s.tripPillConfirmed : s.tripPillDraft]}>
+          <Text
+            style={[s.tripPillText, trip.confirmed ? s.tripPillTextConfirmed : s.tripPillTextDraft]}
+          >
+            {trip.confirmed ? 'Confirmed' : 'Planned'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={s.tripMetaRow}>
+        <Text style={s.tripMeta} numberOfLines={1}>
+          {trip.tripId}
+          {trip.tripDate ? ` · ${trip.tripDate}` : ''}
+        </Text>
+        {trip.yourStop > 0 && trip.totalStops > 1 ? (
+          <Text style={s.tripStop}>
+            You’re stop {trip.yourStop} of {trip.totalStops} · {trip.farmBuckets} bkt
+          </Text>
+        ) : (
+          <Text style={s.tripStop}>{trip.farmBuckets} bkt for you</Text>
+        )}
+      </View>
+
+      <View style={s.divider} />
+      <Text style={s.routeLabel}>Collection route</Text>
+      {(trip.stops ?? []).map((st) => (
+        <StopRow key={`${trip.tripId}-${st.stop}-${st.farm}`} stop={st} />
+      ))}
+    </Card>
+  );
+}
+
 const s = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
@@ -628,6 +832,42 @@ const s = StyleSheet.create({
     marginBottom: 2,
     marginLeft: spacing.xs,
   },
+  groupHdrDim: { color: COLORS.textMuted },
+  sectionHdr: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  dimmed: { opacity: 0.5 },
+  oplTagRow: { flexDirection: 'row', marginBottom: spacing.xs },
+  oplTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+  },
+  oplTagConfirmed: { backgroundColor: COLORS.success },
+  oplTagPlanned: { backgroundColor: COLORS.surfaceAlt },
+  oplTagText: { fontFamily: fontFamily.semiBold, fontSize: 11, color: COLORS.text },
+  oplTagTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
+  oplTagUnsched: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+  },
+  oplTagUnschedText: { fontFamily: fontFamily.medium, fontSize: 11, color: COLORS.textMuted },
   groupCustomer: {
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
@@ -663,6 +903,70 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.text,
   },
   badgeTxt: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.textOnPrimary ?? '#fff' },
+  // Trips tab
+  tripsHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  tripsHint: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
+  refreshTrips: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  refreshTripsText: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.text },
+  tripHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  tripTruckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
+  tripPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
+  tripPillConfirmed: { backgroundColor: COLORS.success },
+  tripPillDraft: { backgroundColor: COLORS.surfaceAlt },
+  tripPillTransit: { backgroundColor: '#2E90FA' },
+  tripPillText: { fontFamily: fontFamily.bold, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
+  tripPillTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
+  tripPillTextDraft: { color: COLORS.textMuted },
+  routeLabel: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  stopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: borderRadius.sm,
+  },
+  stopRowYou: { backgroundColor: COLORS.surfaceAlt },
+  stopNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontFamily: fontFamily.bold,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    backgroundColor: COLORS.surfaceAlt,
+    overflow: 'hidden',
+  },
+  stopNumYou: { color: COLORS.textOnPrimary ?? '#fff', backgroundColor: COLORS.text },
+  stopFarm: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  stopStatus: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, marginTop: 1 },
+  tripMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: 4,
+  },
+  tripMeta: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
+  tripStop: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
+  tripBucketsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  tripBucketsText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   empty: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },
   emptyTitle: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   emptyHint: {

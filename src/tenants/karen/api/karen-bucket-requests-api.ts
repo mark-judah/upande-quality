@@ -78,6 +78,60 @@ export type RawTrolleyActionResponse = {
   };
 };
 
+/** One order-portion from THIS farm sitting on a planned trip. */
+export type RawPlannedTripOrder = {
+  opl?: string;
+  order_name?: string;
+  customer?: string;
+  farm?: string;
+  varieties?: string;
+  buckets?: number;
+  stems?: number;
+};
+
+/** One stop (farm) on a trip's collection route, with its live loading status. */
+export type RawPlannedTripStop = {
+  farm?: string;
+  stop?: number;
+  is_you?: number;
+  planned?: number;
+  total?: number;
+  awaiting?: number;
+  loaded?: number;
+  transit?: number;
+  shelved?: number;
+  done_count?: number;
+  /** waiting | loading | ready | transit | done */
+  status?: string;
+  /** 1 = first stop still holding up the run (bottleneck). */
+  delaying?: number;
+};
+
+/** One upcoming planned trip (Bucket Request Trip) that collects from this farm. */
+export type RawPlannedTrip = {
+  trip?: string;
+  vehicle?: string;
+  trip_date?: string;
+  status?: string;
+  capacity?: number;
+  trip_buckets?: number;
+  /** 1 = some buckets on this trip are already on the truck / delivered. */
+  in_transit?: number;
+  /** Buckets bound for this trip that come from THIS farm. */
+  farm_buckets?: number;
+  /** This farm's position in the collection route (1-based; 0 = unsequenced). */
+  your_stop?: number;
+  total_stops?: number;
+  /** Every stop on the route, in collection order, with live status. */
+  stops?: RawPlannedTripStop[];
+  /** THIS farm's order lines on the trip (used to tag the Requests tab). */
+  orders?: RawPlannedTripOrder[];
+};
+
+export type RawPlannedTripsResponse = {
+  message?: { status?: string; data?: RawPlannedTrip[]; farm?: string; message?: string };
+};
+
 /** One truck from /getDispatchTrucks (Vehicle where custom_dispatch_truck = 0). */
 export type RawDispatchTruck = { name?: string; license_plate?: string };
 
@@ -92,6 +146,18 @@ export const karenBucketRequestsApi = {
     return api<RawAllocationResponse>({
       method: 'POST',
       url: '/api/method/fetchAllocatedBuckets',
+      data: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Upcoming planned trips (Bucket Request Trip) that will collect buckets from
+   *  `farm`, so the cold-store attendant can pre-stage trolleys. Standalone
+   *  endpoint — separate from the production allocation/trolley scripts. */
+  getFarmPlannedTrips(farm: string): Promise<RawPlannedTripsResponse> {
+    return api<RawPlannedTripsResponse>({
+      method: 'POST',
+      url: '/api/method/getFarmPlannedTrips',
       data: { farm },
       validateStatus: () => true,
     });

@@ -789,6 +789,40 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
     <div class="aph-content">
 
+      <style>
+      .aph .status-well.sw-transit{background:#eef6f5;border-color:var(--signal)}
+      .aph .status-well.sw-discard{background:var(--bad-soft);border-color:var(--bad)}
+      .aph .path-stage.pk-transfer.ps-done .ps-lbl,.aph .path-stage.pk-transfer.ps-done .ps-stat{color:var(--warn)}
+      .aph .path-stage.pk-discard.ps-done .ps-lbl,.aph .path-stage.pk-discard.ps-done .ps-stat{color:var(--bad)}
+      .aph .mv-trail{position:relative;margin:4px 0 6px;padding-left:20px;border-left:2px solid var(--hairline)}
+      .aph .mv-item{position:relative;padding:0 0 12px}
+      .aph .mv-dot{position:absolute;left:-27px;top:3px;width:11px;height:11px;border-radius:50%;background:var(--ink-mute);box-shadow:0 0 0 3px var(--surface-2)}
+      .aph .mv-item.mv-onshelf .mv-dot{background:var(--signal)}
+      .aph .mv-item.mv-transfer .mv-dot{background:var(--warn)}
+      .aph .mv-item.mv-issue .mv-dot{background:#7c5cfc}
+      .aph .mv-item.mv-discard .mv-dot{background:var(--bad)}
+      .aph .mv-item.mv-clear .mv-dot{background:var(--ink-faint)}
+      .aph .mv-h{font:600 12px var(--f);color:var(--ink)}
+      .aph .mv-h strong{font-family:var(--mono);font-weight:600}
+      .aph .mv-farm{font:500 11px var(--mono);color:var(--ink-mute)}
+      .aph .mv-tag{font:600 9px var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:1px 7px;border-radius:999px;background:rgba(10,10,10,.05);color:var(--ink-2);margin-left:4px;white-space:nowrap}
+      .aph .mv-item.mv-transfer .mv-tag{background:var(--warn-soft);color:var(--warn)}
+      .aph .mv-item.mv-issue .mv-tag{background:#f0ecfe;color:#7c5cfc}
+      .aph .mv-item.mv-discard .mv-tag{background:var(--bad-soft);color:var(--bad)}
+      .aph .mv-item.mv-onshelf .mv-tag{background:var(--signal-soft);color:var(--signal)}
+      .aph .status-well.sw-replace{background:#eef4fb;border-color:#1a5fb4}
+      .aph .mv-item.mv-replace .mv-dot{background:#1a5fb4}
+      .aph .mv-item.mv-replace .mv-tag{background:#e6f1ff;color:#1a5fb4}
+      .aph .mv-item.mv-reject .mv-dot{background:#ea580c}
+      .aph .mv-item.mv-reject .mv-tag{background:#fff3e6;color:#c2410c}
+      .aph .status-well.sw-quar{background:#fef7e6;border-color:#b45309}
+      .aph .mv-item.mv-quar .mv-dot{background:#b45309}
+      .aph .mv-item.mv-quar .mv-tag{background:#fef3c7;color:#92400e}
+      .aph .mv-item.mv-quar-out .mv-dot{background:#15803d}
+      .aph .mv-item.mv-quar-out .mv-tag{background:#dcfce7;color:#15803d}
+      .aph .mv-m{font:500 11px var(--mono);color:var(--ink-mute);margin-top:2px}
+      .aph .mv-m a{color:var(--signal);text-decoration:none}.aph .mv-m a:hover{text-decoration:underline}
+      </style>
       <div class="aph-page-hd">
         <div class="ttl">Traceability</div>
         <div class="sub">Track a bucket or bunch across its full harvest-to-issue journey</div>
@@ -1094,7 +1128,9 @@ async function trackBucket() {
     q('correctBtn').style.display = 'none';
 
     try {
-        const [harvestSEs, receiveSEs, shelves, allocRows, oplParents] = await Promise.all([
+        // bucket_id casing is inconsistent across tables — match all variants
+        const idVariants = [...new Set([id, id.toUpperCase(), id.toLowerCase()])];
+        const [harvestSEs, receiveSEs, shelfLogRows, allocRows, oplParents, discardSEs, rejectSEs, quarantineSEs] = await Promise.all([
             flP('Stock Entry',
                 [['custom_bucket_id','=',id],['stock_entry_type','=','Harvesting']],
                 ['name','posting_date','posting_time','custom_farm','custom_greenhouse',
@@ -1107,12 +1143,28 @@ async function trackBucket() {
                  'custom_stem_length','custom_harvest_batch_no','custom_received_bucket_id',
                  'to_warehouse','from_warehouse','stock_entry_type','custom_scanned','docstatus'],
                 2000,'posting_date asc, posting_time asc'),
-            flP('Shelf',[['Shelf Item','bucket_id','=',id]],['name','shelf_id','farm'],20),
+            // Shelving Log = the persistent shelf/transfer/issue/discard history (Shelf Item is cleared on issue)
+            flP('Shelving Log',[['bucket_id','in',idVariants]],
+                ['name','shelf','farm','variety','stem_qty','stem_length','greenhouse',
+                 'shelved_on','removed_on','reason','shelved_by'],
+                800,'shelved_on asc'),
             flP('Bucket Allocation Status',[['bucket_id','=',id]],
                 ['name','bucket_id','item_code','warehouse','farm','stem_length',
                  'shelf_location','shelf_farm','harvest_date','total_quantity',
                  'allocated_quantity','available_quantity'],1),
             flP('Order Pick List',[['Pick List Item','custom_bucket','=',id]],['name'],100),
+            flP('Stock Entry',
+                [['custom_received_bucket_id','in',idVariants],['stock_entry_type','=','Discard'],['docstatus','=',1]],
+                ['name','posting_date','posting_time','custom_farm'],200,'posting_date asc, posting_time asc'),
+            // QC rejects: Field Rejects (grading) + Packhouse Rejects (packhouse QC), keyed by received bucket id
+            flP('Stock Entry',
+                [['custom_received_bucket_id','in',idVariants],['stock_entry_type','in',['Field Rejects','Packhouse Rejects']],['docstatus','=',1]],
+                ['name','posting_date','posting_time','custom_farm','stock_entry_type'],200,'posting_date asc, posting_time asc'),
+            // Quarantine: 'Receiving Quarantined' = into quarantine; 'Quarantine Rejects'/'Remove From
+            // Quarantine' = out; 'Material Transfer' = the accept-release (only counts if quarantined).
+            flP('Stock Entry',
+                [['custom_received_bucket_id','in',idVariants],['stock_entry_type','in',['Receiving Quarantined','Quarantine Rejects','Remove From Quarantine','Material Transfer']],['docstatus','=',1]],
+                ['name','posting_date','posting_time','custom_farm','stock_entry_type'],200,'posting_date asc, posting_time asc'),
         ]);
 
         const batchNos = [...new Set(harvestSEs.map(se => se.custom_harvest_batch_no).filter(Boolean))];
@@ -1132,13 +1184,16 @@ async function trackBucket() {
             gradingSEs = results.flat().sort((a,b) => seDt(a).localeCompare(seDt(b)));
         }
 
-        let shelfData = [];
-        for (const shelf of shelves) {
-            const doc = await fgP('Shelf', shelf.name);
-            if (!doc) continue;
-            (doc.items||[]).filter(i => (i.bucket_id||'').toLowerCase()===id.toLowerCase())
-                .forEach(i => shelfData.push({...i,shelf_name:doc.name,shelf_farm:doc.farm}));
-        }
+        // Shelving Log episodes → shelfData. Keep shelf_name/shelf_farm/date_added
+        // aliases so the existing render works, plus reason/removed_on for the
+        // transfer/issue/discard steps and the per-journey movement trail.
+        let shelfData = (shelfLogRows||[]).map(r => ({
+            ...r,
+            shelf_name: r.shelf, shelf_farm: r.farm, date_added: r.shelved_on
+        }));
+        let discardData = discardSEs || [];
+        let rejectData = rejectSEs || [];
+        let quarantineData = quarantineSEs || [];
 
         const allocData = allocRows[0]||null;
         const allocFull = allocData ? await fgP('Bucket Allocation Status', allocData.name) : null;
@@ -1188,7 +1243,7 @@ async function trackBucket() {
                      ||shelfData.length||allocData||oplData.length;
         if (!hasData) { q('emptyMsg').textContent = 'No records found for this Bucket ID.'; setState('empty'); return; }
 
-        G = { id, harvestSEs, gradingSEs, receiveSEs, shelfData, allocData, allocFull, oplData, seQtyMap };
+        G = { id, harvestSEs, gradingSEs, receiveSEs, shelfData, discardData, rejectData, quarantineData, allocData, allocFull, oplData, seQtyMap };
         buildJourneys();
 
     } catch (err) {
@@ -1199,7 +1254,7 @@ async function trackBucket() {
 }
 
 function buildJourneys() {
-    const { id, harvestSEs, gradingSEs, receiveSEs, shelfData, allocData, allocFull, oplData } = G;
+    const { id, harvestSEs, gradingSEs, receiveSEs, shelfData, discardData, rejectData, quarantineData, allocData, allocFull, oplData } = G;
     const jmap = {};
 
     function getOrCreate(sessionKey, farm, variety) {
@@ -1246,10 +1301,33 @@ function buildJourneys() {
         }
         return best||candidates[0];
     }
-    journeys.forEach(j=>{j.shelfData=[];j.allocData=null;j.allocFull=null;j.oplData=[];});
+    journeys.forEach(j=>{j.shelfData=[];j.discardData=[];j.rejectData=[];j.quarantineData=[];j.allocData=null;j.allocFull=null;j.oplData=[];});
     const varietyIndex={};
     for (const j of journeys){const v=(j.variety||'').toLowerCase();if(!varietyIndex[v])varietyIndex[v]=[];varietyIndex[v].push(j);}
-    for (const row of shelfData){const v=(row.variety||'').toLowerCase();const j=matchJourney(row.date_added?.split(' ')[0]||'',v,varietyIndex[v]||[]);if(j)j.shelfData.push(row);}
+    // Shelving Log episodes → journey by (date, variety); if the variety isn't
+    // indexed (blank on the log row) fall back to the latest journey started on/before the episode.
+    for (const row of shelfData){
+        const v=(row.variety||'').toLowerCase();
+        let j=matchJourney(row.date_added?.split(' ')[0]||'',v,varietyIndex[v]||[]);
+        if(!j) j=journeyByDate(journeys,(row.date_added||'').split(' ')[0]);
+        if(j)j.shelfData.push(row);
+    }
+    journeys.forEach(j=>j.shelfData.sort((a,b)=>String(a.shelved_on||'').localeCompare(String(b.shelved_on||''))));
+    // Discard stock entries → journey by date (discards carry no variety here).
+    for (const se of (discardData||[])){
+        const j=journeyByDate(journeys,se.posting_date||'');
+        if(j)j.discardData.push(se);
+    }
+    // QC reject stock entries → journey by date.
+    for (const se of (rejectData||[])){
+        const j=journeyByDate(journeys,se.posting_date||'');
+        if(j)j.rejectData.push(se);
+    }
+    // Quarantine stock entries → journey by date.
+    for (const se of (quarantineData||[])){
+        const j=journeyByDate(journeys,se.posting_date||'');
+        if(j)j.quarantineData.push(se);
+    }
 
     // OPL matching: buckets are reused across trips.
     // Only assign an OPL row to a journey whose harvest started ON OR BEFORE the OPL date.
@@ -1291,6 +1369,16 @@ function buildJourneys() {
 
 function journeyStartDate(j) {
     return j.harvestSEs[0]?.posting_date||j.gradingSEs[0]?.posting_date||j.receivingSEs[0]?.posting_date||'';
+}
+// The journey whose cycle contains a given date = the latest one started on/before it.
+function journeyByDate(journeys, dateStr) {
+    if (!dateStr || !journeys.length) return journeys[journeys.length-1]||null;
+    let best=null, bestStart='';
+    for (const j of journeys) {
+        const s=journeyStartDate(j)||'';
+        if (s && s<=dateStr && s>=bestStart) { best=j; bestStart=s; }
+    }
+    return best || journeys[journeys.length-1] || null;
 }
 function renderJourneyTabs(all, limit) {
     const shown=limit>0?all.slice(-limit):all;
@@ -1337,11 +1425,24 @@ function resetFilter() {
 }
 
 function journeyStatus(j) {
-    const onShelf=j.shelfData?.length>0, onOPL=j.oplData?.length>0;
-    const issued=onOPL&&j.oplData.some(r=>r.custom_issued==1);
+    const sd=j.shelfData||[];
+    const shelved=sd.length>0, onShelfNow=sd.some(r=>!r.removed_on);
+    const transferred=sd.some(r=>(r.reason||'').indexOf('Transferred')>=0);
+    const replaced=sd.some(r=>r.reason==='Replaced');
+    const discarded=(j.discardData?.length>0)||sd.some(r=>r.reason==='Discarded');
+    const onOPL=j.oplData?.length>0;
+    const issued=(onOPL&&j.oplData.some(r=>r.custom_issued==1))||sd.some(r=>r.reason==='Issued to Sales Order');
+    const qTypes=(j.quarantineData||[]).map(se=>se.stock_entry_type);
+    const qin=qTypes.indexOf('Receiving Quarantined')>=0;
+    const qout=qTypes.indexOf('Quarantine Rejects')>=0||qTypes.indexOf('Remove From Quarantine')>=0||(qin&&qTypes.indexOf('Material Transfer')>=0);
+    if (discarded) return {label:'Discarded',labelCls:'label-danger',cls:'sw-discard'};
     if (issued) return {label:'Issued',labelCls:'label-success',cls:'sw-issued'};
-    if (onOPL&&!issued) return {label:'Pending Issue',labelCls:'label-warning',cls:'sw-pending'};
-    if (onShelf) return {label:'On Shelf',labelCls:'label-primary',cls:'sw-onshelf'};
+    if (onOPL) return {label:'Pending Issue',labelCls:'label-warning',cls:'sw-pending'};
+    if (qin && !qout && !onShelfNow) return {label:'Quarantined',labelCls:'label-warning',cls:'sw-quar'};
+    if (replaced&&!onShelfNow) return {label:'Replaced',labelCls:'label-default',cls:'sw-replace'};
+    if (transferred&&!onShelfNow) return {label:'In Transit',labelCls:'label-info',cls:'sw-transit'};
+    if (onShelfNow) return {label:'On Shelf',labelCls:'label-primary',cls:'sw-onshelf'};
+    if (shelved) return {label:'Shelved',labelCls:'label-primary',cls:'sw-onshelf'};
     if (j.receivingSEs?.length) return {label:'Received',labelCls:'label-info',cls:'sw-recv'};
     if (j.gradingSEs?.length) return {label:'Graded',labelCls:'label-info',cls:'sw-graded'};
     return {label:'Harvested',labelCls:'label-success',cls:'sw-hvst'};
@@ -1352,17 +1453,33 @@ const STAGES_STANDARD = [{key:'Harvest',lbl:'Harvest'},{key:'Receiving',lbl:'Rec
 
 function renderJourney(j) {
     currentJourneyForCorrection = j;
-    const { harvestSEs, gradingSEs, receivingSEs, shelfData, allocData, allocFull, oplData, flowerType } = j;
-    const onShelf=shelfData?.length>0, shelfRow=shelfData?.[0]||null, shelfId=shelfRow?.shelf_name||allocData?.shelf_location||'';
-    const onOPL=oplData?.length>0, issued=onOPL&&oplData.some(r=>r.custom_issued==1);
+    const { harvestSEs, gradingSEs, receivingSEs, shelfData, discardData, rejectData, quarantineData, allocData, allocFull, oplData, flowerType } = j;
+    const sd = shelfData||[];
+    const rejected = (rejectData?.length>0);
+    const replaced = sd.some(r=>r.reason==='Replaced');
+    const rejectRow = (rejectData&&rejectData[rejectData.length-1])||null;
+    // Shelving is now sourced from the Shelving Log (persistent). "current shelf"
+    // = an episode still open (removed_on null), else the last episode.
+    const onShelfNow = sd.some(r=>!r.removed_on);
+    const onShelf = onShelfNow;
+    const shelfRow = sd.find(r=>!r.removed_on) || sd[sd.length-1] || null;
+    const shelfId = shelfRow?.shelf_name || allocData?.shelf_location || '';
+    const transferred = sd.some(r=>(r.reason||'').indexOf('Transferred')>=0);
+    const transferRow = [...sd].reverse().find(r=>(r.reason||'').indexOf('Transferred')>=0) || null;
+    const discarded = (discardData?.length>0) || sd.some(r=>r.reason==='Discarded');
+    const discardRow = (discardData&&discardData[discardData.length-1]) || null;
+    const discardSlRow = [...sd].reverse().find(r=>r.reason==='Discarded') || null;
+    const onOPL=oplData?.length>0;
+    const issued = (onOPL&&oplData.some(r=>r.custom_issued==1)) || sd.some(r=>r.reason==='Issued to Sales Order');
+    const issueRow = [...sd].reverse().find(r=>r.reason==='Issued to Sales Order') || null;
     const hasAllocs=allocFull?.bucket_allocations?.length>0;
     const st=journeyStatus(j);
-    const wasOnShelf=onShelf||issued;
+    const wasOnShelf=sd.length>0||issued;
     const startDate=journeyStartDate(j);
-    const allEvtDates=[...harvestSEs,...gradingSEs,...receivingSEs,...(shelfData||[]),...(oplData||[])]
-        .map(e=>e?.posting_date||e?.date_added?.split(' ')[0]||e?.creation?.split(' ')[0]||'').filter(Boolean).sort();
+    const allEvtDates=[...harvestSEs,...gradingSEs,...receivingSEs,...sd,...(oplData||[]),...(discardData||[])]
+        .map(e=>e?.posting_date||(e?.removed_on||e?.shelved_on||e?.date_added||'').split(' ')[0]||e?.creation?.split(' ')[0]||'').filter(Boolean).sort();
     const endDate=allEvtDates[allEvtDates.length-1]||'';
-    const done={Harvest:harvestSEs.length>0,Grading:gradingSEs.length>0,Receiving:receivingSEs.length>0,Shelving:wasOnShelf,Allocation:hasAllocs,Issue:issued};
+    const done={Harvest:harvestSEs.length>0,Grading:gradingSEs.length>0,Receiving:receivingSEs.length>0,Shelving:wasOnShelf,Transfer:transferred,Allocation:hasAllocs,Issue:issued,Discard:discarded};
 
     function stageMeta(key) {
         switch(key){
@@ -1370,8 +1487,10 @@ function renderJourney(j) {
             case 'Grading':   return {stems:sumStems(gradingSEs),stemLength:stemLengthOf(gradingSEs)};
             case 'Receiving': return {stems:sumStems(receivingSEs),stemLength:stemLengthOf(receivingSEs)};
             case 'Shelving':  return {stems:shelfRow?.stem_qty?parseFloat(shelfRow.stem_qty):null,stemLength:shelfRow?.stem_length||stemLengthOf(receivingSEs)};
+            case 'Transfer':  return {stems:transferRow?.stem_qty?parseFloat(transferRow.stem_qty):null,stemLength:null};
             case 'Allocation':return {stems:allocData?.allocated_quantity?parseFloat(allocData.allocated_quantity):null,stemLength:allocData?.stem_length||null};
             case 'Issue':     {const ir=oplData.find(r=>r.custom_issued==1)||oplData[0];return {stems:ir?.stock_qty?parseFloat(ir.stock_qty):null,stemLength:null};}
+            case 'Discard':   return {stems:null,stemLength:null};
         }
         return {stems:null,stemLength:null};
     }
@@ -1380,9 +1499,11 @@ function renderJourney(j) {
             case 'Harvest':   return harvestSEs[0]?(harvestSEs[0].custom_greenhouse||harvestSEs[0].custom_farm||'').split(' - ')[0]:'';
             case 'Grading':   return gradingSEs[0]?(gradingSEs[0].custom_bunch_id?gradingSEs[0].custom_bunch_id:''):'';
             case 'Receiving': return receivingSEs[0]?`${receivingSEs[0].stock_entry_type==='Late Receipt'?'Late · ':''}${(receivingSEs[0].to_warehouse||'').split(' - ')[0]}`:'';
-            case 'Shelving':  return shelfId||(issued?'Removed (issued)':'');
+            case 'Shelving':  return shelfId?`${shelfId}${shelfRow?.shelf_farm?' · '+shelfRow.shelf_farm:''}`:(issued?'Removed (issued)':'');
+            case 'Transfer':  return transferRow?`${transferRow.shelf_farm||transferRow.farm||'?'} → Kapkolia`:'';
             case 'Allocation':return hasAllocs?`${allocData.allocated_quantity} / ${allocData.total_quantity} stems`:'';
-            case 'Issue':     return issued?(oplData.find(r=>r.custom_issued==1)?.parent||oplData[0]?.parent||''):onOPL?'On OPL — not issued':'';
+            case 'Issue':     return issued?(oplData.find(r=>r.custom_issued==1)?.parent||oplData[0]?.parent||(issueRow?'from '+issueRow.shelf_name:''))||'':onOPL?'On OPL — not issued':'';
+            case 'Discard':   return (discardRow?.custom_farm||discardSlRow?.shelf_farm||'')||'Discarded';
         }
         return '';
     }
@@ -1391,19 +1512,27 @@ function renderJourney(j) {
             case 'Harvest':   return harvestSEs[0]?.posting_date||'';
             case 'Grading':   return gradingSEs[0]?.posting_date||'';
             case 'Receiving': return receivingSEs[0]?.posting_date||'';
-            case 'Shelving':  return shelfRow?.date_added?.split(' ')[0]||'';
+            case 'Shelving':  return (shelfRow?.shelved_on||shelfRow?.date_added||'').split(' ')[0]||'';
+            case 'Transfer':  return (transferRow?.removed_on||transferRow?.shelved_on||'').split(' ')[0]||'';
             case 'Allocation':return allocFull?.modified?.split(' ')[0]||'';
-            case 'Issue':     return oplData?.[0]?.creation?.split(' ')[0]||'';
+            case 'Issue':     return (issueRow?.removed_on||oplData?.[0]?.creation||'').split(' ')[0]||'';
+            case 'Discard':   return discardRow?.posting_date||(discardSlRow?.removed_on||'').split(' ')[0]||'';
         }
         return '';
     }
 
-    const stages=flowerType==='standard'?STAGES_STANDARD:STAGES_SPRAY;
+    // base stages + fold in the movements that actually happened this cycle
+    let stages=(flowerType==='standard'?STAGES_STANDARD:STAGES_SPRAY).slice();
+    if (transferred) { const si=stages.findIndex(s=>s.key==='Shelving'); stages.splice(si>=0?si+1:stages.length,0,{key:'Transfer',lbl:'Transfer'}); }
+    if (discarded)   { stages=stages.filter(s=>s.key!=='Issue'); stages.push({key:'Discard',lbl:'Discard'}); }
     const batchNo=gradingSEs[0]?.custom_harvest_batch_no||receivingSEs[0]?.custom_harvest_batch_no||harvestSEs[0]?.custom_harvest_batch_no||'--';
     let statusMsg=
+        discarded?`Discarded${(discardRow?.custom_farm||discardSlRow?.shelf_farm)?` at <strong>${discardRow?.custom_farm||discardSlRow?.shelf_farm}</strong>`:''}`:
         issued?`Issued — OPL <strong>${oplData.find(r=>r.custom_issued==1)?.parent||oplData[0]?.parent||''}</strong>`:
         onOPL&&!issued?`On OPL <strong>${oplData[0]?.parent||''}</strong> — awaiting issue`:
-        onShelf?`Currently on shelf <strong>${shelfId}</strong>`:
+        onShelf?`Currently on shelf <strong>${shelfId}</strong>${shelfRow?.shelf_farm?' at '+shelfRow.shelf_farm:''}`:
+        replaced?`Replaced — swapped out of its order`:
+        transferred?`In transit — transferred from <strong>${transferRow?.shelf_farm||transferRow?.farm||'?'}</strong>`:
         done.Receiving?`Received into <strong>${(receivingSEs[0]?.to_warehouse||'').split(' - ')[0]}</strong>`:
         done.Grading?(flowerType==='spray'?'Graded — awaiting receiving':'Graded — awaiting allocation'):
         done.Harvest?'Harvested — awaiting next stage':'No stage data';
@@ -1426,11 +1555,11 @@ function renderJourney(j) {
         <div class="panel-body">
             <div class="status-well ${st.cls}"><strong>${st.label}</strong> — <span>${statusMsg}</span></div>
             <div class="section-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Journey Path</div>
-            <div class="journey-path">
+            <div class="journey-path${stages.length>6?' journey-path-7':''}">
                 ${stages.map(s=>{
                     const isDone=done[s.key], det=stageDetail(s.key), dt=stageDate(s.key);
                     const meta=isDone?stageMeta(s.key):{stems:null,stemLength:null};
-                    return `<div class="path-stage ${isDone?'ps-done':'ps-pending'}">
+                    return `<div class="path-stage ${isDone?'ps-done':'ps-pending'} pk-${s.key.toLowerCase()}">
                         <div class="ps-lbl">${s.lbl}</div>
                         <div class="ps-stat ${isDone?'ps-done-t':'ps-pend-t'}">${isDone?'Done':'--'}</div>
                         ${meta.stems?`<div class="ps-det">${fmtStems(meta.stems)}</div>`:''}
@@ -1444,7 +1573,56 @@ function renderJourney(j) {
     if (harvestSEs.length) { const h=harvestSEs[0]; html+=secLbl('Harvest')+`<div class="detail-grid">${dc('Farm',h.custom_farm)}${dc('Greenhouse',(h.custom_greenhouse||'').split(' - ')[0])}${dc('Stem Length',h.custom_stem_length)}${dc('Harvester',h.custom_harvester_payroll_number||h.custom_harvester)}${dc('Date',h.posting_date)}${dc('To Warehouse',(h.to_warehouse||'').split(' - ')[0])}${dc('Batch No',h.custom_harvest_batch_no,true)}${dc('Stock Entry',h.name)}</div>`; }
     if (gradingSEs.length) { const g=gradingSEs[0]; html+=secLbl(`Grading (${gradingSEs.length} SE${gradingSEs.length>1?'s':''})`)+`<div class="detail-grid">${dc('Variety',j.variety)}${dc('Graded By',g.custom_graded_by)}${dc('Payroll No',g.custom_grader_payroll_number)}${dc('Stem Length',g.custom_stem_length)}${dc('Bunch ID',g.custom_bunch_id)}${dc('Bunched By',g.custom_bunched_by)}${dc('Packing Scanned',g.custom_scanned_packing?'Yes':'No')}${dc('Date',g.posting_date)}${dc('Stock Entry',g.name)}</div>`; }
     if (receivingSEs.length){ const r=receivingSEs[0]; const late=r.stock_entry_type==='Late Receipt'?' (Late Receipt)':''; html+=secLbl('Receiving'+late)+`<div class="detail-grid">${dc('Type',r.stock_entry_type)}${dc('From',(r.from_warehouse||'').split(' - ')[0])}${dc('To',(r.to_warehouse||'').split(' - ')[0])}${dc('Stem Length',r.custom_stem_length)}${dc('Farm',r.custom_farm)}${dc('Date',r.posting_date)}${dc('Bucket Field',r.custom_received_bucket_id||'--')}${dc('Stock Entry',r.name)}</div>`; }
-    if (wasOnShelf) { html+=secLbl('Shelving')+`<div class="detail-grid">${dc('Shelf',shelfRow?.shelf_name||(issued?'Removed on issue':'--'))}${dc('Farm',shelfRow?.shelf_farm||'--')}${dc('Variety',shelfRow?.variety||j.variety||'--')}${dc('Greenhouse',(shelfRow?.greenhouse||'').split(' - ')[0]||'--')}${dc('Stem Length',shelfRow?.stem_length||'--')}${dc('Stem Qty',shelfRow?.stem_qty||'--')}${dc('Date Added',(shelfRow?.date_added||'').split(' ')[0]||'--')}${dc('Status',issued?'Removed (issued)':onShelf?'On shelf now':'--')}</div>`; }
+    // Unified per-cycle lifecycle trail: every Shelving Log episode (shelved /
+    // transferred / issued / discarded / replaced / cleared) + QC reject and
+    // discard stock entries — everything that happened to the bucket this cycle.
+    const mv=[];
+    for (const r of sd){
+        const rs=r.reason||'';
+        let tag='On shelf now', cls='mv-onshelf';
+        if(r.removed_on){
+            if(rs.indexOf('Transferred')>=0){tag='Transferred out';cls='mv-transfer';}
+            else if(rs==='Issued to Sales Order'){tag='Issued';cls='mv-issue';}
+            else if(rs==='Discarded'){tag='Discarded';cls='mv-discard';}
+            else if(rs==='Replaced'){tag='Replaced';cls='mv-replace';}
+            else if(rs==='Shelf Cleared'){tag='Cleared from shelf';cls='mv-clear';}
+            else {tag=rs||'Removed';cls='mv-clear';}
+        }
+        const on=(r.shelved_on||'').replace('T',' ').split(' ')[0];
+        const off=(r.removed_on||'').replace('T',' ').split(' ')[0];
+        const parts=[`Shelved ${fmtDate(on)||on}`];
+        if(off) parts.push(`${tag.toLowerCase()} ${fmtDate(off)||off}`);
+        if(r.stem_qty) parts.push(`${r.stem_qty} stems`);
+        if(r.shelved_by) parts.push(String(r.shelved_by).split('@')[0]);
+        mv.push({sort:r.removed_on||r.shelved_on||'',html:`<div class="mv-item ${cls}"><div class="mv-dot"></div><div class="mv-body"><div class="mv-h"><strong>${r.shelf_name||r.shelf||'?'}</strong> <span class="mv-farm">${r.shelf_farm||r.farm||''}</span> <span class="mv-tag">${tag}</span></div><div class="mv-m">${parts.join(' &middot; ')}</div></div></div>`});
+    }
+    for (const se of (rejectData||[])){
+        const d=se.posting_date||'';
+        mv.push({sort:d+' '+(se.posting_time||''),html:`<div class="mv-item mv-reject"><div class="mv-dot"></div><div class="mv-body"><div class="mv-h"><span class="mv-farm">${se.custom_farm||''}</span> <span class="mv-tag">${se.stock_entry_type||'Rejected'}</span></div><div class="mv-m">${fmtDate(d)||d} &middot; <a href="/app/stock-entry/${se.name}" target="_blank">${se.name}</a></div></div></div>`});
+    }
+    for (const se of (discardData||[])){
+        const d=se.posting_date||'';
+        mv.push({sort:d+' '+(se.posting_time||''),html:`<div class="mv-item mv-discard"><div class="mv-dot"></div><div class="mv-body"><div class="mv-h"><span class="mv-farm">${se.custom_farm||''}</span> <span class="mv-tag">Discard entry</span></div><div class="mv-m">${fmtDate(d)||d} &middot; <a href="/app/stock-entry/${se.name}" target="_blank">${se.name}</a></div></div></div>`});
+    }
+    // Quarantine: into ('Receiving Quarantined') and out ('Quarantine Rejects' /
+    // 'Remove From Quarantine' / accept-release 'Material Transfer', gated on a prior quarantine-in).
+    const hasQin=(quarantineData||[]).some(se=>se.stock_entry_type==='Receiving Quarantined');
+    for (const se of (quarantineData||[])){
+        const t=se.stock_entry_type, d=se.posting_date||'';
+        let tag='', cls='';
+        if(t==='Receiving Quarantined'){tag='Quarantined';cls='mv-quar';}
+        else if(t==='Quarantine Rejects'){tag='Rejected from quarantine';cls='mv-reject';}
+        else if(t==='Remove From Quarantine'){tag='Released from quarantine';cls='mv-quar-out';}
+        else if(t==='Material Transfer'){ if(!hasQin) continue; tag='Released from quarantine';cls='mv-quar-out';}
+        else continue;
+        mv.push({sort:d+' '+(se.posting_time||''),html:`<div class="mv-item ${cls}"><div class="mv-dot"></div><div class="mv-body"><div class="mv-h"><span class="mv-farm">${se.custom_farm||''}</span> <span class="mv-tag">${tag}</span></div><div class="mv-m">${fmtDate(d)||d} &middot; <a href="/app/stock-entry/${se.name}" target="_blank">${se.name}</a></div></div></div>`});
+    }
+    if (mv.length){
+        mv.sort((a,b)=>String(b.sort).localeCompare(String(a.sort)));
+        html+=secLbl(`Shelf &amp; lifecycle (${mv.length}) — traced from the Shelving Log`)+`<div class="mv-trail">`+mv.map(m=>m.html).join('')+`</div>`;
+    } else if (issued) {
+        html+=secLbl('Shelving')+`<div class="detail-grid">${dc('Status','Shelf record cleared on issue — no Shelving Log rows')}</div>`;
+    }
     if (allocData) { html+=secLbl('Allocation')+`<div class="detail-grid">${dc('Variety',allocData.item_code)}${dc('Total Stems',allocData.total_quantity)}${dc('Allocated',allocData.allocated_quantity)}${dc('Available',allocData.available_quantity)}${dc('Shelf',allocData.shelf_location)}${dc('Farm',allocData.shelf_farm)}</div>`; }
 
     if (hasAllocs) {

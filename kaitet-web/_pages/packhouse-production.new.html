@@ -290,6 +290,10 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .pv-len-wrap{display:flex;flex-wrap:wrap;gap:6px}
 .aph .pv-len-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:10px;background:var(--bg-muted);font-size:11px;font-weight:600;color:var(--text-2);white-space:nowrap}
 .aph .pv-len-chip b{color:var(--text);font-weight:700;font-feature-settings:'tnum'}
+.aph .pv-farm-wrap{display:flex;flex-wrap:wrap;gap:6px}
+.aph .pv-farm-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:10px;background:color-mix(in srgb,var(--signal,#228883) 13%,transparent);font-size:11px;font-weight:600;color:var(--signal,#228883);white-space:nowrap}
+.aph .pv-farm-chip b{color:var(--signal,#228883);font-weight:700;font-feature-settings:'tnum'}
+.aph .pv-farm-chip.pv-farm-none{background:var(--bg-muted);color:var(--text-3)}
 .aph #pvTable td.pv-rank{width:34px;color:var(--text-3);font-feature-settings:'tnum'}
 .aph #pvTable td.pv-total{text-align:right;font-weight:700;font-feature-settings:'tnum';white-space:nowrap}
 </style>
@@ -652,6 +656,11 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <h1>Production</h1>
       <span class="crumb">Production</span>
       <div class="right">
+        <div class="presets" id="locPreset">
+          <span class="p active" data-loc="">All</span>
+          <span class="p" data-loc="Ravine">Ravine</span>
+          <span class="p" data-loc="Karen">Karen</span>
+        </div>
         <div class="presets" id="rosePreset">
           <span class="p active" data-rose="all">All</span>
           <span class="p" data-rose="standard">Standards</span>
@@ -685,8 +694,8 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
           </div>
           <div class="aph-card-body padless">
             <table class="aph-tbl" id="pvTable">
-              <thead><tr><th class="pv-rank">#</th><th>Variety</th><th style="text-align:right">Total Stems</th><th>Stem Length Breakdown</th></tr></thead>
-              <tbody id="pvBody"><tr><td colspan="4" class="loading-state">Loading...</td></tr></tbody>
+              <thead><tr><th class="pv-rank">#</th><th>Variety</th><th style="text-align:right">Total Stems</th><th>Stem Length Breakdown</th><th>Farm Breakdown</th></tr></thead>
+              <tbody id="pvBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -697,7 +706,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 </div>
 
 <script>
-    let roseType = 'all', dateRange = 'today', customFrom = '', customTo = '';
+    let roseType = 'all', locFilter = '', dateRange = 'today', customFrom = '', customTo = '';
 
     function isoNDaysAgo(n){ const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0,10); }
     function todayIso(){ return new Date().toISOString().slice(0,10); }
@@ -741,6 +750,16 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
             });
         });
 
+        // ── Location filter (Ravine = all remote farms, Karen = Karen farm) ──
+        document.querySelectorAll('#locPreset .p').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#locPreset .p').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                locFilter = btn.dataset.loc;
+                load();
+            });
+        });
+
         applyPreset('today');
 
         document.getElementById('refreshBtn').addEventListener('click', load);
@@ -758,10 +777,10 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     /* -- Production by Variety (per stem length, all farms) -- */
     function pvLoad() {
         const body = document.getElementById('pvBody');
-        if (body) body.innerHTML = '<tr><td colspan="4" class="loading-state">Loading...</td></tr>';
+        if (body) body.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...</td></tr>';
         frappe.call({
             method: 'get_packhouse_production_by_variety',
-            args: { rose_type: roseType, ...getDateArgs() },
+            args: { rose_type: roseType, location: locFilter, ...getDateArgs() },
             callback: r => pvRender(r.message || {}),
             error: () => pvRender({})
         });
@@ -773,20 +792,24 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         if (!body) return;
         const vs = data.varieties || [];
         if (!vs.length) {
-            body.innerHTML = '<tr><td colspan="4" class="empty-state" style="padding:24px">No production for this period</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding:24px">No production for this period</td></tr>';
             if (sub) sub.textContent = 'No data';
             return;
         }
-        if (sub) sub.textContent = vs.length + ' varieties · ' + (data.total_stems || 0).toLocaleString() + ' stems · all farms';
+        if (sub) sub.textContent = vs.length + ' varieties · ' + (data.total_stems || 0).toLocaleString() + ' stems · ' + (locFilter || 'all farms');
         body.innerHTML = vs.map((v, i) => {
             const chips = (v.lengths || []).map(l =>
                 `<span class="pv-len-chip">${l.stem_length} <b>${(l.stems || 0).toLocaleString()}</b></span>`
             ).join('');
+            const farmChips = (v.farms || []).map(f =>
+                `<span class="pv-farm-chip">${f.farm} <b>${(f.stems || 0).toLocaleString()}</b></span>`
+            ).join('') || '<span class="pv-farm-chip pv-farm-none">—</span>';
             return `<tr>
                 <td class="pv-rank">${i + 1}</td>
                 <td class="strong">${v.item_name || v.item_code}</td>
                 <td class="pv-total">${(v.total_stems || 0).toLocaleString()}</td>
                 <td><div class="pv-len-wrap">${chips}</div></td>
+                <td><div class="pv-farm-wrap">${farmChips}</div></td>
             </tr>`;
         }).join('');
     }

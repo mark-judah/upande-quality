@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { AllocationItem } from '../repository/karen-bucket-requests-repository';
+import type { AllocationItem, PlannedTrip } from '../repository/karen-bucket-requests-repository';
 
 /** A bucket row as the offline UI consumes it. */
 export type ReqBucket = {
@@ -74,6 +74,10 @@ CREATE TABLE IF NOT EXISTS bucket (
 );
 CREATE TABLE IF NOT EXISTS trolley (trolley_id TEXT PRIMARY KEY, created_at TEXT);
 CREATE TABLE IF NOT EXISTS vehicle (name TEXT PRIMARY KEY, license_plate TEXT);
+CREATE TABLE IF NOT EXISTS planned_trip (
+  trip_id TEXT PRIMARY KEY, trip_date TEXT, sort_key INTEGER NOT NULL DEFAULT 0,
+  payload TEXT NOT NULL, fetched_at TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_bucket_opl ON bucket(opl_name);
 CREATE INDEX IF NOT EXISTS idx_bucket_scan ON bucket(bucket_id, scanned);
 `;
@@ -379,7 +383,45 @@ export async function listVehicles(): Promise<Vehicle[]> {
   return rows.map((r) => ({ name: r.name, licensePlate: r.license_plate || '' }));
 }
 
+/** Cache the latest planned-trips plan wholesale (called after each download),
+ *  so the cold-store attendant still sees the last-known plan while offline.
+ *  Trips are stored as JSON blobs keyed by trip id; order is preserved via a
+ *  sort key (the server already returns them soonest-first). */
+export async function replacePlannedTrips(trips: PlannedTrip[]): Promise<void> {
+  const d = await db();
+  const now = new Date().toISOString();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync('DELETE FROM planned_trip');
+    for (let i = 0; i < trips.length; i++) {
+      const t = trips[i];
+      if (!t.tripId) continue;
+      await d.runAsync(
+        'INSERT OR REPLACE INTO planned_trip (trip_id, trip_date, sort_key, payload, fetched_at) VALUES (?, ?, ?, ?, ?)',
+        [t.tripId, t.tripDate || '', i, JSON.stringify(t), now],
+      );
+    }
+  });
+}
+
+export async function listPlannedTrips(): Promise<PlannedTrip[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ payload: string }>(
+    'SELECT payload FROM planned_trip ORDER BY sort_key ASC',
+  );
+  const out: PlannedTrip[] = [];
+  for (const r of rows) {
+    try {
+      out.push(JSON.parse(r.payload) as PlannedTrip);
+    } catch {
+      /* skip a corrupt cache row */
+    }
+  }
+  return out;
+}
+
 export async function clearAll(): Promise<void> {
   const d = await db();
-  await d.execAsync('DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle;');
+  await d.execAsync(
+    'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip;',
+  );
 }
