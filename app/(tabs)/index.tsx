@@ -28,6 +28,7 @@ const ROUTE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'intake-qc': 'checkmark-done-outline',
   'coldroom-qc': 'snow-outline',
   'packhouse-qc': 'cube-outline',
+  'packhouse-checks': 'sparkles-outline',
 };
 
 const ROUTE_HINTS: Record<string, string> = {
@@ -46,6 +47,7 @@ const ROUTE_HINTS: Record<string, string> = {
   'intake-qc': 'Inspect arriving batches',
   'coldroom-qc': 'Quality checks in the coldroom',
   'packhouse-qc': 'Quality checks in the packhouse',
+  'packhouse-checks': 'Inspection, cleaning & glass checklists',
 };
 
 export default function HomeScreen() {

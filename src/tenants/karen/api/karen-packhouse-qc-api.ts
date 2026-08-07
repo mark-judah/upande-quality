@@ -129,6 +129,17 @@ export type RawScannedBoxDetail = {
   items?: RawScannedBoxItem[];
 };
 
+/** Airport Returns — return context resolved from the scanned box. Some fields
+ *  (invoice, packhouse) may be blank when they aren't on the box label. */
+export type RawAirportReturnDetail = {
+  invoice_number?: string;
+  days_in_stock?: number;
+  packhouse?: string;
+  greenhouse?: string;
+  farm?: string;
+  stems_returned?: number;
+};
+
 export type RawPackhouseFormData = {
   success?: boolean;
   control_points?: RawControlPoint[];
@@ -160,6 +171,7 @@ export type RawPackhouseFormData = {
    *  has no Specification link at all. */
   specification_detail?: RawSpecification | null;
   scanned_box_detail?: RawScannedBoxDetail | null;
+  airport_return_detail?: RawAirportReturnDetail | null;
   scanned_box_variety?: string;
   qc_incharge_options?: RawQcIncharge[];
   pending_quarantine_stems?: number;
@@ -205,19 +217,22 @@ export const karenPackhouseQcApi = {
     boxLabel?: string;
     specification?: string;
     team?: string;
+    airportReturn?: boolean;
   }): Promise<RawPackhouseFormDataResponse> {
+    const base = params?.orderPickList
+      ? { order_pick_list: params.orderPickList }
+      : params?.boxLabel
+        ? { box_label: params.boxLabel }
+        : params?.specification
+          ? { specification: params.specification }
+          : params?.team
+            ? { team: params.team }
+            : undefined;
     return api<RawPackhouseFormDataResponse>({
       method: 'GET',
       url: '/api/method/fetchPackhouseQCFormData',
-      params: params?.orderPickList
-        ? { order_pick_list: params.orderPickList }
-        : params?.boxLabel
-          ? { box_label: params.boxLabel }
-          : params?.specification
-            ? { specification: params.specification }
-            : params?.team
-              ? { team: params.team }
-              : undefined,
+      // Airport Returns scans a box AND asks the server for the return context.
+      params: params?.airportReturn ? { ...(base ?? {}), airport_return: 1 } : base,
     });
   },
 

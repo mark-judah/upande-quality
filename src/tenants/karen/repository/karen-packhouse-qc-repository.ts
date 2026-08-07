@@ -10,6 +10,7 @@ import {
   type RawSpecBoxItem,
   type RawSpecConsumable,
   type RawScannedBoxDetail,
+  type RawAirportReturnDetail,
   type RawScannedBoxItem,
   type RawSpecification,
   type RawSpecificationListItem,
@@ -180,6 +181,8 @@ export type PackhouseFormDataOutcome =
       /** Set only when resolved via a box scan — what's actually recorded
        *  on that specific box, plus which variety it carries. */
       scannedBoxDetail: ScannedBoxDetail | null;
+      /** Airport Returns — return context resolved from the scanned box. */
+      airportReturnDetail: AirportReturnDetail | null;
       scannedBoxVariety: string;
       qcIncharges: QcInchargeOption[];
       pendingQuarantineStems: number;
@@ -349,6 +352,27 @@ function toScannedBoxDetail(raw: RawScannedBoxDetail): ScannedBoxDetail {
   };
 }
 
+/** Airport Returns — return context resolved from the scanned box. */
+export type AirportReturnDetail = {
+  invoiceNumber: string;
+  daysInStock: number;
+  packhouse: string;
+  greenhouse: string;
+  farm: string;
+  stemsReturned: number;
+};
+
+function toAirportReturnDetail(raw: RawAirportReturnDetail): AirportReturnDetail {
+  return {
+    invoiceNumber: raw.invoice_number ?? '',
+    daysInStock: raw.days_in_stock ?? 0,
+    packhouse: raw.packhouse ?? '',
+    greenhouse: raw.greenhouse ?? '',
+    farm: raw.farm ?? '',
+    stemsReturned: raw.stems_returned ?? 0,
+  };
+}
+
 // ── Repository ──────────────────────────────────────────────────────────────
 
 export const karenPackhouseQcRepository = {
@@ -357,6 +381,7 @@ export const karenPackhouseQcRepository = {
     boxLabel?: string;
     specification?: string;
     team?: string;
+    airportReturn?: boolean;
   }): Promise<PackhouseFormDataOutcome> {
     const raw = await karenPackhouseQcApi.fetchFormData(params);
     const m = raw.message ?? {};
@@ -383,6 +408,7 @@ export const karenPackhouseQcRepository = {
       specOrderCounts: m.spec_order_counts ?? {},
       specificationDetail: m.specification_detail ? toSpecification(m.specification_detail) : null,
       scannedBoxDetail: m.scanned_box_detail ? toScannedBoxDetail(m.scanned_box_detail) : null,
+      airportReturnDetail: m.airport_return_detail ? toAirportReturnDetail(m.airport_return_detail) : null,
       scannedBoxVariety: m.scanned_box_variety ?? '',
       qcIncharges: (m.qc_incharge_options ?? []).map(toQcIncharge),
       pendingQuarantineStems: Number(m.pending_quarantine_stems) || 0,

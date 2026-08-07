@@ -40,6 +40,10 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   'intake-qc': 'checkmark-done-outline',
   'coldroom-qc': 'snow-outline',
   'packhouse-qc': 'cube-outline',
+  'packhouse-checks': 'sparkles-outline',
+  'packhouse-inspection': 'clipboard-outline',
+  'packhouse-cleaning': 'sparkles-outline',
+  'packhouse-glass': 'scan-outline',
 };
 
 export function SideMenu({

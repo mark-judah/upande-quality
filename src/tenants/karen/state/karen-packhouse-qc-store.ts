@@ -15,9 +15,43 @@ import {
 } from '../repository/karen-packhouse-qc-repository';
 import { mapAxiosError } from '@/src/core/api/client';
 
-export type QcType = 'Online QC' | 'Final QC';
+export type QcType = 'Online QC' | 'Final QC' | 'Airport Returns';
 export type OnlineMode = 'Reject Recorder' | 'Grading QC';
-export type IssueAction = 'Quarantine' | 'Reject';
+export type IssueAction = 'Quarantine' | 'Reject' | 'Reuse';
+
+/** Airport Returns — a scan-based Final QC on boxes/stems that came back from
+ *  the airport. Scanning the box fetches the order context; the operator picks
+ *  a reason, records how many stems were inspected, and splits the affected
+ *  stems between Reuse (shelved back to the Kapkolia cold room, keeping their
+ *  age/farm/greenhouse) and Reject (moved to rejects). Fetched fields stay
+ *  editable because a few (invoice, packhouse) aren't on the box label. */
+export type AirportReturnState = {
+  invoiceNumber: string;
+  daysInStock: string;
+  packhouse: string;
+  greenhouse: string;
+  farm: string;
+  stemsReturned: string;
+  reason: string;
+  inspectedStems: string;
+  reuseStems: string;
+  rejectStems: string;
+};
+
+function emptyAirportReturn(): AirportReturnState {
+  return {
+    invoiceNumber: '',
+    daysInStock: '',
+    packhouse: '',
+    greenhouse: '',
+    farm: '',
+    stemsReturned: '',
+    reason: '',
+    inspectedStems: '',
+    reuseStems: '',
+    rejectStems: '',
+  };
+}
 /** Final QC's order-level call. It's AUTO-SUGGESTED from the tolerance checks
  *  (any issue over its parameter's threshold → Quarantine, else Accept), but
  *  the operator can override it. Accept keeps in-tolerance issues as partial
@@ -157,6 +191,9 @@ type State = {
   /** Grading QC only — one row per rejection reason with its affected bunch
    *  count; kept id-matched to the corresponding issue rows. */
   bunchRejections: BunchRejection[];
+  /** Airport Returns only — the scanned box's return context plus the
+   *  operator's reason / inspected / reuse / reject entry. */
+  airportReturn: AirportReturnState;
 
   /** Final QC only — how many boxes the operator actually sampled. Every
    *  bunch in these boxes is inspected; issues are counted in bunches. */
@@ -195,6 +232,10 @@ type State = {
   /** Scans a box to resolve its order directly — an alternative to searching
    *  the Order Pick List picker. */
   scanBoxLabel: (raw: string) => Promise<{ ok: boolean; message?: string }>;
+  /** Airport Returns — scans a returned box and fetches its return context. */
+  scanAirportReturn: (raw: string) => Promise<{ ok: boolean; message?: string }>;
+  /** Updates one field of the airport-return form (fetched values are editable). */
+  setAirportReturnField: (field: keyof AirportReturnState, value: string) => void;
 
   startBunchSampling: () => void;
   /** Sets the whole-number count of bunches the operator accepted. */
@@ -339,17 +380,19 @@ function resolveFinalQcSpec(s: State): SpecificationMatch | null {
   return s.specificationDetail ?? (s.selectedVariety ? s.specifications[s.selectedVariety] ?? null : null);
 }
 
-/** Turn a spec check's affected-bunch count into the unit the current mode's
- *  issue tally expects, mirroring the submit-time conversion exactly: Final QC
- *  counts issues in bunches (it converts them to stems at submit), while every
- *  other mode counts issues in stems — so multiply by stems-per-bunch there,
+/** Turn a spec check's affected count into the unit the current mode's issue
+ *  tally expects, mirroring the submit-time conversion exactly. Final QC counts
+ *  issues in bunches (converted to stems at submit). Reject Recorder deals only
+ *  in stems, so the operator enters the affected count in stems directly — no
+ *  conversion. Grading QC enters bunches, stored as stems (× stems-per-bunch),
  *  or the rejected stems would be under-counted by that factor. */
-function specCheckIssueCount(s: State, bunches: number): number {
-  if (bunches <= 0) return 0;
-  if (s.qcType === 'Final QC') return bunches;
+function specCheckIssueCount(s: State, affected: number): number {
+  if (affected <= 0) return 0;
+  if (s.qcType === 'Final QC') return affected;
+  if (s.onlineMode === 'Reject Recorder') return affected;
   const spec = resolveFinalQcSpec(s);
   const perBunch = spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
-  return Math.max(1, Math.round(bunches * perBunch));
+  return Math.max(1, Math.round(affected * perBunch));
 }
 
 /** Bunches inspected in Final QC = boxes sampled × the spec's bunches-per-box
@@ -416,6 +459,7 @@ function freshOrderState() {
     pendingQuarantineStems: 0,
     bunchSampling: emptyBunchSampling(),
     bunchRejections: [] as BunchRejection[],
+    airportReturn: emptyAirportReturn(),
     boxesChecked: '' as string,
     finalDecisionOverride: null as FinalDecision | null,
     issues: [] as IssueRow[],
@@ -459,6 +503,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   bunchSampling: emptyBunchSampling(),
   bunchRejections: [],
+  airportReturn: emptyAirportReturn(),
   boxesChecked: '',
   finalDecisionOverride: null,
 
@@ -651,6 +696,49 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     }
   },
 
+  scanAirportReturn: async (raw) => {
+    const boxName = extractBoxLabelFromScan(raw);
+    if (!boxName) return { ok: false, message: 'Please scan a valid box code.' };
+
+    set({ orderDetailLoading: true, selectedOrderPickList: null, selectedControlPoint: null, ...freshOrderState() });
+    try {
+      const outcome = await karenPackhouseQcRepository.fetchFormData({ boxLabel: boxName, airportReturn: true });
+      if (outcome.kind !== 'ok' || !outcome.resolvedOrderPickList) {
+        set({ orderDetailLoading: false });
+        return { ok: false, message: 'Box not found, or not linked to an order.' };
+      }
+      const opl = outcome.resolvedOrderPickList;
+      const resolvedVariety = outcome.scannedBoxVariety || outcome.varieties[0] || null;
+      const ar = outcome.airportReturnDetail;
+      set({
+        orderDetailLoading: false,
+        selectedOrderPickList: opl,
+        itemLocations: outcome.itemLocations,
+        varieties: outcome.varieties,
+        selectedVariety: resolvedVariety,
+        specifications: outcome.specifications,
+        scannedBoxName: boxName,
+        scannedBoxDetail: outcome.scannedBoxDetail,
+        airportReturn: {
+          ...emptyAirportReturn(),
+          invoiceNumber: ar?.invoiceNumber ?? '',
+          daysInStock: ar?.daysInStock != null ? String(ar.daysInStock) : '',
+          packhouse: ar?.packhouse ?? '',
+          greenhouse: ar?.greenhouse ?? '',
+          farm: ar?.farm ?? opl.farm ?? '',
+          stemsReturned: ar?.stemsReturned != null ? String(ar.stemsReturned) : '',
+        },
+      });
+      return { ok: true };
+    } catch (err) {
+      set({ orderDetailLoading: false });
+      return { ok: false, message: mapAxiosError(err).message };
+    }
+  },
+
+  setAirportReturnField: (field, value) =>
+    set((s) => ({ airportReturn: { ...s.airportReturn, [field]: value } })),
+
   startBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, started: true } })),
 
   setBunchesAccepted: (value) =>
@@ -814,6 +902,14 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     if (s.qcType === 'Online QC' && !s.onlineMode) return false;
     if (!s.selectedOrderPickList) return false;
     if (!s.selectedQcIncharge) return false;
+    // Airport Returns: needs a reason and at least one stem dispositioned
+    // (reused and/or rejected).
+    if (s.qcType === 'Airport Returns') {
+      const ar = s.airportReturn;
+      const reuse = Number.parseInt(ar.reuseStems, 10) || 0;
+      const reject = Number.parseInt(ar.rejectStems, 10) || 0;
+      return Boolean(ar.reason) && reuse + reject > 0;
+    }
     // Grading QC must go through Start → Finish sampling; Reject Recorder
     // can submit with zero issues (a clean check).
     if (s.isBunchSamplingMode()) return s.bunchSampling.started && s.bunchSampling.finished;
@@ -844,6 +940,70 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
       return out;
     }
+
+    if (s.qcType === 'Airport Returns') {
+      const ar = s.airportReturn;
+      const reuse = Math.max(0, Number.parseInt(ar.reuseStems, 10) || 0);
+      const reject = Math.max(0, Number.parseInt(ar.rejectStems, 10) || 0);
+      const inspected = Number.parseInt(ar.inspectedStems, 10) || 0;
+      if (!ar.reason) {
+        const out: SubmitOutcome = { kind: 'error', message: 'Pick a reason for the return.' };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      if (reuse + reject <= 0) {
+        const out: SubmitOutcome = { kind: 'error', message: 'Record how many stems were reused and/or rejected.' };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // Each disposition becomes an issue row (reason = the parameter), split
+      // between Reuse (shelved to Kapkolia) and Reject (moved to rejects).
+      const airportIssues: { parameter: string; count: number; action: IssueAction }[] = [];
+      if (reuse > 0) airportIssues.push({ parameter: ar.reason, count: reuse, action: 'Reuse' });
+      if (reject > 0) airportIssues.push({ parameter: ar.reason, count: reject, action: 'Reject' });
+      const spec =
+        s.specificationDetail?.specName ??
+        (s.selectedVariety ? s.specifications[s.selectedVariety]?.specName ?? '' : '');
+      const payload: Record<string, unknown> = {
+        inspection_type: 'Final QC',
+        inspection_mode: '',
+        control_area: 'Airport Returns',
+        order_pick_list: s.selectedOrderPickList.name,
+        box_label: s.scannedBoxName ?? '',
+        variety: s.selectedVariety ?? '',
+        qc_incharge: s.selectedQcIncharge,
+        invoice_number: ar.invoiceNumber,
+        reason: ar.reason,
+        // Inspected stems is what was checked; affected = reused + rejected.
+        stems_checked: inspected || reuse + reject,
+        sampled_stems: inspected || reuse + reject,
+        stems_affected: reuse + reject,
+        packhouse: ar.packhouse,
+        greenhouse: ar.greenhouse,
+        farm: ar.farm,
+        stock_age: Number.parseInt(ar.daysInStock, 10) || 0,
+        length: s.scannedBoxDetail?.length ?? '',
+        specification: spec,
+        remarks: s.remarks,
+        issues: airportIssues,
+      };
+      set({ submitting: true });
+      try {
+        const outcome = await karenPackhouseQcRepository.save(payload);
+        if (outcome.kind === 'ok') {
+          const message = `Airport return recorded — ${outcome.name}`;
+          set({ submitting: false, lastSubmitMessage: message, lastSubmitKind: 'ok' });
+          return { kind: 'ok', message };
+        }
+        set({ submitting: false, lastSubmitMessage: outcome.message, lastSubmitKind: 'error' });
+        return { kind: 'error', message: outcome.message };
+      } catch (err) {
+        const message = mapAxiosError(err).message;
+        set({ submitting: false, lastSubmitMessage: message, lastSubmitKind: 'error' });
+        return { kind: 'error', message };
+      }
+    }
+
     if (s.isBoxSamplingMode()) {
       const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
       if (boxes <= 0) {

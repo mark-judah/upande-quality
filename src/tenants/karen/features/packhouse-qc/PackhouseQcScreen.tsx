@@ -73,6 +73,15 @@ const WORKFLOW_OPTIONS: {
     qcType: 'Final QC',
     onlineMode: null,
   },
+  {
+    key: 'airport-returns',
+    label: 'Airport Returns',
+    description: 'Scan a returned box, then reuse or reject the returned stems.',
+    icon: 'airplane-outline',
+    role: 'FINISHED QC',
+    qcType: 'Airport Returns',
+    onlineMode: null,
+  },
 ];
 
 export function PackhouseQcScreen() {
@@ -85,6 +94,7 @@ export function PackhouseQcScreen() {
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
+  const [airportReasonPickerOpen, setAirportReasonPickerOpen] = useState(false);
   const [paramPickerOpen, setParamPickerOpen] = useState(false);
   const [reasonPickerOpen, setReasonPickerOpen] = useState(false);
   const [boxScanValue, setBoxScanValue] = useState('');
@@ -140,6 +150,9 @@ export function PackhouseQcScreen() {
   const selectTeamFilter = useKarenPackhouseQcStore((s) => s.selectTeamFilter);
   const selectOrderPickList = useKarenPackhouseQcStore((s) => s.selectOrderPickList);
   const scanBoxLabel = useKarenPackhouseQcStore((s) => s.scanBoxLabel);
+  const scanAirportReturn = useKarenPackhouseQcStore((s) => s.scanAirportReturn);
+  const airportReturn = useKarenPackhouseQcStore((s) => s.airportReturn);
+  const setAirportReturnField = useKarenPackhouseQcStore((s) => s.setAirportReturnField);
   const startBunchSampling = useKarenPackhouseQcStore((s) => s.startBunchSampling);
   const setBunchesAccepted = useKarenPackhouseQcStore((s) => s.setBunchesAccepted);
   const addBunchRejection = useKarenPackhouseQcStore((s) => s.addBunchRejection);
@@ -205,6 +218,9 @@ export function PackhouseQcScreen() {
   const bunchesInspected = acceptedBunchesNum + rejectedBunchesTotal;
   const gradingQcMode = isBunchSamplingMode();
   const boxSamplingMode = isBoxSamplingMode();
+  // Reject Recorder deals only in stems (no bunches), and doesn't need the
+  // rubber-band spec check.
+  const rejectRecorderMode = qcType === 'Online QC' && onlineMode === 'Reject Recorder';
   const boxSampleTarget = suggestedBoxSampleSize(boxTotalCount);
   // The directly picked/overridden spec wins — it covers orders whose own
   // Sales Order Item has no Specification link at all (common in Final
@@ -212,6 +228,9 @@ export function PackhouseQcScreen() {
   const specification = specificationDetail ?? currentSpecification();
   const customerOptions = customerOptionsFn();
   const specsForCustomer = specificationsForSelectedCustomer();
+  const airportReuseNum = Number.parseInt(airportReturn.reuseStems, 10) || 0;
+  const airportRejectNum = Number.parseInt(airportReturn.rejectStems, 10) || 0;
+  const airportDispositioned = airportReuseNum + airportRejectNum;
   const stemsPerBox = packRatePerBox(boxes, specification);
   // Final QC: every bunch in the sampled boxes is inspected. An issue whose
   // affected bunches breach its parameter's tolerance quarantines the WHOLE
@@ -262,6 +281,12 @@ export function PackhouseQcScreen() {
 
   const onScanBox = async (raw: string) => {
     const result = await scanBoxLabel(raw);
+    if (!result.ok) showError(result.message ?? 'Failed to resolve box.');
+    else setBoxScanValue('');
+  };
+
+  const onScanAirportReturn = async (raw: string) => {
+    const result = await scanAirportReturn(raw);
     if (!result.ok) showError(result.message ?? 'Failed to resolve box.');
     else setBoxScanValue('');
   };
@@ -347,6 +372,21 @@ export function PackhouseQcScreen() {
             editable={!orderDetailLoading}
           />
         </Card>
+      ) : qcType === 'Airport Returns' ? (
+        <Card title="Scan Returned Box">
+          <Text style={s.hint}>
+            Scan the returned box&apos;s QR code — its order, customer, variety and stock details
+            autopopulate below.
+          </Text>
+          <View style={{ height: 12 }} />
+          <ScanField
+            value={boxScanValue}
+            onChangeText={setBoxScanValue}
+            onScan={onScanAirportReturn}
+            placeholder="Scan or type box code"
+            editable={!orderDetailLoading}
+          />
+        </Card>
       ) : (
         <>
           <Card title="Customer">
@@ -394,19 +434,23 @@ export function PackhouseQcScreen() {
             )}
           </Card>
 
-          <Card title="No specification? Filter by team">
-            <Text style={s.hint}>
-              Some orders have no specification and never appear above — pick a team to QC those.
-            </Text>
-            <View style={{ height: 12 }} />
-            <Pressable onPress={() => setTeamPickerOpen(true)} style={s.pickerRow}>
-              <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.textMuted} />
-              <Text style={s.pickerText} numberOfLines={1}>
-                {selectedTeamFilter ?? 'Select team'}
+          {/* Once a spec is picked the next step is the Order Pick List, so hide
+              the team alternative to avoid it reading as the next step. */}
+          {!selectedSpecificationFilter ? (
+            <Card title="No specification? Filter by team">
+              <Text style={s.hint}>
+                Some orders have no specification and never appear above — pick a team to QC those.
               </Text>
-              <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
-            </Pressable>
-          </Card>
+              <View style={{ height: 12 }} />
+              <Pressable onPress={() => setTeamPickerOpen(true)} style={s.pickerRow}>
+                <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.textMuted} />
+                <Text style={s.pickerText} numberOfLines={1}>
+                  {selectedTeamFilter ?? 'Select team'}
+                </Text>
+                <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+              </Pressable>
+            </Card>
+          ) : null}
 
           <Card title="Order Pick List">
             {!(selectedSpecificationFilter || selectedTeamFilter) ? (
@@ -520,7 +564,7 @@ export function PackhouseQcScreen() {
         </Card>
       ) : null}
 
-      {specification ? (
+      {specification && qcType !== 'Airport Returns' ? (
         <Card title="Order Specification">
           <Text style={s.section}>{specification.specName}</Text>
           <Text style={s.hint}>Compare what was packed against every line below.</Text>
@@ -551,6 +595,7 @@ export function PackhouseQcScreen() {
             label="Cut Stage"
             expected={specification.cutStage}
             check={specChecks.cutStage}
+            affectedInStems={rejectRecorderMode}
             onAccept={() => acceptSpecCheck('cutStage')}
             onActualValueChange={(v) => setSpecCheckActualValue('cutStage', v)}
             onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('cutStage', v)}
@@ -559,24 +604,28 @@ export function PackhouseQcScreen() {
             label="Defoliation Length"
             expected={specification.defoliationLength}
             check={specChecks.defoliationLength}
+            affectedInStems={rejectRecorderMode}
             onAccept={() => acceptSpecCheck('defoliationLength')}
             onActualValueChange={(v) => setSpecCheckActualValue('defoliationLength', v)}
             onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('defoliationLength', v)}
           />
-          <SpecCheckRow
-            label="Rubber Band"
-            expected={[
-              specification.rubberBandType,
-              specification.rubberBandDistance1 ? `${specification.rubberBandDistance1} from base` : '',
-              specification.rubberBandDistance2 ? `2nd band ${specification.rubberBandDistance2}` : '',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-            check={specChecks.rubberBand}
-            onAccept={() => acceptSpecCheck('rubberBand')}
-            onActualValueChange={(v) => setSpecCheckActualValue('rubberBand', v)}
-            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('rubberBand', v)}
-          />
+          {/* Reject Recorder doesn't verify rubber band — only Grading / Final QC do. */}
+          {!rejectRecorderMode ? (
+            <SpecCheckRow
+              label="Rubber Band"
+              expected={[
+                specification.rubberBandType,
+                specification.rubberBandDistance1 ? `${specification.rubberBandDistance1} from base` : '',
+                specification.rubberBandDistance2 ? `2nd band ${specification.rubberBandDistance2}` : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              check={specChecks.rubberBand}
+              onAccept={() => acceptSpecCheck('rubberBand')}
+              onActualValueChange={(v) => setSpecCheckActualValue('rubberBand', v)}
+              onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('rubberBand', v)}
+            />
+          ) : null}
           {specification.validFrom || specification.expiryDate ? (
             <Text style={s.muted}>
               Valid: {specification.validFrom || '—'} to {specification.expiryDate || 'no expiry'}
@@ -626,7 +675,116 @@ export function PackhouseQcScreen() {
         </Card>
       ) : null}
 
-      {selectedOrderPickList ? (
+      {selectedOrderPickList && qcType === 'Airport Returns' ? (
+        <>
+          <SectionLabel label="Airport Return" />
+
+          <Card title="Return Details">
+            <Text style={s.hint}>Fetched from the scanned box — edit any that need correcting.</Text>
+            <View style={{ height: 12 }} />
+            <LabeledInput
+              label="Invoice Number"
+              iconName="receipt"
+              value={airportReturn.invoiceNumber}
+              onChangeText={(v) => setAirportReturnField('invoiceNumber', v)}
+              placeholder="Invoice #"
+            />
+            <View style={{ height: 10 }} />
+            <View style={s.chipRow}>
+              <View style={s.chip}>
+                <Text style={s.chipText}>{selectedOrderPickList.customer}</Text>
+              </View>
+              <View style={s.chip}>
+                <Text style={s.chipText}>{selectedVariety ?? '—'}</Text>
+              </View>
+              {scannedBoxDetail?.length ? (
+                <View style={s.chip}>
+                  <Text style={s.chipText}>{scannedBoxDetail.length}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={s.muted}>Order: {selectedOrderPickList.orderName || selectedOrderPickList.name}</Text>
+            <Text style={s.muted}>
+              Stems returned: {airportReturn.stemsReturned || '—'} · Days in stock:{' '}
+              {airportReturn.daysInStock || '—'}
+            </Text>
+            <View style={{ height: 10 }} />
+            <LabeledInput
+              label="Farm"
+              iconName="barn"
+              value={airportReturn.farm}
+              onChangeText={(v) => setAirportReturnField('farm', v)}
+              placeholder="Farm"
+            />
+            <View style={{ height: 8 }} />
+            <LabeledInput
+              label="Greenhouse"
+              iconName="greenhouse"
+              value={airportReturn.greenhouse}
+              onChangeText={(v) => setAirportReturnField('greenhouse', v)}
+              placeholder="Greenhouse"
+            />
+          </Card>
+
+          <Card title="Inspection">
+            <Text style={s.hint}>Pick the reason, then record inspected stems and how they were dispositioned.</Text>
+            <View style={{ height: 12 }} />
+            <Pressable
+              onPress={() => setAirportReasonPickerOpen(true)}
+              style={s.pickerRow}
+              disabled={params.length === 0}
+            >
+              <MaterialCommunityIcons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
+              <Text style={s.pickerText} numberOfLines={1}>
+                {airportReturn.reason || (params.length === 0 ? 'Loading reasons…' : 'Select reason')}
+              </Text>
+              <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+            </Pressable>
+            <View style={{ height: 12 }} />
+            <LabeledInput
+              label="Inspected Stems"
+              iconName="counter"
+              value={airportReturn.inspectedStems}
+              onChangeText={(v) => setAirportReturnField('inspectedStems', v)}
+              keyboardType="number-pad"
+              placeholder="0"
+            />
+            <View style={{ height: 8 }} />
+            <LabeledInput
+              label="Reuse — stems affected"
+              iconName="recycle"
+              value={airportReturn.reuseStems}
+              onChangeText={(v) => setAirportReturnField('reuseStems', v)}
+              keyboardType="number-pad"
+              placeholder="0"
+            />
+            <View style={{ height: 8 }} />
+            <LabeledInput
+              label="Reject — stems affected"
+              iconName="close-circle-outline"
+              value={airportReturn.rejectStems}
+              onChangeText={(v) => setAirportReturnField('rejectStems', v)}
+              keyboardType="number-pad"
+              placeholder="0"
+            />
+            {airportDispositioned > 0 ? (
+              <>
+                <View style={{ height: 8 }} />
+                <Text style={s.muted}>
+                  Reuse {airportReuseNum} → shelved to the Kapkolia cold room (age/farm/greenhouse kept)
+                  {airportRejectNum > 0 ? ` · Reject ${airportRejectNum} → rejects` : ''}.
+                </Text>
+              </>
+            ) : null}
+          </Card>
+
+          <Card title="QC Incharge">
+            <Text style={s.muted}>{loggedInFullName || loggedInEmail || '—'}</Text>
+          </Card>
+        </>
+      ) : null}
+
+      {selectedOrderPickList && qcType !== 'Airport Returns' ? (
         <>
         <SectionLabel label="Quality Check" />
 
@@ -1036,6 +1194,17 @@ export function PackhouseQcScreen() {
       />
 
       <PickerModal
+        open={airportReasonPickerOpen}
+        title="Reason for Return"
+        onClose={() => setAirportReasonPickerOpen(false)}
+        options={paramPickerOptions}
+        onPick={(value) => {
+          setAirportReturnField('reason', value);
+          setAirportReasonPickerOpen(false);
+        }}
+      />
+
+      <PickerModal
         open={reasonPickerOpen}
         title="Select Overall Reason"
         onClose={() => setReasonPickerOpen(false)}
@@ -1054,6 +1223,7 @@ function SpecCheckRow({
   label,
   expected,
   check,
+  affectedInStems,
   onAccept,
   onActualValueChange,
   onBunchesAffectedChange,
@@ -1061,11 +1231,15 @@ function SpecCheckRow({
   label: string;
   expected: string;
   check: SpecCheckState;
+  /** Reject Recorder records the affected count in stems, not bunches. */
+  affectedInStems?: boolean;
   onAccept: () => void;
   onActualValueChange: (value: string) => void;
   onBunchesAffectedChange: (value: string) => void;
 }) {
   const affected = Number.parseInt(check.bunchesAffected, 10) || 0;
+  const unit = affectedInStems ? 'stem' : 'bunch';
+  const unitPlural = affectedInStems ? 'stems' : 'bunches';
   return (
     <View style={s.specCheckRow}>
       <View style={s.specCheckHead}>
@@ -1095,7 +1269,7 @@ function SpecCheckRow({
             style={s.specCheckInput}
           />
           <View style={s.specCheckAffectedRow}>
-            <Text style={s.specCheckAffectedLabel}>Bunches affected</Text>
+            <Text style={s.specCheckAffectedLabel}>{affectedInStems ? 'Stems affected' : 'Bunches affected'}</Text>
             <TextInput
               value={check.bunchesAffected}
               onChangeText={onBunchesAffectedChange}
@@ -1109,7 +1283,7 @@ function SpecCheckRow({
             <View style={s.specCheckAffectedHintRow}>
               <MaterialCommunityIcons name="arrow-down-right" size={14} color={COLORS.danger} />
               <Text style={s.specCheckAffectedHint}>
-                Added to the issues list as “{label}” — {affected} bunch{affected === 1 ? '' : 'es'}.
+                Added to the issues list as “{label}” — {affected} {affected === 1 ? unit : unitPlural}.
               </Text>
             </View>
           ) : null}

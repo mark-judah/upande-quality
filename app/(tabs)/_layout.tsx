@@ -31,6 +31,10 @@ const ICONS: Record<string, TabIconPair> = {
   'intake-qc':          { outline: 'checkmark-done-outline',    filled: 'checkmark-done' },
   'coldroom-qc':        { outline: 'snow-outline',              filled: 'snow' },
   'packhouse-qc':       { outline: 'cube-outline',              filled: 'cube' },
+  'packhouse-checks':   { outline: 'sparkles-outline',          filled: 'sparkles' },
+  'packhouse-inspection': { outline: 'clipboard-outline',       filled: 'clipboard' },
+  'packhouse-cleaning': { outline: 'sparkles-outline',          filled: 'sparkles' },
+  'packhouse-glass':    { outline: 'scan-outline',              filled: 'scan' },
 };
 
 export default function TabLayout() {
@@ -83,6 +87,10 @@ export default function TabLayout() {
       <Tabs.Screen name="inspection-log"  options={{ title: 'Inspection Log',  href: null }} />
       <Tabs.Screen name="coldroom-qc" options={{ title: 'Coldroom QC', href: null }} />
       <Tabs.Screen name="packhouse-qc" options={{ title: 'Packhouse QC', href: null }} />
+      <Tabs.Screen name="packhouse-checks" options={{ title: 'Packhouse Cleaning', href: null }} />
+      <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', href: null }} />
+      <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', href: null }} />
+      <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', href: null }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
     </Tabs>

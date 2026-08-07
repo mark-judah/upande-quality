@@ -24,7 +24,7 @@ const VALID_STATUSES: TraceabilityStatus[] = [
   'Harvested', 'Graded', 'Received', 'On Shelf', 'Pending Issue', 'Issued',
 ];
 const VALID_STAGES: StageName[] = [
-  'Harvest', 'Grading', 'Receiving', 'Shelving', 'Allocation', 'Issued',
+  'Harvest', 'Grading', 'Receiving', 'Quarantine Rejects', 'Shelving', 'Allocation', 'Issued',
 ];
 const VALID_WHO_KIND: WhoKind[] = ['payroll', 'user', ''];
 
