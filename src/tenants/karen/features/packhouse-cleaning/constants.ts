@@ -10,9 +10,6 @@ export const INSPECTION_AREAS = [
   'Team B',
   'Team C',
   'Team Eldama',
-  'Print Room',
-  'Consumable Store',
-  'Vase Room',
 ];
 
 // Each component's options are the distinct conditions seen in that column of
@@ -29,14 +26,8 @@ export const INSPECTION_COMPONENTS: ComponentSpec[] = [
   { label: 'Drainage', options: ['Clean', 'Dirty', 'Blocked'] },
   { label: 'Sockets', options: ['In good condition', 'Broken', 'Naked wire'] },
   { label: 'Lights', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Blown', 'Dim light'] },
-  { label: 'Printers', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Unfunctioning', 'In good condition'] },
   { label: 'Roof', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Needs painting'] },
   { label: 'Roof Traces', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Rusty', 'Broken'] },
-  { label: 'Vaseroom Airconditioner', options: ['Functioning', 'Unusual sound', 'Clean', 'Dusty', 'Dirty', 'Cobwebs'] },
-  { label: 'Vase Containers', options: ['Clean', 'Dirty', 'Broken', 'In good condition', 'Leaking'] },
-  { label: 'Vase Secateurs / Scissors', options: ['Clean', 'Dirty', 'Blurred', 'Detached', 'In good condition'] },
-  { label: 'Vase Shelves', options: ['Clean', 'Dusty', 'Dirty', 'Broken', 'Needs painting', 'In good condition'] },
-  { label: 'Vase Buckets', options: ['Clean', 'Dirty', 'Broken', 'In good condition', 'Leaking'] },
 ];
 
 // ── Cleaning Checklist ───────────────────────────────────────────────────────
