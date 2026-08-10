@@ -21,6 +21,7 @@ import {
   isThresholdBreached,
   stemsPerBunch,
   totalBunches,
+  type BunchIssue,
   type IssueRow,
   type OnlineMode,
   type QcType,
@@ -101,7 +102,9 @@ export function PackhouseQcScreen() {
   // Whether the parameter picker is currently being opened for bunch
   // rejection (Grading QC) — null means it's the plain "Add Issue" flow
   // (Reject Recorder, Final QC).
-  const [pendingSampleUnit, setPendingSampleUnit] = useState<'bunch' | null>(null);
+  // When set, the parameter picker is adding an issue to this rejected bunch
+  // (Grading QC) rather than a standalone issue row.
+  const [addIssueBunchId, setAddIssueBunchId] = useState<number | null>(null);
 
   const qcType = useKarenPackhouseQcStore((s) => s.qcType);
   const onlineMode = useKarenPackhouseQcStore((s) => s.onlineMode);
@@ -155,10 +158,13 @@ export function PackhouseQcScreen() {
   const setAirportReturnField = useKarenPackhouseQcStore((s) => s.setAirportReturnField);
   const startBunchSampling = useKarenPackhouseQcStore((s) => s.startBunchSampling);
   const setBunchesAccepted = useKarenPackhouseQcStore((s) => s.setBunchesAccepted);
-  const addBunchRejection = useKarenPackhouseQcStore((s) => s.addBunchRejection);
-  const setBunchRejectionBunches = useKarenPackhouseQcStore((s) => s.setBunchRejectionBunches);
-  const removeBunchRejection = useKarenPackhouseQcStore((s) => s.removeBunchRejection);
-  const bunchRejections = useKarenPackhouseQcStore((s) => s.bunchRejections);
+  const addRejectedBunch = useKarenPackhouseQcStore((s) => s.addRejectedBunch);
+  const addBunchIssue = useKarenPackhouseQcStore((s) => s.addBunchIssue);
+  const setBunchIssueStems = useKarenPackhouseQcStore((s) => s.setBunchIssueStems);
+  const removeBunchIssue = useKarenPackhouseQcStore((s) => s.removeBunchIssue);
+  const removeRejectedBunch = useKarenPackhouseQcStore((s) => s.removeRejectedBunch);
+  const clearRejectedBunches = useKarenPackhouseQcStore((s) => s.clearRejectedBunches);
+  const rejectedBunches = useKarenPackhouseQcStore((s) => s.rejectedBunches);
   const finishBunchSampling = useKarenPackhouseQcStore((s) => s.finishBunchSampling);
   const isBunchSamplingMode = useKarenPackhouseQcStore((s) => s.isBunchSamplingMode);
   const setBoxesChecked = useKarenPackhouseQcStore((s) => s.setBoxesChecked);
@@ -214,8 +220,17 @@ export function PackhouseQcScreen() {
     .map((p) => ({ value: p.name, label: p.parameter, group: categoryForParam(p.name) }))
     .sort((a, b) => categoryOrder(a.group) - categoryOrder(b.group) || a.label.localeCompare(b.label));
   const acceptedBunchesNum = Number.parseInt(bunchSampling.acceptedBunches, 10) || 0;
-  const rejectedBunchesTotal = bunchRejections.reduce((sum, r) => sum + (Number.parseInt(r.bunches, 10) || 0), 0);
-  const bunchesInspected = acceptedBunchesNum + rejectedBunchesTotal;
+  const rejectedBunchCount = rejectedBunches.length;
+  const rejectedStemsTotal = rejectedBunches.reduce(
+    (sum, b) => sum + b.issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0),
+    0,
+  );
+  const bunchesInspected = acceptedBunchesNum + rejectedBunchCount;
+  // Every rejected bunch must have at least one issue, each with stems > 0,
+  // before sampling can be finished or submitted.
+  const rejectedBunchesValid = rejectedBunches.every(
+    (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
+  );
   const gradingQcMode = isBunchSamplingMode();
   const boxSamplingMode = isBoxSamplingMode();
   // Reject Recorder deals only in stems (no bunches), and doesn't need the
@@ -261,6 +276,26 @@ export function PackhouseQcScreen() {
       breached: totalStemsChecked > 0 && isThresholdBreached(issue.count, totalStemsChecked, thresholdPercent),
     };
   };
+  // Grading QC live tolerance view — aggregate the rejected stems per QC
+  // parameter across every rejected bunch, then compare each against that
+  // parameter's tolerance threshold (measured over the bunches inspected,
+  // converted to stems). Drives the Rejection Summary card.
+  const gradingParamTotals = new Map<string, number>();
+  for (const b of rejectedBunches) {
+    for (const i of b.issues) {
+      const stems = Number.parseInt(i.stems, 10) || 0;
+      if (stems > 0) gradingParamTotals.set(i.reason, (gradingParamTotals.get(i.reason) ?? 0) + stems);
+    }
+  }
+  const gradingToleranceRows = Array.from(gradingParamTotals, ([name, stems]) => {
+    const param = params.find((p) => p.name === name);
+    const thresholdPercent = param?.toleranceThresholds ?? 0;
+    const affectedPercent = totalStemsChecked > 0 ? (stems / totalStemsChecked) * 100 : null;
+    const breached = totalStemsChecked > 0 && isThresholdBreached(stems, totalStemsChecked, thresholdPercent);
+    return { name, label: param?.parameter ?? name, stems, thresholdPercent, affectedPercent, breached };
+  }).sort((a, b) => a.label.localeCompare(b.label));
+  const anyGradingBreach = gradingToleranceRows.some((r) => r.breached);
+
   // Total bunches recorded — all of them are partial-rejected when the
   // decision is Accept.
   const allIssueBunches = issues.reduce((sum, i) => sum + i.count, 0);
@@ -789,11 +824,12 @@ export function PackhouseQcScreen() {
         <SectionLabel label="Quality Check" />
 
         {gradingQcMode ? (
+          <>
           <Card title="Bunch Inspection">
             <Text style={s.muted}>
               {orderTotalBunches > 0 ? `${orderTotalBunches} total bunches in this order. ` : ''}
-              Enter how many bunches you accepted, then add a row for each rejection reason with the
-              bunches it affected. Finish sampling when done.
+              Enter how many bunches you accepted, then add each rejected bunch and record the issues
+              found on its stems (e.g. 3 crooked, 7 advanced cut stage). Finish sampling when done.
             </Text>
             <View style={{ height: 16 }} />
 
@@ -812,44 +848,37 @@ export function PackhouseQcScreen() {
                 />
 
                 <View style={{ height: 16 }} />
-                <Text style={s.section}>REJECTIONS ({bunchRejections.length})</Text>
+                <Text style={s.section}>REJECTED BUNCHES ({rejectedBunches.length})</Text>
                 <View style={{ height: 8 }} />
-                {bunchRejections.length === 0 ? (
-                  <Text style={s.empty}>No rejections recorded.</Text>
+                {rejectedBunches.length === 0 ? (
+                  <Text style={s.empty}>No rejected bunches recorded.</Text>
                 ) : (
-                  bunchRejections.map((r) => {
-                    const param = params.find((p) => p.name === r.reason);
-                    return (
-                      <BunchRejectionRow
-                        key={r.id}
-                        displayName={param?.parameter ?? r.reason}
-                        bunches={r.bunches}
-                        thresholdPercent={issueThresholdFor(r.reason)}
-                        editable={!bunchSampling.finished}
-                        onBunchesChange={(v) => setBunchRejectionBunches(r.id, v)}
-                        onRemove={() => removeBunchRejection(r.id)}
-                      />
-                    );
-                  })
+                  rejectedBunches.map((b, idx) => (
+                    <RejectedBunchCard
+                      key={b.id}
+                      index={idx}
+                      issues={b.issues}
+                      params={params}
+                      editable={!bunchSampling.finished}
+                      onAddIssue={() => {
+                        setAddIssueBunchId(b.id);
+                        setParamPickerOpen(true);
+                      }}
+                      onStemsChange={(issueId, v) => setBunchIssueStems(b.id, issueId, v)}
+                      onRemoveIssue={(issueId) => removeBunchIssue(b.id, issueId)}
+                      onRemoveBunch={() => removeRejectedBunch(b.id)}
+                    />
+                  ))
                 )}
 
                 {!bunchSampling.finished ? (
                   <>
                     <View style={{ height: 8 }} />
-                    <Pressable
-                      onPress={() => {
-                        setPendingSampleUnit('bunch');
-                        setParamPickerOpen(true);
-                      }}
-                      style={s.pickerRow}
-                      disabled={params.length === 0}
-                    >
-                      <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.textMuted} />
-                      <Text style={s.pickerText} numberOfLines={1}>
-                        {params.length === 0 ? 'Loading reasons…' : 'Add rejection reason'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
-                    </Pressable>
+                    <Button
+                      label="Add Rejected Bunch"
+                      variant="outline"
+                      onPress={addRejectedBunch}
+                    />
                   </>
                 ) : null}
 
@@ -862,18 +891,29 @@ export function PackhouseQcScreen() {
                     <Text style={s.chipText}>Accepted: {acceptedBunchesNum}</Text>
                   </View>
                   <View style={[s.chip, s.chipDanger]}>
-                    <Text style={s.chipText}>Rejected: {rejectedBunchesTotal}</Text>
+                    <Text style={s.chipText}>Rejected: {rejectedBunchCount}</Text>
+                  </View>
+                  <View style={[s.chip, s.chipDanger]}>
+                    <Text style={s.chipText}>Rejected stems: {rejectedStemsTotal}</Text>
                   </View>
                 </View>
 
                 {!bunchSampling.finished ? (
                   <>
+                    {rejectedBunchCount > 0 && !rejectedBunchesValid ? (
+                      <>
+                        <View style={{ height: 12 }} />
+                        <Text style={s.warn}>
+                          Each rejected bunch needs at least one issue with a stem count above zero.
+                        </Text>
+                      </>
+                    ) : null}
                     <View style={{ height: 16 }} />
                     <Button
                       label="Finish Sampling"
                       variant="outline"
                       onPress={finishBunchSampling}
-                      disabled={bunchesInspected === 0}
+                      disabled={bunchesInspected === 0 || !rejectedBunchesValid}
                     />
                   </>
                 ) : (
@@ -885,6 +925,53 @@ export function PackhouseQcScreen() {
               </>
             )}
           </Card>
+
+          {bunchSampling.started && gradingToleranceRows.length > 0 ? (
+            <Card title="Rejection Summary">
+              <Text style={s.muted}>
+                Rejected stems per QC parameter, checked against each parameter's tolerance over the{' '}
+                {bunchesInspected} bunch(es) inspected ({totalStemsChecked} stems).
+              </Text>
+              <View style={{ height: 12 }} />
+              {gradingToleranceRows.map((row) => (
+                <View key={row.name} style={s.issueCard}>
+                  <View style={s.issueHead}>
+                    <Text style={s.issueTitle}>{row.label}</Text>
+                    <View style={s.chip}>
+                      <Text style={s.chipText}>{row.stems} stems</Text>
+                    </View>
+                  </View>
+                  <IssueToleranceBadge
+                    thresholdPercent={row.thresholdPercent}
+                    affectedPercent={row.affectedPercent}
+                    breached={row.breached}
+                  />
+                </View>
+              ))}
+              <View style={{ height: 4 }} />
+              <View style={[s.chip, anyGradingBreach ? s.chipDanger : s.chipAccepted, { alignSelf: 'flex-start' }]}>
+                <MaterialCommunityIcons
+                  name={anyGradingBreach ? 'alert-circle' : 'check-circle'}
+                  size={14}
+                  color={anyGradingBreach ? COLORS.danger : COLORS.success}
+                />
+                <Text style={[s.chipText, { color: anyGradingBreach ? COLORS.danger : COLORS.success }]}>
+                  {anyGradingBreach ? 'One or more parameters exceed tolerance' : 'All parameters within tolerance'}
+                </Text>
+              </View>
+              {!bunchSampling.finished ? (
+                <>
+                  <View style={{ height: 16 }} />
+                  <Button
+                    label="Clear All Rejections"
+                    variant="outline"
+                    onPress={clearRejectedBunches}
+                  />
+                </>
+              ) : null}
+            </Card>
+          ) : null}
+          </>
         ) : null}
 
         {boxSamplingMode ? (
@@ -1176,19 +1263,19 @@ export function PackhouseQcScreen() {
 
       <PickerModal
         open={paramPickerOpen}
-        title={pendingSampleUnit ? 'Reason for Rejection' : 'Select Parameter'}
+        title={addIssueBunchId != null ? 'Issue on this Bunch' : 'Select Parameter'}
         onClose={() => {
           setParamPickerOpen(false);
-          setPendingSampleUnit(null);
+          setAddIssueBunchId(null);
         }}
         options={paramPickerOptions}
         onPick={(value) => {
-          if (pendingSampleUnit === 'bunch') {
-            addBunchRejection(value);
+          if (addIssueBunchId != null) {
+            addBunchIssue(addIssueBunchId, value);
           } else {
             addIssueForParam(value);
           }
-          setPendingSampleUnit(null);
+          setAddIssueBunchId(null);
           setParamPickerOpen(false);
         }}
       />
@@ -1303,58 +1390,86 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-/** One Grading QC rejection reason — the operator types how many bunches it
- *  affected. The parameter's tolerance threshold is shown for reference; the
- *  affected/tolerance verdict lives on the Review summary's issue rows. */
-function BunchRejectionRow({
-  displayName,
-  bunches,
-  thresholdPercent,
+/** One rejected bunch during Grading QC — lists the issues found on its stems,
+ *  each with an editable stem count, plus an "Add issue" row and a running
+ *  rejected-stems total for the bunch. */
+function RejectedBunchCard({
+  index,
+  issues,
+  params,
   editable,
-  onBunchesChange,
-  onRemove,
+  onAddIssue,
+  onStemsChange,
+  onRemoveIssue,
+  onRemoveBunch,
 }: {
-  displayName: string;
-  bunches: string;
-  thresholdPercent: number;
+  index: number;
+  issues: BunchIssue[];
+  params: { name: string; parameter: string }[];
   editable: boolean;
-  onBunchesChange: (value: string) => void;
-  onRemove: () => void;
+  onAddIssue: () => void;
+  onStemsChange: (issueId: number, value: string) => void;
+  onRemoveIssue: (issueId: number) => void;
+  onRemoveBunch: () => void;
 }) {
+  const stemsTotal = issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0);
   return (
     <View style={s.issueCard}>
       <View style={s.issueHead}>
-        <Text style={s.issueTitle}>{displayName}</Text>
+        <Text style={s.issueTitle}>Bunch {index + 1}</Text>
         {editable ? (
-          <Pressable onPress={onRemove} hitSlop={8}>
+          <Pressable onPress={onRemoveBunch} hitSlop={8}>
             <MaterialCommunityIcons name="close" size={18} color={COLORS.textMuted} />
           </Pressable>
         ) : null}
       </View>
       <View style={{ height: 8 }} />
-      <View style={s.issueCountRow}>
-        <Text style={s.issueCountLabel}>Bunches affected</Text>
-        {editable ? (
-          <TextInput
-            value={bunches}
-            onChangeText={onBunchesChange}
-            keyboardType="number-pad"
-            style={s.issueCountInput}
-          />
-        ) : (
-          <View style={s.chip}>
-            <Text style={s.chipText}>{Number.parseInt(bunches, 10) || 0}</Text>
-          </View>
-        )}
-      </View>
-      <View style={s.toleranceChipWrap}>
-        <View style={[s.chip, { alignSelf: 'flex-start' }]}>
-          <MaterialCommunityIcons name="scale-balance" size={14} color={COLORS.textMuted} />
-          <Text style={s.chipText}>
-            {thresholdPercent <= 0 ? 'Zero tolerance' : `Tolerance ${thresholdPercent}%`}
-          </Text>
-        </View>
-      </View>
+      {issues.length === 0 ? (
+        <Text style={s.empty}>No issues added yet.</Text>
+      ) : (
+        issues.map((iss) => {
+          const param = params.find((p) => p.name === iss.reason);
+          return (
+            <View key={iss.id} style={s.issueCountRow}>
+              <Text style={s.issueCountLabel} numberOfLines={1}>
+                {param?.parameter ?? iss.reason}
+              </Text>
+              {editable ? (
+                <>
+                  <TextInput
+                    value={iss.stems}
+                    onChangeText={(v) => onStemsChange(iss.id, v)}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    style={s.issueCountInput}
+                  />
+                  <Pressable onPress={() => onRemoveIssue(iss.id)} hitSlop={8}>
+                    <MaterialCommunityIcons name="close" size={16} color={COLORS.textMuted} />
+                  </Pressable>
+                </>
+              ) : (
+                <View style={s.chip}>
+                  <Text style={s.chipText}>{Number.parseInt(iss.stems, 10) || 0} stems</Text>
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+      {editable ? (
+        <>
+          <View style={{ height: 8 }} />
+          <Pressable onPress={onAddIssue} style={s.pickerRow} disabled={params.length === 0}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.textMuted} />
+            <Text style={s.pickerText} numberOfLines={1}>
+              {params.length === 0 ? 'Loading reasons…' : 'Add issue'}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+          </Pressable>
+        </>
+      ) : null}
+      <View style={{ height: 8 }} />
+      <Text style={s.muted}>Rejected stems: {stemsTotal}</Text>
     </View>
   );
 }

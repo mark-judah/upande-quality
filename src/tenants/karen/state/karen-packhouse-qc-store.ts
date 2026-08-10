@@ -118,10 +118,14 @@ function emptyBunchSampling(): BunchSamplingState {
   return { started: false, finished: false, acceptedBunches: '' };
 }
 
-/** One rejection reason recorded during Grading QC sampling, with the number
- *  of bunches it affected. Each mirrors an issue row (id-matched) so the QC
- *  tally, tolerance badges and submit payload all see it. */
-export type BunchRejection = { id: number; reason: string; bunches: string };
+/** One issue found on a rejected bunch during Grading QC sampling — a QC
+ *  parameter (the reason) and how many stems in that bunch showed it. */
+export type BunchIssue = { id: number; reason: string; stems: string };
+
+/** One rejected bunch during Grading QC sampling, carrying the specific issues
+ *  found on its stems (e.g. a 10-stem bunch: 3 crooked, 7 advanced cut stage).
+ *  The bunch's rejected-stem total is the sum of its issues' stem counts. */
+export type RejectedBunch = { id: number; issues: BunchIssue[] };
 
 type State = {
   qcType: QcType | null;
@@ -188,9 +192,9 @@ type State = {
   scannedBoxDetail: ScannedBoxDetail | null;
 
   bunchSampling: BunchSamplingState;
-  /** Grading QC only — one row per rejection reason with its affected bunch
-   *  count; kept id-matched to the corresponding issue rows. */
-  bunchRejections: BunchRejection[];
+  /** Grading QC only — each rejected bunch and the per-stem issues found on it.
+   *  A bunch's rejected stems is the sum of its issues' stem counts. */
+  rejectedBunches: RejectedBunch[];
   /** Airport Returns only — the scanned box's return context plus the
    *  operator's reason / inspected / reuse / reject entry. */
   airportReturn: AirportReturnState;
@@ -240,12 +244,18 @@ type State = {
   startBunchSampling: () => void;
   /** Sets the whole-number count of bunches the operator accepted. */
   setBunchesAccepted: (value: string) => void;
-  /** Adds a rejection reason row (default 1 bunch) and its mirrored issue. */
-  addBunchRejection: (reasonParamName: string) => void;
-  /** Updates a rejection row's affected bunch count and its mirrored issue. */
-  setBunchRejectionBunches: (id: number, value: string) => void;
-  /** Removes a rejection row and its mirrored issue. */
-  removeBunchRejection: (id: number) => void;
+  /** Adds a new rejected bunch with no issues yet. */
+  addRejectedBunch: () => void;
+  /** Adds an issue (reason + default 1 stem) to a rejected bunch. */
+  addBunchIssue: (bunchId: number, reasonParamName: string) => void;
+  /** Updates the affected-stem count of one issue on a rejected bunch. */
+  setBunchIssueStems: (bunchId: number, issueId: number, value: string) => void;
+  /** Removes one issue from a rejected bunch. */
+  removeBunchIssue: (bunchId: number, issueId: number) => void;
+  /** Removes an entire rejected bunch and all its issues. */
+  removeRejectedBunch: (bunchId: number) => void;
+  /** Clears every recorded rejected bunch — a one-tap start-over. */
+  clearRejectedBunches: () => void;
   finishBunchSampling: () => void;
 
   setBoxesChecked: (v: string) => void;
@@ -458,7 +468,7 @@ function freshOrderState() {
     scannedBoxDetail: null as ScannedBoxDetail | null,
     pendingQuarantineStems: 0,
     bunchSampling: emptyBunchSampling(),
-    bunchRejections: [] as BunchRejection[],
+    rejectedBunches: [] as RejectedBunch[],
     airportReturn: emptyAirportReturn(),
     boxesChecked: '' as string,
     finalDecisionOverride: null as FinalDecision | null,
@@ -502,7 +512,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   scannedBoxDetail: null,
 
   bunchSampling: emptyBunchSampling(),
-  bunchRejections: [],
+  rejectedBunches: [],
   airportReturn: emptyAirportReturn(),
   boxesChecked: '',
   finalDecisionOverride: null,
@@ -744,34 +754,38 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   setBunchesAccepted: (value) =>
     set((s) => ({ bunchSampling: { ...s.bunchSampling, acceptedBunches: value } })),
 
-  addBunchRejection: (reasonParamName) => {
-    const id = issueSeed++;
-    // Grading QC issues are tallied in stems (the server sums issue counts as
-    // stems and compares to the order's full stem total), so mirror each
-    // rejection's bunches into stems on the linked issue while keeping the
-    // operator-entered bunch count on the row itself. Default to 1 bunch.
-    const perBunch = stemsPerBunch(get().itemLocations);
-    set((s) => ({
-      bunchRejections: [...s.bunchRejections, { id, reason: reasonParamName, bunches: '1' }],
-      issues: [...s.issues, { id, paramName: reasonParamName, count: perBunch, action: 'Reject' as const }],
-    }));
-  },
+  addRejectedBunch: () =>
+    set((s) => ({ rejectedBunches: [...s.rejectedBunches, { id: issueSeed++, issues: [] }] })),
 
-  setBunchRejectionBunches: (id, value) =>
-    set((s) => {
-      const bunches = Math.max(0, Number.parseInt(value, 10) || 0);
-      const perBunch = stemsPerBunch(s.itemLocations);
-      return {
-        bunchRejections: s.bunchRejections.map((r) => (r.id === id ? { ...r, bunches: value } : r)),
-        issues: s.issues.map((i) => (i.id === id ? { ...i, count: bunches * perBunch } : i)),
-      };
-    }),
-
-  removeBunchRejection: (id) =>
+  addBunchIssue: (bunchId, reasonParamName) =>
     set((s) => ({
-      bunchRejections: s.bunchRejections.filter((r) => r.id !== id),
-      issues: s.issues.filter((i) => i.id !== id),
+      rejectedBunches: s.rejectedBunches.map((b) =>
+        b.id === bunchId
+          ? { ...b, issues: [...b.issues, { id: issueSeed++, reason: reasonParamName, stems: '1' }] }
+          : b,
+      ),
     })),
+
+  setBunchIssueStems: (bunchId, issueId, value) =>
+    set((s) => ({
+      rejectedBunches: s.rejectedBunches.map((b) =>
+        b.id === bunchId
+          ? { ...b, issues: b.issues.map((i) => (i.id === issueId ? { ...i, stems: value } : i)) }
+          : b,
+      ),
+    })),
+
+  removeBunchIssue: (bunchId, issueId) =>
+    set((s) => ({
+      rejectedBunches: s.rejectedBunches.map((b) =>
+        b.id === bunchId ? { ...b, issues: b.issues.filter((i) => i.id !== issueId) } : b,
+      ),
+    })),
+
+  removeRejectedBunch: (bunchId) =>
+    set((s) => ({ rejectedBunches: s.rejectedBunches.filter((b) => b.id !== bunchId) })),
+
+  clearRejectedBunches: () => set({ rejectedBunches: [] }),
 
   finishBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, finished: true } })),
 
@@ -803,10 +817,6 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       );
       return {
         issues: s.issues.filter((i) => i.id !== id),
-        // Keep the Grading QC rejection list in step if this row came from it.
-        bunchRejections: s.bunchRejections.some((r) => r.id === id)
-          ? s.bunchRejections.filter((r) => r.id !== id)
-          : s.bunchRejections,
         specCheckIssueIds: specKey ? { ...s.specCheckIssueIds, [specKey]: null } : s.specCheckIssueIds,
         specChecks: specKey
           ? { ...s.specChecks, [specKey]: { ...s.specChecks[specKey], bunchesAffected: '' } }
@@ -911,8 +921,14 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       return Boolean(ar.reason) && reuse + reject > 0;
     }
     // Grading QC must go through Start → Finish sampling; Reject Recorder
-    // can submit with zero issues (a clean check).
-    if (s.isBunchSamplingMode()) return s.bunchSampling.started && s.bunchSampling.finished;
+    // can submit with zero issues (a clean check). Every rejected bunch must
+    // carry at least one issue, each with a positive stem count.
+    if (s.isBunchSamplingMode()) {
+      if (!s.bunchSampling.started || !s.bunchSampling.finished) return false;
+      return s.rejectedBunches.every(
+        (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
+      );
+    }
     // Final QC: a sample size must be resolvable (typed, or the 30% default
     // once boxes are known), and every recorded issue needs a bunch count.
     // Zero issues is a valid clean Accept; Quarantine/Reject need at least one
@@ -1056,13 +1072,33 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     };
 
     if (s.isBunchSamplingMode()) {
-      // "Affected" means had an issue — accepted bunches don't count here.
-      // Total rejected bunches across every recorded rejection reason.
-      const rejectedBunches = s.bunchRejections.reduce(
-        (sum, r) => sum + (Number.parseInt(r.bunches, 10) || 0),
-        0,
-      );
-      payload.bunches_affected = rejectedBunches;
+      // Every rejected bunch must document at least one issue, and each issue
+      // needs a positive stem count — an empty bunch (or a zero-stem issue)
+      // rejects nothing and shouldn't be submittable.
+      if (s.rejectedBunches.some((b) => b.issues.length === 0)) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: 'Each rejected bunch needs at least one issue.',
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      if (
+        s.rejectedBunches.some((b) =>
+          b.issues.some((i) => (Number.parseInt(i.stems, 10) || 0) <= 0),
+        )
+      ) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: 'Every rejected-bunch issue needs a stem count above zero.',
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // "Affected" means the bunch had at least one issue, i.e. every rejected
+      // bunch. Accepted bunches don't count here.
+      const rejectedBunchCount = s.rejectedBunches.length;
+      payload.bunches_affected = rejectedBunchCount;
       // FTR denominator for the CAR 6% rule: everything inspected (accepted +
       // rejected bunches), converted to stems to match the issue counts.
       const acceptedBunches = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
@@ -1071,7 +1107,22 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         gradingSpec?.stemsPerBunch && gradingSpec.stemsPerBunch > 0
           ? gradingSpec.stemsPerBunch
           : stemsPerBunch(s.itemLocations);
-      payload.sampled_stems = (acceptedBunches + rejectedBunches) * gradingPerBunch;
+      payload.sampled_stems = (acceptedBunches + rejectedBunchCount) * gradingPerBunch;
+      // Each rejected bunch carries per-stem issues; aggregate the stem counts
+      // per reason across every rejected bunch into one issue row apiece (the
+      // server sums issue counts as stems against the order's full stem total).
+      const byReason = new Map<string, number>();
+      for (const bunch of s.rejectedBunches) {
+        for (const iss of bunch.issues) {
+          const stems = Math.max(0, Number.parseInt(iss.stems, 10) || 0);
+          if (stems > 0) byReason.set(iss.reason, (byReason.get(iss.reason) ?? 0) + stems);
+        }
+      }
+      issuesPayload = Array.from(byReason, ([parameter, count]) => ({
+        parameter,
+        count,
+        action: 'Reject' as IssueAction,
+      }));
     } else if (s.isBoxSamplingMode()) {
       // The order-level decision is auto-suggested from the tolerance checks
       // (any issue over threshold → Quarantine, else Accept) but the operator
