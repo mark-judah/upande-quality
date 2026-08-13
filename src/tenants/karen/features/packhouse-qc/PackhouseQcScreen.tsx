@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
@@ -22,6 +22,8 @@ import {
   stemsPerBunch,
   totalBunches,
   type BunchIssue,
+  type ReplacedBunchInfo,
+  type GradingReplaceState,
   type IssueRow,
   type OnlineMode,
   type QcType,
@@ -135,6 +137,7 @@ export function PackhouseQcScreen() {
   const orderDetailLoading = useKarenPackhouseQcStore((s) => s.orderDetailLoading);
   const pendingQuarantineStems = useKarenPackhouseQcStore((s) => s.pendingQuarantineStems);
   const selectedVariety = useKarenPackhouseQcStore((s) => s.selectedVariety);
+  const varieties = useKarenPackhouseQcStore((s) => s.varieties);
   const scannedBoxName = useKarenPackhouseQcStore((s) => s.scannedBoxName);
   const scannedBoxDetail = useKarenPackhouseQcStore((s) => s.scannedBoxDetail);
   const issues = useKarenPackhouseQcStore((s) => s.issues);
@@ -165,6 +168,15 @@ export function PackhouseQcScreen() {
   const removeRejectedBunch = useKarenPackhouseQcStore((s) => s.removeRejectedBunch);
   const clearRejectedBunches = useKarenPackhouseQcStore((s) => s.clearRejectedBunches);
   const rejectedBunches = useKarenPackhouseQcStore((s) => s.rejectedBunches);
+  const openGradingReplace = useKarenPackhouseQcStore((s) => s.openGradingReplace);
+  const scanBunchForReplace = useKarenPackhouseQcStore((s) => s.scanBunchForReplace);
+  const setReplaceDonor = useKarenPackhouseQcStore((s) => s.setReplaceDonor);
+  const setReplaceStems = useKarenPackhouseQcStore((s) => s.setReplaceStems);
+  const confirmGradingReplace = useKarenPackhouseQcStore((s) => s.confirmGradingReplace);
+  const closeGradingReplace = useKarenPackhouseQcStore((s) => s.closeGradingReplace);
+  const gradingReplace = useKarenPackhouseQcStore((s) => s.gradingReplace);
+  const replacedBunches = useKarenPackhouseQcStore((s) => s.replacedBunches);
+  const varietyItemGroups = useKarenPackhouseQcStore((s) => s.varietyItemGroups);
   const finishBunchSampling = useKarenPackhouseQcStore((s) => s.finishBunchSampling);
   const isBunchSamplingMode = useKarenPackhouseQcStore((s) => s.isBunchSamplingMode);
   const setBoxesChecked = useKarenPackhouseQcStore((s) => s.setBoxesChecked);
@@ -214,6 +226,12 @@ export function PackhouseQcScreen() {
   const selectedReasonOption = reasons.find((r) => r.name === selectedReason) ?? null;
   const issuesTotal = issues.reduce((sum, i) => sum + i.count, 0);
   const orderTotalBunches = totalBunches(itemLocations);
+  // Every variety on the order (mix groups have several) — the order's own
+  // `varieties` list, falling back to the distinct item codes on its lines.
+  const orderVarieties =
+    varieties.length > 0
+      ? varieties
+      : Array.from(new Set(itemLocations.map((l) => l.itemCode).filter(Boolean)));
   // QC parameters grouped into their inspection categories, ordered by category
   // then name — drives the sectioned parameter / rejection-reason picker.
   const paramPickerOptions = params
@@ -231,6 +249,18 @@ export function PackhouseQcScreen() {
   const rejectedBunchesValid = rejectedBunches.every(
     (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
   );
+  // Replacement is gated on the same role as the standalone Replacement app.
+  const canReplace = hasRole('Harvest Details Updater');
+  // …and, for now, only on Spray Roses (Standard Roses is "coming soon" — its
+  // bunches have no scannable sticker to trace back to a bucket). undefined
+  // while the variety's item group is still loading.
+  const replaceGroup = selectedVariety ? varietyItemGroups[selectedVariety] : undefined;
+  const replaceSupported = replaceGroup === undefined ? undefined : replaceGroup === 'Spray Roses';
+  const onConfirmReplace = async () => {
+    const outcome = await confirmGradingReplace();
+    if (outcome.ok) showSuccess(outcome.message);
+    else showError(outcome.message);
+  };
   const gradingQcMode = isBunchSamplingMode();
   const boxSamplingMode = isBoxSamplingMode();
   // Reject Recorder deals only in stems (no bunches), and doesn't need the
@@ -551,11 +581,16 @@ export function PackhouseQcScreen() {
             </>
           ) : null}
 
-          {/* Variety reads like the other order facts above — no
-              workflow lets the operator pick a different one anymore, so
-              it's never a select field. */}
+          {/* All varieties on the order (a mix group carries several) read like
+              the other order facts above — every one is listed so none is
+              left out. */}
           <Text style={s.muted}>
-            Variety: {orderDetailLoading ? 'Loading…' : selectedVariety || 'Not found'}
+            {orderVarieties.length > 1 ? 'Varieties' : 'Variety'}:{' '}
+            {orderDetailLoading
+              ? 'Loading…'
+              : orderVarieties.length > 0
+                ? orderVarieties.join(', ')
+                : selectedVariety || 'Not found'}
           </Text>
         </Card>
       ) : null}
@@ -623,43 +658,45 @@ export function PackhouseQcScreen() {
           <Text style={s.muted}>Customer: {specification.customer || '—'}</Text>
           <Text style={s.muted}>Category Code: {specification.categoryCode || '—'}</Text>
 
-          <View style={{ height: 12 }} />
-          <Text style={s.section}>VERIFY AGAINST THE BOX</Text>
-          <View style={{ height: 8 }} />
-          <SpecCheckRow
-            label="Cut Stage"
-            expected={specification.cutStage}
-            check={specChecks.cutStage}
-            affectedInStems={rejectRecorderMode}
-            onAccept={() => acceptSpecCheck('cutStage')}
-            onActualValueChange={(v) => setSpecCheckActualValue('cutStage', v)}
-            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('cutStage', v)}
-          />
-          <SpecCheckRow
-            label="Defoliation Length"
-            expected={specification.defoliationLength}
-            check={specChecks.defoliationLength}
-            affectedInStems={rejectRecorderMode}
-            onAccept={() => acceptSpecCheck('defoliationLength')}
-            onActualValueChange={(v) => setSpecCheckActualValue('defoliationLength', v)}
-            onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('defoliationLength', v)}
-          />
-          {/* Reject Recorder doesn't verify rubber band — only Grading / Final QC do. */}
+          {/* Reject Recorder logs issues straight from the parameter list — it
+              doesn't verify cut stage / defoliation / rubber band against the
+              box, so the whole section is hidden for it. */}
           {!rejectRecorderMode ? (
-            <SpecCheckRow
-              label="Rubber Band"
-              expected={[
-                specification.rubberBandType,
-                specification.rubberBandDistance1 ? `${specification.rubberBandDistance1} from base` : '',
-                specification.rubberBandDistance2 ? `2nd band ${specification.rubberBandDistance2}` : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              check={specChecks.rubberBand}
-              onAccept={() => acceptSpecCheck('rubberBand')}
-              onActualValueChange={(v) => setSpecCheckActualValue('rubberBand', v)}
-              onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('rubberBand', v)}
-            />
+            <>
+              <View style={{ height: 12 }} />
+              <Text style={s.section}>VERIFY AGAINST THE BOX</Text>
+              <View style={{ height: 8 }} />
+              <SpecCheckRow
+                label="Cut Stage"
+                expected={specification.cutStage}
+                check={specChecks.cutStage}
+                onAccept={() => acceptSpecCheck('cutStage')}
+                onActualValueChange={(v) => setSpecCheckActualValue('cutStage', v)}
+                onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('cutStage', v)}
+              />
+              <SpecCheckRow
+                label="Defoliation Length"
+                expected={specification.defoliationLength}
+                check={specChecks.defoliationLength}
+                onAccept={() => acceptSpecCheck('defoliationLength')}
+                onActualValueChange={(v) => setSpecCheckActualValue('defoliationLength', v)}
+                onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('defoliationLength', v)}
+              />
+              <SpecCheckRow
+                label="Rubber Band"
+                expected={[
+                  specification.rubberBandType,
+                  specification.rubberBandDistance1 ? `${specification.rubberBandDistance1} from base` : '',
+                  specification.rubberBandDistance2 ? `2nd band ${specification.rubberBandDistance2}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                check={specChecks.rubberBand}
+                onAccept={() => acceptSpecCheck('rubberBand')}
+                onActualValueChange={(v) => setSpecCheckActualValue('rubberBand', v)}
+                onBunchesAffectedChange={(v) => setSpecCheckBunchesAffected('rubberBand', v)}
+              />
+            </>
           ) : null}
           {specification.validFrom || specification.expiryDate ? (
             <Text style={s.muted}>
@@ -860,6 +897,9 @@ export function PackhouseQcScreen() {
                       issues={b.issues}
                       params={params}
                       editable={!bunchSampling.finished}
+                      canReplace={canReplace}
+                      replaceSupported={replaceSupported}
+                      replaced={replacedBunches[b.id]}
                       onAddIssue={() => {
                         setAddIssueBunchId(b.id);
                         setParamPickerOpen(true);
@@ -867,6 +907,8 @@ export function PackhouseQcScreen() {
                       onStemsChange={(issueId, v) => setBunchIssueStems(b.id, issueId, v)}
                       onRemoveIssue={(issueId) => removeBunchIssue(b.id, issueId)}
                       onRemoveBunch={() => removeRejectedBunch(b.id)}
+                      onReplaceStems={() => openGradingReplace(b.id, 'stems')}
+                      onReplaceBunch={() => openGradingReplace(b.id, 'bunch')}
                     />
                   ))
                 )}
@@ -1033,7 +1075,11 @@ export function PackhouseQcScreen() {
                     onRemove={() => removeIssue(issue.id)}
                     onCountChange={(n) => updateIssueCount(issue.id, n)}
                     showAction={!boxSamplingMode}
-                    toleranceInfo={issueToleranceInfo(issue)}
+                    // Reject Recorder rejects every issued stem outright, so the
+                    // tolerance badge (Tolerance X% / Within tolerance) is
+                    // meaningless here — hide it. Grading / Final QC keep it, as
+                    // the % feeds their CAR decisions.
+                    toleranceInfo={rejectRecorderMode ? undefined : issueToleranceInfo(issue)}
                     tolerance={
                       boxSamplingMode
                         ? {
@@ -1302,7 +1348,176 @@ export function PackhouseQcScreen() {
         }}
       />
 
+      <GradingReplaceModal
+        state={gradingReplace}
+        onScan={scanBunchForReplace}
+        onClose={closeGradingReplace}
+        onSelectDonor={setReplaceDonor}
+        onStemsChange={(n) => setReplaceStems(n)}
+        onConfirm={onConfirmReplace}
+      />
+
     </Screen>
+  );
+}
+
+/** Grading QC "replace a rejected bunch" modal. Scan-first: the operator scans
+ *  the rejected bunch's sticker to identify the exact bucket it came from, then
+ *  picks a discard-aware, FIFO-ordered donor to replace from. */
+function GradingReplaceModal({
+  state,
+  onScan,
+  onClose,
+  onSelectDonor,
+  onStemsChange,
+  onConfirm,
+}: {
+  state: GradingReplaceState;
+  onScan: (rawScan: string) => void;
+  onClose: () => void;
+  onSelectDonor: (bucketId: string) => void;
+  onStemsChange: (stems: number) => void;
+  onConfirm: () => void;
+}) {
+  const title = state.mode === 'bunch' ? 'Replace whole bunch' : 'Replace rejected stems';
+  const canConfirm = !!state.selectedDonor && state.stems > 0 && !state.submitting && !state.loading;
+  return (
+    <Modal visible={state.open} animationType="slide" onRequestClose={onClose}>
+      <View style={s.modalRoot}>
+        <View style={s.modalHeader}>
+          <Text style={s.modalTitle}>{title}</Text>
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Text style={s.modalClose}>Cancel</Text>
+          </Pressable>
+        </View>
+
+        {state.phase === 'scan' ? (
+          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+            <Text style={s.muted}>
+              Scan the rejected bunch&apos;s sticker to identify the bucket it was found in. The
+              replacement will be sourced against that exact bucket.
+            </Text>
+            <View style={{ height: 12 }} />
+            <ScanField onScan={onScan} autoFocus placeholder="Scan bunch sticker" editable={!state.scanning} />
+            {state.scanning ? (
+              <View style={{ padding: 16, alignItems: 'center' }}>
+                <ActivityIndicator color={COLORS.text} />
+                <Text style={[s.muted, { marginTop: 10 }]}>Finding the bucket…</Text>
+              </View>
+            ) : null}
+            {state.scanError ? (
+              <>
+                <View style={{ height: 12 }} />
+                <Alert tone="danger">{state.scanError}</Alert>
+              </>
+            ) : null}
+            {state.destinationBucket ? (
+              <>
+                <View style={{ height: 12 }} />
+                <View style={s.donorCard}>
+                  <Text style={s.donorId}>{state.destinationBucket.toUpperCase()}</Text>
+                  <Text style={s.muted}>
+                    {[state.scannedVariety, state.scannedLength, state.scannedFarm].filter(Boolean).join(' · ') || '—'}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+          </ScrollView>
+        ) : state.loading ? (
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <ActivityIndicator color={COLORS.text} />
+            <Text style={[s.muted, { marginTop: 10 }]}>Finding matching buckets…</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+            {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+
+            {state.destinationBucket ? (
+              <View style={s.donorCard}>
+                <Text style={s.label}>BUNCH FOUND IN BUCKET</Text>
+                <Text style={s.donorId}>{state.destinationBucket.toUpperCase()}</Text>
+                <Text style={s.muted}>
+                  {[state.scannedVariety, state.scannedLength, state.scannedFarm].filter(Boolean).join(' · ') || '—'}
+                </Text>
+              </View>
+            ) : null}
+
+            {state.criteria ? (
+              <Text style={[s.muted, { marginTop: 12 }]}>
+                Donors matching {state.criteria.variety} · {state.criteria.stemLength} · {state.criteria.farm}
+              </Text>
+            ) : null}
+
+            <View style={{ height: 12 }} />
+            <View style={s.issueCountRow}>
+              <Text style={s.issueCountLabel}>
+                {state.mode === 'bunch' ? 'Stems in bunch' : 'Stems to replace'}
+              </Text>
+              <TextInput
+                value={String(state.stems)}
+                onChangeText={(v) => onStemsChange(Number.parseInt(v, 10) || 0)}
+                keyboardType="number-pad"
+                placeholder="0"
+                style={s.issueCountInput}
+              />
+            </View>
+
+            <View style={{ height: 16 }} />
+            <Text style={s.section}>DONOR BUCKETS ({state.candidates.length})</Text>
+            {state.candidates.length > 0 ? (
+              <Text style={s.muted}>Oldest stock first (FIFO) — the oldest bucket is pre-selected.</Text>
+            ) : null}
+            <View style={{ height: 8 }} />
+            {state.candidates.length === 0 && !state.error ? (
+              <Text style={s.empty}>
+                No matching buckets with available stems (discarded buckets are excluded).
+              </Text>
+            ) : (
+              state.candidates.map((c) => {
+                const selected = state.selectedDonor === c.bucketId;
+                const enough = c.availableQty >= state.stems;
+                return (
+                  <Pressable
+                    key={c.bucketId}
+                    onPress={() => onSelectDonor(c.bucketId)}
+                    style={[s.donorCard, selected && s.donorCardSelected]}
+                  >
+                    <View style={s.donorHead}>
+                      <Text style={s.donorId}>{c.bucketId.toUpperCase()}</Text>
+                      {selected ? (
+                        <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.text} />
+                      ) : null}
+                    </View>
+                    <Text style={s.muted}>
+                      {c.shelf || '—'}
+                      {c.ageDays != null ? ` · ${c.ageDays}d old` : ''}
+                    </Text>
+                    <View style={[s.chipRow, { marginTop: 6 }]}>
+                      <View style={[s.chip, enough ? s.chipAccepted : s.chipDanger]}>
+                        <Text style={[s.chipText, { color: enough ? COLORS.success : COLORS.danger }]}>
+                          {Math.round(c.availableQty)} available
+                        </Text>
+                      </View>
+                      <View style={s.chip}>
+                        <Text style={s.chipText}>{Math.round(c.allocatedQty)} allocated</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
+
+            <View style={{ height: 20 }} />
+            <Button
+              label={state.submitting ? 'Replacing…' : title}
+              onPress={onConfirm}
+              disabled={!canConfirm}
+              loading={state.submitting}
+            />
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -1398,19 +1613,29 @@ function RejectedBunchCard({
   issues,
   params,
   editable,
+  canReplace,
+  replaceSupported,
+  replaced,
   onAddIssue,
   onStemsChange,
   onRemoveIssue,
   onRemoveBunch,
+  onReplaceStems,
+  onReplaceBunch,
 }: {
   index: number;
   issues: BunchIssue[];
   params: { name: string; parameter: string }[];
   editable: boolean;
+  canReplace: boolean;
+  replaceSupported: boolean | undefined;
+  replaced?: ReplacedBunchInfo;
   onAddIssue: () => void;
   onStemsChange: (issueId: number, value: string) => void;
   onRemoveIssue: (issueId: number) => void;
   onRemoveBunch: () => void;
+  onReplaceStems: () => void;
+  onReplaceBunch: () => void;
 }) {
   const stemsTotal = issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0);
   return (
@@ -1470,6 +1695,26 @@ function RejectedBunchCard({
       ) : null}
       <View style={{ height: 8 }} />
       <Text style={s.muted}>Rejected stems: {stemsTotal}</Text>
+
+      {replaced ? (
+        <View style={[s.chip, s.chipAccepted, { alignSelf: 'flex-start', marginTop: 10 }]}>
+          <MaterialCommunityIcons name="check-circle" size={14} color={COLORS.success} />
+          <Text style={[s.chipText, { color: COLORS.success }]}>
+            Replaced {replaced.stems} stem{replaced.stems === 1 ? '' : 's'} from {replaced.donorBucket.toUpperCase()}
+            {replaced.donorShelf ? ` · ${replaced.donorShelf}` : ''}
+          </Text>
+        </View>
+      ) : canReplace && stemsTotal > 0 && replaceSupported === true ? (
+        <View style={s.replaceRow}>
+          <Button label={`Replace ${stemsTotal} stem${stemsTotal === 1 ? '' : 's'}`} variant="outline" onPress={onReplaceStems} style={s.replaceBtn} />
+          <Button label="Replace bunch" variant="outline" onPress={onReplaceBunch} style={s.replaceBtn} />
+        </View>
+      ) : canReplace && stemsTotal > 0 && replaceSupported === false ? (
+        <View style={[s.chip, { alignSelf: 'flex-start', marginTop: 10 }]}>
+          <MaterialCommunityIcons name="clock-outline" size={14} color={COLORS.textMuted} />
+          <Text style={s.chipText}>Replacement coming soon for Standard Roses</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1768,6 +2013,19 @@ function PickerModal({
 }
 
 const s = StyleSheet.create({
+  replaceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  replaceBtn: { flex: 1 },
+  donorCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: borderRadius.md,
+    padding: 12,
+    marginBottom: 8,
+  },
+  donorCardSelected: { borderColor: COLORS.text, backgroundColor: '#F5F3FF' },
+  donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  donorId: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  label: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   landingHeader: { marginBottom: spacing.lg },
   landingTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.xl, color: COLORS.text },
   landingSubtitle: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: 4 },

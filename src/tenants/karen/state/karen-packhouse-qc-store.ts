@@ -14,6 +14,9 @@ import {
   type SpecificationMatch,
 } from '../repository/karen-packhouse-qc-repository';
 import { mapAxiosError } from '@/src/core/api/client';
+import { karenReplacementRepository } from '../repository/karen-replacement-repository';
+import { karenTraceabilityRepository } from '../repository/karen-traceability-repository';
+import type { ReplacementCandidate } from '@/src/core/features/replacement/types';
 
 export type QcType = 'Online QC' | 'Final QC' | 'Airport Returns';
 export type OnlineMode = 'Reject Recorder' | 'Grading QC';
@@ -127,6 +130,86 @@ export type BunchIssue = { id: number; reason: string; stems: string };
  *  The bunch's rejected-stem total is the sum of its issues' stem counts. */
 export type RejectedBunch = { id: number; issues: BunchIssue[] };
 
+export type GradingReplaceMode = 'stems' | 'bunch';
+
+/** What was recorded once a rejected bunch has been replaced from a donor. */
+export type ReplacedBunchInfo = {
+  mode: GradingReplaceMode;
+  donorBucket: string;
+  donorShelf: string;
+  stems: number;
+};
+
+/** Transient state for the Grading QC "replace this rejected bunch" flow — the
+ *  donor candidates for the bunch's variety/length/farm and the operator's pick. */
+export type GradingReplaceState = {
+  open: boolean;
+  bunchId: number | null;
+  mode: GradingReplaceMode;
+  stems: number;
+  /** 'scan' = waiting for the bunch sticker; 'donors' = bucket resolved, pick a donor. */
+  phase: 'scan' | 'donors';
+  /** Resolving the scanned bunch → its bucket via traceability. */
+  scanning: boolean;
+  scanError: string | null;
+  /** The bucket the scanned bunch was found in (the replacement destination). */
+  destinationBucket: string | null;
+  scannedVariety: string;
+  scannedLength: string;
+  scannedFarm: string;
+  loading: boolean;
+  error: string | null;
+  pickListItem: string | null;
+  conversionFactor: number;
+  criteria: { variety: string; stemLength: string; farm: string } | null;
+  candidates: ReplacementCandidate[];
+  selectedDonor: string | null;
+  submitting: boolean;
+};
+
+function emptyGradingReplace(): GradingReplaceState {
+  return {
+    open: false,
+    bunchId: null,
+    mode: 'stems',
+    stems: 0,
+    phase: 'scan',
+    scanning: false,
+    scanError: null,
+    destinationBucket: null,
+    scannedVariety: '',
+    scannedLength: '',
+    scannedFarm: '',
+    loading: false,
+    error: null,
+    pickListItem: null,
+    conversionFactor: 10,
+    criteria: null,
+    candidates: [],
+    selectedDonor: null,
+    submitting: false,
+  };
+}
+
+/** Bunch stickers encode as `{ "<id>": "bunch" }`, `{ "bunch_id": "<id>" }`, or
+ *  the raw id — return the bunch id in every case. */
+function extractScannedBunchId(raw: string): string {
+  const t = (raw ?? '').trim();
+  if (!t) return '';
+  if (t.startsWith('{')) {
+    try {
+      const obj = JSON.parse(t) as Record<string, unknown>;
+      if (typeof obj.bunch_id === 'string' && obj.bunch_id.trim()) return obj.bunch_id.trim();
+      if (typeof obj.bucket_id === 'string' && obj.bucket_id.trim()) return obj.bucket_id.trim();
+      const keys = Object.keys(obj);
+      if (keys.length) return keys[0];
+    } catch {
+      // not JSON — use raw
+    }
+  }
+  return t;
+}
+
 type State = {
   qcType: QcType | null;
   onlineMode: OnlineMode | null;
@@ -195,6 +278,13 @@ type State = {
   /** Grading QC only — each rejected bunch and the per-stem issues found on it.
    *  A bunch's rejected stems is the sum of its issues' stem counts. */
   rejectedBunches: RejectedBunch[];
+  /** Grading QC only — the in-progress replace flow for one rejected bunch. */
+  gradingReplace: GradingReplaceState;
+  /** Grading QC only — replacement recorded per rejected-bunch id. */
+  replacedBunches: Record<number, ReplacedBunchInfo>;
+  /** item_code → item_group cache, so replacement can be gated to Spray Roses
+   *  (Standard Roses is "coming soon" — its bunches have no scannable sticker). */
+  varietyItemGroups: Record<string, string>;
   /** Airport Returns only — the scanned box's return context plus the
    *  operator's reason / inspected / reuse / reject entry. */
   airportReturn: AirportReturnState;
@@ -257,6 +347,23 @@ type State = {
   /** Clears every recorded rejected bunch — a one-tap start-over. */
   clearRejectedBunches: () => void;
   finishBunchSampling: () => void;
+
+  /** Open the replace flow for a rejected bunch. Starts on the scan step —
+   *  `mode` = 'stems' replaces exactly the bunch's rejected stems; 'bunch'
+   *  replaces a whole bunch (PLI conversion factor). */
+  openGradingReplace: (bunchId: number, mode: GradingReplaceMode) => void;
+  /** Resolve a scanned bunch sticker → its bucket (via traceability), then load
+   *  the discard-aware donor candidates for that bucket. */
+  scanBunchForReplace: (rawScan: string) => Promise<void>;
+  setReplaceDonor: (bucketId: string) => void;
+  setReplaceStems: (stems: number) => void;
+  confirmGradingReplace: () => Promise<{ ok: boolean; message: string }>;
+  closeGradingReplace: () => void;
+  /** Fetch + cache item groups for the current order's varieties. */
+  loadVarietyItemGroups: () => Promise<void>;
+  /** Whether replacement is available for a variety — Spray Roses only for now.
+   *  Returns undefined while the item group is still unknown. */
+  isReplaceSupported: (variety: string | null) => boolean | undefined;
 
   setBoxesChecked: (v: string) => void;
   /** Override the auto-suggested Final QC decision (or pass the suggestion
@@ -469,6 +576,8 @@ function freshOrderState() {
     pendingQuarantineStems: 0,
     bunchSampling: emptyBunchSampling(),
     rejectedBunches: [] as RejectedBunch[],
+    gradingReplace: emptyGradingReplace(),
+    replacedBunches: {} as Record<number, ReplacedBunchInfo>,
     airportReturn: emptyAirportReturn(),
     boxesChecked: '' as string,
     finalDecisionOverride: null as FinalDecision | null,
@@ -513,6 +622,9 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   bunchSampling: emptyBunchSampling(),
   rejectedBunches: [],
+  gradingReplace: emptyGradingReplace(),
+  replacedBunches: {},
+  varietyItemGroups: {},
   airportReturn: emptyAirportReturn(),
   boxesChecked: '',
   finalDecisionOverride: null,
@@ -656,6 +768,9 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           specifications: outcome.specifications,
           pendingQuarantineStems: outcome.pendingQuarantineStems,
         });
+        // Resolve rose type for the order's varieties so Grading QC can gate
+        // replacement to Spray Roses (best-effort, non-blocking).
+        get().loadVarietyItemGroups();
       } else {
         set({ orderDetailLoading: false });
       }
@@ -783,11 +898,193 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     })),
 
   removeRejectedBunch: (bunchId) =>
-    set((s) => ({ rejectedBunches: s.rejectedBunches.filter((b) => b.id !== bunchId) })),
+    set((s) => {
+      const replaced = { ...s.replacedBunches };
+      delete replaced[bunchId];
+      return { rejectedBunches: s.rejectedBunches.filter((b) => b.id !== bunchId), replacedBunches: replaced };
+    }),
 
-  clearRejectedBunches: () => set({ rejectedBunches: [] }),
+  clearRejectedBunches: () => set({ rejectedBunches: [], replacedBunches: {} }),
 
   finishBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, finished: true } })),
+
+  openGradingReplace: (bunchId, mode) => {
+    const s = get();
+    const bunch = s.rejectedBunches.find((b) => b.id === bunchId);
+    // 'stems' replaces exactly the bunch's rejected stems; 'bunch' defaults to a
+    // whole bunch (refined to the PLI conversion factor once options load).
+    const rejectedStems = bunch
+      ? bunch.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0)
+      : 0;
+    // Start on the scan step — the operator scans the rejected bunch's sticker
+    // to identify the exact bucket it came from.
+    set({
+      gradingReplace: {
+        ...emptyGradingReplace(),
+        open: true,
+        bunchId,
+        mode,
+        stems: mode === 'stems' ? rejectedStems : 0,
+        phase: 'scan',
+      },
+    });
+  },
+
+  scanBunchForReplace: async (rawScan) => {
+    const s = get();
+    const bunchId = s.gradingReplace.bunchId;
+    const variety = s.selectedVariety ?? '';
+    const opl = s.selectedOrderPickList?.name ?? '';
+    // Bunch stickers encode `{ "<id>": "bunch" }` / `{ "bunch_id": "<id>" }`, or
+    // are the raw id — pull the id out either way.
+    const id = extractScannedBunchId(rawScan);
+    if (!id) {
+      set((st) => ({ gradingReplace: { ...st.gradingReplace, scanError: 'Scan a valid bunch sticker.' } }));
+      return;
+    }
+    if (!opl || !variety) {
+      set((st) => ({ gradingReplace: { ...st.gradingReplace, scanError: 'Pick an order and variety first.' } }));
+      return;
+    }
+    set((st) => ({ gradingReplace: { ...st.gradingReplace, scanning: true, scanError: null } }));
+    try {
+      // 1. Resolve the scanned bunch → the bucket it's currently in.
+      const snap = await karenTraceabilityRepository.lookup({ kind: 'bunch', id });
+      const bucketId = snap.bucketId;
+      if (!bucketId || bucketId === '—') {
+        set((st) => ({
+          gradingReplace: { ...st.gradingReplace, scanning: false, scanError: `Couldn't find the bucket for bunch ${id}.` },
+        }));
+        return;
+      }
+      // The rejected bunch's real variety comes from the scan, not the session's
+      // selectedVariety — a mixed order has several, and the scanned bunch may be
+      // any of them (fall back to selectedVariety only if the scan didn't say).
+      const scannedVariety = snap.variety && snap.variety !== '—' ? snap.variety : variety;
+      // 2. Load the discard-aware donor candidates for that exact bucket.
+      const outcome = await karenReplacementRepository.listGradingReplacementOptions(opl, scannedVariety, bucketId);
+      set((st) => {
+        // Guard against a stale response if the flow was closed/switched.
+        if (!st.gradingReplace.open || st.gradingReplace.bunchId !== bunchId) return {};
+        if (!outcome.ok) {
+          return {
+            gradingReplace: {
+              ...st.gradingReplace,
+              scanning: false,
+              scanError: outcome.error,
+              destinationBucket: bucketId,
+              scannedVariety: snap.variety === '—' ? '' : snap.variety,
+              scannedLength: snap.stemLength === '—' ? '' : snap.stemLength,
+              scannedFarm: snap.farm === '—' ? '' : snap.farm,
+            },
+          };
+        }
+        const o = outcome.options;
+        return {
+          gradingReplace: {
+            ...st.gradingReplace,
+            scanning: false,
+            scanError: null,
+            phase: 'donors',
+            destinationBucket: o.destinationBucket || bucketId,
+            scannedVariety: o.criteria.variety || (snap.variety === '—' ? '' : snap.variety),
+            scannedLength: o.criteria.stemLength || (snap.stemLength === '—' ? '' : snap.stemLength),
+            scannedFarm: o.criteria.farm || (snap.farm === '—' ? '' : snap.farm),
+            pickListItem: o.pickListItem,
+            conversionFactor: o.conversionFactor,
+            criteria: o.criteria,
+            candidates: o.candidates,
+            // Candidates arrive oldest-first (FIFO); default to the oldest so the
+            // FIFO pick is one tap and fresh buckets aren't used first.
+            selectedDonor: o.candidates[0]?.bucketId ?? null,
+            stems: st.gradingReplace.mode === 'bunch' ? o.conversionFactor : st.gradingReplace.stems,
+          },
+        };
+      });
+    } catch (err) {
+      set((st) => ({
+        gradingReplace: { ...st.gradingReplace, scanning: false, scanError: mapAxiosError(err).message },
+      }));
+    }
+  },
+
+  setReplaceDonor: (bucketId) =>
+    set((s) => ({ gradingReplace: { ...s.gradingReplace, selectedDonor: bucketId } })),
+
+  setReplaceStems: (stems) =>
+    set((s) => ({ gradingReplace: { ...s.gradingReplace, stems: Math.max(0, stems) } })),
+
+  confirmGradingReplace: async () => {
+    const s = get();
+    const g = s.gradingReplace;
+    if (!g.pickListItem) return { ok: false, message: 'No order line resolved.' };
+    if (!g.selectedDonor) return { ok: false, message: 'Pick a donor bucket.' };
+    if (g.stems <= 0) return { ok: false, message: 'Enter how many stems to replace.' };
+    set((st) => ({ gradingReplace: { ...st.gradingReplace, submitting: true } }));
+    try {
+      const outcome =
+        g.mode === 'bunch'
+          ? await karenReplacementRepository.replaceBunchInOpl({
+              pickListItem: g.pickListItem,
+              donorBucketId: g.selectedDonor,
+              stems: g.stems,
+              reason: 'Grading QC bunch replacement',
+            })
+          : await karenReplacementRepository.replaceStems({
+              pickListItem: g.pickListItem,
+              donorBucketId: g.selectedDonor,
+              stems: g.stems,
+              reason: 'Grading QC stem replacement',
+            });
+      if (!outcome.ok) {
+        set((st) => ({ gradingReplace: { ...st.gradingReplace, submitting: false } }));
+        return { ok: false, message: outcome.error };
+      }
+      const bunchId = g.bunchId;
+      set((st) => ({
+        gradingReplace: emptyGradingReplace(),
+        replacedBunches:
+          bunchId == null
+            ? st.replacedBunches
+            : {
+                ...st.replacedBunches,
+                [bunchId]: {
+                  mode: g.mode,
+                  donorBucket: outcome.donorBucket,
+                  donorShelf: outcome.donorShelf,
+                  stems: outcome.stems,
+                },
+              },
+      }));
+      return { ok: true, message: outcome.message };
+    } catch (err) {
+      const message = mapAxiosError(err).message;
+      set((st) => ({ gradingReplace: { ...st.gradingReplace, submitting: false } }));
+      return { ok: false, message };
+    }
+  },
+
+  closeGradingReplace: () => set({ gradingReplace: emptyGradingReplace() }),
+
+  loadVarietyItemGroups: async () => {
+    const s = get();
+    // Only fetch groups we don't already have cached.
+    const missing = s.varieties.filter((v) => v && !(v in s.varietyItemGroups));
+    if (!missing.length) return;
+    try {
+      const map = await karenReplacementRepository.getItemGroups(missing);
+      set((st) => ({ varietyItemGroups: { ...st.varietyItemGroups, ...map } }));
+    } catch {
+      // Non-fatal — replacement stays gated (hidden) until the group is known.
+    }
+  },
+
+  isReplaceSupported: (variety) => {
+    if (!variety) return undefined;
+    const group = get().varietyItemGroups[variety];
+    if (group === undefined) return undefined;
+    return group === 'Spray Roses';
+  },
 
   setBoxesChecked: (v) => set({ boxesChecked: v }),
   setFinalDecision: (d) => set({ finalDecisionOverride: d }),
@@ -1123,6 +1420,28 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         count,
         action: 'Reject' as IssueAction,
       }));
+      // Replacement outcome per rejected bunch: stems taken from donors, and
+      // bunches left short (rejected stems that weren't fully replaced). A
+      // whole-bunch replacement makes the bunch complete; a stem replacement
+      // completes it only if it covered every rejected stem.
+      let stemsReplaced = 0;
+      let incompleteStems = 0;
+      let incompleteBunches = 0;
+      for (const bunch of s.rejectedBunches) {
+        const rejStems = bunch.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0);
+        const rep = s.replacedBunches[bunch.id];
+        const replaced = rep ? rep.stems : 0;
+        stemsReplaced += replaced;
+        const covered = rep ? rep.mode === 'bunch' || replaced >= rejStems : false;
+        const unreplaced = covered ? 0 : rejStems - (rep && rep.mode === 'stems' ? replaced : 0);
+        if (unreplaced > 0) {
+          incompleteStems += unreplaced;
+          incompleteBunches += 1;
+        }
+      }
+      payload.stems_replaced = stemsReplaced;
+      payload.incomplete_stems = incompleteStems;
+      payload.incomplete_bunches = incompleteBunches;
     } else if (s.isBoxSamplingMode()) {
       // The order-level decision is auto-suggested from the tolerance checks
       // (any issue over threshold → Quarantine, else Accept) but the operator
