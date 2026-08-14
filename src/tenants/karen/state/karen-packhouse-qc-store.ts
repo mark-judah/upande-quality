@@ -497,6 +497,14 @@ function resolveFinalQcSpec(s: State): SpecificationMatch | null {
   return s.specificationDetail ?? (s.selectedVariety ? s.specifications[s.selectedVariety] ?? null : null);
 }
 
+/** Stems in one bunch for Grading QC — the spec's rate if set, else the order's
+ *  own bunches/stems ratio. Used both to convert bunches to stems and to cap a
+ *  rejected bunch's issue stems (a bunch can't have more issue stems than it holds). */
+function gradingStemsPerBunch(s: State): number {
+  const spec = resolveFinalQcSpec(s);
+  return spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
+}
+
 /** Turn a spec check's affected count into the unit the current mode's issue
  *  tally expects, mirroring the submit-time conversion exactly. Final QC counts
  *  issues in bunches (converted to stems at submit). Reject Recorder deals only
@@ -1222,8 +1230,19 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     // carry at least one issue, each with a positive stem count.
     if (s.isBunchSamplingMode()) {
       if (!s.bunchSampling.started || !s.bunchSampling.finished) return false;
+      // Inspected bunches (accepted + rejected) can't exceed the order's total.
+      const total = totalBunches(s.itemLocations);
+      const accepted = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
+      const inspected = accepted + s.rejectedBunches.length;
+      if (total > 0 && inspected > total) return false;
+      // Each rejected bunch: at least one issue, each with positive stems, and
+      // its issue stems can't total more than the stems the bunch holds.
+      const perBunch = gradingStemsPerBunch(s);
       return s.rejectedBunches.every(
-        (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
+        (b) =>
+          b.issues.length > 0 &&
+          b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0) &&
+          b.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0) <= perBunch,
       );
     }
     // Final QC: a sample size must be resolvable (typed, or the 30% default
@@ -1388,6 +1407,31 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         const out: SubmitOutcome = {
           kind: 'error',
           message: 'Every rejected-bunch issue needs a stem count above zero.',
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // Inspected bunches (accepted + rejected) can't exceed the order's total.
+      const totalOrderBunches = totalBunches(s.itemLocations);
+      const acceptedForCheck = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
+      const inspectedForCheck = acceptedForCheck + s.rejectedBunches.length;
+      if (totalOrderBunches > 0 && inspectedForCheck > totalOrderBunches) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: `Bunches inspected (${inspectedForCheck} = ${acceptedForCheck} accepted + ${s.rejectedBunches.length} rejected) can't exceed the order's ${totalOrderBunches} total bunches.`,
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // A rejected bunch can't have more issue stems than it holds.
+      const perBunchCap = gradingStemsPerBunch(s);
+      const overfilled = s.rejectedBunches.find(
+        (b) => b.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0) > perBunchCap,
+      );
+      if (overfilled) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: `A rejected bunch has more issue stems than the ${perBunchCap} stems in a bunch — reduce the counts.`,
         };
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;

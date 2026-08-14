@@ -244,13 +244,19 @@ export function PackhouseQcScreen() {
     0,
   );
   const bunchesInspected = acceptedBunchesNum + rejectedBunchCount;
+  // Inspected bunches (accepted + rejected) can't exceed the order's total.
+  const inspectedExceedsTotal = orderTotalBunches > 0 && bunchesInspected > orderTotalBunches;
   // Every rejected bunch must have at least one issue, each with stems > 0,
   // before sampling can be finished or submitted.
   const rejectedBunchesValid = rejectedBunches.every(
     (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
   );
-  // Replacement is gated on the same role as the standalone Replacement app.
-  const canReplace = hasRole('Harvest Details Updater');
+  // Replacement in Grading QC is TEMPORARILY DISABLED while we finalise the
+  // logic/flow — for now Grading QC records reports only, no replacement.
+  // The whole feature (store actions, scan modal, API, backend) is left in
+  // place; re-enable by flipping this back to `hasRole('Harvest Details Updater')`.
+  const REPLACEMENT_ENABLED = false;
+  const canReplace = REPLACEMENT_ENABLED && hasRole('Harvest Details Updater');
   // …and, for now, only on Spray Roses (Standard Roses is "coming soon" — its
   // bunches have no scannable sticker to trace back to a bucket). undefined
   // while the variety's item group is still loading.
@@ -287,6 +293,10 @@ export function PackhouseQcScreen() {
     specification?.stemsPerBunch && specification.stemsPerBunch > 0
       ? specification.stemsPerBunch
       : stemsPerBunch(itemLocations);
+  // A rejected bunch's issue stems can't total more than the stems it holds.
+  const bunchesWithinCap = rejectedBunches.every(
+    (b) => b.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0) <= stemsPerBunchVal,
+  );
   const issueThresholdFor = (paramName: string) => params.find((p) => p.name === paramName)?.toleranceThresholds ?? 0;
   const issueBreached = (issue: IssueRow) =>
     isThresholdBreached(issue.count, sampledBunchCount, issueThresholdFor(issue.paramName));
@@ -883,6 +893,16 @@ export function PackhouseQcScreen() {
                   placeholder="0"
                   editable={!bunchSampling.finished}
                 />
+                {inspectedExceedsTotal ? (
+                  <>
+                    <View style={{ height: 8 }} />
+                    <Text style={s.warn}>
+                      Inspected bunches ({bunchesInspected} = {acceptedBunchesNum} accepted +{' '}
+                      {rejectedBunchCount} rejected) exceed the order&apos;s {orderTotalBunches} total
+                      bunches.
+                    </Text>
+                  </>
+                ) : null}
 
                 <View style={{ height: 16 }} />
                 <Text style={s.section}>REJECTED BUNCHES ({rejectedBunches.length})</Text>
@@ -896,6 +916,7 @@ export function PackhouseQcScreen() {
                       index={idx}
                       issues={b.issues}
                       params={params}
+                      stemsPerBunch={stemsPerBunchVal}
                       editable={!bunchSampling.finished}
                       canReplace={canReplace}
                       replaceSupported={replaceSupported}
@@ -950,12 +971,26 @@ export function PackhouseQcScreen() {
                         </Text>
                       </>
                     ) : null}
+                    {rejectedBunchCount > 0 && rejectedBunchesValid && !bunchesWithinCap ? (
+                      <>
+                        <View style={{ height: 12 }} />
+                        <Text style={s.warn}>
+                          A rejected bunch has more issue stems than the {stemsPerBunchVal} stems in a
+                          bunch — reduce the counts.
+                        </Text>
+                      </>
+                    ) : null}
                     <View style={{ height: 16 }} />
                     <Button
                       label="Finish Sampling"
                       variant="outline"
                       onPress={finishBunchSampling}
-                      disabled={bunchesInspected === 0 || !rejectedBunchesValid}
+                      disabled={
+                        bunchesInspected === 0 ||
+                        !rejectedBunchesValid ||
+                        !bunchesWithinCap ||
+                        inspectedExceedsTotal
+                      }
                     />
                   </>
                 ) : (
@@ -1612,6 +1647,7 @@ function RejectedBunchCard({
   index,
   issues,
   params,
+  stemsPerBunch,
   editable,
   canReplace,
   replaceSupported,
@@ -1626,6 +1662,7 @@ function RejectedBunchCard({
   index: number;
   issues: BunchIssue[];
   params: { name: string; parameter: string }[];
+  stemsPerBunch: number;
   editable: boolean;
   canReplace: boolean;
   replaceSupported: boolean | undefined;
@@ -1638,6 +1675,7 @@ function RejectedBunchCard({
   onReplaceBunch: () => void;
 }) {
   const stemsTotal = issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0);
+  const overCap = stemsPerBunch > 0 && stemsTotal > stemsPerBunch;
   return (
     <View style={s.issueCard}>
       <View style={s.issueHead}>
@@ -1694,7 +1732,13 @@ function RejectedBunchCard({
         </>
       ) : null}
       <View style={{ height: 8 }} />
-      <Text style={s.muted}>Rejected stems: {stemsTotal}</Text>
+      <Text style={overCap ? s.warn : s.muted}>
+        Rejected stems: {stemsTotal}
+        {stemsPerBunch > 0 ? ` / ${stemsPerBunch} in a bunch` : ''}
+      </Text>
+      {overCap ? (
+        <Text style={s.warn}>Issues exceed the stems in this bunch — reduce the counts.</Text>
+      ) : null}
 
       {replaced ? (
         <View style={[s.chip, s.chipAccepted, { alignSelf: 'flex-start', marginTop: 10 }]}>
