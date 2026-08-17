@@ -19,6 +19,33 @@ import {
   type RawPendingBunch,
 } from '../api/karen-replacement-api';
 
+/** Everything the Grading QC replace flow needs for one rejected bunch: the
+ *  order line's PLI to allocate into, its bunch size, the matched criteria, and
+ *  the discard-aware donor candidates. */
+export type GradingReplacementOptions = {
+  pickListItem: string;
+  destinationBucket: string;
+  conversionFactor: number;
+  criteria: { variety: string; stemLength: string; farm: string };
+  candidates: ReplacementCandidate[];
+};
+
+export type GradingOptionsOutcome =
+  | { ok: true; options: GradingReplacementOptions }
+  | { ok: false; error: string };
+
+/** Karen's replacement repo also exposes the Grading-QC-specific options
+ *  lookup, which the core ReplacementRepository interface doesn't define. */
+export interface KarenReplacementRepository extends ReplacementRepository {
+  listGradingReplacementOptions(
+    orderPickList: string,
+    variety: string,
+    bucketId?: string,
+  ): Promise<GradingOptionsOutcome>;
+  /** item_code → item_group, to gate rose-type-specific features. */
+  getItemGroups(itemCodes: string[]): Promise<Record<string, string>>;
+}
+
 function toCandidate(raw: RawCandidate): ReplacementCandidate {
   const stemQty = raw.stem_qty ?? null;
   const allocated = Number(raw.allocated_qty ?? 0);
@@ -92,10 +119,44 @@ function toPending(raw: RawPendingBunch): PendingBunch {
   };
 }
 
-export const karenReplacementRepository: ReplacementRepository = {
+export const karenReplacementRepository: KarenReplacementRepository = {
   async listBucketCandidates(bucketId: string): Promise<ReplacementCandidatesResult> {
     const res = await karenReplacementApi.listReplacementCandidates({ bucket_id: bucketId });
     return toCandidatesResult(res);
+  },
+
+  async listGradingReplacementOptions(
+    orderPickList: string,
+    variety: string,
+    bucketId?: string,
+  ): Promise<GradingOptionsOutcome> {
+    const res = await karenReplacementApi.gradingReplacementOptions({
+      order_pick_list: orderPickList,
+      variety,
+      bucket_id: bucketId,
+    });
+    const body = res.data ?? {};
+    if (body.error) return { ok: false, error: body.error };
+    if (body.supported === false) {
+      return { ok: false, error: body.message ?? 'Replacement is only available for Spray Roses for now.' };
+    }
+    if (!body.pick_list_item) {
+      return { ok: false, error: res.message?.error ?? 'Could not resolve the order line for this variety.' };
+    }
+    return {
+      ok: true,
+      options: {
+        pickListItem: body.pick_list_item,
+        destinationBucket: body.destination_bucket ?? bucketId ?? '',
+        conversionFactor: Number(body.conversion_factor ?? 10) || 10,
+        criteria: {
+          variety: body.criteria?.variety ?? variety,
+          stemLength: body.criteria?.stem_length ?? '',
+          farm: body.criteria?.farm ?? '',
+        },
+        candidates: (body.candidates ?? []).map(toCandidate),
+      },
+    };
   },
 
   async replaceBucket(
@@ -122,6 +183,10 @@ export const karenReplacementRepository: ReplacementRepository = {
     const fallback = res.message ?? {};
     if (fallback.error) return { ok: false, error: fallback.error };
     return { ok: false, error: 'Unknown response from server.' };
+  },
+
+  getItemGroups(itemCodes: string[]): Promise<Record<string, string>> {
+    return karenReplacementApi.getItemGroups(itemCodes);
   },
 
   async listBucketOpls(bucketId: string): Promise<BucketOplAllocation[]> {

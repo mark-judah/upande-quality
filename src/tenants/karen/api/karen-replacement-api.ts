@@ -41,6 +41,22 @@ export type RawReplaceBucketResponse = {
   message?: { status?: string; message?: string; error?: string };
 };
 
+export type RawGradingOptionsResponse = {
+  data?: {
+    supported?: boolean;
+    item_group?: string;
+    message?: string;
+    pick_list_item?: string;
+    destination_bucket?: string;
+    conversion_factor?: number;
+    criteria?: { variety?: string; stem_length?: string; farm?: string };
+    candidates?: RawCandidate[];
+    count?: number;
+    error?: string;
+  };
+  message?: { error?: string };
+};
+
 export type RawBucketOpl = {
   pick_list_item?: string;
   opl_name?: string;
@@ -208,6 +224,23 @@ export const karenReplacementApi = {
     });
   },
 
+  /** Grading QC replacement: resolve the OPL line's PLI + discard-aware donor
+   *  candidates for the given order + variety. */
+  async gradingReplacementOptions(payload: {
+    order_pick_list: string;
+    variety: string;
+    stem_length?: string;
+    /** The scanned bunch's bucket — pins the destination PLI to that bucket. */
+    bucket_id?: string;
+  }): Promise<RawGradingOptionsResponse> {
+    return api<RawGradingOptionsResponse>({
+      method: 'POST',
+      url: '/api/method/gradingReplacementOptions',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
   async listBunchDestinations(payload: {
     variety: string;
     stem_length: string;
@@ -257,6 +290,26 @@ export const karenReplacementApi = {
       },
     });
     return (res.data ?? []).map((r) => r.item_code ?? '').filter((s) => s.length > 0);
+  },
+
+  /** Map of item_code → item_group for the given varieties, so the UI can gate
+   *  features by rose type (e.g. replacement is Spray-Roses-only for now). */
+  async getItemGroups(itemCodes: string[]): Promise<Record<string, string>> {
+    if (!itemCodes.length) return {};
+    const res = await api<RawListResponse<{ item_code?: string; item_group?: string }>>({
+      method: 'GET',
+      url: '/api/resource/Item',
+      params: {
+        filters: JSON.stringify([['item_code', 'in', itemCodes]]),
+        fields: JSON.stringify(['item_code', 'item_group']),
+        limit_page_length: 500,
+      },
+    });
+    const map: Record<string, string> = {};
+    for (const r of res.data ?? []) {
+      if (r.item_code) map[r.item_code] = r.item_group ?? '';
+    }
+    return map;
   },
 
   async listStemLengths(): Promise<string[]> {
