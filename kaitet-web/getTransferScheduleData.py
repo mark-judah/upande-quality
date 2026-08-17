@@ -150,20 +150,28 @@ for v in veh:
     b = int(v.get('bpt') or 0)
     vehicles.append({'name': v['name'], 'trolleys': t, 'buckets_per_trolley': b, 'capacity_buckets': t * b})
 
-# Existing trips + their order rows
+# Existing trips + their order rows. trip_date = the day the TRUCK physically runs
+# (today), not the delivery-date window used for orders above — a trip moving tomorrow's
+# scheduled produce is still driven today. Only today's trips are shown; yesterday's runs
+# don't clutter the planner.
+today_str = str(frappe.utils.today())
 trip_rows = frappe.get_all(
     "Bucket Request Trip",
+    filters={"trip_date": today_str},
     fields=["name", "vehicle", "trip_date", "status", "notes", "collection_order", "farm", "total_buckets", "total_stems", "capacity_buckets"],
-    order_by="trip_date desc, creation desc", limit_page_length=0,
+    order_by="creation desc", limit_page_length=0,
 )
 trips = []
 for t in trip_rows:
     items = frappe.get_all(
         "Bucket Request Trip Order",
         filters={"parent": t["name"], "parenttype": "Bucket Request Trip"},
-        fields=["order_pick_list", "order_name", "customer", "farm", "varieties", "buckets", "stems"],
+        fields=["order_pick_list", "order_name", "customer", "farm", "varieties", "buckets", "stems", "full_farm_buckets", "is_partial"],
         limit_page_length=0,
     )
+    for it in items:
+        it['full_farm_buckets'] = int(it.get('full_farm_buckets') or it.get('buckets') or 0)
+        it['is_partial'] = 1 if int(it.get('is_partial') or 0) else 0
     trips.append({
         'name': t['name'], 'vehicle': t.get('vehicle') or '', 'trip_date': str(t.get('trip_date') or ''),
         'status': t.get('status') or 'Draft', 'notes': t.get('notes') or '',
@@ -175,7 +183,14 @@ for t in trip_rows:
 # ── Truck physical status: where is each truck NOW, from its Pick List Item buckets
 #    (custom_transit_truck). Per bucket take the most-advanced phase; the latest-modified
 #    bucket places the truck. shelved = arrived at Kapkolia; in_transit = on the way;
-#    loaded/awaiting = loading at the farm. loading_pct = loaded/(loaded+awaiting). ──
+#    loaded/awaiting = loading at the farm. loading_pct = loaded/(loaded+awaiting).
+#    BUG FIXED 2026-08-07: this used to gate on the SALES ORDER's delivery_date window
+#    (from_date/to_date) — but custom_transit_truck is set once when a bucket is loaded
+#    and never cleared, so that gate pulled in every bucket EVER flagged to a truck for
+#    any order that happens to deliver inside whatever window the page is showing —
+#    stale/historical loads, not "where is the truck right now" (caught live: KTCB 443K
+#    showed 148 total buckets against a same-day trip that only ever committed 57).
+#    "Right now" means TODAY's flagging activity, full stop — gate on that instead. ──
 tk_rows = frappe.db.sql("""
     SELECT pli.custom_transit_truck AS truck,
            pli.custom_awaiting_transfer AS aw, pli.custom_loaded_in_trolley AS ld,
@@ -184,11 +199,10 @@ tk_rows = frappe.db.sql("""
            pli.modified AS modified
     FROM `tabPick List Item` pli
     JOIN `tabOrder Pick List` o ON o.name = pli.parent
-    LEFT JOIN `tabSales Order` so ON so.name = o.sales_order
     WHERE pli.parenttype = 'Order Pick List' AND o.docstatus < 2
       AND pli.custom_transit_truck IS NOT NULL AND pli.custom_transit_truck != ''
-      AND so.delivery_date BETWEEN %(f)s AND %(t)s
-""", {'f': from_date, 't': to_date}, as_dict=True)
+      AND DATE(pli.modified) = %(td)s
+""", {'td': today_str}, as_dict=True)
 tmap = {}
 for r in tk_rows:
     tk = r.get('truck') or ''
@@ -247,17 +261,50 @@ for tk in tmap:
     })
 
 # Inter-farm road distances (Farm Distance doctype) — for collection-route optimisation
-# on the client. Symmetric, so one direction per pair is enough.
-dist_rows = frappe.get_all("Farm Distance", fields=["from_farm", "to_farm", "distance_km"], limit_page_length=0)
+# on the client. Symmetric, so one direction per pair is enough. `name` is included so
+# the client can save a Bucket Logistics Route's legs as links to these exact records.
+dist_rows = frappe.get_all("Farm Distance", fields=["name", "from_farm", "to_farm", "distance_km", "is_road_leg"], limit_page_length=0)
 distances = []
 for d in dist_rows:
-    distances.append({'a': d.get('from_farm') or '', 'b': d.get('to_farm') or '', 'km': float(d.get('distance_km') or 0)})
+    distances.append({'name': d.get('name') or '', 'a': d.get('from_farm') or '', 'b': d.get('to_farm') or '',
+                       'km': float(d.get('distance_km') or 0), 'leg': 1 if int(d.get('is_road_leg') or 0) else 0})
+
+# Today's planned truck routes (Bucket Logistics Route) — decided each morning, one
+# doc per (date, vehicle). Drives which farms a truck is allowed to serve when
+# distributing schedules. A truck with NO route today is left unrestricted (can serve
+# any farm) so the feature degrades gracefully until routes are actually set up.
+route_rows = frappe.get_all(
+    "Bucket Logistics Route",
+    filters={"route_date": today_str},
+    fields=["name", "vehicle", "total_km"],
+    limit_page_length=0,
+)
+routes = []
+for rr in route_rows:
+    legs = frappe.get_all(
+        "Bucket Logistics Route Leg",
+        filters={"parent": rr["name"], "parenttype": "Bucket Logistics Route"},
+        fields=["leg", "from_farm", "to_farm", "distance_km"],
+        order_by="idx asc", limit_page_length=0,
+    )
+    farms = {}
+    for lg in legs:
+        if lg.get('from_farm') and lg.get('from_farm') != PACK:
+            farms[lg['from_farm']] = 1
+        if lg.get('to_farm') and lg.get('to_farm') != PACK:
+            farms[lg['to_farm']] = 1
+    routes.append({
+        'name': rr['name'], 'vehicle': rr.get('vehicle') or '',
+        'total_km': float(rr.get('total_km') or 0),
+        'legs': legs, 'farms': list(farms.keys()),
+    })
 
 frappe.response['orders'] = order_list
 frappe.response['vehicles'] = vehicles
 frappe.response['trips'] = trips
 frappe.response['truck_status'] = truck_status
 frappe.response['distances'] = distances
+frappe.response['routes'] = routes
 frappe.response['packhouse'] = PACK
 frappe.response['window'] = {'from': str(from_date), 'to': str(to_date)}
 frappe.response['generated_at'] = str(frappe.utils.now())

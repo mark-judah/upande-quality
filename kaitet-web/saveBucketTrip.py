@@ -4,7 +4,11 @@
 # Called via frappe.call, so args arrive in frappe.form_dict (the RestrictedPython
 # sandbox has no JSON parser). `orders` is a delimited string: rows joined by the
 # record separator \x1e, fields within a row by the unit separator \x1f, in order
-# [order_pick_list, order_name, customer, farm, varieties, buckets, stems].
+# [order_pick_list, order_name, customer, farm, varieties, buckets, stems, full_farm_buckets].
+# full_farm_buckets (8th field, optional — defaults to buckets) is the size of the farm
+# portion this row was picked from; buckets < full_farm_buckets means a PARTIAL transfer,
+# stored explicitly (is_partial) so the balance is queryable straight off the trip data,
+# not just inferred by cross-referencing the live order feed.
 fd = frappe.form_dict
 name = fd.get("name") or ""
 vehicle = fd.get("vehicle") or ""
@@ -23,9 +27,10 @@ if orders_raw:
         if rows[r]:
             f = rows[r].split("\x1f")
             if len(f) >= 7:
+                full = f[7] if len(f) >= 8 else f[5]   # default: full = buckets (not partial)
                 items.append({
                     "order_pick_list": f[0], "order_name": f[1], "customer": f[2],
-                    "farm": f[3], "varieties": f[4], "buckets": f[5], "stems": f[6]})
+                    "farm": f[3], "varieties": f[4], "buckets": f[5], "stems": f[6], "full": full})
         r = r + 1
 
 total_buckets = 0
@@ -75,6 +80,9 @@ else:
         row.varieties = it.get("varieties") or ""
         row.buckets = int(it.get("buckets") or 0)
         row.stems = int(it.get("stems") or 0)
+        full_n = int(it.get("full") or 0) or row.buckets
+        row.full_farm_buckets = full_n
+        row.is_partial = 1 if row.buckets < full_n else 0
         i = i + 1
     doc.save(ignore_permissions=True)
     frappe.db.commit()

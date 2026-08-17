@@ -14,6 +14,8 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'http://10.199.11.154:8001': 'Karen',
   'http://192.168.43.97:8001': 'Karen',
   'http://192.168.43.154:8001': 'Karen',
+  'http://10.186.169.154:8002': 'Karen',
+  'http://10.88.11.154:8002':'Karen',
   'https://mona-flowers-staging.upande.com': 'Mona',
   'https://mona-flowers.upande.com': 'Mona',
   'https://xflora.fsn.frappe.cloud': 'Xflora',

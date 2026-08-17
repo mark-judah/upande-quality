@@ -364,6 +364,14 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .sch-teamgrp .sch-teamh .tn{font-size:15px;font-weight:600;letter-spacing:-.2px}
 .aph .sch-teamgrp .sch-teamh .ts{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
 .aph .sch-teamgrp .sch-list{margin-top:0}
+/* Side-by-side team columns — every team's schedule visible at once, no tab-switching. */
+.aph .sch-teamcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
+.aph .sch-teamcol{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;min-width:0}
+.aph .sch-teamcol .sch-teamh{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
+.aph .sch-teamcol .sch-teamh .tn{font-size:14px;font-weight:700;letter-spacing:-.2px}
+.aph .sch-teamcol .sch-teamh .ts{font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.aph .sch-teamcol .sch-list{margin-top:0;display:flex;flex-direction:column;gap:8px}
+@media(max-width:900px){.aph .sch-teamcols{grid-template-columns:1fr}}
 .aph .sch-vchip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px}
 .aph .sch-vchip.draft{background:#f3effe;color:#6d28d9}
 .aph .sch-vchip.xfer{background:#eef6ff;color:#1d4ed8}
@@ -396,6 +404,8 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
 .aph .sch-numinp:focus{border-color:var(--accent)}
+.aph .sch-nextbtn{display:block;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;text-align:center}
+.aph .sch-nextbtn:hover{background:var(--accent);color:#fff;border-style:solid}
 .aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
 .aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
 .aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -791,6 +801,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="sml" id="smPos"></div>
       <label class="smfl" for="smNum">Schedule number</label>
       <input type="number" id="smNum" min="1" class="sch-numinp">
+      <button type="button" id="smNext" class="sch-nextbtn"></button>
       <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
     </div>
     <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
@@ -935,27 +946,33 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
   }
 
   // ---- Schedule tab: scheduled items grouped by team, in priority order ----
+  // Two view modes: "By team" = every team's column visible AT ONCE side by side (the
+  // whole point — switching one-team-at-a-time was "very confusing"); "All" = one flat
+  // list, no team breakdown at all, for when team boundaries don't matter right now.
   function renderSchedule(list){
     var body=el('bSched'); if(!body) return;
     if(!list.length){ body.innerHTML='<div class="sch-empty">No orders scheduled yet. Schedule orders from the <b>Unscheduled</b> tab.</div>'; return; }
-    // team sub-tabs: All + each team present in the scheduled list, with counts
-    var teamOrder=[], tc={};
-    list.forEach(function(o){ var tm=o.custom_team||'-'; if(tc[tm]==null){ tc[tm]=0; teamOrder.push(tm); } tc[tm]++; });
-    var cur=G.schedTeam||'all';
-    if(cur!=='all' && tc[cur]==null){ cur='all'; G.schedTeam='all'; }   // selected team no longer present
-    var tabs=[['all','All',list.length]].concat(teamOrder.map(function(t){ return [t,t,tc[t]]; }));
-    var bar='<div class="sch-varbar" id="schedTeamBar">'+tabs.map(function(x){ var a=(cur===x[0])?' active':''; return '<button class="sch-varbtn'+a+'" data-steam="'+esc(x[0])+'">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>'; }).join('')+'</div>';
-    var shown=(cur==='all')?list:list.filter(function(o){ return (o.custom_team||'-')===cur; });
-    var groups=[], gmap={};
-    shown.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
-    var groupsHtml=groups.map(function(g){
-      var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
-      var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-      return '<div class="sch-teamgrp"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">Schedule · '+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
-        '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
-    }).join('');
-    body.innerHTML=bar+groupsHtml;
-    body.querySelectorAll('#schedTeamBar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedTeam=b.getAttribute('data-steam'); renderSchedule(list); }; });
+    var mode=G.schedView||'byteam';
+    var modeBar='<div class="sch-varbar"><button class="sch-varbtn'+(mode==='byteam'?' active':'')+'" data-smode="byteam">By team<span class="tc">'+
+      Object.keys(list.reduce(function(a,o){a[o.custom_team||'-']=1;return a;},{})).length+'</span></button>'+
+      '<button class="sch-varbtn'+(mode==='all'?' active':'')+'" data-smode="all">All<span class="tc">'+list.length+'</span></button></div>';
+    var content;
+    if(mode==='all'){
+      // flat list — no per-team grouping, no subtotal header, just every scheduled order
+      var flatCards=list.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
+      content='<div class="sch-list" data-team="">'+flatCards+'</div>';
+    } else {
+      var groups=[], gmap={};
+      list.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
+      content='<div class="sch-teamcols">'+groups.map(function(g){
+        var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
+        var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
+        return '<div class="sch-teamcol"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">'+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
+          '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
+      }).join('')+'</div>';
+    }
+    body.innerHTML=modeBar+content;
+    body.querySelectorAll('.sch-varbar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedView=b.getAttribute('data-smode'); renderSchedule(list); }; });
     body.querySelectorAll('.sch-list').forEach(function(listEl){wireList(listEl,true);});
   }
 
@@ -1063,28 +1080,39 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     G.readyPage=Math.floor(insertAt/PAGE)+1;
     persist();
   }
-  function commitDrag(draggedName){
+  // Scoped to the SPECIFIC container dragged in (a team column, or the flat "All" list) —
+  // NOT the whole #bSched. With every team's column visible at once, reading .sch-card
+  // across the whole page would flatten every OTHER team's order into whatever position
+  // the dragged card landed at. Instead: replace just the contiguous run of THIS
+  // container's cards, in their new order, leaving every other team's cards untouched.
+  function commitDrag(container,draggedName){
     var domOrder=[];
-    var wrap=el('bSched'); if(wrap){ wrap.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
+    if(container){ container.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
     var byName={}; STATE.ready.forEach(function(o){byName[o.name]=o;});
     var inDom={}; domOrder.forEach(function(nm){inDom[nm]=1;});
-    var newReady=[];
-    domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); });
-    STATE.ready.forEach(function(o){ if(!inDom[o.name]) newReady.push(o); });
+    var newReady=[], inserted=false;
+    STATE.ready.forEach(function(o){
+      if(inDom[o.name]){
+        if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); inserted=true; }
+      } else { newReady.push(o); }
+    });
+    if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); }
     STATE.ready=newReady;
     if(draggedName) STATE.scheduled[draggedName]=1;
     persist();
   }
 
-  var dragEl=null, dragName=null;
+  var dragEl=null, dragName=null, dragContainer=null;
   function wireList(container,canDrag){
     if(!container) return;
     if(canDrag){
       container.querySelectorAll('.sch-card').forEach(function(c){
-        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');c.classList.add('dragging');});
-        c.addEventListener('dragend',function(){c.classList.remove('dragging');dragEl=null;var dn=dragName;dragName=null;commitDrag(dn);});
+        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');dragContainer=c.closest('.sch-list');c.classList.add('dragging');});
+        c.addEventListener('dragend',function(){var cont=c.closest('.sch-list');c.classList.remove('dragging');dragEl=null;dragContainer=null;var dn=dragName;dragName=null;commitDrag(cont,dn);});
       });
-      container.ondragover=function(e){e.preventDefault();if(!dragEl)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
+      // With every team's column visible at once, guard against dropping into a
+      // DIFFERENT team's column — a card's team isn't something drag should reassign.
+      container.ondragover=function(e){e.preventDefault();if(!dragEl||container!==dragContainer)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
     } else { container.ondragover=null; }
     container.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);render();});});
     container.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
@@ -1105,6 +1133,15 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
     el('smPos').textContent=(team?team+' · ':'')+(isSched?('currently #'+curK+' of '+maxK+' scheduled'):('not scheduled — will join as one of '+maxK))+'  ·  #1 issues first';
     var inp=el('smNum');inp.value=curK;inp.min=1;inp.max=maxK;
+    // Explicit "next available" guidance — the next open slot for THIS team, so the
+    // user never has to count the column to know what number to type.
+    var nextBtn=el('smNext');
+    if(nextBtn){
+      nextBtn.textContent=isSched
+        ? 'Move to last position for '+(team||'this team')+' (#'+maxK+')'
+        : 'Guide: next available for '+(team||'this team')+' is #'+maxK;
+      nextBtn.onclick=function(){ inp.value=maxK; inp.focus(); };
+    }
     el('schModal').setAttribute('data-opl',name);
     el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
     el('schModal').classList.add('open');

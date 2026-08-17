@@ -1309,23 +1309,23 @@ function buildJourneys() {
     for (const row of shelfData){
         const v=(row.variety||'').toLowerCase();
         let j=matchJourney(row.date_added?.split(' ')[0]||'',v,varietyIndex[v]||[]);
-        if(!j) j=journeyByDate(journeys,(row.date_added||'').split(' ')[0]);
+        if(!j) j=journeyByDate(journeys,row.date_added||'');
         if(j)j.shelfData.push(row);
     }
     journeys.forEach(j=>j.shelfData.sort((a,b)=>String(a.shelved_on||'').localeCompare(String(b.shelved_on||''))));
     // Discard stock entries → journey by date (discards carry no variety here).
     for (const se of (discardData||[])){
-        const j=journeyByDate(journeys,se.posting_date||'');
+        const j=journeyByDate(journeys,(se.posting_date||'')+' '+(se.posting_time||'00:00:00'));
         if(j)j.discardData.push(se);
     }
     // QC reject stock entries → journey by date.
     for (const se of (rejectData||[])){
-        const j=journeyByDate(journeys,se.posting_date||'');
+        const j=journeyByDate(journeys,(se.posting_date||'')+' '+(se.posting_time||'00:00:00'));
         if(j)j.rejectData.push(se);
     }
     // Quarantine stock entries → journey by date.
     for (const se of (quarantineData||[])){
-        const j=journeyByDate(journeys,se.posting_date||'');
+        const j=journeyByDate(journeys,(se.posting_date||'')+' '+(se.posting_time||'00:00:00'));
         if(j)j.quarantineData.push(se);
     }
 
@@ -1370,13 +1370,28 @@ function buildJourneys() {
 function journeyStartDate(j) {
     return j.harvestSEs[0]?.posting_date||j.gradingSEs[0]?.posting_date||j.receivingSEs[0]?.posting_date||'';
 }
-// The journey whose cycle contains a given date = the latest one started on/before it.
-function journeyByDate(journeys, dateStr) {
-    if (!dateStr || !journeys.length) return journeys[journeys.length-1]||null;
+// Full start TIMESTAMP (date + time) — used only for ordering journeys against an
+// event's exact moment (journeyByDate below), never for display (journeyStartDate
+// above stays date-only for that). A journey that begins LATER on the SAME calendar
+// day as another journey's terminal event (e.g. a bucket discarded at 11:30 then
+// re-harvested at 15:29, same day — confirmed live on bucket 7D0406: the Tropical
+// Amazon batch discarded 08-07 11:30 was getting attributed to the Aqua journey that
+// started later that same day, making an untouched Aqua batch look discarded) must
+// still sort AFTER that event. Date-only comparison can't tell the two apart. Plain
+// string comparison is enough here — posting_date/posting_time are both zero-padded,
+// so lexicographic order matches chronological order; no Date parsing needed.
+function journeyStartDateTime(j) {
+    const se = j.harvestSEs[0]||j.gradingSEs[0]||j.receivingSEs[0];
+    if (!se || !se.posting_date) return '';
+    return se.posting_date+' '+(se.posting_time||'00:00:00');
+}
+// The journey whose cycle contains a given TIMESTAMP = the latest one started on/before it.
+function journeyByDate(journeys, dateTimeStr) {
+    if (!dateTimeStr || !journeys.length) return journeys[journeys.length-1]||null;
     let best=null, bestStart='';
     for (const j of journeys) {
-        const s=journeyStartDate(j)||'';
-        if (s && s<=dateStr && s>=bestStart) { best=j; bestStart=s; }
+        const s=journeyStartDateTime(j)||'';
+        if (s && s<=dateTimeStr && s>=bestStart) { best=j; bestStart=s; }
     }
     return best || journeys[journeys.length-1] || null;
 }

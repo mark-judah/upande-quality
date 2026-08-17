@@ -478,12 +478,13 @@ function RequestsTab({ groups, oplTrip }: { groups: OrderGroup[]; oplTrip: OplTr
   );
 }
 
-/** Bucket meta line: "Variety · 40cm · Shelf", omitting any empty part. A bare
- *  numeric stem length gets a "cm" suffix; anything else is shown as-is. */
-function bucketMeta(variety: string, stemLength: string, shelf: string): string {
+/** Bucket meta line: "Variety · 40cm", omitting any empty part. A bare numeric
+ *  stem length gets a "cm" suffix; anything else is shown as-is. Shelf renders as
+ *  its own line below this one (see s.bShelf) rather than joined in here. */
+function bucketMeta(variety: string, stemLength: string): string {
   const stem = (stemLength || '').trim();
   const stemLabel = stem ? (/^\d+(\.\d+)?$/.test(stem) ? `${stem}cm` : stem) : '';
-  return [variety, stemLabel, shelf].filter(Boolean).join(' · ');
+  return [variety, stemLabel].filter(Boolean).join(' · ');
 }
 
 function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
@@ -534,8 +535,13 @@ function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
           <View style={{ flex: 1 }}>
             <Text style={s.bId}>{b.bucketId}</Text>
             <Text style={s.bMeta} numberOfLines={1}>
-              {bucketMeta(b.variety, b.stemLength, b.shelf)}
+              {bucketMeta(b.variety, b.stemLength)}
             </Text>
+            {!!b.shelf && (
+              <Text style={s.bShelf} numberOfLines={1}>
+                {b.shelf}
+              </Text>
+            )}
           </View>
           <Text style={s.bQty}>
             {Math.round(b.qty)} {b.uom}
@@ -568,8 +574,13 @@ function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
           <View style={{ flex: 1 }}>
             <Text style={s.bId}>{b.bucketId}</Text>
             <Text style={s.bMeta} numberOfLines={1}>
-              {bucketMeta(b.variety, b.stemLength, b.shelf)}
+              {bucketMeta(b.variety, b.stemLength)}
             </Text>
+            {!!b.shelf && (
+              <Text style={s.bShelf} numberOfLines={1}>
+                {b.shelf}
+              </Text>
+            )}
           </View>
           <Text style={s.bQty}>{b.trolleyId || ''}</Text>
         </View>
@@ -895,6 +906,7 @@ const s = StyleSheet.create({
   bRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
   bId: { fontFamily: 'monospace', fontSize: fontSize.sm, color: COLORS.text, fontWeight: '700' },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
+  bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   badge: {
     paddingHorizontal: 10,
