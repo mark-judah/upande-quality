@@ -79,7 +79,7 @@ export const karenColdroomApi = {
   submitTemperature(data: TemperaturePayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitColdStoreTemperatureLog',
+      url: '/api/method/upande_quality.mobile.api.submitColdStoreTemperatureLog',
       data: { data },
       validateStatus: () => true,
     });
@@ -88,7 +88,7 @@ export const karenColdroomApi = {
   submitCleaning(data: CleaningPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitColdroomCleaning',
+      url: '/api/method/upande_quality.mobile.api.submitColdroomCleaning',
       data: { data },
       validateStatus: () => true,
     });
@@ -97,7 +97,7 @@ export const karenColdroomApi = {
   submitInspection(data: InspectionPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitColdroomInspection',
+      url: '/api/method/upande_quality.mobile.api.submitColdroomInspection',
       data: { data },
       validateStatus: () => true,
     });

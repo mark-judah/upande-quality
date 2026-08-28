@@ -145,7 +145,7 @@ export const karenBucketRequestsApi = {
   fetchAllocatedBuckets(farm: string): Promise<RawAllocationResponse> {
     return api<RawAllocationResponse>({
       method: 'POST',
-      url: '/api/method/fetchAllocatedBuckets',
+      url: '/api/method/upande_quality.mobile.api.fetchAllocatedBuckets',
       data: { farm },
       validateStatus: () => true,
     });
@@ -157,7 +157,7 @@ export const karenBucketRequestsApi = {
   getFarmPlannedTrips(farm: string): Promise<RawPlannedTripsResponse> {
     return api<RawPlannedTripsResponse>({
       method: 'POST',
-      url: '/api/method/getFarmPlannedTrips',
+      url: '/api/method/upande_quality.mobile.api.getFarmPlannedTrips',
       data: { farm },
       validateStatus: () => true,
     });
@@ -168,7 +168,7 @@ export const karenBucketRequestsApi = {
   getDispatchTrucks(): Promise<RawDispatchTrucksResponse> {
     return api<RawDispatchTrucksResponse>({
       method: 'GET',
-      url: '/api/method/getDispatchTrucks',
+      url: '/api/method/upande_quality.mobile.api.getDispatchTrucks',
       validateStatus: () => true,
     });
   },
@@ -181,7 +181,7 @@ export const karenBucketRequestsApi = {
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
-      url: '/api/method/saveTrolleyData',
+      url: '/api/method/upande_quality.mobile.api.saveTrolleyData',
       data: { data: payload },
       validateStatus: () => true,
     });
@@ -191,7 +191,7 @@ export const karenBucketRequestsApi = {
   getSavedTrolleys(farm: string): Promise<RawSavedTrolleysResponse> {
     return api<RawSavedTrolleysResponse>({
       method: 'GET',
-      url: '/api/method/getSavedTrolleys',
+      url: '/api/method/upande_quality.mobile.api.getSavedTrolleys',
       params: { farm },
       validateStatus: () => true,
     });
@@ -204,7 +204,7 @@ export const karenBucketRequestsApi = {
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
-      url: '/api/method/loadTrolleyInTruck',
+      url: '/api/method/upande_quality.mobile.api.loadTrolleyInTruck',
       data: { data: payload },
       validateStatus: () => true,
     });
@@ -219,7 +219,7 @@ export const karenBucketRequestsApi = {
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
-      url: '/api/method/deleteSavedTrolleys',
+      url: '/api/method/upande_quality.mobile.api.deleteSavedTrolleys',
       data: payload,
       validateStatus: () => true,
     });
@@ -235,7 +235,7 @@ export const karenBucketRequestsApi = {
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
-      url: '/api/method/setOfflineTrolleyFlags',
+      url: '/api/method/upande_quality.mobile.api.setOfflineTrolleyFlags',
       data: { data: payload },
       validateStatus: () => true,
     });

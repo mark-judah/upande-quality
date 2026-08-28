@@ -38,7 +38,7 @@ export const karenPackhouseCleaningApi = {
   submitInspection(data: InspectionPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitPackhouseInspection',
+      url: '/api/method/upande_quality.mobile.api.submitPackhouseInspection',
       data: { data },
       validateStatus: () => true,
     });
@@ -47,7 +47,7 @@ export const karenPackhouseCleaningApi = {
   submitGlass(data: GlassPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitPackhouseGlass',
+      url: '/api/method/upande_quality.mobile.api.submitPackhouseGlass',
       data: { data },
       validateStatus: () => true,
     });
@@ -56,7 +56,7 @@ export const karenPackhouseCleaningApi = {
   submitCleaning(data: CleaningPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
-      url: '/api/method/submitPackhouseCleaning',
+      url: '/api/method/upande_quality.mobile.api.submitPackhouseCleaning',
       data: { data },
       validateStatus: () => true,
     });

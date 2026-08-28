@@ -54,7 +54,7 @@ export function ShelvingDemandCard({ farm }: { farm?: string }) {
     try {
       const raw = await api<DemandResponse>({
         method: 'POST',
-        url: '/api/method/getShelvingDemand',
+        url: '/api/method/upande_quality.mobile.api.getShelvingDemand',
         data: farm ? { farm } : {},
         validateStatus: () => true,
       });

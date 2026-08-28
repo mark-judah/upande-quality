@@ -64,7 +64,7 @@ export const karenSolutionMixingApi = {
   fetchTanks(farm: string): Promise<RawTankResponse> {
     return api<RawTankResponse>({
       method: 'GET',
-      url: '/api/method/fetchMixingTanks',
+      url: '/api/method/upande_quality.mobile.api.fetchMixingTanks',
       params: { farm },
       validateStatus: () => true,
     });
@@ -77,7 +77,7 @@ export const karenSolutionMixingApi = {
   fetchChemicals(): Promise<{ message?: RawChemicalItem[] }> {
     return api<{ message?: RawChemicalItem[] }>({
       method: 'GET',
-      url: '/api/method/fetchColdPostHarvestChemicals',
+      url: '/api/method/upande_quality.mobile.api.fetchColdPostHarvestChemicals',
       validateStatus: () => true,
     });
   },
@@ -85,7 +85,7 @@ export const karenSolutionMixingApi = {
   submit(data: SubmitMixPayload): Promise<RawSubmitMixResponse> {
     return api<RawSubmitMixResponse>({
       method: 'POST',
-      url: '/api/method/submitSolutionMix',
+      url: '/api/method/upande_quality.mobile.api.submitSolutionMix',
       data: { data },
       validateStatus: () => true,
     });

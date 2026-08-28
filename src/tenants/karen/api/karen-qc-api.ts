@@ -73,14 +73,14 @@ export const karenQcApi = {
   fetchParameters(): Promise<RawQcParametersResponse> {
     return api<RawQcParametersResponse>({
       method: 'GET',
-      url: '/api/method/fetchQcParameters',
+      url: '/api/method/upande_quality.mobile.api.fetchQcParameters',
     });
   },
 
   getBatchByBucket(bucketId: string): Promise<RawBatchByBucketResponse> {
     return api<RawBatchByBucketResponse>({
       method: 'POST',
-      url: '/api/method/getBatchByBucket',
+      url: '/api/method/upande_quality.mobile.api.getBatchByBucket',
       data: { bucket_id: bucketId },
       validateStatus: () => true,
     });
@@ -89,7 +89,7 @@ export const karenQcApi = {
   submitBatchQuality(payload: Record<string, unknown>): Promise<RawSubmitResponse> {
     return api<RawSubmitResponse>({
       method: 'POST',
-      url: '/api/method/submitBatchQuality',
+      url: '/api/method/upande_quality.mobile.api.submitBatchQuality',
       data: { data: payload },
       validateStatus: () => true,
       // Heavy server-side write (stock entries, quarantine, CAR). The default
@@ -115,7 +115,7 @@ export const karenQcApi = {
     }
     return api<RawSubmitResponse>({
       method: 'POST',
-      url: '/api/method/releaseFromQuarantine',
+      url: '/api/method/upande_quality.mobile.api.releaseFromQuarantine',
       data: body,
       validateStatus: () => true,
       // Server-side stock movements — same slow-write profile as submit.
@@ -126,7 +126,7 @@ export const karenQcApi = {
   getGreenhouseData(greenhouse: string): Promise<RawGreenhouseResponse> {
     return api<RawGreenhouseResponse>({
       method: 'POST',
-      url: '/api/method/getGreenhouseData',
+      url: '/api/method/upande_agriculture.mobile.api.getGreenhouseData',
       data: { greenhouse_name: greenhouse },
     });
   },
@@ -134,7 +134,7 @@ export const karenQcApi = {
   submitFieldReject(payload: Record<string, unknown>): Promise<RawSubmitResponse> {
     return api<RawSubmitResponse>({
       method: 'POST',
-      url: '/api/method/submitFieldRejects',
+      url: '/api/method/upande_agriculture.mobile.api.submitFieldRejects',
       data: payload,
       validateStatus: () => true,
       timeout: 120000,

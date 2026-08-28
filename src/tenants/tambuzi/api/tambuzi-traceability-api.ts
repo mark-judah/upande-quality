@@ -19,7 +19,7 @@ export const tambuziTraceabilityApi = {
   async getStatus(bucketId: string): Promise<RawTraceabilityResponse> {
     return api<RawTraceabilityResponse>({
       method: 'POST',
-      url: '/api/method/getBucketStatus',
+      url: '/api/method/upande_quality.mobile.api.getBucketStatus',
       data: { bucket_id: bucketId },
     });
   },
