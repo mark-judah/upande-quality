@@ -1,0 +1,477 @@
+You are working on a local Frappe/ERPNext development instance.
+
+Site:            kaitet.local
+Bench directory: /home/itachi/frappe/frappe-v16
+Python env:      /home/itachi/frappe/frappe-v16/env/bin/python
+
+Your task is to set up the complete Vaselife backend by doing two things:
+  1. Create all required DocTypes in the Frappe database.
+  2. Create all required Server Scripts in the Frappe database.
+
+Do this by writing a Python setup script to /tmp/vaselife_setup.py and then
+running it with the bench Python environment using:
+
+  cd /home/itachi/frappe/frappe-v16
+  ./env/bin/python /tmp/vaselife_setup.py
+
+The full content of /tmp/vaselife_setup.py must be exactly as follows:
+
+──────────────────────────────────────────────────────────────────────────────
+import frappe
+frappe.init(site="kaitet.local", sites_path="/home/itachi/frappe/frappe-v16/sites")
+frappe.connect()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 1 — DocTypes
+# ─────────────────────────────────────────────────────────────────────────────
+
+def make_simple_doctype(name):
+    """Single-field lookup doctype (name IS the display value)."""
+    if frappe.db.exists("DocType", name):
+        print("  SKIP  " + name + " (already exists)")
+        return
+    dt = frappe.new_doc("DocType")
+    dt.name = name
+    dt.module = "Upande QC"
+    dt.custom = 1
+    dt.autoname = "Prompt"
+    dt.fields = []
+    dt.insert(ignore_permissions=True)
+    print("  OK    " + name)
+
+
+def make_doctype(name, autoname, fields):
+    if frappe.db.exists("DocType", name):
+        print("  SKIP  " + name + " (already exists)")
+        return
+    dt = frappe.new_doc("DocType")
+    dt.name = name
+    dt.module = "Upande QC"
+    dt.custom = 1
+    dt.autoname = autoname
+    dt.fields = []
+    for f in fields:
+        dt.append("fields", f)
+    dt.insert(ignore_permissions=True)
+    print("  OK    " + name)
+
+
+print("\n[1/2] Creating DocTypes...")
+
+# ── Simple lookup tables ──────────────────────────────────────────────────────
+make_simple_doctype("Vaselife Commercial Status")
+make_simple_doctype("Vaselife Cut Stage")
+make_simple_doctype("Vaselife Failure Reason")
+make_simple_doctype("Vaselife Crop")
+
+# ── Vaselife Sample ───────────────────────────────────────────────────────────
+# autoname = "Prompt" so the server script can set the name to e.g. Marisa240826A
+make_doctype("Vaselife Sample", "Prompt", [
+    {"fieldname": "sampling_date",    "fieldtype": "Date",   "label": "Sampling Date",       "reqd": 1, "in_list_view": 1},
+    {"fieldname": "consignment",      "fieldtype": "Data",   "label": "Consignment"},
+    {"fieldname": "col_b1",           "fieldtype": "Column Break"},
+    {"fieldname": "supermarket_date", "fieldtype": "Date",   "label": "Supermarket Date"},
+    {"fieldname": "due_date",         "fieldtype": "Date",   "label": "Due Date"},
+    {"fieldname": "vase_date",        "fieldtype": "Date",   "label": "Vase Date"},
+    {"fieldname": "sec_flower",       "fieldtype": "Section Break", "label": "Flower Details"},
+    {"fieldname": "variety",          "fieldtype": "Link",   "label": "Variety",             "options": "Item",                       "reqd": 1, "in_list_view": 1},
+    {"fieldname": "breeder",          "fieldtype": "Link",   "label": "Breeder",             "options": "Breeder"},
+    {"fieldname": "col_b2",           "fieldtype": "Column Break"},
+    {"fieldname": "commercial_status","fieldtype": "Link",   "label": "Commercial Status",   "options": "Vaselife Commercial Status"},
+    {"fieldname": "crop",             "fieldtype": "Link",   "label": "Crop",                "options": "Vaselife Crop"},
+    {"fieldname": "sec_harvest",      "fieldtype": "Section Break", "label": "Harvest"},
+    {"fieldname": "harvest_date",     "fieldtype": "Date",   "label": "Harvest Date"},
+    {"fieldname": "harvest_time",     "fieldtype": "Time",   "label": "Harvest Time"},
+    {"fieldname": "col_b3",           "fieldtype": "Column Break"},
+    {"fieldname": "line_code",        "fieldtype": "Data",   "label": "Line Code"},
+    {"fieldname": "farm",             "fieldtype": "Link",   "label": "Farm",                "options": "Farm"},
+    {"fieldname": "gh",               "fieldtype": "Data",   "label": "Greenhouse"},
+    {"fieldname": "sec_measurements", "fieldtype": "Section Break", "label": "Measurements"},
+    {"fieldname": "length",           "fieldtype": "Float",  "label": "Length (cm)"},
+    {"fieldname": "no_of_stems",      "fieldtype": "Int",    "label": "No. of Stems"},
+    {"fieldname": "col_b4",           "fieldtype": "Column Break"},
+    {"fieldname": "bud_height",       "fieldtype": "Float",  "label": "Bud Height (mm)"},
+    {"fieldname": "bud_width",        "fieldtype": "Float",  "label": "Bud Width (mm)"},
+    {"fieldname": "initial_cut_stage","fieldtype": "Link",   "label": "Initial Cut Stage",   "options": "Vaselife Cut Stage"},
+    {"fieldname": "sec_meta",         "fieldtype": "Section Break", "label": "Meta"},
+    {"fieldname": "prepared_by",      "fieldtype": "Data",   "label": "Prepared By"},
+])
+
+# ── Vaselife Observation ──────────────────────────────────────────────────────
+make_doctype("Vaselife Observation", "VO-.YYYY.-.####", [
+    {"fieldname": "sample",           "fieldtype": "Link",      "label": "Sample",            "options": "Vaselife Sample", "reqd": 1, "in_list_view": 1},
+    {"fieldname": "date",             "fieldtype": "Date",      "label": "Observation Date",  "reqd": 1, "in_list_view": 1},
+    {"fieldname": "col_b1",           "fieldtype": "Column Break"},
+    {"fieldname": "stems_failed",     "fieldtype": "Int",       "label": "Stems Failed"},
+    {"fieldname": "prepared_by",      "fieldtype": "Data",      "label": "Prepared By"},
+    {"fieldname": "sec_reasons",      "fieldtype": "Section Break", "label": "Failure Reasons"},
+    {"fieldname": "failure_reasons",  "fieldtype": "Long Text", "label": "Failure Reasons (JSON)"},
+    {"fieldname": "sec_notes",        "fieldtype": "Section Break", "label": "Notes"},
+    {"fieldname": "notes",            "fieldtype": "Text",      "label": "Notes / Remarks"},
+])
+
+frappe.db.commit()
+print("  DocTypes committed.\n")
+
+# ── Seed fixed Commercial Status options ──────────────────────────────────────
+# The app offers exactly these three; seed them so the Link field resolves.
+print("Seeding Commercial Status options...")
+for status in ["Trials", "Semi Commercial", "Commercial"]:
+    if frappe.db.exists("Vaselife Commercial Status", status):
+        print("  SKIP  " + status + " (already exists)")
+    else:
+        doc = frappe.new_doc("Vaselife Commercial Status")
+        doc.name = status
+        doc.insert(ignore_permissions=True)
+        print("  OK    " + status)
+frappe.db.commit()
+print("")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PART 2 — Server Scripts
+# ─────────────────────────────────────────────────────────────────────────────
+
+def upsert_server_script(name, api_method, script_type, script_content, allow_guest=0):
+    if frappe.db.exists("Server Script", name):
+        doc = frappe.get_doc("Server Script", name)
+    else:
+        doc = frappe.new_doc("Server Script")
+        doc.name = name
+    doc.script_type  = script_type
+    doc.api_method   = api_method
+    doc.allow_guest  = allow_guest
+    doc.disabled     = 0
+    doc.script       = script_content
+    doc.save(ignore_permissions=True)
+    print("  OK    " + name + " (" + api_method + ")")
+
+
+print("[2/2] Creating Server Scripts...")
+
+# ── getVaselifeBucket ─────────────────────────────────────────────────────────
+upsert_server_script(
+    name         = "Get Vaselife Bucket",
+    api_method   = "getVaselifeBucket",
+    script_type  = "API",
+    script_content = """frappe.response["message"] = {"success": False, "error": "Script failed"}
+
+
+def extract_time_string(pt_val):
+    if not pt_val:
+        return ""
+    try:
+        raw = str(pt_val)
+        if "," in raw:
+            raw = raw.split(",")[1].strip()
+        if "." in raw:
+            raw = raw.split(".")[0]
+        parts = raw.strip().split(":")
+        if len(parts) == 3:
+            return str(parts[0]).zfill(2) + ":" + str(parts[1]).zfill(2) + ":" + str(parts[2]).zfill(2)
+        if len(parts) == 2:
+            return str(parts[0]).zfill(2) + ":" + str(parts[1]).zfill(2) + ":00"
+        return ""
+    except Exception:
+        return ""
+
+
+try:
+    data = frappe.request.get_json() or {}
+    bucket_id = (data.get("bucket_id") or "").strip()
+
+    if not bucket_id:
+        frappe.response["message"] = {"success": False, "error": "bucket_id is required."}
+    else:
+        entry = frappe.db.sql(\"\"\"
+            SELECT posting_date, posting_time,
+                   custom_farm, custom_greenhouse, custom_stem_length
+            FROM `tabStock Entry`
+            WHERE custom_bucket_id = %s
+              AND stock_entry_type = 'Harvesting'
+              AND docstatus = 1
+            ORDER BY creation DESC
+            LIMIT 1
+        \"\"\", (bucket_id,), as_dict=1)
+
+        if not entry:
+            frappe.response["message"] = {
+                "success": False,
+                "error": "No harvest record found for bucket " + bucket_id + ".",
+            }
+        else:
+            e = entry[0]
+            frappe.response["message"] = {
+                "success": True,
+                "bucket_id": bucket_id,
+                "harvest_date": str(e.posting_date) if e.posting_date else "",
+                "harvest_time": extract_time_string(e.posting_time),
+                "farm": e.custom_farm or "",
+                "greenhouse": e.custom_greenhouse or "",
+                "length": str(e.custom_stem_length) if e.custom_stem_length else "",
+            }
+
+except Exception as e:
+    frappe.log_error(frappe.get_traceback(), "getVaselifeBucket Error")
+    frappe.response["message"] = {"success": False, "error": str(e)}
+""",
+)
+
+# ── fetchVaselifeFormData ─────────────────────────────────────────────────────
+upsert_server_script(
+    name         = "Fetch Vaselife Form Data",
+    api_method   = "fetchVaselifeFormData",
+    script_type  = "API",
+    script_content = """frappe.response["message"] = {"success": False, "error": "Script failed"}
+
+try:
+    breeders = frappe.get_all("Breeder", fields=["name"], order_by="name asc")
+
+    item_fields = ["name", "item_name", "item_group"]
+    if frappe.db.has_column("Item", "custom_breeder"):
+        item_fields.append("custom_breeder")
+
+    varieties_raw = frappe.get_all(
+        "Item",
+        filters={"disabled": 0, "item_group": ["in", ["Spray Roses", "Standard Roses"]]},
+        fields=item_fields,
+        order_by="item_name asc",
+    )
+    varieties = [
+        {
+            "name": v.get("name"),
+            "variety": v.get("item_name") or v.get("name"),
+            "item_group": v.get("item_group") or "",
+            "breeder": v.get("custom_breeder") or "",
+        }
+        for v in varieties_raw
+    ]
+
+    samples_raw = frappe.get_all(
+        "Vaselife Sample",
+        fields=["name", "variety", "sampling_date"],
+        order_by="creation desc",
+        limit_page_length=300,
+    )
+    samples = [
+        {
+            "name": s.get("name"),
+            "variety": s.get("variety") or "",
+            "sampling_date": str(s.get("sampling_date")) if s.get("sampling_date") else "",
+        }
+        for s in samples_raw
+    ]
+
+    frappe.response["message"] = {
+        "success": True,
+        "breeders": breeders,
+        "varieties": varieties,
+        "crops":              frappe.get_all("Vaselife Crop",              fields=["name"], order_by="name asc"),
+        "commercial_statuses":frappe.get_all("Vaselife Commercial Status", fields=["name"], order_by="name asc"),
+        "cut_stages":         frappe.get_all("Vaselife Cut Stage",         fields=["name"], order_by="name asc"),
+        "failure_reasons":    frappe.get_all("Vaselife Failure Reason",    fields=["name"], order_by="name asc"),
+        "samples":            samples,
+    }
+
+except Exception as e:
+    frappe.log_error(frappe.get_traceback(), "fetchVaselifeFormData")
+    frappe.response["message"] = {"success": False, "error": str(e)}
+""",
+)
+
+# ── saveVaselifeSample ────────────────────────────────────────────────────────
+upsert_server_script(
+    name         = "Save Vaselife Sample",
+    api_method   = "saveVaselifeSample",
+    script_type  = "API",
+    script_content = """frappe.response["message"] = {"status": "error", "message": "Script failed"}
+
+
+def extract_date_suffix(sampling_date):
+    parts = (sampling_date or "").split("-")
+    if len(parts) == 3:
+        return parts[2] + parts[1] + parts[0][2:]
+    return frappe.utils.nowdate().replace("-", "")[2:]
+
+
+def num_to_letters(n):
+    result = ""
+    n = n + 1
+    while n > 0:
+        n -= 1
+        result = chr(65 + (n % 26)) + result
+        n //= 26
+    return result
+
+
+def generate_sample_code(variety, sampling_date):
+    variety_slug = (variety or "").replace(" ", "")
+    prefix = variety_slug + extract_date_suffix(sampling_date)
+    existing = frappe.get_all(
+        "Vaselife Sample",
+        filters=[["name", "like", prefix + "%"]],
+        fields=["name"],
+    )
+    return prefix + num_to_letters(len(existing))
+
+
+def safe_link(doctype, value):
+    if not value:
+        return None
+    return value if frappe.db.exists(doctype, value) else None
+
+
+def to_float(v):
+    try:
+        return float(v) if v not in (None, "") else None
+    except (ValueError, TypeError):
+        return None
+
+
+def to_int(v):
+    try:
+        return int(v) if v not in (None, "") else None
+    except (ValueError, TypeError):
+        return None
+
+
+try:
+    raw = frappe.request.get_json() or {}
+    data = raw.get("data", raw)
+    frappe.log_error(json.dumps(data, indent=2, default=str), "saveVaselifeSample Payload")
+
+    sampling_date = (data.get("sampling_date") or "").strip()
+    variety       = (data.get("variety") or "").strip()
+
+    if not sampling_date:
+        frappe.response["message"] = {"status": "error", "message": "sampling_date is required."}
+    elif not variety:
+        frappe.response["message"] = {"status": "error", "message": "variety is required."}
+    elif not frappe.db.exists("Item", variety):
+        frappe.response["message"] = {"status": "error", "message": "Variety '" + variety + "' not found."}
+    else:
+        sample_code = generate_sample_code(variety, sampling_date)
+
+        sample_doc = frappe.get_doc({
+            "doctype":           "Vaselife Sample",
+            "name":              sample_code,
+            "sampling_date":     sampling_date,
+            "consignment":       data.get("consignment") or "",
+            "supermarket_date":  data.get("supermarket_date") or None,
+            "due_date":          data.get("due_date") or None,
+            "vase_date":         data.get("vase_date") or None,
+            "variety":           variety,
+            "breeder":           safe_link("Breeder", data.get("breeder") or ""),
+            "commercial_status": safe_link("Vaselife Commercial Status", data.get("commercial_status") or ""),
+            "crop":              safe_link("Vaselife Crop", data.get("crop") or ""),
+            "harvest_date":      data.get("harvest_date") or None,
+            "harvest_time":      data.get("harvest_time") or None,
+            "line_code":         data.get("line_code") or "",
+            "farm":              safe_link("Farm", data.get("farm") or ""),
+            "gh":                data.get("gh") or "",
+            "length":            to_float(data.get("length")),
+            "no_of_stems":       to_int(data.get("no_of_stems")),
+            "bud_height":        to_float(data.get("bud_height")),
+            "bud_width":         to_float(data.get("bud_width")),
+            "initial_cut_stage": safe_link("Vaselife Cut Stage", data.get("initial_cut_stage") or ""),
+            "prepared_by":       frappe.session.user,
+        })
+
+        sample_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        frappe.response["message"] = {
+            "status":      "success",
+            "name":        sample_doc.name,
+            "sample_code": sample_doc.name,
+            "message":     "Sample " + sample_doc.name + " saved successfully.",
+        }
+
+except Exception as e:
+    frappe.log_error(frappe.get_traceback(), "saveVaselifeSample Error")
+    frappe.response["message"] = {"status": "error", "message": str(e)}
+""",
+)
+
+# ── saveVaselifeObservation ───────────────────────────────────────────────────
+upsert_server_script(
+    name         = "Save Vaselife Observation",
+    api_method   = "saveVaselifeObservation",
+    script_type  = "API",
+    script_content = """frappe.response["message"] = {"status": "error", "message": "Script failed"}
+
+try:
+    raw = frappe.request.get_json() or {}
+    data = raw.get("data", raw)
+    frappe.log_error(json.dumps(data, indent=2, default=str), "saveVaselifeObservation Payload")
+
+    sample_code = (data.get("sample_code") or "").strip()
+    obs_date    = (data.get("date") or "").strip()
+
+    if not sample_code:
+        frappe.response["message"] = {"status": "error", "message": "sample_code is required."}
+    elif not obs_date:
+        frappe.response["message"] = {"status": "error", "message": "date is required."}
+    elif not frappe.db.exists("Vaselife Sample", sample_code):
+        frappe.response["message"] = {"status": "error", "message": "Sample '" + sample_code + "' not found."}
+    else:
+        stems_failed = data.get("stems_failed")
+        try:
+            stems_failed = int(stems_failed) if stems_failed not in (None, "") else 0
+        except (ValueError, TypeError):
+            stems_failed = 0
+
+        reasons_raw = data.get("failure_reasons") or []
+        if not isinstance(reasons_raw, list):
+            reasons_raw = []
+
+        obs_doc = frappe.get_doc({
+            "doctype":         "Vaselife Observation",
+            "sample":          sample_code,
+            "date":            obs_date,
+            "stems_failed":    stems_failed,
+            "failure_reasons": json.dumps(reasons_raw),
+            "notes":           data.get("notes") or "",
+            "prepared_by":     frappe.session.user,
+        })
+
+        obs_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        frappe.response["message"] = {
+            "status":  "success",
+            "name":    obs_doc.name,
+            "message": "Observation " + obs_doc.name + " saved for sample " + sample_code + ".",
+        }
+
+except Exception as e:
+    frappe.log_error(frappe.get_traceback(), "saveVaselifeObservation Error")
+    frappe.response["message"] = {"status": "error", "message": str(e)}
+""",
+)
+
+frappe.db.commit()
+print("\nDone. All DocTypes and Server Scripts are set up.")
+print("Next steps:")
+print("  1. Go to kaitet.local and populate the lookup tables:")
+print("       Vaselife Commercial Status  (e.g. Fresh, Trialing, Standard)")
+print("       Vaselife Cut Stage          (e.g. 1, 2, 3, 4, 5)")
+print("       Vaselife Failure Reason     (e.g. Botrytis, Bent Neck, Discolouration)")
+print("       Vaselife Crop               (e.g. Rose, Spray Rose)")
+print("  2. Run: bench --site kaitet.local migrate")
+frappe.destroy()
+──────────────────────────────────────────────────────────────────────────────
+
+After writing /tmp/vaselife_setup.py with the content above, run:
+
+  cd /home/itachi/frappe/frappe-v16
+  ./env/bin/python /tmp/vaselife_setup.py
+
+If it prints errors about a DocType or Server Script already existing, that is
+fine — those lines say SKIP and move on.
+
+After the script completes, run:
+
+  cd /home/itachi/frappe/frappe-v16
+  bench --site kaitet.local migrate
+
+This will apply the new DocType schemas to the database tables.

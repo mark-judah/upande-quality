@@ -20,6 +20,8 @@ export type RawOrderPickList = {
   total_stems?: number | string;
   status?: string;
   schedule_number?: string;
+  /** Order Pick List docstatus: 0 = Draft, 1 = Submitted. */
+  docstatus?: number;
 };
 
 export type RawItemLocation = {

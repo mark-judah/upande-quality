@@ -35,6 +35,7 @@ const ICONS: Record<string, TabIconPair> = {
   'packhouse-inspection': { outline: 'clipboard-outline',       filled: 'clipboard' },
   'packhouse-cleaning': { outline: 'sparkles-outline',          filled: 'sparkles' },
   'packhouse-glass':    { outline: 'scan-outline',              filled: 'scan' },
+  'vaselife':           { outline: 'flower-outline',            filled: 'flower' },
 };
 
 export default function TabLayout() {
@@ -91,6 +92,7 @@ export default function TabLayout() {
       <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', href: null }} />
       <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', href: null }} />
       <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', href: null }} />
+      <Tabs.Screen name="vaselife" options={{ title: 'Vaselife', href: null }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
     </Tabs>
