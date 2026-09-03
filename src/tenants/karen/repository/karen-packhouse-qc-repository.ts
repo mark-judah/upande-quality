@@ -33,6 +33,8 @@ export type OrderPickListOption = {
   totalStems: number;
   status: string;
   scheduleNumber: string;
+  /** 0 = Draft, 1 = Submitted. Draft orders are shown but read-only (no QC submit). */
+  docstatus: number;
 };
 
 export type ItemLocation = {
@@ -223,6 +225,7 @@ function toOrderPickList(raw: RawOrderPickList): OrderPickListOption {
     totalStems: Number(raw.total_stems) || 0,
     status: raw.status ?? '',
     scheduleNumber: raw.schedule_number ?? '',
+    docstatus: Number(raw.docstatus ?? 1),
   };
 }
 

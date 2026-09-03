@@ -100,6 +100,9 @@ export type IssueRow = {
   paramName: string;
   count: number;
   action: IssueAction;
+  /** Which of the order's varieties this issue is for — defaults to the order's
+   *  first variety; Reject Recorder lets the operator pick it on a mix order. */
+  variety: string;
 };
 
 export type SubmitOutcome =
@@ -127,8 +130,10 @@ export type BunchIssue = { id: number; reason: string; stems: string };
 
 /** One rejected bunch during Grading QC sampling, carrying the specific issues
  *  found on its stems (e.g. a 10-stem bunch: 3 crooked, 7 advanced cut stage).
- *  The bunch's rejected-stem total is the sum of its issues' stem counts. */
-export type RejectedBunch = { id: number; issues: BunchIssue[] };
+ *  The bunch's rejected-stem total is the sum of its issues' stem counts.
+ *  `variety` is which of the order's varieties this bunch is — defaults to the
+ *  order's first variety; the operator picks it when the order is a mix. */
+export type RejectedBunch = { id: number; variety: string; issues: BunchIssue[] };
 
 export type GradingReplaceMode = 'stems' | 'bunch';
 
@@ -336,6 +341,8 @@ type State = {
   setBunchesAccepted: (value: string) => void;
   /** Adds a new rejected bunch with no issues yet. */
   addRejectedBunch: () => void;
+  /** Sets which of the order's varieties a rejected bunch belongs to. */
+  setRejectedBunchVariety: (bunchId: number, variety: string) => void;
   /** Adds an issue (reason + default 1 stem) to a rejected bunch. */
   addBunchIssue: (bunchId: number, reasonParamName: string) => void;
   /** Updates the affected-stem count of one issue on a rejected bunch. */
@@ -379,6 +386,8 @@ type State = {
    *  separate draft/count-then-confirm step. Starts at count 1; adjust it
    *  inline on the row afterward. */
   addIssueForParam: (paramName: string) => void;
+  /** Sets which of the order's varieties an issue is for (Reject Recorder mix orders). */
+  setIssueVariety: (id: number, variety: string) => void;
   updateIssueCount: (id: number, count: number) => void;
   removeIssue: (id: number) => void;
 
@@ -878,7 +887,17 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     set((s) => ({ bunchSampling: { ...s.bunchSampling, acceptedBunches: value } })),
 
   addRejectedBunch: () =>
-    set((s) => ({ rejectedBunches: [...s.rejectedBunches, { id: issueSeed++, issues: [] }] })),
+    set((s) => ({
+      rejectedBunches: [
+        ...s.rejectedBunches,
+        { id: issueSeed++, variety: s.selectedVariety ?? '', issues: [] },
+      ],
+    })),
+
+  setRejectedBunchVariety: (bunchId, variety) =>
+    set((s) => ({
+      rejectedBunches: s.rejectedBunches.map((b) => (b.id === bunchId ? { ...b, variety } : b)),
+    })),
 
   addBunchIssue: (bunchId, reasonParamName) =>
     set((s) => ({
@@ -1107,8 +1126,17 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     // Reject Recorder only ever rejects; Final QC's action is derived from
     // the parameter's tolerance at submit (breach → Quarantine, else Reject),
     // so the stored action here is just a harmless default.
-    set((s) => ({ issues: [...s.issues, { id, paramName, count: 1, action: 'Reject' as const }] }));
+    set((s) => ({
+      issues: [
+        ...s.issues,
+        { id, paramName, count: 1, action: 'Reject' as const, variety: s.selectedVariety ?? '' },
+      ],
+    }));
   },
+  setIssueVariety: (id, variety) =>
+    set((s) => ({
+      issues: s.issues.map((i) => (i.id === id ? { ...i, variety } : i)),
+    })),
   updateIssueCount: (id, count) =>
     set((s) => ({
       issues: s.issues.map((i) => (i.id === id ? { ...i, count: Math.max(0, count) } : i)),
@@ -1185,7 +1213,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         const id = issueSeed++;
         return {
           specChecks,
-          issues: [...s.issues, { id, paramName: SPEC_CHECK_LABELS[key], count, action: 'Reject' as const }],
+          issues: [...s.issues, { id, paramName: SPEC_CHECK_LABELS[key], count, action: 'Reject' as const, variety: s.selectedVariety ?? '' }],
           specCheckIssueIds: { ...s.specCheckIssueIds, [key]: id },
         };
       }
@@ -1216,6 +1244,9 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     if (!s.qcType) return false;
     if (s.qcType === 'Online QC' && !s.onlineMode) return false;
     if (!s.selectedOrderPickList) return false;
+    // Draft orders are read-only — a QC can inspect but not submit against a
+    // Pick List that hasn't been submitted yet.
+    if (s.selectedOrderPickList.docstatus === 0) return false;
     if (!s.selectedQcIncharge) return false;
     // Airport Returns: needs a reason and at least one stem dispositioned
     // (reused and/or rejected).
@@ -1264,6 +1295,14 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     const s = get();
     if (!s.qcType || !s.selectedOrderPickList) {
       const out: SubmitOutcome = { kind: 'error', message: 'Complete the earlier steps first.' };
+      set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+      return out;
+    }
+    if (s.selectedOrderPickList.docstatus === 0) {
+      const out: SubmitOutcome = {
+        kind: 'error',
+        message: 'This order is still a draft (not submitted) — it is read-only, so a QC report cannot be submitted against it.',
+      };
       set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
       return out;
     }
@@ -1361,6 +1400,9 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       parameter: i.paramName,
       count: i.count,
       action: i.action,
+      // Per-variety tag — Reject Recorder / Final QC carry each issue's variety
+      // (defaults to the order's first variety). Empty is a no-op server-side.
+      variety: i.variety || '',
     }));
 
     const payload: Record<string, unknown> = {
@@ -1449,20 +1491,27 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           ? gradingSpec.stemsPerBunch
           : stemsPerBunch(s.itemLocations);
       payload.sampled_stems = (acceptedBunches + rejectedBunchCount) * gradingPerBunch;
-      // Each rejected bunch carries per-stem issues; aggregate the stem counts
-      // per reason across every rejected bunch into one issue row apiece (the
-      // server sums issue counts as stems against the order's full stem total).
-      const byReason = new Map<string, number>();
+      // Each rejected bunch carries per-stem issues, tagged with the bunch's
+      // variety. Aggregate stem counts per (variety, reason) so a mix order
+      // records each variety's rejections as their own issue rows (the server
+      // sums issue counts as stems against the order's full stem total).
+      const byKey = new Map<string, { parameter: string; variety: string; count: number }>();
       for (const bunch of s.rejectedBunches) {
+        const v = bunch.variety || s.selectedVariety || '';
         for (const iss of bunch.issues) {
           const stems = Math.max(0, Number.parseInt(iss.stems, 10) || 0);
-          if (stems > 0) byReason.set(iss.reason, (byReason.get(iss.reason) ?? 0) + stems);
+          if (stems <= 0) continue;
+          const key = v + '||' + iss.reason;
+          const cur = byKey.get(key);
+          if (cur) cur.count += stems;
+          else byKey.set(key, { parameter: iss.reason, variety: v, count: stems });
         }
       }
-      issuesPayload = Array.from(byReason, ([parameter, count]) => ({
-        parameter,
-        count,
+      issuesPayload = Array.from(byKey.values(), (x) => ({
+        parameter: x.parameter,
+        count: x.count,
         action: 'Reject' as IssueAction,
+        variety: x.variety,
       }));
       // Replacement outcome per rejected bunch: stems taken from donors, and
       // bunches left short (rejected stems that weren't fully replaced). A
@@ -1506,6 +1555,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         // for Accept it drives the partial bunch-reject stock movement.
         count: Math.max(0, Math.round(i.count * perBunch)),
         action,
+        variety: i.variety || s.selectedVariety || '',
       }));
       payload.final_decision = decision;
       payload.boxes_checked = boxesChecked;

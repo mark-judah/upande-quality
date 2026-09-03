@@ -44,6 +44,7 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   'packhouse-inspection': 'clipboard-outline',
   'packhouse-cleaning': 'sparkles-outline',
   'packhouse-glass': 'scan-outline',
+  vaselife: 'flower-outline',
 };
 
 export function SideMenu({

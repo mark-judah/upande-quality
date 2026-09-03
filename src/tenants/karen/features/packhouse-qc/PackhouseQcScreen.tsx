@@ -1,36 +1,36 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { Screen } from '@/src/core/ui/Screen';
-import { Card, Alert } from '@/src/core/ui/Card';
+import { useAuthStore } from '@/src/core/auth/store';
+import { ScanField } from '@/src/core/scanning/ScanField';
+import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { Alert, Card } from '@/src/core/ui/Card';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
-import { ScanField } from '@/src/core/scanning/ScanField';
+import { Screen } from '@/src/core/ui/Screen';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
-import { useAuthStore } from '@/src/core/auth/store';
+import { categoryForParam, categoryOrder } from '@/src/tenants/karen/features/packhouse-qc/qc-parameter-categories';
+import type { PackhouseOverallResult } from '@/src/tenants/karen/repository/karen-packhouse-qc-repository';
 import {
-  useKarenPackhouseQcStore,
+  affectedPercent,
   computeOverallResult,
+  isThresholdBreached,
   issueCountLabel,
   packRatePerBox,
-  suggestedBoxSampleSize,
   sampledBunches,
-  affectedPercent,
-  isThresholdBreached,
   stemsPerBunch,
+  suggestedBoxSampleSize,
   totalBunches,
+  useKarenPackhouseQcStore,
   type BunchIssue,
-  type ReplacedBunchInfo,
   type GradingReplaceState,
   type IssueRow,
   type OnlineMode,
   type QcType,
+  type ReplacedBunchInfo,
   type SpecCheckState,
 } from '@/src/tenants/karen/state/karen-packhouse-qc-store';
-import type { PackhouseOverallResult } from '@/src/tenants/karen/repository/karen-packhouse-qc-repository';
-import { categoryForParam, categoryOrder } from '@/src/tenants/karen/features/packhouse-qc/qc-parameter-categories';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 /** Grading / Reject teams — mirrors the Order Pick List `custom_team` options.
  *  The team filter uses these to reach orders that have no specification linked
@@ -54,7 +54,7 @@ const WORKFLOW_OPTIONS: {
     label: 'Reject Recorder',
     description: 'Check stems against the order list and record rejects.',
     icon: 'flag-outline',
-    role: 'REJECT ANALYST',
+    role: 'Reject Analyst',
     qcType: 'Online QC',
     onlineMode: 'Reject Recorder',
   },
@@ -63,7 +63,7 @@ const WORKFLOW_OPTIONS: {
     label: 'Grading QC',
     description: 'Check bunches — accept them or send them for replacement.',
     icon: 'leaf-outline',
-    role: 'GRADING QC',
+    role: 'Grading Qc',
     qcType: 'Online QC',
     onlineMode: 'Grading QC',
   },
@@ -72,7 +72,7 @@ const WORKFLOW_OPTIONS: {
     label: 'Final QC',
     description: 'Scan a box, sample it against the spec, and decide the order.',
     icon: 'cube-outline',
-    role: 'FINISHED QC',
+    role: 'Grading Qc',
     qcType: 'Final QC',
     onlineMode: null,
   },
@@ -107,6 +107,12 @@ export function PackhouseQcScreen() {
   // When set, the parameter picker is adding an issue to this rejected bunch
   // (Grading QC) rather than a standalone issue row.
   const [addIssueBunchId, setAddIssueBunchId] = useState<number | null>(null);
+  // When set, the variety picker is choosing the variety for this rejected bunch
+  // (Grading QC mix orders only).
+  const [varietyBunchId, setVarietyBunchId] = useState<number | null>(null);
+  // When set, the variety picker is choosing the variety for this issue row
+  // (Reject Recorder mix orders only).
+  const [varietyIssueId, setVarietyIssueId] = useState<number | null>(null);
 
   const qcType = useKarenPackhouseQcStore((s) => s.qcType);
   const onlineMode = useKarenPackhouseQcStore((s) => s.onlineMode);
@@ -166,6 +172,7 @@ export function PackhouseQcScreen() {
   const setBunchIssueStems = useKarenPackhouseQcStore((s) => s.setBunchIssueStems);
   const removeBunchIssue = useKarenPackhouseQcStore((s) => s.removeBunchIssue);
   const removeRejectedBunch = useKarenPackhouseQcStore((s) => s.removeRejectedBunch);
+  const setRejectedBunchVariety = useKarenPackhouseQcStore((s) => s.setRejectedBunchVariety);
   const clearRejectedBunches = useKarenPackhouseQcStore((s) => s.clearRejectedBunches);
   const rejectedBunches = useKarenPackhouseQcStore((s) => s.rejectedBunches);
   const openGradingReplace = useKarenPackhouseQcStore((s) => s.openGradingReplace);
@@ -183,6 +190,7 @@ export function PackhouseQcScreen() {
   const setFinalDecision = useKarenPackhouseQcStore((s) => s.setFinalDecision);
   const isBoxSamplingMode = useKarenPackhouseQcStore((s) => s.isBoxSamplingMode);
   const addIssueForParam = useKarenPackhouseQcStore((s) => s.addIssueForParam);
+  const setIssueVariety = useKarenPackhouseQcStore((s) => s.setIssueVariety);
   const updateIssueCount = useKarenPackhouseQcStore((s) => s.updateIssueCount);
   const removeIssue = useKarenPackhouseQcStore((s) => s.removeIssue);
   const setTotalChecked = useKarenPackhouseQcStore((s) => s.setTotalChecked);
@@ -207,7 +215,10 @@ export function PackhouseQcScreen() {
     }
   }, [qcType, loggedInEmail, selectedQcIncharge, setQcIncharge]);
 
-  const availableWorkflows = WORKFLOW_OPTIONS.filter((w) => hasRole(w.role));
+  // TEMPORARY: role gate bypassed so all QC workflows are accessible regardless
+  // of assigned roles. To restore, delete the line below and un-comment the next.
+  const availableWorkflows = WORKFLOW_OPTIONS;
+  // const availableWorkflows = WORKFLOW_OPTIONS.filter((w) => hasRole(w.role));
   const activeWorkflow = WORKFLOW_OPTIONS.find((w) => w.qcType === qcType && w.onlineMode === onlineMode) ?? null;
   const hasWorkflow = !!qcType && (qcType !== 'Online QC' || !!onlineMode);
 
@@ -557,6 +568,15 @@ export function PackhouseQcScreen() {
 
       {selectedOrderPickList ? (
         <Card title={qcType === 'Final QC' ? 'Order' : 'Order Detail'}>
+          {selectedOrderPickList.docstatus === 0 ? (
+            <>
+              <Alert tone="danger">
+                This order is a DRAFT (not yet submitted) — read-only. You can review it, but a QC
+                report can&apos;t be submitted until the order is submitted/allocated.
+              </Alert>
+              <View style={{ height: 12 }} />
+            </>
+          ) : null}
           <View style={s.chipRow}>
             <View style={s.chip}>
               <Text style={s.chipText}>{selectedOrderPickList.customer}</Text>
@@ -917,6 +937,9 @@ export function PackhouseQcScreen() {
                       issues={b.issues}
                       params={params}
                       stemsPerBunch={stemsPerBunchVal}
+                      variety={b.variety}
+                      orderVarieties={orderVarieties}
+                      onPickVariety={() => setVarietyBunchId(b.id)}
                       editable={!bunchSampling.finished}
                       canReplace={canReplace}
                       replaceSupported={replaceSupported}
@@ -1110,6 +1133,12 @@ export function PackhouseQcScreen() {
                     onRemove={() => removeIssue(issue.id)}
                     onCountChange={(n) => updateIssueCount(issue.id, n)}
                     showAction={!boxSamplingMode}
+                    variety={issue.variety}
+                    onPickVariety={
+                      rejectRecorderMode && orderVarieties.length > 1
+                        ? () => setVarietyIssueId(issue.id)
+                        : undefined
+                    }
                     // Reject Recorder rejects every issued stem outright, so the
                     // tolerance badge (Tolerance X% / Within tolerance) is
                     // meaningless here — hide it. Grading / Final QC keep it, as
@@ -1331,8 +1360,8 @@ export function PackhouseQcScreen() {
         onClose={() => setOrderPickerOpen(false)}
         options={orderPickLists.map((opl) => ({
           value: opl.name,
-          label: opl.orderName || opl.name,
-          subtitle: opl.customer,
+          label: opl.docstatus === 0 ? `${opl.orderName || opl.name}  • DRAFT` : opl.orderName || opl.name,
+          subtitle: opl.docstatus === 0 ? `${opl.customer} · Draft (read-only)` : opl.customer,
         }))}
         onPick={(value) => {
           const opl = orderPickLists.find((o) => o.name === value);
@@ -1380,6 +1409,28 @@ export function PackhouseQcScreen() {
         onPick={(value) => {
           setReason(value);
           setReasonPickerOpen(false);
+        }}
+      />
+
+      <PickerModal
+        open={varietyBunchId != null}
+        title="Bunch Variety"
+        onClose={() => setVarietyBunchId(null)}
+        options={orderVarieties.map((v) => ({ value: v, label: v }))}
+        onPick={(value) => {
+          if (varietyBunchId != null) setRejectedBunchVariety(varietyBunchId, value);
+          setVarietyBunchId(null);
+        }}
+      />
+
+      <PickerModal
+        open={varietyIssueId != null}
+        title="Issue Variety"
+        onClose={() => setVarietyIssueId(null)}
+        options={orderVarieties.map((v) => ({ value: v, label: v }))}
+        onPick={(value) => {
+          if (varietyIssueId != null) setIssueVariety(varietyIssueId, value);
+          setVarietyIssueId(null);
         }}
       />
 
@@ -1648,6 +1699,9 @@ function RejectedBunchCard({
   issues,
   params,
   stemsPerBunch,
+  variety,
+  orderVarieties,
+  onPickVariety,
   editable,
   canReplace,
   replaceSupported,
@@ -1663,6 +1717,9 @@ function RejectedBunchCard({
   issues: BunchIssue[];
   params: { name: string; parameter: string }[];
   stemsPerBunch: number;
+  variety: string;
+  orderVarieties: string[];
+  onPickVariety: () => void;
   editable: boolean;
   canReplace: boolean;
   replaceSupported: boolean | undefined;
@@ -1676,6 +1733,9 @@ function RejectedBunchCard({
 }) {
   const stemsTotal = issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0);
   const overCap = stemsPerBunch > 0 && stemsTotal > stemsPerBunch;
+  // Only a mix order needs a per-bunch variety choice; a single-variety order
+  // just shows it inline.
+  const multiVariety = orderVarieties.length > 1;
   return (
     <View style={s.issueCard}>
       <View style={s.issueHead}>
@@ -1687,6 +1747,20 @@ function RejectedBunchCard({
         ) : null}
       </View>
       <View style={{ height: 8 }} />
+      {multiVariety ? (
+        editable ? (
+          <Pressable onPress={onPickVariety} style={s.pickerRow}>
+            <MaterialCommunityIcons name="leaf" size={16} color={COLORS.textMuted} />
+            <Text style={s.pickerText} numberOfLines={1}>
+              Variety: {variety || 'Select variety'}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+          </Pressable>
+        ) : (
+          <Text style={s.muted}>Variety: {variety || '—'}</Text>
+        )
+      ) : null}
+      {multiVariety ? <View style={{ height: 8 }} /> : null}
       {issues.length === 0 ? (
         <Text style={s.empty}>No issues added yet.</Text>
       ) : (
@@ -1772,11 +1846,16 @@ function IssueRowCard({
   onCountChange,
   toleranceInfo,
   tolerance,
+  variety,
+  onPickVariety,
 }: {
   issue: IssueRow;
   displayName: string;
   onRemove: () => void;
   showAction?: boolean;
+  /** When provided, a tappable variety row is shown (Reject Recorder mix orders). */
+  variety?: string;
+  onPickVariety?: () => void;
   /** When provided (with onCountChange), the count renders as an editable
    *  field instead of a static chip — used in the working "Add Issue" list,
    *  not the read-only Review summary. */
@@ -1811,6 +1890,18 @@ function IssueRowCard({
         </Pressable>
       </View>
       <View style={{ height: 8 }} />
+      {onPickVariety ? (
+        <>
+          <Pressable onPress={onPickVariety} style={s.pickerRow}>
+            <MaterialCommunityIcons name="leaf" size={16} color={COLORS.textMuted} />
+            <Text style={s.pickerText} numberOfLines={1}>
+              Variety: {variety || 'Select variety'}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
+          </Pressable>
+          <View style={{ height: 8 }} />
+        </>
+      ) : null}
       {editable ? (
         <View style={s.issueCountRow}>
           <Text style={s.issueCountLabel}>{countLabel ?? 'Affected'}</Text>

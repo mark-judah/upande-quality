@@ -19,6 +19,8 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'https://xflora.fsn.frappe.cloud': 'Xflora',
   'https://krv16.nbg.frappe.cloud': 'Karen',
   'https://kaitetv16-staging.nbg.frappe.cloud': 'Karen',
+  'http://192.168.0.170:8001': 'Karen',
+  'https://kaitetv16.nbg.frappe.cloud': 'Karen'
 };
 
 export function getTenantByUrl(url: string | null | undefined): Tenant | null {
