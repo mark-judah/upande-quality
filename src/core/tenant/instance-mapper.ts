@@ -23,7 +23,8 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'https://krv16.nbg.frappe.cloud': 'Karen',
   'https://kaitetv16-staging.nbg.frappe.cloud': 'Karen',
   'http://192.168.0.170:8001': 'Karen',
-  'https://kaitetv16.nbg.frappe.cloud': 'Karen'
+  'https://kaitetv16.nbg.frappe.cloud': 'Karen',
+  'http://192.168.3.102:8002': 'Karen'
 };
 
 export function getTenantByUrl(url: string | null | undefined): Tenant | null {

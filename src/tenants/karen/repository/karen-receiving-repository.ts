@@ -59,8 +59,12 @@ export const karenReceivingRepository = {
     }
   },
 
-  async submit(bucketId: string, batchId: string | null): Promise<ReceivingOutcome> {
-    const raw = await karenReceivingApi.createReceiving(bucketId, batchId);
+  async submit(
+    bucketId: string,
+    batchId: string | null,
+    confirmReceive?: boolean,
+  ): Promise<ReceivingOutcome> {
+    const raw = await karenReceivingApi.createReceiving(bucketId, batchId, confirmReceive);
 
     switch (raw.status) {
       case 'received':

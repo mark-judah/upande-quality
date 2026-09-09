@@ -32,6 +32,10 @@ export const karenReceivingApi = {
   async createReceiving(
     bucketId: string,
     batchId: string | null,
+    /** True only when the operator has already seen the "not harvested
+     *  today" popup and chose to receive anyway — tells the backend to skip
+     *  that check and create the Receiving entry against the stale harvest. */
+    confirmReceive?: boolean,
   ): Promise<RawReceivingResponse> {
     return api<RawReceivingResponse>({
       method: 'POST',
@@ -39,6 +43,7 @@ export const karenReceivingApi = {
       data: {
         bucket_id: bucketId,
         custom_receiving_batch_id: batchId,
+        confirm_receive: !!confirmReceive,
       },
       // Accept any status so we can read the typed body for 4xx/5xx outcomes —
       // the server packs the user-facing message into the body itself.

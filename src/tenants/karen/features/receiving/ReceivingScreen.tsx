@@ -17,13 +17,21 @@ import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/
 
 export function KarenReceivingScreen() {
   const scanRef = useRef<ScanFieldHandle>(null);
-  const { loading, lastOutcome, batchMode, batchId, toggleBatchMode, submitScan, reset } =
+  const { loading, lastOutcome, batchMode, batchId, toggleBatchMode, submitScan, confirmReceive, reset } =
     useKarenReceivingStore();
   const { showSuccess, showError } = useToast();
   /** The successful receive that drives the popup. Cleared when dismissed. */
   const [receivedPopup, setReceivedPopup] = useState<
     Extract<ReceivingOutcome, { kind: 'received' }> | null
   >(null);
+  /** A bucket whose latest harvest isn't from today, or that's already been
+   *  received — surfaced as a popup (not a toast) since "already received or
+   *  not, receive anyway?" is something the operator needs to actively read
+   *  and respond to, not glance past. */
+  const [stalePopup, setStalePopup] = useState<
+    Extract<ReceivingOutcome, { kind: 'already_received' } | { kind: 'no_harvest_on_date' }> | null
+  >(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => () => reset(), [reset]);
 
@@ -51,9 +59,11 @@ export function KarenReceivingScreen() {
         // Don't refocus yet — the popup is modal; the dismiss handler will.
         return;
       case 'already_received':
+      case 'no_harvest_on_date':
+        setStalePopup(outcome);
+        return;
       case 'not_harvested':
       case 'not_exist':
-      case 'no_harvest_on_date':
       case 'error':
         showError(outcome.message);
         break;
@@ -65,6 +75,34 @@ export function KarenReceivingScreen() {
     setReceivedPopup(null);
     focusWhenReady(scanRef);
   }, []);
+
+  const dismissStalePopup = useCallback(() => {
+    setStalePopup(null);
+    focusWhenReady(scanRef);
+  }, []);
+
+  const handleConfirmReceive = async () => {
+    if (!stalePopup) return;
+    setConfirming(true);
+    const outcome = await confirmReceive(stalePopup.bucketId);
+    setConfirming(false);
+    if (outcome.kind === 'received') {
+      setStalePopup(null);
+      showSuccess(`Received bucket ${outcome.bucketId}`);
+      setReceivedPopup(outcome);
+      return;
+    }
+    // Something changed between the popup showing and confirming (e.g. it
+    // got received from another device in between) — surface whatever the
+    // server says now instead of silently closing.
+    if (outcome.kind === 'already_received' || outcome.kind === 'no_harvest_on_date') {
+      setStalePopup(outcome);
+    } else {
+      setStalePopup(null);
+      showError(outcome.message);
+      focusWhenReady(scanRef);
+    }
+  };
 
   return (
     <Screen title="Receiving">
@@ -101,9 +139,13 @@ export function KarenReceivingScreen() {
         <Card>
           <Text style={s.muted}>Submitting…</Text>
         </Card>
-      ) : lastOutcome && lastOutcome.kind !== 'received' ? (
-        // Success goes through the popup — only render the inline card for
-        // failures so the operator can read the reason without dismissing.
+      ) : lastOutcome &&
+        lastOutcome.kind !== 'received' &&
+        lastOutcome.kind !== 'already_received' &&
+        lastOutcome.kind !== 'no_harvest_on_date' ? (
+        // 'received' goes through its own popup; 'already_received' and
+        // 'no_harvest_on_date' go through the stale-bucket popup below — only
+        // render the inline card for the remaining failures.
         <OutcomeCard outcome={lastOutcome} />
       ) : null}
 
@@ -120,6 +162,12 @@ export function KarenReceivingScreen() {
       ) : null}
 
       <ReceivedPopup outcome={receivedPopup} onDismiss={dismissPopup} />
+      <StaleHarvestPopup
+        outcome={stalePopup}
+        onDismiss={dismissStalePopup}
+        onConfirm={handleConfirmReceive}
+        confirming={confirming}
+      />
     </Screen>
   );
 }
@@ -168,6 +216,71 @@ function ReceivedPopup({
           ) : null}
           <View style={{ height: spacing.md }} />
           <Button label="Next bucket" onPress={onDismiss} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** Shown instead of a toast when the bucket's latest harvest isn't from
+ *  today — an operator scanning it may have the wrong bucket, or expect
+ *  today's harvest to be inside it, so this needs an active read, not a
+ *  glance-past toast. Covers two backend statuses with the same layout:
+ *  'already_received' (informational — nothing to confirm, just an OK) and
+ *  'no_harvest_on_date' (still unclaimed — offers to receive it anyway
+ *  against the stale harvest). */
+function StaleHarvestPopup({
+  outcome,
+  onDismiss,
+  onConfirm,
+  confirming,
+}: {
+  outcome: Extract<ReceivingOutcome, { kind: 'already_received' } | { kind: 'no_harvest_on_date' }> | null;
+  onDismiss: () => void;
+  onConfirm: () => void;
+  confirming: boolean;
+}) {
+  const canConfirm = outcome?.kind === 'no_harvest_on_date';
+
+  return (
+    <Modal
+      visible={!!outcome}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <Pressable style={popup.backdrop} onPress={confirming ? undefined : onDismiss}>
+        <Pressable style={popup.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={popup.iconCircle}>
+            <Ionicons name="alert-circle" size={32} color={COLORS.warn} />
+          </View>
+          <Text style={popup.title}>{canConfirm ? 'Not harvested today' : 'Already received'}</Text>
+          {outcome ? (
+            <>
+              <Text style={popup.subtitle}>{outcome.bucketId}</Text>
+              <Text style={popup.message}>{outcome.message}</Text>
+              <View style={popup.divider} />
+              <PopupRow label="Variety" value={outcome.details.variety} />
+              <PopupRow label="Greenhouse" value={outcome.details.greenhouse} />
+              <PopupRow label="Farm" value={outcome.details.farm} />
+              <PopupRow label="Harvested" value={outcome.details.harvestDate} />
+              <PopupRow label="Stems" value={outcome.details.numberOfStems} />
+            </>
+          ) : null}
+          <View style={{ height: spacing.md }} />
+          {canConfirm ? (
+            <View style={s.row}>
+              <View style={{ flex: 1 }}>
+                <Button label="Cancel" variant="outline" onPress={onDismiss} disabled={confirming} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Button label="Receive anyway" onPress={onConfirm} loading={confirming} />
+              </View>
+            </View>
+          ) : (
+            <Button label="OK" onPress={onDismiss} />
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -317,6 +430,13 @@ const popup = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     marginTop: 2,
+  },
+  message: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: COLORS.text,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
