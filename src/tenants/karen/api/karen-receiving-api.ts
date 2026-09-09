@@ -27,6 +27,7 @@ export type RawReceivingResponse = {
   bunches?: string;
 };
 
+
 export const karenReceivingApi = {
   async createReceiving(
     bucketId: string,
