@@ -40,7 +40,7 @@ export type RawShelvingResponse = {
 };
 
 export const karenShelvingApi = {
-  /** POST /api/method/createShelvingEntry – body matches the Flutter client. */
+  /** POST /api/method/upande_quality.mobile.api.createShelvingEntry – body matches the Flutter client. */
   async createShelvingEntry(args: {
     farm: string;
     shelfId: string;
@@ -48,7 +48,7 @@ export const karenShelvingApi = {
   }): Promise<RawShelvingResponse> {
     const res = await api<{ data?: RawShelvingResponse } | RawShelvingResponse>({
       method: 'POST',
-      url: '/api/method/createShelvingEntry',
+      url: '/api/method/upande_quality.mobile.api.createShelvingEntry',
       data: {
         farm: args.farm,
         shelf_id: args.shelfId,

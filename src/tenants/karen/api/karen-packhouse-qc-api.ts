@@ -232,7 +232,7 @@ export const karenPackhouseQcApi = {
             : undefined;
     return api<RawPackhouseFormDataResponse>({
       method: 'GET',
-      url: '/api/method/fetchPackhouseQCFormData',
+      url: '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData',
       // Airport Returns scans a box AND asks the server for the return context.
       params: params?.airportReturn ? { ...(base ?? {}), airport_return: 1 } : base,
     });
@@ -241,7 +241,7 @@ export const karenPackhouseQcApi = {
   save(payload: Record<string, unknown>): Promise<RawSavePackhouseQcResponse> {
     return api<RawSavePackhouseQcResponse>({
       method: 'POST',
-      url: '/api/method/savePackhouseQC',
+      url: '/api/method/upande_quality.mobile.api.savePackhouseQC',
       data: payload,
       validateStatus: () => true,
     });

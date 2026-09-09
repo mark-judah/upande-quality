@@ -26,7 +26,7 @@ async function sendRow(r: OutboxRow): Promise<boolean> {
   try {
     const res = await api<{ message?: { status?: string }; exc?: string }>({
       method: 'POST',
-      url: '/api/method/reportDeviceTelemetry',
+      url: '/api/method/upande_agriculture.mobile.api.reportDeviceTelemetry',
       data: { data: r.payload },
       validateStatus: () => true,
     });

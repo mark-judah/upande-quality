@@ -40,7 +40,7 @@ export const karenBucketTransfersApi = {
   getInTransitBuckets(fromDate: string, toDate: string): Promise<RawInTransitResponse> {
     return api<RawInTransitResponse>({
       method: 'POST',
-      url: '/api/method/getInTransitBuckets',
+      url: '/api/method/upande_quality.mobile.api.getInTransitBuckets',
       data: { from_date: fromDate, to_date: toDate },
       validateStatus: () => true,
     });

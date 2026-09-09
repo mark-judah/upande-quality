@@ -153,7 +153,7 @@ export const karenReplacementApi = {
   async listReplacementCandidates(payload: { bucket_id: string }): Promise<RawCandidatesResponse> {
     return api<RawCandidatesResponse>({
       method: 'POST',
-      url: '/api/method/listReplacementCandidates',
+      url: '/api/method/upande_quality.mobile.api.listReplacementCandidates',
       data: payload,
       validateStatus: () => true,
     });
@@ -166,7 +166,7 @@ export const karenReplacementApi = {
   }): Promise<RawReplaceBucketResponse> {
     return api<RawReplaceBucketResponse>({
       method: 'POST',
-      url: '/api/method/replaceBucket',
+      url: '/api/method/upande_quality.mobile.api.replaceBucket',
       data: payload,
       validateStatus: () => true,
     });
@@ -175,7 +175,7 @@ export const karenReplacementApi = {
   async listBucketOpls(payload: { bucket_id: string }): Promise<RawBucketOplsResponse> {
     return api<RawBucketOplsResponse>({
       method: 'POST',
-      url: '/api/method/listBucketOpls',
+      url: '/api/method/upande_quality.mobile.api.listBucketOpls',
       data: payload,
       validateStatus: () => true,
     });
@@ -189,7 +189,7 @@ export const karenReplacementApi = {
   }): Promise<RawReplaceStemsResponse> {
     return api<RawReplaceStemsResponse>({
       method: 'POST',
-      url: '/api/method/replaceStems',
+      url: '/api/method/upande_quality.mobile.api.replaceStems',
       data: payload,
       validateStatus: () => true,
     });
@@ -203,7 +203,7 @@ export const karenReplacementApi = {
   }): Promise<RawReplaceStemsResponse> {
     return api<RawReplaceStemsResponse>({
       method: 'POST',
-      url: '/api/method/replaceBunchInOpl',
+      url: '/api/method/upande_quality.mobile.api.replaceBunchInOpl',
       data: payload,
       validateStatus: () => true,
     });
@@ -218,7 +218,7 @@ export const karenReplacementApi = {
   }): Promise<RawCorrectDetailsResponse> {
     return api<RawCorrectDetailsResponse>({
       method: 'POST',
-      url: '/api/method/correctDetails',
+      url: '/api/method/upande_quality.mobile.api.correctDetails',
       data: payload,
       validateStatus: () => true,
     });
@@ -235,7 +235,7 @@ export const karenReplacementApi = {
   }): Promise<RawGradingOptionsResponse> {
     return api<RawGradingOptionsResponse>({
       method: 'POST',
-      url: '/api/method/gradingReplacementOptions',
+      url: '/api/method/upande_quality.mobile.api.gradingReplacementOptions',
       data: payload,
       validateStatus: () => true,
     });
@@ -249,7 +249,7 @@ export const karenReplacementApi = {
   }): Promise<RawCandidatesResponse> {
     return api<RawCandidatesResponse>({
       method: 'POST',
-      url: '/api/method/listBunchDestinations',
+      url: '/api/method/upande_quality.mobile.api.listBunchDestinations',
       data: payload,
       validateStatus: () => true,
     });
@@ -264,7 +264,7 @@ export const karenReplacementApi = {
   }): Promise<RawMoveBunchResponse> {
     return api<RawMoveBunchResponse>({
       method: 'POST',
-      url: '/api/method/moveBunch',
+      url: '/api/method/upande_quality.mobile.api.moveBunch',
       data: payload,
       validateStatus: () => true,
     });
@@ -273,7 +273,7 @@ export const karenReplacementApi = {
   async listPendingReshelving(): Promise<RawPendingResponse> {
     return api<RawPendingResponse>({
       method: 'POST',
-      url: '/api/method/listPendingReshelving',
+      url: '/api/method/upande_quality.mobile.api.listPendingReshelving',
       validateStatus: () => true,
     });
   },

@@ -27,6 +27,7 @@ export type RawReceivingResponse = {
   bunches?: string;
 };
 
+
 export const karenReceivingApi = {
   async createReceiving(
     bucketId: string,
@@ -34,7 +35,7 @@ export const karenReceivingApi = {
   ): Promise<RawReceivingResponse> {
     return api<RawReceivingResponse>({
       method: 'POST',
-      url: '/api/method/createReceivingStockEntry',
+      url: '/api/method/upande_quality.mobile.api.createReceivingStockEntry',
       data: {
         bucket_id: bucketId,
         custom_receiving_batch_id: batchId,

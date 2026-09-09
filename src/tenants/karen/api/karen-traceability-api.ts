@@ -78,7 +78,7 @@ export const karenTraceabilityApi = {
   async lookup(payload: { bucket_id?: string; bunch_id?: string }): Promise<RawTraceabilityResponse> {
     return api<RawTraceabilityResponse>({
       method: 'POST',
-      url: '/api/method/getTraceability',
+      url: '/api/method/upande_quality.mobile.api.getTraceability',
       data: payload,
     });
   },
