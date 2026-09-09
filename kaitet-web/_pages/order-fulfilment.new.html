@@ -169,248 +169,183 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
 <!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
 <style>
-/* Topbar: team dropdown + view toggle, restyled into aph chrome */
-.aph .dropdown{position:relative;display:inline-block}
-.aph .dropdown-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg-card);
-  border:1px solid var(--border-2);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:1000;overflow:hidden}
-.aph .dropdown.open .dropdown-menu{display:block}
-.aph .dropdown-item{padding:8px 14px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s ease;font-weight:500}
-.aph .dropdown-item:last-child{border-bottom:none}
-.aph .dropdown-item:hover{background:var(--bg-hover)}
-.aph .dropdown-item.active{background:var(--bg-muted);color:var(--text);font-weight:600}
-/* multi-select team items */
-.aph .dropdown-item.ms-item{display:flex;align-items:center;gap:9px;background:var(--bg-card);font-weight:500}
-.aph .dropdown-item.ms-item:hover{background:var(--bg-hover)}
-.aph .ms-check{width:14px;height:14px;border:1px solid var(--border-2);border-radius:4px;flex:0 0 auto;position:relative;background:var(--bg-card)}
-.aph .dropdown-item.ms-item.active{background:var(--bg-card);font-weight:600}
-.aph .dropdown-item.ms-item.active .ms-check{background:var(--accent);border-color:var(--accent)}
-.aph .dropdown-item.ms-item.active .ms-check::after{content:'';position:absolute;left:4px;top:1px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.aph .dropdown-item.ms-sep{padding:0;height:1px;background:var(--border);cursor:default}
-.aph .date-range-inputs{display:none;align-items:center;gap:6px}
-.aph .date-range-inputs.show{display:flex}
+/* Variance colour tokens mapped onto aph palette */
+.aph{
+  --accent-blue:#2490ef;--accent-red:#dc2626;--accent-green:#16a34a;
+  --tint-blue:#f0ecfe;--tint-purple:#f0ecfe;--tint-green:#e6f9ee;--tint-orange:#fff3e0;
+  --var-pos-bg:#e6f9ee;--var-pos-txt:#1a8a3a;
+  --var-mid-bg:#fff3e0;--var-mid-txt:#9a5a00;
+  --var-neg-bg:#fde8ec;--var-neg-txt:var(--bad);
+  --var-zero-bg:var(--bg-muted);--var-zero-txt:var(--text-3);
+}
+
+/* Topbar controls: search, delivery date, filter toggle, LIVE */
+.aph .search-input{height:32px;padding:0 12px;font-size:12px;font-family:var(--f);
+  background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;min-width:180px;font-weight:500}
+.aph .search-input:focus{border-color:var(--text)}
+.aph .search-input::placeholder{color:var(--text-3)}
 .aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
 .aph .form-control:focus{border-color:var(--text)}
+.aph .topbar-lbl{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+/* tab toggle group reuses aph .presets visual; tab-btn styled to match .presets .p */
+.aph .tab-group{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph .tab-btn{padding:0 12px;font-size:11px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border:0;border-right:1px solid var(--border);display:flex;align-items:center;font-family:var(--f)}
+.aph .tab-btn:last-child{border-right:0}
+.aph .tab-btn:hover{background:var(--bg-hover);color:var(--text)}
+.aph .tab-btn.active{background:var(--accent);color:#fff}
 /* LIVE badge */
 .aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
   border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
 .aph .live-badge:hover{background:var(--bg-hover)}
 .aph .live-dot{width:7px;height:7px;background:var(--good);border-radius:50%}
 
-/* KPI value/sub override so the JS-set values + Boxes-to-Deliver date input sit nicely in aph-kpi */
-.aph .aph-kpi .v{font-feature-settings:'tnum'}
-.aph .kpi-date-row{display:flex;align-items:center;gap:4px;margin-top:8px}
-.aph .kpi-date-row label{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
-.aph .kpi-date-row input{height:24px;padding:0 6px;font-size:11px;width:120px;border-radius:5px;border:1px solid var(--border-2);background:var(--bg-card);font-family:var(--f);outline:0}
+/* KPI icon tints (restyled from gold .aph-kpi .ic-wrap) */
+.aph .aph-kpi .ic-wrap.tint-blue{background:var(--tint-blue)}
+.aph .aph-kpi .ic-wrap.tint-green{background:var(--tint-green)}
+.aph .aph-kpi .ic-wrap.tint-purple{background:var(--tint-purple)}
+.aph .aph-kpi .ic-wrap.tint-orange{background:var(--tint-orange)}
+.aph .aph-kpi .ic-wrap svg{width:16px;height:16px}
 
-/* ── Issuing vs Packing wide card (lives inside an aph-card body) ── */
-.aph .kpi-dual-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
-.aph .kpi-dual-item{text-align:center}
-.aph .kpi-dual-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:6px}
-.aph .kpi-dual-value{font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.03em;font-feature-settings:'tnum'}
-.aph .kpi-dual-sub{font-size:11px;font-weight:500;color:var(--text-3);margin-top:6px}
-.aph .kpi-dual-bar{margin-top:10px}
-.aph .gap-indicator{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px}
-.aph .gap-positive{background:#fff3e0;color:#9a5a00}
-.aph .gap-negative{background:#e6f9ee;color:#1a8a3a}
-.aph .gap-neutral{background:var(--bg-muted);color:var(--text-2)}
-@media(max-width:600px){.aph .kpi-dual-row{grid-template-columns:1fr;gap:12px}}
-
-/* ── Progress bars (used by render functions) ── */
-.aph .progress-wrap{margin:8px 0}
-.aph .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-bottom:4px;font-weight:600}
-.aph .progress-label span:last-child{color:var(--text);font-weight:600;font-feature-settings:'tnum'}
-.aph .progress-track{background:var(--bg-muted);border-radius:4px;height:6px;overflow:hidden}
-.aph .progress-fill{height:100%;background:var(--text);border-radius:4px;transition:width .15s ease}
-.aph .progress-fill.packing{background:#7c5cfc}
-.aph .progress-fill.packing.complete{background:var(--good)}
-
-/* ── Labels / badges produced by render functions ── */
+/* ── Labels / badges ── */
 .aph .label{display:inline-flex;align-items:center;padding:2px 9px;font-size:11px;font-weight:600;border-radius:10px;letter-spacing:.02em}
 .aph .label-success{background:#e6f9ee;color:#1a8a3a}
 .aph .label-warning{background:#fff3e0;color:#9a5a00}
 .aph .label-danger{background:#fde8ec;color:var(--bad)}
 .aph .label-default{background:var(--bg-muted);color:var(--text-2)}
-.aph .label-info{background:#f0ecfe;color:#7c5cfc}
 .aph .label-primary{background:var(--bg-muted);color:var(--text)}
-.aph .team-badge{display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;background:var(--bg-muted);color:var(--text-2)}
-.aph .rose-badge{display:inline-block;margin-left:6px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px}
-.aph .rose-badge.rose-spray{background:#f0ecfe;color:#7c5cfc}
-.aph .rose-badge.rose-std{background:#e6f1ff;color:#1a5fb4}
-.aph .rose-badge.rose-mixed{background:var(--bg-muted);color:var(--text-2)}
 
-/* ── OPL card grid (render output) ── */
-.aph .opl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-.aph .opl-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .opl-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .opl-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.aph .opl-order-name{font-size:13px;font-weight:600;color:var(--text)}
-.aph .opl-meta{display:flex;align-items:center;gap:6px;margin-top:4px}
-.aph .opl-id{font-size:12px;color:var(--text-2);font-family:var(--mono)}
-.aph .opl-variety{font-size:13px;font-weight:600;color:var(--text);margin:6px 0 2px}
-.aph .opl-customer{font-size:12px;color:var(--text-2);margin-bottom:10px}
-.aph .opl-details{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.aph .opl-detail{background:var(--bg-muted);padding:8px 6px;border-radius:7px;text-align:center}
-.aph .opl-detail-label{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);margin-bottom:2px}
-.aph .opl-detail-value{font-size:13px;font-weight:600;color:var(--text);font-feature-settings:'tnum'}
-.aph .shelf-list{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
-.aph .shelf-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .variety-list{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
-.aph .variety-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
-.aph .variety-more{cursor:pointer}
-.aph .variety-more:hover{background:var(--border-2)}
+/* ── Legend ── */
+.aph .legend{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.aph .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);font-weight:500}
+.aph .legend-swatch{width:14px;height:14px;border-radius:4px}
 
-/* ── Box card grid (render output) ── */
-.aph .box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.aph .box-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .box-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .box-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.aph .box-number{font-size:15px;font-weight:600;color:var(--text)}
-.aph .box-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
-.aph .box-row:last-child{border-bottom:none}
-.aph .box-row-label{color:var(--text-2)}
-.aph .box-row-value{font-weight:600;color:var(--text)}
+/* ── Stock table (restyled into aph card; keeps stock-table structure) ── */
+.aph .table-wrap{width:100%;overflow:auto;max-height:calc(100vh - 320px);-webkit-overflow-scrolling:touch}
+.aph table.stock-table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}
+.aph .stock-table thead tr th{padding:8px;text-align:right;font-size:11px;font-weight:600;color:var(--text-3);
+  white-space:nowrap;border-bottom:1px solid var(--border);background:var(--bg-card);position:sticky;top:0;z-index:10;
+  text-transform:uppercase;letter-spacing:.03em}
+.aph .stock-table thead tr th:first-child,
+.aph .stock-table thead tr th:nth-child(2){text-align:left}
 
-/* ── Empty / Loading states (render output) ── */
+/* Header group rows */
+.aph .stock-table thead tr.group-row th{padding:6px 8px;font-size:11px;font-weight:700;color:var(--text-2);
+  border-bottom:1px solid var(--border);background:var(--bg-card);position:sticky;top:0;z-index:11;letter-spacing:0}
+.aph .stock-table thead tr.group-row th.gh-length{text-align:center;border-left:1px solid var(--border);color:var(--text)}
+.aph .stock-table thead tr.group-row th.gh-total{text-align:center;border-left:1px solid var(--border);color:var(--text);font-weight:700}
+
+/* Sub-header */
+.aph .stock-table thead tr.sub-row th{padding:6px 8px;font-size:10px;border-bottom:1px solid var(--border);
+  background:var(--bg-card);position:sticky;top:30px;z-index:11;letter-spacing:.03em}
+.aph .stock-table thead tr.sub-row th.sh-stock{color:#1a8a3a}
+.aph .stock-table thead tr.sub-row th.sh-ordered{color:var(--text-2)}
+.aph .stock-table thead tr.sub-row th.sh-var{color:var(--text-3)}
+.aph .stock-table thead tr.sub-row th.sh-border{border-left:1px solid var(--border)}
+.aph .stock-table thead tr.sub-row th.sh-total-border{border-left:1px solid var(--border)}
+
+/* Body rows */
+.aph .stock-table tbody tr.variety-row td{padding:8px;border-top:1px solid var(--border);
+  font-weight:700;font-size:13px;color:var(--text);background:var(--bg-card);cursor:pointer}
+.aph .stock-table tbody tr.variety-row:hover td{background:var(--bg-hover)}
+.aph .stock-table tbody tr.farm-row td{padding:6px 8px;border-top:1px solid var(--border);
+  font-size:12px;color:var(--text);background:var(--bg-card)}
+.aph .stock-table tbody tr.farm-row:hover td{background:var(--bg-hover)}
+.aph .stock-table tbody tr.variety-total-row td{padding:6px 8px;border-top:1px dashed var(--border);
+  font-size:12px;color:var(--text-3);background:var(--bg-muted)}
+
+/* Cell alignment */
+.aph .stock-table td{text-align:right;vertical-align:middle;font-feature-settings:'tnum'}
+.aph .stock-table td.td-variety{text-align:left;font-weight:700}
+.aph .stock-table td.td-farm{text-align:left;padding-left:20px;color:var(--text-2);font-weight:500}
+.aph .stock-table td.td-label{text-align:left}
+
+/* Length / total group separators */
+.aph .stock-table td.td-lg-start,
+.aph .stock-table th.sh-border{border-left:1px solid var(--border)}
+.aph .stock-table td.td-total-start,
+.aph .stock-table th.sh-total-border{border-left:1px solid var(--border)}
+
+/* Variance cell coloring */
+.aph .var-pos{background:var(--var-pos-bg)!important;color:var(--var-pos-txt)!important;font-weight:700}
+.aph .var-mid{background:var(--var-mid-bg)!important;color:var(--var-mid-txt)!important;font-weight:700}
+.aph .var-neg{background:var(--var-neg-bg)!important;color:var(--var-neg-txt)!important;font-weight:700}
+.aph .var-zero{background:var(--var-zero-bg)!important;color:var(--var-zero-txt)!important}
+
+/* Total column emphasis */
+.aph .td-total{font-weight:700}
+.aph .num{font-variant-numeric:tabular-nums;font-size:12px}
+
+/* ── Frozen columns: Variety, Farm, Total — sticky on horizontal scroll ── */
+.aph .stock-table .frz{position:sticky;background:var(--bg-card);z-index:5}
+.aph .stock-table tbody tr.variety-row:hover td.frz{background:var(--bg-hover)}
+.aph .stock-table tbody tr.farm-row:hover td.frz{background:var(--bg-hover)}
+.aph .stock-table thead tr.group-row th.frz,
+.aph .stock-table thead tr.sub-row th.frz{z-index:15}
+.aph .stock-table .frz-c1{left:0;width:190px;min-width:190px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aph .stock-table .frz-c2{left:190px;width:120px;min-width:120px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aph .stock-table .frz-t1{left:310px;width:78px;min-width:78px;max-width:78px;border-left:1px solid var(--border)}
+.aph .stock-table .frz-t2{left:388px;width:78px;min-width:78px;max-width:78px}
+.aph .stock-table .frz-t3{left:466px;width:78px;min-width:78px;max-width:78px;border-right:2px solid var(--border)}
+.aph .stock-table thead tr.group-row th.frz-g1{left:0}
+.aph .stock-table thead tr.group-row th.frz-g2{left:310px;border-left:1px solid var(--border);border-right:2px solid var(--border)}
+
+/* Collapse toggle */
+.aph .variety-toggle{cursor:pointer;user-select:none;margin-right:6px;color:var(--text-3);font-size:11px;
+  display:inline-block;width:14px;text-align:center}
+
+/* Empty / loading (render output) */
 .aph .empty-state{text-align:center;padding:40px 20px;color:var(--text-3)}
 .aph .empty-state p{font-size:13px;margin-top:10px}
-.aph .loading-state{text-align:center;padding:30px;color:var(--text-3);font-size:12px}
-
-/* ── Variety modal ── */
-.vmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2147483100;align-items:center;justify-content:center;padding:20px}
-.vmodal.open{display:flex}
-.vmodal-card{background:var(--bg-card);border-radius:10px;width:100%;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);font-family:var(--f)}
-.vmodal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.vmodal-close{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text-3)}
-.vmodal-body{padding:6px 16px 14px;overflow-y:auto}
-.vrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
-.vrow:last-child{border-bottom:none}
-.vstems{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+.aph .loading-state{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
 </style>
 
-
 <style>
-.aph .sch-board{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;height:calc(100vh - 232px);min-height:360px}
-.aph .sch-col{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.aph .sch-colh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.aph .sch-colh .dot{width:9px;height:9px;border-radius:50%}
-.aph .sch-colh .nm{font-weight:600;font-size:13px}
-.aph .sch-colh .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:9px;padding:1px 8px}
-.aph .sch-colh .hint{width:100%;font-size:10px;color:var(--text-3);font-weight:500;margin-top:2px}
-.aph .sch-colb{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
-.aph .sch-card{border:1px solid var(--border);border-radius:9px;padding:10px 11px;background:var(--bg-card);transition:box-shadow .12s,border-color .12s}
-.aph .sch-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .sch-col.ready .sch-card{cursor:grab}
-.aph .sch-card.dragging{opacity:.4}
-.aph .sch-r1{display:flex;align-items:flex-start;gap:8px}
-.aph .sch-seq{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
-.aph .sch-seq.none{background:var(--bg-muted);color:var(--text-3)}
-.aph .sch-seq.done{background:var(--good)}
-.aph .sch-seq.draft{background:#7c3aed}
-.aph .sch-seq.next{box-shadow:0 0 0 2px var(--bg-card),0 0 0 4px var(--accent)}
-.aph .sch-farms{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.aph .sch-cnm{flex:1;min-width:0}
-.aph .sch-cnm .o{font-weight:600;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-cnm .sub{font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-next{flex:0 0 auto;border:1px solid var(--border);background:var(--bg-card);color:var(--text-2);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1}
-.aph .sch-next:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
-.aph .sch-chip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .sch-chip.farm{background:#eef2ff;color:#3730a3}
-.sch-chip.sched{background:var(--good-bg,#e2f2e8);color:var(--good,#1f7a32)}
-.sch-chip.unsched{background:var(--bg-muted);color:var(--text-3);border:1px dashed var(--border-2,#d9d9d9)}
-.aph .sch-specs{margin-top:7px;display:flex;flex-direction:column;gap:2px}
-.aph .sch-spec{font-size:11px;display:flex;justify-content:space-between;gap:8px}
-.aph .sch-spec .b{color:var(--text-2)}
-.aph .sch-meta{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
-.aph .sch-meta .mv{font-size:13px;font-weight:700;font-feature-settings:'tnum'}
-.aph .sch-meta .ml{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em}
-.aph .sch-bar{height:5px;border-radius:3px;background:var(--bg-muted);overflow:hidden;margin-top:7px}
-.aph .sch-bar i{display:block;height:100%;background:var(--good)}
-.aph .sch-empty{padding:28px;text-align:center;color:var(--text-3);font-size:12px}
-.aph .sch-sel{height:32px;padding:0 9px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg-card);color:var(--text);font-weight:500;outline:0}
-.aph .aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
-.aph .aph-kpi .v{font-size:30px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:8px;line-height:1}
-.aph .sch-search{margin-top:8px;width:100%;height:30px;padding:0 10px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg);color:var(--text);outline:0}
-.aph .sch-search:focus{border-color:var(--accent)}
-.aph .sch-chk{flex:0 0 auto;width:16px;height:16px;margin-top:5px;cursor:pointer;accent-color:var(--accent)}
-.aph .sch-card.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.aph .sch-nextbadge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--good);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
-.aph .sch-selbar{display:none;align-items:center;gap:8px;width:100%;margin-top:9px;padding:7px 9px;background:var(--accent);border-radius:8px}
-.aph .sch-selbar.on{display:flex}
-.aph .sch-selbar .lbl{color:#fff;font-size:11px;font-weight:700;flex:1}
-.aph .sch-selbar button{border:0;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
-.aph .sch-selbar .mk{background:#fff;color:var(--accent)}
-.aph .sch-selbar .addsch{background:#fff;color:var(--accent)}
-.aph .sch-selbar .rmsch{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-.aph .sch-selbar .cl{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-/* ---- 2-tab redesign ---- */
-.aph .sch-maintabs{display:inline-flex;gap:2px;background:var(--bg-muted);border-radius:9px;padding:3px;margin-bottom:16px}
-.aph .sch-maintab{border:0;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.aph .sch-maintab:hover{color:var(--text)}
-.aph .sch-maintab.on{background:var(--bg-card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.aph .sch-maintab .tc{font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:8px;padding:0 7px}
-.aph .sch-maintab.on .tc{background:var(--accent);color:#fff}
-.aph .sch-panel{display:flex;flex-direction:column;min-height:0}
-.aph .sch-varbar{display:flex;flex-wrap:wrap;gap:6px}
-.aph .sch-varbtn{padding:5px 12px;border:1px solid var(--border-2);background:var(--bg);border-radius:999px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.aph .sch-varbtn:hover{border-color:var(--accent)}
-.aph .sch-varbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-varbtn .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.7;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-varbtn.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-search.wide{margin-top:12px;max-width:520px}
-.aph .sch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.aph .sch-schedwrap{margin-top:12px;display:flex;flex-direction:column;gap:20px}
-.aph .sch-teamgrp .sch-teamh{display:flex;align-items:baseline;gap:11px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamgrp .sch-teamh .tn{font-size:15px;font-weight:600;letter-spacing:-.2px}
-.aph .sch-teamgrp .sch-teamh .ts{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-teamgrp .sch-list{margin-top:0}
-/* Side-by-side team columns — every team's schedule visible at once, no tab-switching. */
-.aph .sch-teamcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
-.aph .sch-teamcol{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;min-width:0}
-.aph .sch-teamcol .sch-teamh{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamcol .sch-teamh .tn{font-size:14px;font-weight:700;letter-spacing:-.2px}
-.aph .sch-teamcol .sch-teamh .ts{font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
-.aph .sch-teamcol .sch-list{margin-top:0;display:flex;flex-direction:column;gap:8px}
-@media(max-width:900px){.aph .sch-teamcols{grid-template-columns:1fr}}
-.aph .sch-vchip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px}
-.aph .sch-vchip.draft{background:#f3effe;color:#6d28d9}
-.aph .sch-vchip.xfer{background:#eef6ff;color:#1d4ed8}
-.aph .sch-vchip.sub{background:#eafaf0;color:#1f7a32}
-.aph .sch-vchip.mix{background:#fff4e5;color:#b45309}
-.aph .sch-farmbar{display:flex;align-items:center;gap:11px;margin-bottom:14px}
-.aph .sch-farmbar .fb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-farmbar .sch-tabs{margin-top:0;width:auto}
-.aph .sch-tabs{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:9px}
-.aph .sch-tab{flex:0 0 auto;padding:4px 11px;border:1px solid var(--border-2);background:var(--bg);border-radius:7px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.aph .sch-tab:hover{border-color:var(--accent)}
-.aph .sch-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-tab .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.65;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-tab.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-pager{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-2)}
-.aph .sch-pager:empty{display:none}
-.aph .sch-pginfo{flex:1;text-align:center;font-family:var(--mono)}
-.aph .sch-pg{border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer}
-.aph .sch-pg:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-pg:disabled{opacity:.4;cursor:default}
-.aph .sch-modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;z-index:9999}
-.aph .sch-modal.open{display:flex}
-.aph .sch-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:380px;max-width:92vw;overflow:hidden}
-.aph .smh{display:flex;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
-.aph .smt{font-weight:600;font-size:15px;line-height:1.25}
-.aph .sms{font-size:11px;color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.aph .sch-x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--text-3);cursor:pointer;padding:0 2px}
-.aph .smb{padding:18px}
-.aph .sml{font-size:12px;color:var(--text-2);margin-bottom:13px}
-.aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
-.aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
-.aph .sch-numinp:focus{border-color:var(--accent)}
-.aph .sch-nextbtn{display:block;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;text-align:center}
-.aph .sch-nextbtn:hover{background:var(--accent);color:#fff;border-style:solid}
-.aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
-.aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
-.aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .smf .btn.ghost{background:none;text-decoration:none}
-@media(max-width:900px){.aph{display:block!important;position:static!important;height:auto!important}html,body{overflow:auto!important;height:auto!important}.aph-side{display:none}.aph .sch-board{grid-template-columns:1fr;height:auto}.aph .sch-col{min-height:300px}}
+.aph .aph-topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--bg-card)}
+.aph .aph-topbar h1{font-size:18px;font-weight:600;margin:0;letter-spacing:-.02em}
+.aph .aph-topbar .right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.aph .aph-topbar .crumb{font-size:12px;color:var(--text-2)}
+.aph .of-in{font-family:var(--f);font-size:13px;padding:6px 9px;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);outline:0;color:var(--text)}
+.aph .of-btn{font-family:var(--f);font-size:12px;font-weight:500;padding:6px 12px;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card);cursor:pointer}
+.aph .of-btn:hover{background:var(--bg-hover)}
+.aph .of-link{color:#2563eb;text-decoration:none}
+.aph .of-link:hover{text-decoration:underline}
+.aph .aph-content{padding:18px 22px;overflow:auto}
+.aph .of-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+.aph .of-kpi{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.aph .of-kpi .lbl{font-size:11px;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.aph .of-kpi .v{font-size:26px;font-weight:600;letter-spacing:-.03em;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--text)}
+.aph .of-chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px 16px;margin-bottom:18px}
+.aph .of-chart-hd{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px}
+.aph .ofc-legend{display:flex;gap:16px;font-size:11px;color:var(--text-2);margin-bottom:14px}
+.aph .ofc-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.aph .ofc-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.aph .ofc-name{width:130px;flex:0 0 auto;font-size:12px;font-weight:600;color:var(--text);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aph .ofc-bars{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.aph .ofc-track{display:flex;align-items:center;gap:8px;min-width:0}
+.aph .ofc-plot{flex:1;min-width:0}
+.aph .ofc-bar{height:12px;border-radius:4px;min-width:2px}
+.aph .ofc-val{width:62px;flex:0 0 auto;font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.aph .ofc-rate{width:46px;flex:0 0 auto;text-align:right;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+.aph .of-grp{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.aph .of-grp-hd{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer}
+.aph .of-grp-hd:hover{background:var(--bg-hover)}
+.aph .of-grp-hd .mgr{font-weight:600;font-size:14px;color:var(--text)}
+.aph .of-grp-hd .meta{margin-left:auto;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.aph table.of-tbl{width:100%;border-collapse:collapse}
+.aph .of-tbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);font-weight:600;padding:8px 12px;border-top:1px solid var(--border)}
+.aph .of-tbl th.n,.aph .of-tbl td.n{text-align:right;white-space:nowrap}
+.aph .of-tbl td{padding:8px 12px;border-top:1px solid var(--border);font-size:13px;color:var(--text)}
+.aph .of-orow{cursor:pointer}
+.aph .of-orow:hover td{background:var(--bg-hover)}
+.aph .of-orow .tg{color:var(--text-3);width:16px;text-align:center}
+.aph .of-detrow>td{padding:0 12px 0 28px;background:var(--bg-muted)}
+.aph table.of-ltbl{width:100%;border-collapse:collapse;margin:6px 0 10px}
+.aph .of-ltbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);font-weight:600;padding:5px 10px}
+.aph .of-ltbl th.n,.aph .of-ltbl td.n{text-align:right;white-space:nowrap}
+.aph .of-ltbl td{padding:5px 10px;border-top:1px solid var(--border);font-size:12px;color:var(--text)}
+.aph .of-bar{display:inline-block;width:60px;height:7px;border-radius:4px;background:var(--bg-muted);overflow:hidden;vertical-align:middle;margin-right:6px}
+.aph .of-bar i{display:block;height:100%;border-radius:4px}
+.aph .of-loading{padding:24px;text-align:center;color:var(--text-3);font-size:13px}
 </style>
 <style>
 
@@ -727,7 +662,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="group-lbl">Workflow</div>
       <a class="nav-item" href="packhouse-dashboard">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Workflow</span></a>
-      <a class="nav-item active" href="packhouse-scheduler">
+      <a class="nav-item" href="packhouse-scheduler">
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Scheduler</span></a>
       <a class="nav-item" href="sales-allocation-planning">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Allocation Planning</span></a>
@@ -755,7 +690,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg><span>Stem Movement</span></a>
       <a class="nav-item" href="order-summary">
         <svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg><span>Order Summary</span></a>
-      <a class="nav-item" href="order-fulfilment">
+      <a class="nav-item active" href="order-fulfilment">
         <svg class="ic" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Order Fulfilment</span></a>
 
     </div>
@@ -764,446 +699,156 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
     </div>
   </aside>
+
   <div class="aph-main">
     <div class="aph-topbar"><button class="collapse-btn" id="collapseBtn" title="Toggle sidebar" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-      <h1>Scheduler</h1><span class="crumb">Workflow &middot; sequence processing</span>
+      <h1>Order Fulfilment</h1>
+      <span class="crumb" id="ofCount">—</span>
       <div class="right">
-        <input type="date" id="fDate" class="sch-sel" style="width:140px">
-        <select id="fTeam" class="sch-sel"><option value="">All teams</option></select>
-        <button class="btn" id="btnRefresh">&#8635; Refresh</button>
-        <a class="btn" href="bucket-logistics" style="text-decoration:none">Transfers &rarr;</a>
+        <span style="font-size:11px;color:var(--text-2);font-weight:600;text-transform:uppercase;letter-spacing:.03em">Delivery date</span>
+        <input type="date" id="ofDate" class="of-in" style="width:140px">
+        <select id="ofMgr" class="of-in" style="width:170px"><option value="">All managers</option></select>
+        <input type="text" id="ofSearch" class="of-in" placeholder="Search customer / SO / variety…" style="width:200px">
+        <button class="of-btn" id="ofRefresh">Refresh</button>
       </div>
     </div>
     <div class="aph-content">
-      <div class="aph-kpis" id="kpis"></div>
-      <div class="sch-maintabs">
-        <button class="sch-maintab on" data-mtab="unsched">Unscheduled <span class="tc" id="cUnsched">0</span></button>
-        <button class="sch-maintab" data-mtab="sched">Schedule <span class="tc" id="cSched">0</span></button>
+      <div class="of-kpis">
+        <div class="of-kpi"><div class="lbl">Orders</div><div class="v" id="ofOrders">--</div></div>
+        <div class="of-kpi"><div class="lbl">Stems Ordered</div><div class="v" id="ofOrdered">--</div></div>
+        <div class="of-kpi"><div class="lbl">Confirmed</div><div class="v" id="ofConfirmed">--</div></div>
+        <div class="of-kpi"><div class="lbl">Packed</div><div class="v" id="ofPacked">--</div></div>
+        <div class="of-kpi"><div class="lbl">Fulfilled</div><div class="v" id="ofPct">--</div></div>
       </div>
-      <div id="panelUnsched" class="sch-panel">
-        <div class="sch-varbar" id="varBar"></div>
-        <input type="text" id="readySearch" class="sch-search wide" placeholder="Search OPL, order name, customer, team&hellip;" autocomplete="off">
-        <div class="sch-selbar" id="readySelBar"></div>
-        <div class="sch-list" id="bUnsched"><div class="sch-empty">Loading&hellip;</div></div>
-        <div class="sch-pager" id="readyPager"></div>
+      <div class="of-chart-card">
+        <div class="of-chart-hd">Ordered vs Packed by account manager <span style="color:var(--text-3);font-weight:400">· ranked by fulfilment</span></div>
+        <div class="ofc-legend"><span><i style="background:#2563eb"></i>Ordered</span><span><i style="background:#16a34a"></i>Packed</span></div>
+        <div id="ofChart"><div class="of-loading">Loading…</div></div>
       </div>
-      <div id="panelSched" class="sch-panel" style="display:none">
-        <div class="sch-selbar" id="schedSelBar"></div>
-        <div class="sch-schedwrap" id="bSched"><div class="sch-empty">Loading&hellip;</div></div>
-      </div>
+      <div id="ofGroups"><div class="of-loading">Loading…</div></div>
     </div>
-  </div>
-
-  <div id="schModal" class="sch-modal">
-  <div class="sch-modal-card">
-    <div class="smh"><div><div class="smt" id="smTitle"></div><div class="sms" id="smSub"></div></div><button class="sch-x" id="smClose" title="Close">&times;</button></div>
-    <div class="smb">
-      <div class="sml" id="smPos"></div>
-      <label class="smfl" for="smNum">Schedule number</label>
-      <input type="number" id="smNum" min="1" class="sch-numinp">
-      <button type="button" id="smNext" class="sch-nextbtn"></button>
-      <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
-    </div>
-    <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
-  </div>
   </div>
 </div>
 
-<script>(function f(){function t(){if(!window.frappe||!frappe.session||!frappe.session.user){setTimeout(t,100);return;}var u=frappe.session.user||'';var fn=(frappe.session.user_fullname||(frappe.boot&&frappe.boot.user&&frappe.boot.user.full_name))||u.split('@')[0];var a=document.getElementById('aph-foot-av'),n=document.getElementById('aph-foot-nm'),e=document.getElementById('aph-foot-em');if(a)a.textContent=(fn||u||'?').substring(0,1).toUpperCase();if(n)n.textContent=fn;if(e)e.textContent=u;}t();})();</script>
-
 <script>
-
 (function(){
-  var el=function(id){return document.getElementById(id);};
-  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
-  var num=function(v){var n=typeof v==='number'?v:parseFloat(String(v||''));return isFinite(n)?n:0;};
-  var fmt=function(n){return Number(n||0).toLocaleString();};
-  function frp(method,args){return new Promise(function(res){frappe.call({method:method,args:args||{},callback:function(r){res((r&&r.message)||{});},error:function(){res({});}});});}
-  function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  function addDaysISO(iso,n){var d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d);}
-  function todayISO(){return isoOf(new Date());}
-  // Default delivery date = tomorrow: the packhouse processes tomorrow's orders today.
-  function defaultISO(){var d=new Date();d.setDate(d.getDate()+1);return isoOf(d);}
+  let LINES=[],MGR='',SEARCH='',CM={},EO={};   // CM=collapsed manager, EO=expanded order
+  const $=function(id){return document.getElementById(id);};
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function num(n){return Number(n||0).toLocaleString();}
+  function pct(a,b){return b>0?Math.round(a/b*100):0;}
+  function today(){return new Date().toISOString().slice(0,10);}
+  function pctColor(p){return p>=100?'#16a34a':p>0?'#d97706':'#cbd5e1';}
+  function bar(p){return '<span class="of-bar"><i style="width:'+Math.max(3,Math.min(100,p))+'%;background:'+pctColor(p)+'"></i></span>';}
+  function api(m,args){var qs=Object.keys(args).filter(function(k){return args[k]!=null&&args[k]!=='';}).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(args[k]);}).join('&');return fetch('/api/method/'+m+(qs?('?'+qs):''),{credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(j){return j.message||j;});}
 
-  var STATE={drafts:[],ready:[],packed:[],date:'',scheduled:{}};
-
-  function issuingPct(o){var L=o.locations||[];if(!L.length)return num(o.custom_issuing_percentage);var iss=0;L.forEach(function(b){if(b.custom_issued)iss++;});return Math.round(100*iss/L.length);}
-  function specHtml(o){var s=o.specs||[];if(!s.length)return '';return '<div class="sch-specs">'+s.slice(0,4).map(function(x){return '<div class="sch-spec"><span>'+esc(x.spec||x.variety||'—')+'</span><span class="b">'+esc(x.length||'')+(x.boxes?(' · '+x.boxes+'bx'):'')+'</span></div>';}).join('')+(s.length>4?'<div class="sch-spec b">+'+(s.length-4)+' more</div>':'')+'</div>';}
-
-  var G={readyPage:1,farm:'',sel:new Set()};
-  var PAGE=25;
-  // Mirrors scheduler_issue_threshold in the "Issue Bucket To Sale Order Item" server
-  // script: a team's NEXT-to-issue line is its lowest-numbered line still below this %.
-  var SCHED_THRESHOLD=50;
-
-  // Board-level filters: farm (tabs) + team (topbar) apply to ALL three columns.
-  function readyView(){return applyFilters(STATE.ready);}
-
-  function varLabel(v){return v==='draft_plain'?'Draft':(v==='draft_transfer'?'Draft · transfer':'Submitted');}
-  function varCls(v){return v==='draft_plain'?'draft':(v==='draft_transfer'?'xfer':'sub');}
-
-  // lane = 'unsched' | 'sched'. Feed rows carry: name, custom_order_name, customer,
-  // custom_team, total_stems, n_buckets, n_farms, farms[], mixed_type, variation, has_transfer.
-  function card(o,lane,idx,canDrag,opts){
-    opts=opts||{};
-    var nm=esc(o.custom_order_name||o.name);
-    var sub=[o.customer,o.custom_team].filter(Boolean).map(esc).join('  ·  ');
-    var stems=fmt(num(o.total_stems));
-    var bkts=num(o.n_buckets);
-    var prio=(lane==='sched')?((G.prio&&G.prio[o.name])||'?'):null;
-    var chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
-    var seqHtml;
-    if(lane==='sched'){
-      seqHtml='<div class="sch-seq'+(opts.isNext?' next':'')+'">'+prio+'</div>';
-    } else {
-      var vi=o.variation==='draft_plain'?'D':(o.variation==='draft_transfer'?'⇄':'S');
-      seqHtml='<div class="sch-seq draft" title="'+esc(varLabel(o.variation))+'">'+vi+'</div>';
-    }
-    var chips=[];
-    if(lane==='sched'){
-      chips.push('<span class="sch-chip sched">#'+prio+'</span>');
-      if(opts.isNext) chips.push('<span class="sch-chip sched">NEXT</span>');
-    } else {
-      chips.push('<span class="sch-vchip '+varCls(o.variation)+'">'+esc(varLabel(o.variation))+'</span>');
-    }
-    if(o.mixed_type) chips.push('<span class="sch-vchip mix">'+esc(o.mixed_type)+'</span>');
-    var chipsHtml='<div class="sch-chips">'+chips.join('')+'</div>';
-    var metaParts='<div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
-      '<div class="m"><div class="mv">'+bkts+'</div><div class="ml">buckets</div></div>';
-    if(o.has_transfer&&o.n_farms){metaParts=metaParts+'<div class="m"><div class="mv">'+num(o.n_farms)+'</div><div class="ml">farm'+(num(o.n_farms)===1?'':'s')+'</div></div>';}
-    var meta='<div class="sch-meta">'+metaParts+'</div>';
-    var farmsLine=(o.has_transfer&&o.farms&&o.farms.length)?'<div class="sch-farms">'+o.farms.map(function(f){return '<span class="sch-chip farm">'+esc(f)+'</span>';}).join('')+'</div>':'';
-    var draggable=(lane==='sched'&&canDrag)?' draggable="true"':'';
-    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+draggable+'>'+
-      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+nm+'</div><div class="sub">'+sub+'</div></div></div>'+
-      chipsHtml+farmsLine+meta+'</div>';
+  function filtered(){
+    var q=SEARCH.toLowerCase();
+    return LINES.filter(function(l){
+      if(MGR&&l.manager_name!==MGR)return false;
+      if(q&&![l.customer,l.sales_order,l.order_name,l.variety].some(function(v){return String(v||'').toLowerCase().indexOf(q)>=0;}))return false;
+      return true;
+    });
   }
 
-  // Per-team NEXT-to-issue set: lowest-numbered Ready line per team still below the
-  // issue threshold (mirrors the per-team server-side enforcement). Lines already at/
-  // above threshold are "cleared" and skipped; the next sub-threshold line is the team's next.
-  function applyFilters(arr){
-    var t=el('fTeam')?el('fTeam').value:'';
-    return arr.filter(function(o){return (!t||o.custom_team===t);});
-  }
+  function sums(arr){return arr.reduce(function(a,l){a.o+=l.ordered||0;a.c+=l.confirmed||0;a.p+=l.packed||0;return a;},{o:0,c:0,p:0});}
 
-  // search haystack: OPL name, order name, customer, team, farms, mixed type
-  function hay(o){
-    var parts=[o.name,o.custom_order_name,o.customer,o.custom_team,o.mixed_type];
-    (o.farms||[]).forEach(function(f){parts.push(f);});
-    return parts.filter(Boolean).join('  ').toLowerCase();
+  // Per-manager {ordered, packed} over ALL loaded lines (the day), for the
+  // chart + the fulfilment-ranked dropdown. Independent of the table filters.
+  function mgrStats(){var m={};LINES.forEach(function(l){var s=m[l.manager_name]||(m[l.manager_name]={o:0,p:0});s.o+=l.ordered||0;s.p+=l.packed||0;});return m;}
+  function mgrRank(stats){return Object.keys(stats).sort(function(a,b){if(a==='Unassigned')return 1;if(b==='Unassigned')return -1;return pct(stats[b].p,stats[b].o)-pct(stats[a].p,stats[a].o);});}
+
+  // Ordered vs Packed by account manager, ranked by fulfilment (highest first).
+  function renderChart(){
+    var stats=mgrStats(), mgrs=mgrRank(stats);
+    if(!mgrs.length){$('ofChart').innerHTML='<div class="of-loading">No data for this day.</div>';return;}
+    var max=Math.max.apply(null,mgrs.map(function(m){return stats[m].o;}).concat([1]));
+    $('ofChart').innerHTML=mgrs.map(function(m){
+      var s=stats[m],p=pct(s.p,s.o);
+      return '<div class="ofc-row" title="'+esc(m)+' — ordered '+num(s.o)+', packed '+num(s.p)+' ('+p+'%)">'
+        +'<div class="ofc-name">'+esc(m)+'</div>'
+        +'<div class="ofc-bars">'
+          +'<div class="ofc-track"><div class="ofc-plot"><div class="ofc-bar" style="width:'+(s.o/max*100)+'%;background:#2563eb"></div></div><span class="ofc-val">'+num(s.o)+'</span></div>'
+          +'<div class="ofc-track"><div class="ofc-plot"><div class="ofc-bar" style="width:'+(s.p/max*100)+'%;background:#16a34a"></div></div><span class="ofc-val">'+num(s.p)+'</span></div>'
+        +'</div>'
+        +'<div class="ofc-rate">'+p+'%</div></div>';
+    }).join('');
   }
 
   function render(){
-    var feed=applyFilters(STATE.ready);
-    var unsched=feed.filter(function(o){return !STATE.scheduled[o.name];});
-    var sched=feed.filter(function(o){return STATE.scheduled[o.name];});
-    var stems=0,custs={};
-    feed.forEach(function(o){stems=stems+num(o.total_stems);if(o.customer)custs[o.customer]=1;});
-    var vc={draft_plain:0,draft_transfer:0,submitted:0};
-    unsched.forEach(function(o){if(vc[o.variation]!=null)vc[o.variation]++;});
-    el('kpis').innerHTML=[['Schedulable',feed.length],['Unscheduled',unsched.length],['Scheduled',sched.length],['Total stems',fmt(stems)],['Customers',Object.keys(custs).length]]
-      .map(function(k){return '<div class="aph-kpi"><div class="lbl">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>';}).join('');
-    if(el('cUnsched'))el('cUnsched').textContent=unsched.length;
-    if(el('cSched'))el('cSched').textContent=sched.length;
-    var mt=G.mtab||'unsched';
-    document.querySelectorAll('.sch-maintab').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mtab')===mt);});
-    if(el('panelUnsched'))el('panelUnsched').style.display=(mt==='unsched')?'':'none';
-    if(el('panelSched'))el('panelSched').style.display=(mt==='sched')?'':'none';
-    G.prio={}; var pk={}; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]){ var tm=o.custom_team||''; pk[tm]=(pk[tm]||0)+1; G.prio[o.name]=pk[tm]; } });
-    renderVarBar(vc);
-    if(mt==='unsched') renderUnscheduled(unsched); else renderSchedule(sched);
-    renderSelBar();
-  }
+    var lines=filtered();
+    var dt=$('ofDate').value||today();
+    var t=sums(lines);
+    var soSet={};lines.forEach(function(l){soSet[l.sales_order]=1;});
+    $('ofOrders').textContent=num(Object.keys(soSet).length);
+    $('ofOrdered').textContent=num(t.o);
+    $('ofConfirmed').textContent=num(t.c);
+    $('ofPacked').textContent=num(t.p);
+    $('ofPct').textContent=pct(t.p,t.o)+'%';
+    if($('ofCount'))$('ofCount').textContent=Object.keys(soSet).length+' order'+(Object.keys(soSet).length===1?'':'s');
 
-  function renderVarBar(vc){
-    var box=el('varBar'); if(!box) return;
-    var cur=G.var||'all';
-    var tabs=[['all','All',vc.draft_plain+vc.draft_transfer+vc.submitted],
-              ['draft_plain','Draft',vc.draft_plain],
-              ['draft_transfer','Draft · transfer',vc.draft_transfer],
-              ['submitted','Submitted',vc.submitted]];
-    box.innerHTML=tabs.map(function(x){var a=(cur===x[0])?' active':'';return '<button class="sch-varbtn'+a+'" data-var="'+x[0]+'">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
-    box.querySelectorAll('.sch-varbtn').forEach(function(b){b.onclick=function(){G.var=b.getAttribute('data-var');G.readyPage=1;render();};});
-  }
+    if(!lines.length){$('ofGroups').innerHTML='<div class="of-loading">No orders for this delivery date.</div>';return;}
 
-  // ---- Unscheduled tab: feed items not yet scheduled, filtered by variation + search ----
-  function renderUnscheduled(list){
-    var vv=G.var||'all';
-    if(vv!=='all') list=list.filter(function(o){return o.variation===vv;});
-    var term=(el('readySearch')?el('readySearch').value:'').toLowerCase().trim();
-    if(term) list=list.filter(function(o){return hay(o).indexOf(term)>=0;});
-    var pages=Math.max(1,Math.ceil(list.length/PAGE));
-    if(G.readyPage>pages)G.readyPage=pages; if(G.readyPage<1)G.readyPage=1;
-    var start=(G.readyPage-1)*PAGE, end=Math.min(list.length,start+PAGE);
-    var view=list.slice(start,end);
-    var body=el('bUnsched'); if(!body) return;
-    body.innerHTML=view.length
-      ? view.map(function(o){return card(o,'unsched',0,false,{isSel:G.sel.has(o.name)});}).join('')
-      : '<div class="sch-empty">'+(term?'No orders match the search':'Nothing unscheduled here')+'</div>';
-    renderPager(list.length,pages,start,end);
-    wireList(body,false);
-  }
+    // group manager -> sales order -> lines
+    var mgrs={};
+    lines.forEach(function(l){
+      var m=mgrs[l.manager_name]||(mgrs[l.manager_name]={name:l.manager_name,orders:{}});
+      var o=m.orders[l.sales_order]||(m.orders[l.sales_order]={so:l.sales_order,customer:l.customer,order_name:l.order_name,opl:l.opl,lines:[]});
+      o.lines.push(l);
+    });
+    var mgrList=Object.keys(mgrs).sort(function(a,b){if(a==='Unassigned')return 1;if(b==='Unassigned')return -1;return a<b?-1:a>b?1:0;});
 
-  // ---- Schedule tab: scheduled items grouped by team, in priority order ----
-  // Two view modes: "By team" = every team's column visible AT ONCE side by side (the
-  // whole point — switching one-team-at-a-time was "very confusing"); "All" = one flat
-  // list, no team breakdown at all, for when team boundaries don't matter right now.
-  function renderSchedule(list){
-    var body=el('bSched'); if(!body) return;
-    if(!list.length){ body.innerHTML='<div class="sch-empty">No orders scheduled yet. Schedule orders from the <b>Unscheduled</b> tab.</div>'; return; }
-    var mode=G.schedView||'byteam';
-    var modeBar='<div class="sch-varbar"><button class="sch-varbtn'+(mode==='byteam'?' active':'')+'" data-smode="byteam">By team<span class="tc">'+
-      Object.keys(list.reduce(function(a,o){a[o.custom_team||'-']=1;return a;},{})).length+'</span></button>'+
-      '<button class="sch-varbtn'+(mode==='all'?' active':'')+'" data-smode="all">All<span class="tc">'+list.length+'</span></button></div>';
-    var content;
-    if(mode==='all'){
-      // flat list — no per-team grouping, no subtotal header, just every scheduled order
-      var flatCards=list.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-      content='<div class="sch-list" data-team="">'+flatCards+'</div>';
-    } else {
-      var groups=[], gmap={};
-      list.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
-      content='<div class="sch-teamcols">'+groups.map(function(g){
-        var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
-        var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-        return '<div class="sch-teamcol"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">'+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
-          '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
-      }).join('')+'</div>';
-    }
-    body.innerHTML=modeBar+content;
-    body.querySelectorAll('.sch-varbar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedView=b.getAttribute('data-smode'); renderSchedule(list); }; });
-    body.querySelectorAll('.sch-list').forEach(function(listEl){wireList(listEl,true);});
-  }
-
-  function renderSelBar(){
-    var mt=G.mtab||'unsched';
-    var other=el(mt==='sched'?'readySelBar':'schedSelBar'); if(other){other.className='sch-selbar';other.innerHTML='';}
-    var bar=el(mt==='sched'?'schedSelBar':'readySelBar'); if(!bar) return;
-    var n=G.sel.size;
-    if(!n){ bar.className='sch-selbar'; bar.innerHTML=''; return; }
-    bar.className='sch-selbar on';
-    if(mt==='unsched'){
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="addsch">＋ Schedule</button><button class="mk">Make next to issue</button><button class="cl">Clear</button>';
-      bar.querySelector('.addsch').onclick=function(){scheduleSel(true);};
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-    } else {
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="mk">Make next to issue</button><button class="rmsch">Unschedule</button><button class="cl">Clear</button>';
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-      bar.querySelector('.rmsch').onclick=function(){scheduleSel(false);};
-    }
-    bar.querySelector('.cl').onclick=function(){G.sel.clear();render();};
-  }
-  // Deliberate scheduling — each action schedules ONLY the order(s) it acts on (the rest
-  // stay unscheduled). Priority = per-team position of the scheduled orders in STATE.ready.
-  function scheduledOpls(){ var out=[]; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]) out.push(o.name); }); return out; }
-  function saveSchedule(){ return frp('saveDaySchedule',{date:STATE.schedDate||STATE.date,order:scheduledOpls().join('|~|')}); }
-
-  // Central save: persist the scheduled subset to the Packhouse Schedule doctype, CONFIRM
-  // the result to the user, then reload the authoritative doctype state and re-render so
-  // the UI always mirrors what was actually stored.
-  function commitSchedule(){
-    render();                                   // optimistic
-    return saveSchedule().then(function(r){
-      var ok=r&&r.status==='success';
-      var cnt=0; if(r&&r.saved){ var ks=Object.keys(r.saved); ks.forEach(function(t){ cnt=cnt+r.saved[t]; }); }
-      if(window.frappe&&frappe.show_alert){
-        if(ok&&cnt>0) frappe.show_alert({message:'✓ Schedule saved — '+cnt+' order'+(cnt===1?'':'s')+' sequenced',indicator:'green'},4);
-        else if(ok) frappe.show_alert({message:'Nothing saved — a scheduled order needs a team',indicator:'orange'},6);
-        else frappe.show_alert({message:'Save failed — please try again',indicator:'red'},6);
+    $('ofGroups').innerHTML=mgrList.map(function(mn){
+      var m=mgrs[mn];
+      var orders=Object.keys(m.orders).map(function(k){return m.orders[k];}).sort(function(a,b){return (a.customer+a.so)<(b.customer+b.so)?-1:1;});
+      var mt=sums(orders.reduce(function(a,o){return a.concat(o.lines);},[]));
+      var open=!CM[mn];
+      var body='';
+      if(open){
+        body='<table class="of-tbl"><thead><tr><th></th><th>Customer</th><th>Sales Order</th><th class="n">Ordered</th><th class="n">Confirmed</th><th class="n">Packed</th><th class="n">Fulfilled</th></tr></thead><tbody>'
+          +orders.map(function(o){
+            var ot=sums(o.lines),op=pct(ot.p,ot.o),eo=EO[o.so];
+            var head='<tr class="of-orow" data-so="'+esc(o.so)+'"><td class="tg">'+(eo?'▾':'▸')+'</td><td>'+esc(o.customer)+'</td><td><a class="of-link" href="/app/sales-order/'+encodeURIComponent(o.so)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(o.so)+'</a>'+(o.order_name?(' <span style="color:var(--text-3)">· '+esc(o.order_name)+'</span>'):'')+'</td><td class="n">'+num(ot.o)+'</td><td class="n">'+num(ot.c)+'</td><td class="n">'+num(ot.p)+'</td><td class="n">'+bar(op)+op+'%</td></tr>';
+            var det='';
+            if(eo){
+              det='<tr class="of-detrow"><td></td><td colspan="6"><table class="of-ltbl"><thead><tr><th>Variety</th><th>Length</th><th class="n">Ordered</th><th class="n">Confirmed</th><th class="n">Packed</th><th class="n">Fulfilled</th></tr></thead><tbody>'
+                +o.lines.map(function(l){var lp=pct(l.packed,l.ordered);var vcell=(l.transferred>0)?('<a class="of-link" href="/bucket-logistics?date='+encodeURIComponent(dt)+'&q='+encodeURIComponent(o.so)+'&variety='+encodeURIComponent(l.variety||'')+'" target="_blank" rel="noopener" title="Track packing in Bucket Logistics">'+esc(l.variety)+'</a>'):esc(l.variety);return '<tr><td>'+vcell+'</td><td>'+esc(l.length||'—')+'</td><td class="n">'+num(l.ordered)+'</td><td class="n">'+num(l.confirmed)+'</td><td class="n">'+num(l.packed)+'</td><td class="n">'+bar(lp)+lp+'%</td></tr>';}).join('')
+                +'</tbody></table></td></tr>';
+            }
+            return head+det;
+          }).join('')
+          +'</tbody></table>';
       }
-      return reloadScheduled().then(function(){ render(); return r; });
-    });
+      return '<div class="of-grp"><div class="of-grp-hd" data-mgr="'+esc(mn)+'"><span style="color:var(--text-3);font-size:12px">'+(open?'▾':'▸')+'</span><span class="mgr">'+esc(mn)+'</span><span class="meta">'+orders.length+' order'+(orders.length===1?'':'s')+' · '+num(mt.o)+' ordered · '+num(mt.p)+' packed · '+pct(mt.p,mt.o)+'%</span></div>'+body+'</div>';
+    }).join('');
   }
 
-  function scheduleSel(add){
-    if(!G.sel.size) return;
-    G.sel.forEach(function(nm){ if(add) STATE.scheduled[nm]=1; else delete STATE.scheduled[nm]; });
-    G.sel.clear();
-    commitSchedule();
-  }
-
-  // Move the selected lines to the front of the global order AND schedule them (keeping
-  // their relative order). Front = lowest per-team sequence -> that team's next to issue.
-  function makeSelectedNext(){
-    if(!G.sel.size) return;
-    var picked=[], rest=[];
-    STATE.ready.forEach(function(o){ (G.sel.has(o.name)?picked:rest).push(o); });
-    if(!picked.length) return;
-    picked.forEach(function(o){ STATE.scheduled[o.name]=1; });   // making next = scheduling
-    STATE.ready=picked.concat(rest);
-    G.sel.clear(); G.readyPage=1;
-    persist();
-  }
-
-  // ---- Packhouse Schedule: reorder IS the schedule. Reordering (drag / “set #” /
-  // send-to-front) persists the global order to each team's Packhouse Schedule doc
-  // (see persist()). An order not yet on any schedule shows “Unscheduled”. ----
-  function reloadScheduled(){return frp('getScheduledOrders',{date:STATE.schedDate||STATE.date}).then(function(r){STATE.scheduled=(r&&r.scheduled)||{};});}
-
-  function renderPager(total,pages,start,end){
-    var p=el('readyPager');if(!p)return;
-    if(total<=PAGE){p.innerHTML='';return;}
-    p.innerHTML='<button class="sch-pg" id="rPrev"'+(G.readyPage<=1?' disabled':'')+'>&lsaquo; Prev</button>'+
-      '<span class="sch-pginfo">'+(start+1)+'–'+end+' of '+total+' · pg '+G.readyPage+'/'+pages+'</span>'+
-      '<button class="sch-pg" id="rNext"'+(G.readyPage>=pages?' disabled':'')+'>Next &rsaquo;</button>';
-    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;render();}};
-    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;render();}};
-  }
-
-  // ---- order mutation ----
-  function reseq(){STATE.ready.forEach(function(o,i){o._sched=i+1;});}
-  // Persist the scheduled subset (in STATE.ready order) to the doctype, with confirmation.
-  // The schedule + priority live ONLY in the Packhouse Schedule doctype — no OPL field.
-  function persist(){ if(!STATE.ready.length)return; commitSchedule(); }
-
-  // Place `name` at schedule position `k` (1 = first to issue) AMONG ITS TEAM'S scheduled
-  // orders, and SCHEDULE it if it wasn't already. Only this one order is affected.
-  function teamScheduledNames(team,exclude){
-    var out=[]; STATE.ready.forEach(function(o){ if(o.name!==exclude && STATE.scheduled[o.name] && (o.custom_team||'')===team) out.push(o.name); }); return out;
-  }
-  function setSchedulePos(name,k){
-    var o=null; STATE.ready.forEach(function(x){ if(x.name===name) o=x; }); if(!o) return;
-    var team=o.custom_team||'';
-    STATE.scheduled[name]=1;                                   // acting on it schedules it
-    var peers=teamScheduledNames(team,name);                   // other scheduled in this team, in order
-    if(!isFinite(k)) k=peers.length+1;
-    k=Math.max(1,Math.min(peers.length+1,k));                  // clamp: e.g. "7" of 3 -> last
-    var beforeName=(k-1<peers.length)?peers[k-1]:null;
-    var idx=-1; STATE.ready.forEach(function(x,i){ if(x.name===name) idx=i; });
-    if(idx>=0) STATE.ready.splice(idx,1);
-    var insertAt=STATE.ready.length, found=false;
-    if(beforeName){ STATE.ready.forEach(function(x,i){ if(!found&&x.name===beforeName){ insertAt=i; found=true; } }); }
-    else if(peers.length){ var last=peers[peers.length-1]; STATE.ready.forEach(function(x,i){ if(x.name===last) insertAt=i+1; }); }
-    else { insertAt=0; }
-    STATE.ready.splice(insertAt,0,o);
-    G.readyPage=Math.floor(insertAt/PAGE)+1;
-    persist();
-  }
-  // Scoped to the SPECIFIC container dragged in (a team column, or the flat "All" list) —
-  // NOT the whole #bSched. With every team's column visible at once, reading .sch-card
-  // across the whole page would flatten every OTHER team's order into whatever position
-  // the dragged card landed at. Instead: replace just the contiguous run of THIS
-  // container's cards, in their new order, leaving every other team's cards untouched.
-  function commitDrag(container,draggedName){
-    var domOrder=[];
-    if(container){ container.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
-    var byName={}; STATE.ready.forEach(function(o){byName[o.name]=o;});
-    var inDom={}; domOrder.forEach(function(nm){inDom[nm]=1;});
-    var newReady=[], inserted=false;
-    STATE.ready.forEach(function(o){
-      if(inDom[o.name]){
-        if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); inserted=true; }
-      } else { newReady.push(o); }
-    });
-    if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); }
-    STATE.ready=newReady;
-    if(draggedName) STATE.scheduled[draggedName]=1;
-    persist();
-  }
-
-  var dragEl=null, dragName=null, dragContainer=null;
-  function wireList(container,canDrag){
-    if(!container) return;
-    if(canDrag){
-      container.querySelectorAll('.sch-card').forEach(function(c){
-        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');dragContainer=c.closest('.sch-list');c.classList.add('dragging');});
-        c.addEventListener('dragend',function(){var cont=c.closest('.sch-list');c.classList.remove('dragging');dragEl=null;dragContainer=null;var dn=dragName;dragName=null;commitDrag(cont,dn);});
-      });
-      // With every team's column visible at once, guard against dropping into a
-      // DIFFERENT team's column — a card's team isn't something drag should reassign.
-      container.ondragover=function(e){e.preventDefault();if(!dragEl||container!==dragContainer)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
-    } else { container.ondragover=null; }
-    container.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);render();});});
-    container.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
-  }
-  function afterEl(container,y){var els=Array.prototype.slice.call(container.querySelectorAll('.sch-card:not(.dragging)'));return els.reduce(function(closest,child){var box=child.getBoundingClientRect();var off=y-box.top-box.height/2;if(off<0&&off>closest.offset)return {offset:off,element:child};return closest;},{offset:-Infinity}).element;}
-  function openDoc(name){if(window.frappe&&frappe.set_route)frappe.set_route('Form','Order Pick List',name);else window.open('/app/order-pick-list/'+encodeURIComponent(name),'_blank');}
-
-  // ---- schedule-number popup (schedules the order at a per-team priority #) ----
-  function openSchedModal(name){
-    var o=null;STATE.ready.forEach(function(x){if(x.name===name)o=x;});if(!o)return;
-    var team=o.custom_team||'';
-    var peers=teamScheduledNames(team,name);          // other scheduled in this team
-    var isSched=!!STATE.scheduled[name];
-    var maxK=peers.length+1;                            // scheduling this order can take slots 1..N+1
-    var curK=maxK;                                      // default = last
-    if(isSched){ var all=teamScheduledNames(team,null); var ci=0; while(ci<all.length){ if(all[ci]===name){curK=ci+1;} ci=ci+1; } }
-    el('smTitle').textContent=o.custom_order_name||o.name;
-    el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
-    el('smPos').textContent=(team?team+' · ':'')+(isSched?('currently #'+curK+' of '+maxK+' scheduled'):('not scheduled — will join as one of '+maxK))+'  ·  #1 issues first';
-    var inp=el('smNum');inp.value=curK;inp.min=1;inp.max=maxK;
-    // Explicit "next available" guidance — the next open slot for THIS team, so the
-    // user never has to count the column to know what number to type.
-    var nextBtn=el('smNext');
-    if(nextBtn){
-      nextBtn.textContent=isSched
-        ? 'Move to last position for '+(team||'this team')+' (#'+maxK+')'
-        : 'Guide: next available for '+(team||'this team')+' is #'+maxK;
-      nextBtn.onclick=function(){ inp.value=maxK; inp.focus(); };
-    }
-    el('schModal').setAttribute('data-opl',name);
-    el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
-    el('schModal').classList.add('open');
-    setTimeout(function(){inp.focus();inp.select();},30);
-  }
-  function closeSchedModal(){el('schModal').classList.remove('open');}
-  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();setSchedulePos(name,v);}
-
-  // ---- load ----
-  function populateFilters(){
-    var teams={};STATE.ready.forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
-    var sel=el('fTeam');if(!sel)return;var cur=sel.value;
-    sel.innerHTML='<option value="">All teams</option>'+Object.keys(teams).sort().map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
-  }
   function load(){
-    var dd=el('fDate').value||defaultISO();STATE.date=dd;
-    // The date filter is the DELIVERY date; the Packhouse Schedule doc is keyed by the
-    // PROCESSING day = delivery - 1 (you process today for tomorrow's delivery).
-    STATE.schedDate=addDaysISO(dd,-1);
-    if(el('bUnsched'))el('bUnsched').innerHTML='<div class="sch-empty">Loading…</div>';
-    if(el('bSched'))el('bSched').innerHTML='<div class="sch-empty">Loading…</div>';
-    frp('getSchedulerFeed',{date:dd}).then(function(r){
-      var rows=(r&&r.data)||[];
-      STATE.drafts=[];STATE.packed=[];
-      STATE.ready=rows.map(function(o){
-        return {name:o.opl,custom_order_name:o.order_name,customer:o.customer,custom_team:o.team,
-                total_stems:o.total_stems,n_buckets:o.n_buckets,n_farms:o.n_farms,farms:o.farms||[],
-                n_varieties:o.n_varieties,has_transfer:o.has_transfer,mixed_type:o.mixed_type,
-                docstatus:o.docstatus,variation:o.variation};
-      });
-      reloadScheduled().then(function(){
-        STATE.ready.sort(function(a,b){
-          var sa=STATE.scheduled[a.name],sb=STATE.scheduled[b.name];
-          if(!!sa!==!!sb)return sa?-1:1;
-          if(sa){
-            var ta=(sa.team!=null?sa.team:(a.custom_team||'')),tb=(sb.team!=null?sb.team:(b.custom_team||''));
-            if(ta!==tb)return ta<tb?-1:1;
-            var qa=(sa.sequence!=null?sa.sequence:0),qb=(sb.sequence!=null?sb.sequence:0);
-            if(qa!==qb)return qa-qb;
-          }
-          return String(a.name).localeCompare(String(b.name));
-        });
-        populateFilters();render();
-      });
-    });
+    $('ofGroups').innerHTML='<div class="of-loading">Loading…</div>';
+    api('getOrderFulfilment',{delivery_date:$('ofDate').value||today()}).then(function(d){
+      LINES=(d&&d.lines)||[];
+      var sel=$('ofMgr');
+      if(sel){var mgrs=mgrRank(mgrStats());sel.innerHTML='<option value="">All managers</option>'+mgrs.map(function(m){return '<option value="'+esc(m)+'">'+esc(m)+'</option>';}).join('');if(MGR)sel.value=MGR;}
+      renderChart();
+      render();
+    }).catch(function(e){$('ofGroups').innerHTML='<div class="of-loading" style="color:#dc2626">Failed to load: '+esc(e.message)+'</div>';});
   }
 
-  el('fDate').value=defaultISO();
-  el('btnRefresh').onclick=load;
-  el('fDate').onchange=load;
-  function filterChanged(){G.readyPage=1;render();}
-  el('fTeam').onchange=filterChanged;
-  G.mtab='unsched'; G.var='all';
-  document.querySelectorAll('.sch-maintab').forEach(function(b){b.onclick=function(){G.mtab=b.getAttribute('data-mtab');G.sel.clear();G.readyPage=1;render();};});
-  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;render();};
-  if(el('smClose'))el('smClose').onclick=closeSchedModal;
-  if(el('smCancel'))el('smCancel').onclick=closeSchedModal;
-  if(el('smSave'))el('smSave').onclick=saveSchedModal;
-  if(el('schModal'))el('schModal').addEventListener('click',function(e){if(e.target===el('schModal'))closeSchedModal();});
-  if(el('smNum'))el('smNum').addEventListener('keydown',function(e){if(e.key==='Enter')saveSchedModal();});
-  function boot(){if(window.frappe&&frappe.call){load();setInterval(load,60000);}else if(boot._n++<80){setTimeout(boot,100);}}
-  boot._n=0;boot();
+  function boot(){
+    $('ofDate').value=today();
+    $('ofDate').addEventListener('change',load);
+    $('ofRefresh').addEventListener('click',load);
+    $('ofMgr').addEventListener('change',function(){MGR=this.value;render();});
+    $('ofSearch').addEventListener('input',function(){SEARCH=this.value;render();});
+    $('ofGroups').addEventListener('click',function(e){
+      var o=e.target.closest('.of-orow');if(o){var so=o.getAttribute('data-so');EO[so]=!EO[so];render();return;}
+      var h=e.target.closest('.of-grp-hd');if(h){var m=h.getAttribute('data-mgr');CM[m]=!CM[m];render();return;}
+    });
+    load();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+
+  (function fillFooter(){function t(){if(!window.frappe||!frappe.session||!frappe.session.user){setTimeout(t,150);return;}var u=frappe.session.user||'';var nm=(frappe.session.user_fullname||(frappe.boot&&frappe.boot.user&&frappe.boot.user.full_name))||u.split('@')[0];var av=$('aph-foot-av'),ne=$('aph-foot-nm'),ee=$('aph-foot-em');if(av)av.textContent=(nm||u||'?').substring(0,1).toUpperCase();if(ne)ne.textContent=nm;if(ee)ee.textContent=u;}t();})();
 })();
 
 </script>

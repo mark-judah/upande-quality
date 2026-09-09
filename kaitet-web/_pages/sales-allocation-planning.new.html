@@ -169,60 +169,56 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
 <!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
 <style>
-/* Topbar: team dropdown + view toggle, restyled into aph chrome */
-.aph .dropdown{position:relative;display:inline-block}
-.aph .dropdown-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg-card);
-  border:1px solid var(--border-2);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:1000;overflow:hidden}
-.aph .dropdown.open .dropdown-menu{display:block}
-.aph .dropdown-item{padding:8px 14px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s ease;font-weight:500}
-.aph .dropdown-item:last-child{border-bottom:none}
-.aph .dropdown-item:hover{background:var(--bg-hover)}
-.aph .dropdown-item.active{background:var(--bg-muted);color:var(--text);font-weight:600}
-/* multi-select team items */
-.aph .dropdown-item.ms-item{display:flex;align-items:center;gap:9px;background:var(--bg-card);font-weight:500}
-.aph .dropdown-item.ms-item:hover{background:var(--bg-hover)}
-.aph .ms-check{width:14px;height:14px;border:1px solid var(--border-2);border-radius:4px;flex:0 0 auto;position:relative;background:var(--bg-card)}
-.aph .dropdown-item.ms-item.active{background:var(--bg-card);font-weight:600}
-.aph .dropdown-item.ms-item.active .ms-check{background:var(--accent);border-color:var(--accent)}
-.aph .dropdown-item.ms-item.active .ms-check::after{content:'';position:absolute;left:4px;top:1px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.aph .dropdown-item.ms-sep{padding:0;height:1px;background:var(--border);cursor:default}
-.aph .date-range-inputs{display:none;align-items:center;gap:6px}
-.aph .date-range-inputs.show{display:flex}
-.aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
-.aph .form-control:focus{border-color:var(--text)}
-/* LIVE badge */
+/* ── Topbar controls: My Farm selector + LIVE badge, restyled into aph chrome ── */
+.aph .location-wrap{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card)}
+.aph .location-wrap.confirmed{border-color:var(--good);background:#e6f9ee}
+.aph .location-wrap svg{width:15px;height:15px;color:var(--text-3);stroke:currentColor;fill:none;stroke-width:1.75}
+.aph .location-label{font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.aph .location-wrap select{border:none;background:transparent;font-size:12px;font-weight:600;color:var(--text);font-family:var(--f);cursor:pointer;outline:0}
 .aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
   border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
 .aph .live-badge:hover{background:var(--bg-hover)}
 .aph .live-dot{width:7px;height:7px;background:var(--good);border-radius:50%}
 
-/* KPI value/sub override so the JS-set values + Boxes-to-Deliver date input sit nicely in aph-kpi */
-.aph .aph-kpi .v{font-feature-settings:'tnum'}
-.aph .kpi-date-row{display:flex;align-items:center;gap:4px;margin-top:8px}
-.aph .kpi-date-row label{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
-.aph .kpi-date-row input{height:24px;padding:0 6px;font-size:11px;width:120px;border-radius:5px;border:1px solid var(--border-2);background:var(--bg-card);font-family:var(--f);outline:0}
+/* ── Filters row (lives inside an aph-card body) ── */
+.aph .filters-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.aph .filter-group{display:flex;flex-direction:column;gap:5px;position:relative}
+.aph .filter-group-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.aph .filter-actions{display:flex;gap:6px;align-items:flex-end}
+.aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500;width:100%}
+.aph .form-control:focus{border-color:var(--text)}
+.aph .form-control.has-value{border-color:var(--text);background:var(--bg-card)}
+.aph .form-control::placeholder{color:var(--text-3)}
+.aph select.form-control{cursor:pointer}
+.aph .custom-select{position:relative}
+.aph .custom-select input{width:100%}
+.aph .select-dropdown{display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;max-height:200px;overflow-y:auto;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.aph .select-dropdown.show{display:block}
+.aph .select-option{padding:7px 12px;font-size:12px;cursor:pointer;color:var(--text);border-bottom:1px solid var(--border);transition:background .12s ease;font-weight:500}
+.aph .select-option:last-child{border-bottom:none}
+.aph .select-option:hover{background:var(--bg-hover)}
+.aph .select-option.selected{background:var(--bg-muted);color:var(--text);font-weight:600}
+.aph .select-option.no-results{color:var(--text-3);cursor:default}
+.aph .select-option.no-results:hover{background:var(--bg-card)}
 
-/* ── Issuing vs Packing wide card (lives inside an aph-card body) ── */
-.aph .kpi-dual-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
-.aph .kpi-dual-item{text-align:center}
-.aph .kpi-dual-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:6px}
-.aph .kpi-dual-value{font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.03em;font-feature-settings:'tnum'}
-.aph .kpi-dual-sub{font-size:11px;font-weight:500;color:var(--text-3);margin-top:6px}
-.aph .kpi-dual-bar{margin-top:10px}
-.aph .gap-indicator{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px}
-.aph .gap-positive{background:#fff3e0;color:#9a5a00}
-.aph .gap-negative{background:#e6f9ee;color:#1a8a3a}
-.aph .gap-neutral{background:var(--bg-muted);color:var(--text-2)}
-@media(max-width:600px){.aph .kpi-dual-row{grid-template-columns:1fr;gap:12px}}
+/* ── Active filter tags ── */
+.aph .active-filters{display:flex;flex-wrap:wrap;gap:6px}
+.aph .active-filters:empty{display:none}
+.aph .filter-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;font-size:11px;font-weight:600;background:var(--bg-muted);border-radius:10px;color:var(--text)}
+.aph .filter-tag-remove{cursor:pointer;color:var(--text-3);display:inline-flex;transition:color .12s ease}
+.aph .filter-tag-remove:hover{color:var(--bad)}
 
-/* ── Progress bars (used by render functions) ── */
-.aph .progress-wrap{margin:8px 0}
-.aph .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-bottom:4px;font-weight:600}
-.aph .progress-label span:last-child{color:var(--text);font-weight:600;font-feature-settings:'tnum'}
-.aph .progress-track{background:var(--bg-muted);border-radius:4px;height:6px;overflow:hidden}
-.aph .progress-fill{height:100%;background:var(--text);border-radius:4px;transition:width .15s ease}
-.aph .progress-fill.packing{background:#7c5cfc}
-.aph .progress-fill.packing.complete{background:var(--good)}
+/* ── Buttons used inside cards / table actions ── */
+.aph .btn-sm{padding:0 12px;height:32px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);display:inline-flex;align-items:center;gap:6px}
+.aph .btn-sm:hover{background:var(--bg-hover)}
+.aph .btn-sm svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.aph .btn-xs{padding:0 9px;height:26px;border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--f);display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.aph .btn-xs svg{width:9px;height:9px;stroke:currentColor;fill:none;stroke-width:3}
+.aph .btn-success-action{background:#e6f9ee;color:#1a8a3a;border-color:#c5e8cd}
+.aph .btn-success-action:hover{background:#d4f0da}
+.aph .btn-danger-action{background:#fde8ec;color:var(--bad);border-color:#f5c6ce}
+.aph .btn-danger-action:hover{background:#fbd5dc}
+.aph .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── Labels / badges produced by render functions ── */
 .aph .label{display:inline-flex;align-items:center;padding:2px 9px;font-size:11px;font-weight:600;border-radius:10px;letter-spacing:.02em}
@@ -232,186 +228,65 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .label-default{background:var(--bg-muted);color:var(--text-2)}
 .aph .label-info{background:#f0ecfe;color:#7c5cfc}
 .aph .label-primary{background:var(--bg-muted);color:var(--text)}
-.aph .team-badge{display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;background:var(--bg-muted);color:var(--text-2)}
-.aph .rose-badge{display:inline-block;margin-left:6px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px}
-.aph .rose-badge.rose-spray{background:#f0ecfe;color:#7c5cfc}
-.aph .rose-badge.rose-std{background:#e6f1ff;color:#1a5fb4}
-.aph .rose-badge.rose-mixed{background:var(--bg-muted);color:var(--text-2)}
 
-/* ── OPL card grid (render output) ── */
-.aph .opl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-.aph .opl-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .opl-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .opl-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.aph .opl-order-name{font-size:13px;font-weight:600;color:var(--text)}
-.aph .opl-meta{display:flex;align-items:center;gap:6px;margin-top:4px}
-.aph .opl-id{font-size:12px;color:var(--text-2);font-family:var(--mono)}
-.aph .opl-variety{font-size:13px;font-weight:600;color:var(--text);margin:6px 0 2px}
-.aph .opl-customer{font-size:12px;color:var(--text-2);margin-bottom:10px}
-.aph .opl-details{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.aph .opl-detail{background:var(--bg-muted);padding:8px 6px;border-radius:7px;text-align:center}
-.aph .opl-detail-label{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);margin-bottom:2px}
-.aph .opl-detail-value{font-size:13px;font-weight:600;color:var(--text);font-feature-settings:'tnum'}
-.aph .shelf-list{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
-.aph .shelf-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .variety-list{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
-.aph .variety-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
-.aph .variety-more{cursor:pointer}
-.aph .variety-more:hover{background:var(--border-2)}
+/* ── Allocation data table (restyle of .data-table onto aph-tbl chrome) ── */
+.aph .table-container{width:100%;overflow:auto;max-height:calc(100vh - 360px);-webkit-overflow-scrolling:touch}
+.aph table.data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:1200px}
+.aph .data-table thead{background:var(--bg-card)}
+.aph .data-table th{padding:11px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-3);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border);background:var(--bg-card);position:sticky;top:0;z-index:2}
+.aph .data-table td{padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:13px;color:var(--text);vertical-align:middle;font-feature-settings:'tnum'}
+.aph .data-table tbody tr:hover{background:var(--bg-hover)}
+.aph .data-table tbody tr.no-stock{background:#fffbfb}
+.aph .data-table tbody tr.confirmed{background:#fafffe}
+.aph .data-table tbody tr.gap-row td{padding:2px;border:none;background:transparent}
+.aph .cell-customer{font-weight:600;color:var(--text)}
+.aph .cell-variety{font-weight:600}
+.aph .cell-order{font-weight:600;color:var(--text);font-size:12px}
+.aph .cell-number{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.aph .cell-balance{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.aph .cell-pos{color:#1a8a3a}
+.aph .cell-neg{color:var(--bad)}
+.aph .cell-farm-ok{font-size:12px;font-weight:600;color:#1a8a3a}
+.aph .cell-farm-bad{font-size:12px;font-weight:600;color:var(--bad)}
+.aph .cell-pct-high{color:#1a8a3a;font-weight:600}
+.aph .cell-pct-mid{color:var(--warn);font-weight:600}
+.aph .cell-pct-low{color:var(--bad);font-weight:600}
+.aph .cell-confirm-wrap{text-align:center;white-space:nowrap}
+.aph .doc-link{color:var(--text);text-decoration:none;font-weight:600;cursor:pointer;border-bottom:1px solid var(--border-2)}
+.aph .doc-link:hover{border-bottom-color:var(--text)}
+.aph .confirm-input-wrap{display:inline-flex;align-items:center;gap:4px}
+.aph .confirm-input-wrap input[type="number"]{width:70px;height:26px;padding:0 8px;font-size:12px;font-variant-numeric:tabular-nums;background:var(--bg-card);border:1px solid var(--border-2);border-radius:6px;text-align:right;color:var(--text);font-family:var(--f);outline:0}
+.aph .confirm-input-wrap input[type="number"]:focus{border-color:var(--text)}
+.aph .confirmed-chips{display:flex;flex-wrap:wrap;gap:4px;max-width:220px}
+.aph .confirmed-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:9px;background:#e6f9ee;color:#1a8a3a}
+.aph .confirmed-chip.is-mine{background:var(--bg-muted);color:var(--text)}
+.aph .confirmed-chip-remove{cursor:pointer;display:inline-flex;transition:color .12s ease}
+.aph .confirmed-chip-remove:hover{color:var(--bad)}
+.aph .stems-progress{display:flex;align-items:center;gap:6px;min-width:100px}
+.aph .stems-progress-bar{flex:1;height:5px;background:var(--bg-muted);border-radius:4px;overflow:hidden;min-width:50px}
+.aph .stems-progress-fill{height:100%;border-radius:4px;transition:width .15s ease}
+.aph .stems-progress-fill.full{background:var(--good)}
+.aph .stems-progress-fill.partial{background:var(--warn)}
+.aph .stems-progress-fill.empty{background:var(--border-2)}
+.aph .stems-progress-text{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text-2)}
 
-/* ── Box card grid (render output) ── */
-.aph .box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.aph .box-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .box-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .box-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.aph .box-number{font-size:15px;font-weight:600;color:var(--text)}
-.aph .box-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
-.aph .box-row:last-child{border-bottom:none}
-.aph .box-row-label{color:var(--text-2)}
-.aph .box-row-value{font-weight:600;color:var(--text)}
-
-/* ── Empty / Loading states (render output) ── */
+/* ── Empty / loading / error states (render output) ── */
 .aph .empty-state{text-align:center;padding:40px 20px;color:var(--text-3)}
 .aph .empty-state p{font-size:13px;margin-top:10px}
 .aph .loading-state{text-align:center;padding:30px;color:var(--text-3);font-size:12px}
+.aph .error-msg{background:var(--text);color:#fff;padding:12px 16px;border-radius:7px;font-size:12px;font-family:var(--mono)}
 
-/* ── Variety modal ── */
-.vmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2147483100;align-items:center;justify-content:center;padding:20px}
-.vmodal.open{display:flex}
-.vmodal-card{background:var(--bg-card);border-radius:10px;width:100%;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);font-family:var(--f)}
-.vmodal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.vmodal-close{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text-3)}
-.vmodal-body{padding:6px 16px 14px;overflow-y:auto}
-.vrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
-.vrow:last-child{border-bottom:none}
-.vstems{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+/* ── Spinner overlay + toast ── */
+.spinner-overlay{position:fixed;inset:0;background:rgba(255,255,255,.7);display:none;justify-content:center;align-items:center;z-index:2147483100}
+.spinner-overlay.show{display:flex}
+.spinner{width:28px;height:28px;border:2px solid var(--border-2);border-top:2px solid var(--text);border-radius:50%;animation:aph-spin .7s linear infinite}
+@keyframes aph-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.toast{position:fixed;top:24px;right:24px;background:var(--bg-card);border:1px solid var(--border-2);color:var(--text);padding:10px 16px;border-radius:8px;font-size:13px;font-family:var(--f);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:2147483200;transform:translateX(200%);transition:transform .25s ease}
+.toast.show{transform:translateX(0)}
+.toast.success{background:#e6f9ee;border-color:#c5e8cd;color:#1a8a3a}
+.toast.error{background:#fde8ec;border-color:#f5c6ce;color:var(--bad)}
 </style>
 
-
-<style>
-.aph .sch-board{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;height:calc(100vh - 232px);min-height:360px}
-.aph .sch-col{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.aph .sch-colh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.aph .sch-colh .dot{width:9px;height:9px;border-radius:50%}
-.aph .sch-colh .nm{font-weight:600;font-size:13px}
-.aph .sch-colh .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:9px;padding:1px 8px}
-.aph .sch-colh .hint{width:100%;font-size:10px;color:var(--text-3);font-weight:500;margin-top:2px}
-.aph .sch-colb{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
-.aph .sch-card{border:1px solid var(--border);border-radius:9px;padding:10px 11px;background:var(--bg-card);transition:box-shadow .12s,border-color .12s}
-.aph .sch-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .sch-col.ready .sch-card{cursor:grab}
-.aph .sch-card.dragging{opacity:.4}
-.aph .sch-r1{display:flex;align-items:flex-start;gap:8px}
-.aph .sch-seq{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
-.aph .sch-seq.none{background:var(--bg-muted);color:var(--text-3)}
-.aph .sch-seq.done{background:var(--good)}
-.aph .sch-seq.draft{background:#7c3aed}
-.aph .sch-seq.next{box-shadow:0 0 0 2px var(--bg-card),0 0 0 4px var(--accent)}
-.aph .sch-farms{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.aph .sch-cnm{flex:1;min-width:0}
-.aph .sch-cnm .o{font-weight:600;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-cnm .sub{font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-next{flex:0 0 auto;border:1px solid var(--border);background:var(--bg-card);color:var(--text-2);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1}
-.aph .sch-next:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
-.aph .sch-chip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .sch-chip.farm{background:#eef2ff;color:#3730a3}
-.sch-chip.sched{background:var(--good-bg,#e2f2e8);color:var(--good,#1f7a32)}
-.sch-chip.unsched{background:var(--bg-muted);color:var(--text-3);border:1px dashed var(--border-2,#d9d9d9)}
-.aph .sch-specs{margin-top:7px;display:flex;flex-direction:column;gap:2px}
-.aph .sch-spec{font-size:11px;display:flex;justify-content:space-between;gap:8px}
-.aph .sch-spec .b{color:var(--text-2)}
-.aph .sch-meta{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
-.aph .sch-meta .mv{font-size:13px;font-weight:700;font-feature-settings:'tnum'}
-.aph .sch-meta .ml{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em}
-.aph .sch-bar{height:5px;border-radius:3px;background:var(--bg-muted);overflow:hidden;margin-top:7px}
-.aph .sch-bar i{display:block;height:100%;background:var(--good)}
-.aph .sch-empty{padding:28px;text-align:center;color:var(--text-3);font-size:12px}
-.aph .sch-sel{height:32px;padding:0 9px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg-card);color:var(--text);font-weight:500;outline:0}
-.aph .aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
-.aph .aph-kpi .v{font-size:30px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:8px;line-height:1}
-.aph .sch-search{margin-top:8px;width:100%;height:30px;padding:0 10px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg);color:var(--text);outline:0}
-.aph .sch-search:focus{border-color:var(--accent)}
-.aph .sch-chk{flex:0 0 auto;width:16px;height:16px;margin-top:5px;cursor:pointer;accent-color:var(--accent)}
-.aph .sch-card.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.aph .sch-nextbadge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--good);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
-.aph .sch-selbar{display:none;align-items:center;gap:8px;width:100%;margin-top:9px;padding:7px 9px;background:var(--accent);border-radius:8px}
-.aph .sch-selbar.on{display:flex}
-.aph .sch-selbar .lbl{color:#fff;font-size:11px;font-weight:700;flex:1}
-.aph .sch-selbar button{border:0;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
-.aph .sch-selbar .mk{background:#fff;color:var(--accent)}
-.aph .sch-selbar .addsch{background:#fff;color:var(--accent)}
-.aph .sch-selbar .rmsch{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-.aph .sch-selbar .cl{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-/* ---- 2-tab redesign ---- */
-.aph .sch-maintabs{display:inline-flex;gap:2px;background:var(--bg-muted);border-radius:9px;padding:3px;margin-bottom:16px}
-.aph .sch-maintab{border:0;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.aph .sch-maintab:hover{color:var(--text)}
-.aph .sch-maintab.on{background:var(--bg-card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.aph .sch-maintab .tc{font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:8px;padding:0 7px}
-.aph .sch-maintab.on .tc{background:var(--accent);color:#fff}
-.aph .sch-panel{display:flex;flex-direction:column;min-height:0}
-.aph .sch-varbar{display:flex;flex-wrap:wrap;gap:6px}
-.aph .sch-varbtn{padding:5px 12px;border:1px solid var(--border-2);background:var(--bg);border-radius:999px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.aph .sch-varbtn:hover{border-color:var(--accent)}
-.aph .sch-varbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-varbtn .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.7;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-varbtn.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-search.wide{margin-top:12px;max-width:520px}
-.aph .sch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.aph .sch-schedwrap{margin-top:12px;display:flex;flex-direction:column;gap:20px}
-.aph .sch-teamgrp .sch-teamh{display:flex;align-items:baseline;gap:11px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamgrp .sch-teamh .tn{font-size:15px;font-weight:600;letter-spacing:-.2px}
-.aph .sch-teamgrp .sch-teamh .ts{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-teamgrp .sch-list{margin-top:0}
-/* Side-by-side team columns — every team's schedule visible at once, no tab-switching. */
-.aph .sch-teamcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
-.aph .sch-teamcol{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;min-width:0}
-.aph .sch-teamcol .sch-teamh{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamcol .sch-teamh .tn{font-size:14px;font-weight:700;letter-spacing:-.2px}
-.aph .sch-teamcol .sch-teamh .ts{font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
-.aph .sch-teamcol .sch-list{margin-top:0;display:flex;flex-direction:column;gap:8px}
-@media(max-width:900px){.aph .sch-teamcols{grid-template-columns:1fr}}
-.aph .sch-vchip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px}
-.aph .sch-vchip.draft{background:#f3effe;color:#6d28d9}
-.aph .sch-vchip.xfer{background:#eef6ff;color:#1d4ed8}
-.aph .sch-vchip.sub{background:#eafaf0;color:#1f7a32}
-.aph .sch-vchip.mix{background:#fff4e5;color:#b45309}
-.aph .sch-farmbar{display:flex;align-items:center;gap:11px;margin-bottom:14px}
-.aph .sch-farmbar .fb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-farmbar .sch-tabs{margin-top:0;width:auto}
-.aph .sch-tabs{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:9px}
-.aph .sch-tab{flex:0 0 auto;padding:4px 11px;border:1px solid var(--border-2);background:var(--bg);border-radius:7px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.aph .sch-tab:hover{border-color:var(--accent)}
-.aph .sch-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-tab .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.65;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-tab.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-pager{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-2)}
-.aph .sch-pager:empty{display:none}
-.aph .sch-pginfo{flex:1;text-align:center;font-family:var(--mono)}
-.aph .sch-pg{border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer}
-.aph .sch-pg:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-pg:disabled{opacity:.4;cursor:default}
-.aph .sch-modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;z-index:9999}
-.aph .sch-modal.open{display:flex}
-.aph .sch-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:380px;max-width:92vw;overflow:hidden}
-.aph .smh{display:flex;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
-.aph .smt{font-weight:600;font-size:15px;line-height:1.25}
-.aph .sms{font-size:11px;color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.aph .sch-x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--text-3);cursor:pointer;padding:0 2px}
-.aph .smb{padding:18px}
-.aph .sml{font-size:12px;color:var(--text-2);margin-bottom:13px}
-.aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
-.aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
-.aph .sch-numinp:focus{border-color:var(--accent)}
-.aph .sch-nextbtn{display:block;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;text-align:center}
-.aph .sch-nextbtn:hover{background:var(--accent);color:#fff;border-style:solid}
-.aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
-.aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
-.aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .smf .btn.ghost{background:none;text-decoration:none}
-@media(max-width:900px){.aph{display:block!important;position:static!important;height:auto!important}html,body{overflow:auto!important;height:auto!important}.aph-side{display:none}.aph .sch-board{grid-template-columns:1fr;height:auto}.aph .sch-col{min-height:300px}}
-</style>
 <style>
 
 /* neutralize old borders when this sheet is appended over the legacy chrome */
@@ -727,9 +602,9 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="group-lbl">Workflow</div>
       <a class="nav-item" href="packhouse-dashboard">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Workflow</span></a>
-      <a class="nav-item active" href="packhouse-scheduler">
+      <a class="nav-item" href="packhouse-scheduler">
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Scheduler</span></a>
-      <a class="nav-item" href="sales-allocation-planning">
+      <a class="nav-item active" href="sales-allocation-planning">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Allocation Planning</span></a>
       <a class="nav-item" href="packhouse-production">
         <svg class="ic" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Production</span></a>
@@ -764,448 +639,506 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
     </div>
   </aside>
+
   <div class="aph-main">
     <div class="aph-topbar"><button class="collapse-btn" id="collapseBtn" title="Toggle sidebar" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-      <h1>Scheduler</h1><span class="crumb">Workflow &middot; sequence processing</span>
+      <h1>Sales Allocation Planning</h1>
+      <span class="crumb">Allocation Planning</span>
       <div class="right">
-        <input type="date" id="fDate" class="sch-sel" style="width:140px">
-        <select id="fTeam" class="sch-sel"><option value="">All teams</option></select>
-        <button class="btn" id="btnRefresh">&#8635; Refresh</button>
-        <a class="btn" href="bucket-logistics" style="text-decoration:none">Transfers &rarr;</a>
+        <div class="location-wrap" id="locationWrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="location-label">My Farm:</span>
+          <select id="processingLocation" onchange="updateLocation()">
+            <option value="">Select farm</option>
+          </select>
+        </div>
+        <button class="live-badge" id="refreshBtn">
+          <span class="live-dot"></span>LIVE
+        </button>
       </div>
     </div>
-    <div class="aph-content">
-      <div class="aph-kpis" id="kpis"></div>
-      <div class="sch-maintabs">
-        <button class="sch-maintab on" data-mtab="unsched">Unscheduled <span class="tc" id="cUnsched">0</span></button>
-        <button class="sch-maintab" data-mtab="sched">Schedule <span class="tc" id="cSched">0</span></button>
-      </div>
-      <div id="panelUnsched" class="sch-panel">
-        <div class="sch-varbar" id="varBar"></div>
-        <input type="text" id="readySearch" class="sch-search wide" placeholder="Search OPL, order name, customer, team&hellip;" autocomplete="off">
-        <div class="sch-selbar" id="readySelBar"></div>
-        <div class="sch-list" id="bUnsched"><div class="sch-empty">Loading&hellip;</div></div>
-        <div class="sch-pager" id="readyPager"></div>
-      </div>
-      <div id="panelSched" class="sch-panel" style="display:none">
-        <div class="sch-selbar" id="schedSelBar"></div>
-        <div class="sch-schedwrap" id="bSched"><div class="sch-empty">Loading&hellip;</div></div>
-      </div>
-    </div>
-  </div>
 
-  <div id="schModal" class="sch-modal">
-  <div class="sch-modal-card">
-    <div class="smh"><div><div class="smt" id="smTitle"></div><div class="sms" id="smSub"></div></div><button class="sch-x" id="smClose" title="Close">&times;</button></div>
-    <div class="smb">
-      <div class="sml" id="smPos"></div>
-      <label class="smfl" for="smNum">Schedule number</label>
-      <input type="number" id="smNum" min="1" class="sch-numinp">
-      <button type="button" id="smNext" class="sch-nextbtn"></button>
-      <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Sales Allocation Planning</div>
+        <div class="sub">Farm-wise stock visibility &amp; partial order confirmation</div>
+      </div>
+
+      <!-- Filters -->
+      <div class="aph-grid col-1">
+        <div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Filters</div>
+          </div>
+          <div class="aph-card-body">
+            <div id="filtersRow" class="filters-row">
+              <div class="filter-group">
+                <label class="filter-group-label">Delivery Date</label>
+                <input type="date" class="form-control" id="deliveryDate">
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Customer</label>
+                <div class="custom-select">
+                  <input type="text" class="form-control" id="customerFilter" placeholder="Search..." autocomplete="off">
+                  <div class="select-dropdown" id="customerDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Sales Order</label>
+                <div class="custom-select">
+                  <input type="text" class="form-control" id="orderFilter" placeholder="Search..." autocomplete="off">
+                  <div class="select-dropdown" id="orderDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Variety</label>
+                <div class="custom-select">
+                  <input type="text" class="form-control" id="varietyFilter" placeholder="Search..." autocomplete="off">
+                  <div class="select-dropdown" id="varietyDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Length</label>
+                <div class="custom-select">
+                  <input type="text" class="form-control" id="lengthFilter" placeholder="Search..." autocomplete="off">
+                  <div class="select-dropdown" id="lengthDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Stock Farm</label>
+                <div class="custom-select">
+                  <input type="text" class="form-control" id="farmFilter" placeholder="Search..." autocomplete="off">
+                  <div class="select-dropdown" id="farmDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-group-label">Confirmed By</label>
+                <select class="form-control" id="confirmedByFilter">
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div class="filter-group filter-actions">
+                <button class="btn-sm" id="clearBtn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div class="active-filters" id="activeFilters" style="margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="aph-kpis" id="kpiRow">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div><div class="lbl">Customers</div><div class="v" id="statCustomers">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+          <div><div class="lbl">Order Lines</div><div class="v" id="statOrderLines">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div><div class="lbl">Stock Entries</div><div class="v" id="statFarmEntries">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+          <div><div class="lbl">Total Boxes</div><div class="v" id="statTotalBoxes">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><div class="lbl">Confirmed Stems</div><div class="v" id="statConfirmedStems">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div><div class="lbl">My Confirmed</div><div class="v" id="statMyConfirmed">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div><div class="lbl">Ordered Stems</div><div class="v" id="statTotalStems">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+          <div><div class="lbl">Available Stock</div><div class="v" id="statStockStems">0</div></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div><div class="lbl">Confirmed %</div><div class="v" id="statAllocated">0%</div></div>
+        </div>
+      </div>
+
+      <!-- Allocation Table -->
+      <div class="aph-grid col-1">
+        <div class="aph-card" id="ordersSection">
+          <div class="aph-card-hd">
+            <div class="ttl">Farm-wise Stock &amp; Partial Confirmation</div>
+          </div>
+          <div class="aph-card-body padless">
+            <div class="table-container">
+              <table class="data-table">
+                <thead><tr>
+                  <th>Customer</th><th>Order Date</th><th>Deliv Date</th>
+                  <th>Order</th><th>Order Name</th><th>Ln</th>
+                  <th>Variety</th><th>Len</th><th>Ordered</th><th>Boxes</th>
+                  <th>Stock Farm</th><th>Stock</th><th>Status</th><th>%</th>
+                  <th>Confirmed</th><th>Action</th><th>Balance</th>
+                </tr></thead>
+                <tbody id="ordersTableBody">
+                  <tr><td colspan="17" class="loading-state">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
-    <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
-  </div>
   </div>
 </div>
 
-<script>(function f(){function t(){if(!window.frappe||!frappe.session||!frappe.session.user){setTimeout(t,100);return;}var u=frappe.session.user||'';var fn=(frappe.session.user_fullname||(frappe.boot&&frappe.boot.user&&frappe.boot.user.full_name))||u.split('@')[0];var a=document.getElementById('aph-foot-av'),n=document.getElementById('aph-foot-nm'),e=document.getElementById('aph-foot-em');if(a)a.textContent=(fn||u||'?').substring(0,1).toUpperCase();if(n)n.textContent=fn;if(e)e.textContent=u;}t();})();</script>
+<div class="spinner-overlay" id="spinnerOverlay"><div class="spinner"></div></div>
+<div class="toast" id="toast"></div>
 
 <script>
+    let allOrdersData = [];
+    let currentLocation = '';
+    let availableFarms = new Set();
+    let filterData = { customers:[], orders:[], varieties:[], lengths:[], farms:[] };
+    let selectedFilters = { customer:'', order:'', variety:'', length:'', farm:'', confirmedBy:'' };
+    let filterTimeout = null;
+    let isLoading = false;
 
-(function(){
-  var el=function(id){return document.getElementById(id);};
-  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
-  var num=function(v){var n=typeof v==='number'?v:parseFloat(String(v||''));return isFinite(n)?n:0;};
-  var fmt=function(n){return Number(n||0).toLocaleString();};
-  function frp(method,args){return new Promise(function(res){frappe.call({method:method,args:args||{},callback:function(r){res((r&&r.message)||{});},error:function(){res({});}});});}
-  function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  function addDaysISO(iso,n){var d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d);}
-  function todayISO(){return isoOf(new Date());}
-  // Default delivery date = tomorrow: the packhouse processes tomorrow's orders today.
-  function defaultISO(){var d=new Date();d.setDate(d.getDate()+1);return isoOf(d);}
-
-  var STATE={drafts:[],ready:[],packed:[],date:'',scheduled:{}};
-
-  function issuingPct(o){var L=o.locations||[];if(!L.length)return num(o.custom_issuing_percentage);var iss=0;L.forEach(function(b){if(b.custom_issued)iss++;});return Math.round(100*iss/L.length);}
-  function specHtml(o){var s=o.specs||[];if(!s.length)return '';return '<div class="sch-specs">'+s.slice(0,4).map(function(x){return '<div class="sch-spec"><span>'+esc(x.spec||x.variety||'—')+'</span><span class="b">'+esc(x.length||'')+(x.boxes?(' · '+x.boxes+'bx'):'')+'</span></div>';}).join('')+(s.length>4?'<div class="sch-spec b">+'+(s.length-4)+' more</div>':'')+'</div>';}
-
-  var G={readyPage:1,farm:'',sel:new Set()};
-  var PAGE=25;
-  // Mirrors scheduler_issue_threshold in the "Issue Bucket To Sale Order Item" server
-  // script: a team's NEXT-to-issue line is its lowest-numbered line still below this %.
-  var SCHED_THRESHOLD=50;
-
-  // Board-level filters: farm (tabs) + team (topbar) apply to ALL three columns.
-  function readyView(){return applyFilters(STATE.ready);}
-
-  function varLabel(v){return v==='draft_plain'?'Draft':(v==='draft_transfer'?'Draft · transfer':'Submitted');}
-  function varCls(v){return v==='draft_plain'?'draft':(v==='draft_transfer'?'xfer':'sub');}
-
-  // lane = 'unsched' | 'sched'. Feed rows carry: name, custom_order_name, customer,
-  // custom_team, total_stems, n_buckets, n_farms, farms[], mixed_type, variation, has_transfer.
-  function card(o,lane,idx,canDrag,opts){
-    opts=opts||{};
-    var nm=esc(o.custom_order_name||o.name);
-    var sub=[o.customer,o.custom_team].filter(Boolean).map(esc).join('  ·  ');
-    var stems=fmt(num(o.total_stems));
-    var bkts=num(o.n_buckets);
-    var prio=(lane==='sched')?((G.prio&&G.prio[o.name])||'?'):null;
-    var chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
-    var seqHtml;
-    if(lane==='sched'){
-      seqHtml='<div class="sch-seq'+(opts.isNext?' next':'')+'">'+prio+'</div>';
-    } else {
-      var vi=o.variation==='draft_plain'?'D':(o.variation==='draft_transfer'?'⇄':'S');
-      seqHtml='<div class="sch-seq draft" title="'+esc(varLabel(o.variation))+'">'+vi+'</div>';
-    }
-    var chips=[];
-    if(lane==='sched'){
-      chips.push('<span class="sch-chip sched">#'+prio+'</span>');
-      if(opts.isNext) chips.push('<span class="sch-chip sched">NEXT</span>');
-    } else {
-      chips.push('<span class="sch-vchip '+varCls(o.variation)+'">'+esc(varLabel(o.variation))+'</span>');
-    }
-    if(o.mixed_type) chips.push('<span class="sch-vchip mix">'+esc(o.mixed_type)+'</span>');
-    var chipsHtml='<div class="sch-chips">'+chips.join('')+'</div>';
-    var metaParts='<div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
-      '<div class="m"><div class="mv">'+bkts+'</div><div class="ml">buckets</div></div>';
-    if(o.has_transfer&&o.n_farms){metaParts=metaParts+'<div class="m"><div class="mv">'+num(o.n_farms)+'</div><div class="ml">farm'+(num(o.n_farms)===1?'':'s')+'</div></div>';}
-    var meta='<div class="sch-meta">'+metaParts+'</div>';
-    var farmsLine=(o.has_transfer&&o.farms&&o.farms.length)?'<div class="sch-farms">'+o.farms.map(function(f){return '<span class="sch-chip farm">'+esc(f)+'</span>';}).join('')+'</div>':'';
-    var draggable=(lane==='sched'&&canDrag)?' draggable="true"':'';
-    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+draggable+'>'+
-      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+nm+'</div><div class="sub">'+sub+'</div></div></div>'+
-      chipsHtml+farmsLine+meta+'</div>';
-  }
-
-  // Per-team NEXT-to-issue set: lowest-numbered Ready line per team still below the
-  // issue threshold (mirrors the per-team server-side enforcement). Lines already at/
-  // above threshold are "cleared" and skipped; the next sub-threshold line is the team's next.
-  function applyFilters(arr){
-    var t=el('fTeam')?el('fTeam').value:'';
-    return arr.filter(function(o){return (!t||o.custom_team===t);});
-  }
-
-  // search haystack: OPL name, order name, customer, team, farms, mixed type
-  function hay(o){
-    var parts=[o.name,o.custom_order_name,o.customer,o.custom_team,o.mixed_type];
-    (o.farms||[]).forEach(function(f){parts.push(f);});
-    return parts.filter(Boolean).join('  ').toLowerCase();
-  }
-
-  function render(){
-    var feed=applyFilters(STATE.ready);
-    var unsched=feed.filter(function(o){return !STATE.scheduled[o.name];});
-    var sched=feed.filter(function(o){return STATE.scheduled[o.name];});
-    var stems=0,custs={};
-    feed.forEach(function(o){stems=stems+num(o.total_stems);if(o.customer)custs[o.customer]=1;});
-    var vc={draft_plain:0,draft_transfer:0,submitted:0};
-    unsched.forEach(function(o){if(vc[o.variation]!=null)vc[o.variation]++;});
-    el('kpis').innerHTML=[['Schedulable',feed.length],['Unscheduled',unsched.length],['Scheduled',sched.length],['Total stems',fmt(stems)],['Customers',Object.keys(custs).length]]
-      .map(function(k){return '<div class="aph-kpi"><div class="lbl">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>';}).join('');
-    if(el('cUnsched'))el('cUnsched').textContent=unsched.length;
-    if(el('cSched'))el('cSched').textContent=sched.length;
-    var mt=G.mtab||'unsched';
-    document.querySelectorAll('.sch-maintab').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mtab')===mt);});
-    if(el('panelUnsched'))el('panelUnsched').style.display=(mt==='unsched')?'':'none';
-    if(el('panelSched'))el('panelSched').style.display=(mt==='sched')?'':'none';
-    G.prio={}; var pk={}; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]){ var tm=o.custom_team||''; pk[tm]=(pk[tm]||0)+1; G.prio[o.name]=pk[tm]; } });
-    renderVarBar(vc);
-    if(mt==='unsched') renderUnscheduled(unsched); else renderSchedule(sched);
-    renderSelBar();
-  }
-
-  function renderVarBar(vc){
-    var box=el('varBar'); if(!box) return;
-    var cur=G.var||'all';
-    var tabs=[['all','All',vc.draft_plain+vc.draft_transfer+vc.submitted],
-              ['draft_plain','Draft',vc.draft_plain],
-              ['draft_transfer','Draft · transfer',vc.draft_transfer],
-              ['submitted','Submitted',vc.submitted]];
-    box.innerHTML=tabs.map(function(x){var a=(cur===x[0])?' active':'';return '<button class="sch-varbtn'+a+'" data-var="'+x[0]+'">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
-    box.querySelectorAll('.sch-varbtn').forEach(function(b){b.onclick=function(){G.var=b.getAttribute('data-var');G.readyPage=1;render();};});
-  }
-
-  // ---- Unscheduled tab: feed items not yet scheduled, filtered by variation + search ----
-  function renderUnscheduled(list){
-    var vv=G.var||'all';
-    if(vv!=='all') list=list.filter(function(o){return o.variation===vv;});
-    var term=(el('readySearch')?el('readySearch').value:'').toLowerCase().trim();
-    if(term) list=list.filter(function(o){return hay(o).indexOf(term)>=0;});
-    var pages=Math.max(1,Math.ceil(list.length/PAGE));
-    if(G.readyPage>pages)G.readyPage=pages; if(G.readyPage<1)G.readyPage=1;
-    var start=(G.readyPage-1)*PAGE, end=Math.min(list.length,start+PAGE);
-    var view=list.slice(start,end);
-    var body=el('bUnsched'); if(!body) return;
-    body.innerHTML=view.length
-      ? view.map(function(o){return card(o,'unsched',0,false,{isSel:G.sel.has(o.name)});}).join('')
-      : '<div class="sch-empty">'+(term?'No orders match the search':'Nothing unscheduled here')+'</div>';
-    renderPager(list.length,pages,start,end);
-    wireList(body,false);
-  }
-
-  // ---- Schedule tab: scheduled items grouped by team, in priority order ----
-  // Two view modes: "By team" = every team's column visible AT ONCE side by side (the
-  // whole point — switching one-team-at-a-time was "very confusing"); "All" = one flat
-  // list, no team breakdown at all, for when team boundaries don't matter right now.
-  function renderSchedule(list){
-    var body=el('bSched'); if(!body) return;
-    if(!list.length){ body.innerHTML='<div class="sch-empty">No orders scheduled yet. Schedule orders from the <b>Unscheduled</b> tab.</div>'; return; }
-    var mode=G.schedView||'byteam';
-    var modeBar='<div class="sch-varbar"><button class="sch-varbtn'+(mode==='byteam'?' active':'')+'" data-smode="byteam">By team<span class="tc">'+
-      Object.keys(list.reduce(function(a,o){a[o.custom_team||'-']=1;return a;},{})).length+'</span></button>'+
-      '<button class="sch-varbtn'+(mode==='all'?' active':'')+'" data-smode="all">All<span class="tc">'+list.length+'</span></button></div>';
-    var content;
-    if(mode==='all'){
-      // flat list — no per-team grouping, no subtotal header, just every scheduled order
-      var flatCards=list.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-      content='<div class="sch-list" data-team="">'+flatCards+'</div>';
-    } else {
-      var groups=[], gmap={};
-      list.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
-      content='<div class="sch-teamcols">'+groups.map(function(g){
-        var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
-        var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-        return '<div class="sch-teamcol"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">'+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
-          '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
-      }).join('')+'</div>';
-    }
-    body.innerHTML=modeBar+content;
-    body.querySelectorAll('.sch-varbar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedView=b.getAttribute('data-smode'); renderSchedule(list); }; });
-    body.querySelectorAll('.sch-list').forEach(function(listEl){wireList(listEl,true);});
-  }
-
-  function renderSelBar(){
-    var mt=G.mtab||'unsched';
-    var other=el(mt==='sched'?'readySelBar':'schedSelBar'); if(other){other.className='sch-selbar';other.innerHTML='';}
-    var bar=el(mt==='sched'?'schedSelBar':'readySelBar'); if(!bar) return;
-    var n=G.sel.size;
-    if(!n){ bar.className='sch-selbar'; bar.innerHTML=''; return; }
-    bar.className='sch-selbar on';
-    if(mt==='unsched'){
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="addsch">＋ Schedule</button><button class="mk">Make next to issue</button><button class="cl">Clear</button>';
-      bar.querySelector('.addsch').onclick=function(){scheduleSel(true);};
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-    } else {
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="mk">Make next to issue</button><button class="rmsch">Unschedule</button><button class="cl">Clear</button>';
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-      bar.querySelector('.rmsch').onclick=function(){scheduleSel(false);};
-    }
-    bar.querySelector('.cl').onclick=function(){G.sel.clear();render();};
-  }
-  // Deliberate scheduling — each action schedules ONLY the order(s) it acts on (the rest
-  // stay unscheduled). Priority = per-team position of the scheduled orders in STATE.ready.
-  function scheduledOpls(){ var out=[]; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]) out.push(o.name); }); return out; }
-  function saveSchedule(){ return frp('saveDaySchedule',{date:STATE.schedDate||STATE.date,order:scheduledOpls().join('|~|')}); }
-
-  // Central save: persist the scheduled subset to the Packhouse Schedule doctype, CONFIRM
-  // the result to the user, then reload the authoritative doctype state and re-render so
-  // the UI always mirrors what was actually stored.
-  function commitSchedule(){
-    render();                                   // optimistic
-    return saveSchedule().then(function(r){
-      var ok=r&&r.status==='success';
-      var cnt=0; if(r&&r.saved){ var ks=Object.keys(r.saved); ks.forEach(function(t){ cnt=cnt+r.saved[t]; }); }
-      if(window.frappe&&frappe.show_alert){
-        if(ok&&cnt>0) frappe.show_alert({message:'✓ Schedule saved — '+cnt+' order'+(cnt===1?'':'s')+' sequenced',indicator:'green'},4);
-        else if(ok) frappe.show_alert({message:'Nothing saved — a scheduled order needs a team',indicator:'orange'},6);
-        else frappe.show_alert({message:'Save failed — please try again',indicator:'red'},6);
-      }
-      return reloadScheduled().then(function(){ render(); return r; });
+    document.addEventListener('DOMContentLoaded', () => {
+        initFilters();
+        setTimeout(loadData, 500);
+        setInterval(() => { if (!isLoading) loadData(); }, 60000);
     });
-  }
 
-  function scheduleSel(add){
-    if(!G.sel.size) return;
-    G.sel.forEach(function(nm){ if(add) STATE.scheduled[nm]=1; else delete STATE.scheduled[nm]; });
-    G.sel.clear();
-    commitSchedule();
-  }
-
-  // Move the selected lines to the front of the global order AND schedule them (keeping
-  // their relative order). Front = lowest per-team sequence -> that team's next to issue.
-  function makeSelectedNext(){
-    if(!G.sel.size) return;
-    var picked=[], rest=[];
-    STATE.ready.forEach(function(o){ (G.sel.has(o.name)?picked:rest).push(o); });
-    if(!picked.length) return;
-    picked.forEach(function(o){ STATE.scheduled[o.name]=1; });   // making next = scheduling
-    STATE.ready=picked.concat(rest);
-    G.sel.clear(); G.readyPage=1;
-    persist();
-  }
-
-  // ---- Packhouse Schedule: reorder IS the schedule. Reordering (drag / “set #” /
-  // send-to-front) persists the global order to each team's Packhouse Schedule doc
-  // (see persist()). An order not yet on any schedule shows “Unscheduled”. ----
-  function reloadScheduled(){return frp('getScheduledOrders',{date:STATE.schedDate||STATE.date}).then(function(r){STATE.scheduled=(r&&r.scheduled)||{};});}
-
-  function renderPager(total,pages,start,end){
-    var p=el('readyPager');if(!p)return;
-    if(total<=PAGE){p.innerHTML='';return;}
-    p.innerHTML='<button class="sch-pg" id="rPrev"'+(G.readyPage<=1?' disabled':'')+'>&lsaquo; Prev</button>'+
-      '<span class="sch-pginfo">'+(start+1)+'–'+end+' of '+total+' · pg '+G.readyPage+'/'+pages+'</span>'+
-      '<button class="sch-pg" id="rNext"'+(G.readyPage>=pages?' disabled':'')+'>Next &rsaquo;</button>';
-    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;render();}};
-    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;render();}};
-  }
-
-  // ---- order mutation ----
-  function reseq(){STATE.ready.forEach(function(o,i){o._sched=i+1;});}
-  // Persist the scheduled subset (in STATE.ready order) to the doctype, with confirmation.
-  // The schedule + priority live ONLY in the Packhouse Schedule doctype — no OPL field.
-  function persist(){ if(!STATE.ready.length)return; commitSchedule(); }
-
-  // Place `name` at schedule position `k` (1 = first to issue) AMONG ITS TEAM'S scheduled
-  // orders, and SCHEDULE it if it wasn't already. Only this one order is affected.
-  function teamScheduledNames(team,exclude){
-    var out=[]; STATE.ready.forEach(function(o){ if(o.name!==exclude && STATE.scheduled[o.name] && (o.custom_team||'')===team) out.push(o.name); }); return out;
-  }
-  function setSchedulePos(name,k){
-    var o=null; STATE.ready.forEach(function(x){ if(x.name===name) o=x; }); if(!o) return;
-    var team=o.custom_team||'';
-    STATE.scheduled[name]=1;                                   // acting on it schedules it
-    var peers=teamScheduledNames(team,name);                   // other scheduled in this team, in order
-    if(!isFinite(k)) k=peers.length+1;
-    k=Math.max(1,Math.min(peers.length+1,k));                  // clamp: e.g. "7" of 3 -> last
-    var beforeName=(k-1<peers.length)?peers[k-1]:null;
-    var idx=-1; STATE.ready.forEach(function(x,i){ if(x.name===name) idx=i; });
-    if(idx>=0) STATE.ready.splice(idx,1);
-    var insertAt=STATE.ready.length, found=false;
-    if(beforeName){ STATE.ready.forEach(function(x,i){ if(!found&&x.name===beforeName){ insertAt=i; found=true; } }); }
-    else if(peers.length){ var last=peers[peers.length-1]; STATE.ready.forEach(function(x,i){ if(x.name===last) insertAt=i+1; }); }
-    else { insertAt=0; }
-    STATE.ready.splice(insertAt,0,o);
-    G.readyPage=Math.floor(insertAt/PAGE)+1;
-    persist();
-  }
-  // Scoped to the SPECIFIC container dragged in (a team column, or the flat "All" list) —
-  // NOT the whole #bSched. With every team's column visible at once, reading .sch-card
-  // across the whole page would flatten every OTHER team's order into whatever position
-  // the dragged card landed at. Instead: replace just the contiguous run of THIS
-  // container's cards, in their new order, leaving every other team's cards untouched.
-  function commitDrag(container,draggedName){
-    var domOrder=[];
-    if(container){ container.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
-    var byName={}; STATE.ready.forEach(function(o){byName[o.name]=o;});
-    var inDom={}; domOrder.forEach(function(nm){inDom[nm]=1;});
-    var newReady=[], inserted=false;
-    STATE.ready.forEach(function(o){
-      if(inDom[o.name]){
-        if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); inserted=true; }
-      } else { newReady.push(o); }
-    });
-    if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); }
-    STATE.ready=newReady;
-    if(draggedName) STATE.scheduled[draggedName]=1;
-    persist();
-  }
-
-  var dragEl=null, dragName=null, dragContainer=null;
-  function wireList(container,canDrag){
-    if(!container) return;
-    if(canDrag){
-      container.querySelectorAll('.sch-card').forEach(function(c){
-        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');dragContainer=c.closest('.sch-list');c.classList.add('dragging');});
-        c.addEventListener('dragend',function(){var cont=c.closest('.sch-list');c.classList.remove('dragging');dragEl=null;dragContainer=null;var dn=dragName;dragName=null;commitDrag(cont,dn);});
-      });
-      // With every team's column visible at once, guard against dropping into a
-      // DIFFERENT team's column — a card's team isn't something drag should reassign.
-      container.ondragover=function(e){e.preventDefault();if(!dragEl||container!==dragContainer)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
-    } else { container.ondragover=null; }
-    container.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);render();});});
-    container.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
-  }
-  function afterEl(container,y){var els=Array.prototype.slice.call(container.querySelectorAll('.sch-card:not(.dragging)'));return els.reduce(function(closest,child){var box=child.getBoundingClientRect();var off=y-box.top-box.height/2;if(off<0&&off>closest.offset)return {offset:off,element:child};return closest;},{offset:-Infinity}).element;}
-  function openDoc(name){if(window.frappe&&frappe.set_route)frappe.set_route('Form','Order Pick List',name);else window.open('/app/order-pick-list/'+encodeURIComponent(name),'_blank');}
-
-  // ---- schedule-number popup (schedules the order at a per-team priority #) ----
-  function openSchedModal(name){
-    var o=null;STATE.ready.forEach(function(x){if(x.name===name)o=x;});if(!o)return;
-    var team=o.custom_team||'';
-    var peers=teamScheduledNames(team,name);          // other scheduled in this team
-    var isSched=!!STATE.scheduled[name];
-    var maxK=peers.length+1;                            // scheduling this order can take slots 1..N+1
-    var curK=maxK;                                      // default = last
-    if(isSched){ var all=teamScheduledNames(team,null); var ci=0; while(ci<all.length){ if(all[ci]===name){curK=ci+1;} ci=ci+1; } }
-    el('smTitle').textContent=o.custom_order_name||o.name;
-    el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
-    el('smPos').textContent=(team?team+' · ':'')+(isSched?('currently #'+curK+' of '+maxK+' scheduled'):('not scheduled — will join as one of '+maxK))+'  ·  #1 issues first';
-    var inp=el('smNum');inp.value=curK;inp.min=1;inp.max=maxK;
-    // Explicit "next available" guidance — the next open slot for THIS team, so the
-    // user never has to count the column to know what number to type.
-    var nextBtn=el('smNext');
-    if(nextBtn){
-      nextBtn.textContent=isSched
-        ? 'Move to last position for '+(team||'this team')+' (#'+maxK+')'
-        : 'Guide: next available for '+(team||'this team')+' is #'+maxK;
-      nextBtn.onclick=function(){ inp.value=maxK; inp.focus(); };
+    function showSpinner(v) { document.getElementById('spinnerOverlay').classList.toggle('show', v); }
+    function showToast(msg, type='success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'toast ' + type;
+        t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
     }
-    el('schModal').setAttribute('data-opl',name);
-    el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
-    el('schModal').classList.add('open');
-    setTimeout(function(){inp.focus();inp.select();},30);
-  }
-  function closeSchedModal(){el('schModal').classList.remove('open');}
-  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();setSchedulePos(name,v);}
 
-  // ---- load ----
-  function populateFilters(){
-    var teams={};STATE.ready.forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
-    var sel=el('fTeam');if(!sel)return;var cur=sel.value;
-    sel.innerHTML='<option value="">All teams</option>'+Object.keys(teams).sort().map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
-  }
-  function load(){
-    var dd=el('fDate').value||defaultISO();STATE.date=dd;
-    // The date filter is the DELIVERY date; the Packhouse Schedule doc is keyed by the
-    // PROCESSING day = delivery - 1 (you process today for tomorrow's delivery).
-    STATE.schedDate=addDaysISO(dd,-1);
-    if(el('bUnsched'))el('bUnsched').innerHTML='<div class="sch-empty">Loading…</div>';
-    if(el('bSched'))el('bSched').innerHTML='<div class="sch-empty">Loading…</div>';
-    frp('getSchedulerFeed',{date:dd}).then(function(r){
-      var rows=(r&&r.data)||[];
-      STATE.drafts=[];STATE.packed=[];
-      STATE.ready=rows.map(function(o){
-        return {name:o.opl,custom_order_name:o.order_name,customer:o.customer,custom_team:o.team,
-                total_stems:o.total_stems,n_buckets:o.n_buckets,n_farms:o.n_farms,farms:o.farms||[],
-                n_varieties:o.n_varieties,has_transfer:o.has_transfer,mixed_type:o.mixed_type,
-                docstatus:o.docstatus,variation:o.variation};
-      });
-      reloadScheduled().then(function(){
-        STATE.ready.sort(function(a,b){
-          var sa=STATE.scheduled[a.name],sb=STATE.scheduled[b.name];
-          if(!!sa!==!!sb)return sa?-1:1;
-          if(sa){
-            var ta=(sa.team!=null?sa.team:(a.custom_team||'')),tb=(sb.team!=null?sb.team:(b.custom_team||''));
-            if(ta!==tb)return ta<tb?-1:1;
-            var qa=(sa.sequence!=null?sa.sequence:0),qb=(sb.sequence!=null?sb.sequence:0);
-            if(qa!==qb)return qa-qb;
-          }
-          return String(a.name).localeCompare(String(b.name));
+    function updateLocation() {
+        currentLocation = document.getElementById('processingLocation').value;
+        document.getElementById('locationWrap').classList.toggle('confirmed', !!currentLocation);
+        if (currentLocation) localStorage.setItem('selectedLocation', currentLocation);
+        else localStorage.removeItem('selectedLocation');
+        if (allOrdersData.length) applyFilters();
+    }
+
+    function populateLocationSelector() {
+        const sel = document.getElementById('processingLocation');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">Select farm</option>';
+        Array.from(availableFarms).sort().forEach(f => {
+            const o = document.createElement('option'); o.value = f; o.textContent = f;
+            if (f === cur) o.selected = true; sel.appendChild(o);
         });
-        populateFilters();render();
-      });
-    });
-  }
+    }
 
-  el('fDate').value=defaultISO();
-  el('btnRefresh').onclick=load;
-  el('fDate').onchange=load;
-  function filterChanged(){G.readyPage=1;render();}
-  el('fTeam').onchange=filterChanged;
-  G.mtab='unsched'; G.var='all';
-  document.querySelectorAll('.sch-maintab').forEach(function(b){b.onclick=function(){G.mtab=b.getAttribute('data-mtab');G.sel.clear();G.readyPage=1;render();};});
-  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;render();};
-  if(el('smClose'))el('smClose').onclick=closeSchedModal;
-  if(el('smCancel'))el('smCancel').onclick=closeSchedModal;
-  if(el('smSave'))el('smSave').onclick=saveSchedModal;
-  if(el('schModal'))el('schModal').addEventListener('click',function(e){if(e.target===el('schModal'))closeSchedModal();});
-  if(el('smNum'))el('smNum').addEventListener('keydown',function(e){if(e.key==='Enter')saveSchedModal();});
-  function boot(){if(window.frappe&&frappe.call){load();setInterval(load,60000);}else if(boot._n++<80){setTimeout(boot,100);}}
-  boot._n=0;boot();
-})();
+    function populateConfirmedByFilter() {
+        const sel = document.getElementById('confirmedByFilter');
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">All</option>';
+        Array.from(availableFarms).sort().forEach(f => { const o = document.createElement('option'); o.value = f; o.textContent = f; sel.appendChild(o); });
+        const u = document.createElement('option'); u.value = 'Unconfirmed'; u.textContent = 'Unconfirmed'; sel.appendChild(u);
+        const p = document.createElement('option'); p.value = 'Partial'; p.textContent = 'Partial'; sel.appendChild(p);
+        if (Array.from(sel.options).map(o=>o.value).includes(cur)) sel.value = cur;
+    }
 
+    function initFilters() {
+        const saved = localStorage.getItem('selectedLocation');
+        if (saved) currentLocation = saved;
+        document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('deliveryDate').addEventListener('change', () => { showSpinner(true); loadData(); });
+        document.getElementById('confirmedByFilter').addEventListener('change', () => { showSpinner(true); applyFiltersDelay(); });
+        document.getElementById('refreshBtn').addEventListener('click', loadData);
+        document.getElementById('clearBtn').addEventListener('click', clearAllFilters);
+        initCustomSelect('customer', 'customerFilter', 'customerDropdown');
+        initCustomSelect('order', 'orderFilter', 'orderDropdown');
+        initCustomSelect('variety', 'varietyFilter', 'varietyDropdown');
+        initCustomSelect('length', 'lengthFilter', 'lengthDropdown');
+        initCustomSelect('farm', 'farmFilter', 'farmDropdown');
+        document.addEventListener('click', e => { if (!e.target.closest('.custom-select')) document.querySelectorAll('.select-dropdown').forEach(d => d.classList.remove('show')); });
+    }
+
+    function initCustomSelect(key, inputId, dropdownId) {
+        const input = document.getElementById(inputId), dropdown = document.getElementById(dropdownId);
+        const dataKey = { customer:'customers', order:'orders', variety:'varieties', length:'lengths', farm:'farms' }[key];
+        input.addEventListener('focus', () => { buildDropdown(dataKey, input, dropdown, key); dropdown.classList.add('show'); });
+        input.addEventListener('input', function() {
+            buildDropdown(dataKey, input, dropdown, key);
+            if (!this.value) { selectedFilters[key]=''; this.classList.remove('has-value'); showSpinner(true); applyFiltersDelay(); }
+        });
+        input.addEventListener('keydown', e => { if (e.key==='Enter') { const f=dropdown.querySelector('.select-option:not(.no-results)'); if(f) pickOption(key,f.dataset.value,input,dropdown); } });
+    }
+
+    function buildDropdown(dataKey, input, dropdown, filterKey) {
+        const term = input.value.toLowerCase();
+        const items = (filterData[dataKey]||[]).filter(i=>i.toLowerCase().includes(term));
+        const currentVal = selectedFilters[filterKey]||'';
+        dropdown.innerHTML = items.length
+            ? items.map(i => `<div class="select-option${currentVal===i?' selected':''}" data-value="${i.replace(/"/g,'&quot;')}">${i}</div>`).join('')
+            : '<div class="select-option no-results">No results</div>';
+        dropdown.querySelectorAll('.select-option:not(.no-results)').forEach(opt => {
+            opt.addEventListener('click', () => { pickOption(filterKey, opt.dataset.value, input, dropdown); dropdown.classList.remove('show'); });
+        });
+    }
+
+    function pickOption(key, value, input, dropdown) {
+        input.value = value; input.classList.add('has-value');
+        selectedFilters[key] = value;
+        showSpinner(true); applyFiltersDelay();
+        dropdown.classList.remove('show');
+    }
+
+    function clearAllFilters() {
+        showSpinner(true);
+        document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+        ['customerFilter','orderFilter','varietyFilter','lengthFilter','farmFilter','confirmedByFilter'].forEach(id => { const el=document.getElementById(id); if(el)el.value=''; });
+        document.querySelectorAll('.form-control').forEach(el => el.classList.remove('has-value'));
+        selectedFilters = { customer:'', order:'', variety:'', length:'', farm:'', confirmedBy:'' };
+        applyFiltersDelay();
+    }
+
+    function applyFiltersDelay() { if(filterTimeout) clearTimeout(filterTimeout); filterTimeout = setTimeout(applyFilters, 300); }
+
+    function applyFilters() {
+        if (!allOrdersData.length) { ordersEmpty(); showSpinner(false); return; }
+        selectedFilters.confirmedBy = document.getElementById('confirmedByFilter').value;
+        let filtered = allOrdersData;
+        if (selectedFilters.customer) filtered = filtered.filter(r => r.customer === selectedFilters.customer);
+        if (selectedFilters.order) filtered = filtered.filter(r => r.sales_order === selectedFilters.order);
+        if (selectedFilters.variety) filtered = filtered.filter(r => r.item_code === selectedFilters.variety);
+        if (selectedFilters.length) filtered = filtered.filter(r => r.length === selectedFilters.length);
+        if (selectedFilters.farm) filtered = filtered.filter(r => r.farm_name === selectedFilters.farm);
+        if (selectedFilters.confirmedBy) {
+            if (selectedFilters.confirmedBy === 'Unconfirmed') filtered = filtered.filter(r => getConfirmedTotal(r) === 0);
+            else if (selectedFilters.confirmedBy === 'Partial') filtered = filtered.filter(r => { const ct = getConfirmedTotal(r); return ct > 0 && ct < (r.stems_ordered || 0); });
+            else filtered = filtered.filter(r => (r.custom_confirmed_stems_table || []).some(e => e.farm === selectedFilters.confirmedBy));
+        }
+        renderOrdersData(filtered);
+        updateStats(filtered);
+        renderActiveFilters();
+        showSpinner(false);
+    }
+
+    function renderActiveFilters() {
+        const keys = { customer:'Customer', order:'Order', variety:'Variety', length:'Length', farm:'Farm', confirmedBy:'Confirmed' };
+        const x = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        document.getElementById('activeFilters').innerHTML = Object.entries(selectedFilters).filter(([k,v]) => v).map(([k,v]) => `<span class="filter-tag">${keys[k]}: ${v} <span class="filter-tag-remove" onclick="clearFilter('${k}')">${x}</span></span>`).join('');
+    }
+
+    function clearFilter(key) {
+        showSpinner(true); selectedFilters[key] = '';
+        const input = document.getElementById(key+'Filter');
+        if (input) { input.value=''; input.classList.remove('has-value'); }
+        if (key==='confirmedBy') document.getElementById('confirmedByFilter').value='';
+        applyFiltersDelay();
+    }
+
+    function populateFilterData(data) {
+        if (!data?.length) return;
+        const sets = { customers:new Set(), orders:new Set(), varieties:new Set(), lengths:new Set(), farms:new Set() };
+        data.forEach(r => {
+            if(r.customer) sets.customers.add(r.customer);
+            if(r.sales_order) sets.orders.add(r.sales_order);
+            if(r.item_code) sets.varieties.add(r.item_code);
+            if(r.length) sets.lengths.add(r.length);
+            if(r.farm_name && r.farm_name!=='No Stock Available') sets.farms.add(r.farm_name);
+            if(r.farm_name && r.farm_name!=='Unknown') availableFarms.add(r.farm_name);
+            (r.custom_confirmed_stems_table || []).forEach(e => { if(e.farm) availableFarms.add(e.farm); });
+        });
+        Object.keys(sets).forEach(k => filterData[k] = Array.from(sets[k]).sort());
+        populateLocationSelector();
+        populateConfirmedByFilter();
+        const saved = localStorage.getItem('selectedLocation');
+        if (saved && availableFarms.has(saved)) { document.getElementById('processingLocation').value=saved; updateLocation(); }
+    }
+
+    function getConfirmedEntries(row) { return row.custom_confirmed_stems_table || []; }
+    function getConfirmedTotal(row) { return getConfirmedEntries(row).reduce((s, e) => s + (e.stems || 0), 0); }
+    function getMyConfirmedStems(row) { if (!currentLocation) return 0; const entry = getConfirmedEntries(row).find(e => e.farm === currentLocation); return entry ? (entry.stems || 0) : 0; }
+    function getRemainingStems(row) { return Math.max(0, (row.stems_ordered || 0) - getConfirmedTotal(row)); }
+
+    function loadData() {
+        if (isLoading) return; isLoading = true; showSpinner(true);
+        frappe.call({
+            method: 'fetchSalesAllocationPlanningData',
+            args: { delivery_date: document.getElementById('deliveryDate').value, farm: selectedFilters.farm||'' },
+            callback: r => { isLoading = false; showSpinner(false); if (r.message?.success) { allOrdersData = r.message.data; populateFilterData(allOrdersData); applyFilters(); } else ordersEmpty(); },
+            error: err => { isLoading = false; showSpinner(false); ordersError('Failed to load data'); console.error(err); }
+        });
+    }
+
+    function ordersEmpty() { document.getElementById('ordersTableBody').innerHTML='<tr><td colspan="17" class="empty-state"><p>No orders available</p></td></tr>'; }
+    function ordersError(m) { document.getElementById('ordersTableBody').innerHTML=`<tr><td colspan="17"><div class="error-msg">${m}</div></td></tr>`; }
+
+    function updateStats(filtered) {
+        const customers = new Set(filtered.map(r=>r.customer)).size;
+        const lineKeys = new Set(filtered.map(r=>`${r.sales_order}-${r.line_no}`));
+        let totalConfirmedStems = 0, myConfirmedStems = 0, stems = 0, boxes = 0, stock = 0;
+        const seen = new Set();
+        filtered.forEach(r => {
+            const k = `${r.sales_order}-${r.line_no}`;
+            if (!seen.has(k)) { stems += r.stems_ordered || 0; boxes += r.boxes_ordered || 0; totalConfirmedStems += getConfirmedTotal(r); myConfirmedStems += getMyConfirmedStems(r); seen.add(k); }
+            stock += r.stock_total || 0;
+        });
+        document.getElementById('statCustomers').textContent = customers;
+        document.getElementById('statOrderLines').textContent = lineKeys.size;
+        document.getElementById('statFarmEntries').textContent = filtered.length;
+        document.getElementById('statTotalBoxes').textContent = boxes.toLocaleString();
+        document.getElementById('statConfirmedStems').textContent = totalConfirmedStems.toLocaleString();
+        document.getElementById('statMyConfirmed').textContent = myConfirmedStems.toLocaleString();
+        document.getElementById('statTotalStems').textContent = stems.toLocaleString();
+        document.getElementById('statStockStems').textContent = stock.toLocaleString();
+        document.getElementById('statAllocated').textContent = stems > 0 ? Math.round((totalConfirmedStems / stems) * 100) + '%' : '0%';
+    }
+
+    function renderOrdersData(data) {
+        if (!data?.length) { ordersEmpty(); return; }
+        const dismissSvg = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        let html = '', curKey = null;
+        data.forEach(row => {
+            const k = `${row.sales_order}-${row.line_no}`;
+            const isNew = curKey !== k;
+            if (isNew) { if (curKey) html += '<tr class="gap-row"><td colspan="17"></td></tr>'; curKey = k; }
+            const balance = (row.stock_total||0) - (row.stems_ordered||0);
+            const status = row.stock_status || 'No Stock';
+            const statusLabel = status==='Sufficient' ? 'label-success' : status==='Partial' ? 'label-warning' : 'label-danger';
+            const pct = row.fulfillment_percentage || 0;
+            const pctCls = pct >= 100 ? 'cell-pct-high' : pct >= 50 ? 'cell-pct-mid' : 'cell-pct-low';
+            const farm = row.farm_name || 'Unknown';
+            const farmCls = (farm !== 'No Stock Available' && farm !== 'Unknown') ? 'cell-farm-ok' : 'cell-farm-bad';
+            const confirmedEntries = getConfirmedEntries(row);
+            const confirmedTotal = getConfirmedTotal(row);
+            const stemsOrdered = row.stems_ordered || 0;
+            const remaining = getRemainingStems(row);
+            const myStems = getMyConfirmedStems(row);
+            const rowCls = farm === 'No Stock Available' ? 'no-stock' : (confirmedTotal >= stemsOrdered && stemsOrdered > 0 ? 'confirmed' : '');
+            let confirmedHtml = '';
+            if (isNew) {
+                let chipsHtml = '';
+                confirmedEntries.forEach(entry => {
+                    const isMine = entry.farm === currentLocation;
+                    chipsHtml += `<span class="confirmed-chip ${isMine ? 'is-mine' : ''}" title="${entry.farm}: ${entry.stems} stems">${entry.farm}: ${(entry.stems||0).toLocaleString()}${isMine ? ` <span class="confirmed-chip-remove" onclick="removeConfirmation('${row.sales_order}',${row.line_no},'${entry.farm}')">${dismissSvg}</span>` : ''}</span>`;
+                });
+                const pctC = stemsOrdered > 0 ? Math.min(100, Math.round((confirmedTotal / stemsOrdered) * 100)) : 0;
+                const fillCls = pctC >= 100 ? 'full' : pctC > 0 ? 'partial' : 'empty';
+                confirmedHtml = `<div class="confirmed-chips">${chipsHtml || '<span style="font-size:11px;color:var(--text-3)">None</span>'}</div><div class="stems-progress"><div class="stems-progress-bar"><div class="stems-progress-fill ${fillCls}" style="width:${pctC}%"></div></div><span class="stems-progress-text">${confirmedTotal.toLocaleString()}/${stemsOrdered.toLocaleString()}</span></div>`;
+            }
+            let actionHtml = '';
+            if (isNew) {
+                if (!currentLocation) actionHtml = '<span style="font-size:11px;color:var(--text-3)">Select farm</span>';
+                else if (remaining > 0 || myStems > 0) {
+                    const defaultVal = myStems > 0 ? myStems : Math.min(remaining, stemsOrdered);
+                    const maxVal = remaining + myStems;
+                    actionHtml = `<div class="confirm-input-wrap"><input type="number" id="stems_${row.sales_order}_${row.line_no}" min="0" max="${maxVal}" step="1" value="${defaultVal}" title="Max ${maxVal.toLocaleString()}"><button class="btn-xs btn-success-action" onclick="confirmPartial('${row.sales_order}',${row.line_no})">${myStems > 0 ? 'Update' : 'Confirm'}</button>`;
+                    if (myStems > 0) actionHtml += `<button class="btn-xs btn-danger-action" onclick="removeConfirmation('${row.sales_order}',${row.line_no},'${currentLocation}')">${dismissSvg}</button>`;
+                    actionHtml += '</div>';
+                } else if (confirmedTotal >= stemsOrdered && stemsOrdered > 0) actionHtml = '<span class="label label-success">Fully Confirmed</span>';
+            }
+            html += `<tr class="${rowCls}">
+                <td class="cell-customer">${isNew ? (row.customer||'') : ''}</td>
+                <td>${isNew ? (row.transaction_date||'') : ''}</td>
+                <td>${isNew ? (row.delivery_date||'') : ''}</td>
+                <td>${isNew ? (row.sales_order ? `<a class="doc-link" onclick="openDoc('Sales Order','${row.sales_order}')">${row.sales_order}</a>` : '--') : ''}</td>
+                <td class="cell-order">${isNew ? (row.order_name||'--') : ''}</td>
+                <td>${isNew ? (row.line_no||'') : ''}</td>
+                <td class="cell-variety">${isNew ? (row.item_code||'') : ''}</td>
+                <td>${isNew ? (row.length||'') : ''}</td>
+                <td class="cell-number">${isNew ? (row.stems_ordered||0).toLocaleString() : ''}</td>
+                <td class="cell-number">${isNew ? (row.boxes_ordered||0).toLocaleString() : ''}</td>
+                <td class="${farmCls}">${farm}</td>
+                <td class="cell-number">${row.stock_total != null ? row.stock_total.toLocaleString() : '--'}</td>
+                <td><span class="label ${statusLabel}">${status}</span></td>
+                <td class="${pctCls}">${pct}%</td>
+                <td>${confirmedHtml}</td>
+                <td class="cell-confirm-wrap">${actionHtml}</td>
+                <td class="cell-balance ${balance>=0?'cell-pos':'cell-neg'}">${balance.toLocaleString()}</td>
+            </tr>`;
+        });
+        document.getElementById('ordersTableBody').innerHTML = html;
+    }
+
+    function confirmPartial(salesOrder, lineNo) {
+        if (!currentLocation) { showToast('Please select your farm first', 'error'); return; }
+        const input = document.getElementById(`stems_${salesOrder}_${lineNo}`);
+        if (!input) { showToast('Input not found', 'error'); return; }
+        const stemsVal = parseInt(input.value, 10);
+        if (isNaN(stemsVal) || stemsVal < 0) { showToast('Enter a valid number of stems', 'error'); return; }
+        const row = allOrdersData.find(r => r.sales_order === salesOrder && r.line_no == lineNo);
+        if (row) { const max = getRemainingStems(row) + getMyConfirmedStems(row); if (stemsVal > max) { showToast(`Maximum ${max.toLocaleString()} stems`, 'error'); return; } }
+        showSpinner(true);
+        frappe.call({
+            method: 'confimSalesOrderItem',
+            args: { sales_order: salesOrder, line_no: lineNo, processing_location: currentLocation, action: 'confirm', stems: stemsVal },
+            callback: r => {
+                showSpinner(false);
+                if (r.message?.success) {
+                    showToast(`${stemsVal.toLocaleString()} stems confirmed for ${currentLocation}`);
+                    const serverEntries = r.message.data?.confirmed_entries;
+                    allOrdersData.forEach(row => {
+                        if (row.sales_order === salesOrder && row.line_no == lineNo) {
+                            if (serverEntries) row.custom_confirmed_stems_table = serverEntries;
+                            else {
+                                let entries = row.custom_confirmed_stems_table || [];
+                                const existing = entries.findIndex(e => e.farm === currentLocation);
+                                if (stemsVal === 0) { if (existing >= 0) entries.splice(existing, 1); }
+                                else if (existing >= 0) entries[existing].stems = stemsVal;
+                                else entries.push({ farm: currentLocation, stems: stemsVal });
+                                row.custom_confirmed_stems_table = entries;
+                            }
+                        }
+                    });
+                    populateConfirmedByFilter(); applyFilters();
+                } else showToast(r.message?.error || 'Failed to update', 'error');
+            },
+            error: err => { showSpinner(false); showToast('Error updating', 'error'); console.error(err); }
+        });
+    }
+
+    function removeConfirmation(salesOrder, lineNo, farm) {
+        if (farm !== currentLocation) { showToast('You can only remove your own confirmations', 'error'); return; }
+        showSpinner(true);
+        frappe.call({
+            method: 'confimSalesOrderItem',
+            args: { sales_order: salesOrder, line_no: lineNo, processing_location: farm, action: 'unconfirm', stems: 0 },
+            callback: r => {
+                showSpinner(false);
+                if (r.message?.success) {
+                    showToast(`Confirmation removed for ${farm}`);
+                    allOrdersData.forEach(row => { if (row.sales_order === salesOrder && row.line_no == lineNo) row.custom_confirmed_stems_table = (row.custom_confirmed_stems_table || []).filter(e => e.farm !== farm); });
+                    populateConfirmedByFilter(); applyFilters();
+                } else showToast(r.message?.error || 'Failed to remove', 'error');
+            },
+            error: err => { showSpinner(false); showToast('Error removing confirmation', 'error'); console.error(err); }
+        });
+    }
+
+    function openDoc(doctype, name) {
+        if (typeof frappe!=='undefined'&&frappe?.set_route) frappe.set_route('Form', doctype, name);
+        else window.open(`/app/${doctype.toLowerCase().replace(/ /g,'-')}/${name}`, '_blank');
+    }
+
+    /* -- Sidebar footer (user identity) -- */
+    (function fillFooter(){
+        function tryFill(){
+            if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+            var u = frappe.session.user || '';
+            var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+            document.getElementById('aph-foot-av').textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+            document.getElementById('aph-foot-nm').textContent = fullName;
+            document.getElementById('aph-foot-em').textContent = u;
+        }
+        tryFill();
+    })();
 </script>
 
 <script>

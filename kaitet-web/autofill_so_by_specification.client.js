@@ -1,16 +1,21 @@
 // Client Script — DocType: Sales Order, View: Form
 // Name: Autofill Sales Order By Specification
 //
-// Single source of truth for spec-driven Sales Order population.
-//   box_assortment = "Mono Box"  -> fills a STRAIGHT line per box item (no popup,
-//                                   no mix group). The first box item fills the
-//                                   triggering row; extra box items are added as
-//                                   their own straight lines.
-//   box_assortment = "Mixed Box" -> prompts for source warehouse / boxes, then
-//                                   generates grouped mix rows sharing a mix group.
+// Spec-driven Sales Order population, split along TWO independent dimensions:
+//   BOX   dimension  = spec.box_assortment      -> "Mixed Box" vs "Mono Box"/blank
+//   BUNCH dimension  = box_items[].bunch_type    -> any "Mixed Bunch" vs "Mono Bunch"
+//
+// These give FOUR cases, each handled by its own isolated branch so a feature
+// added to one never leaks into the others:
+//   1. Mono Box  + Mono Bunch   -> straight line per variety   (mixed_box=0, mixed_bunch=0)
+//   2. Mono Box  + Mixed Bunch  -> bouquet rows in a mono box   (mixed_box=0, mixed_bunch=1)
+//   3. Mixed Box + Mono Bunch   -> one variety per colour       (mixed_box=1, mixed_bunch=0)
+//   4. Mixed Box + Mixed Bunch  -> bouquet rows in a mixed box   (mixed_box=1, mixed_bunch=1)
+//
+// The two custom flags are ALWAYS set explicitly per case: custom_mixed_box
+// reflects the box dimension, custom_mixed_bunch reflects the bunch dimension.
 // Delivery (target) warehouse is resolved from SO Warehouse Mapping "Roses-MAP".
-// Pricing + qty are left to the reactive scripts (packrate/boxes -> qty, price),
-// so mono fields are set via frappe.model.set_value to fire those triggers.
+// Pricing + qty are left to the reactive scripts (packrate/boxes -> qty, price).
 
 // Re-entrancy guard: while we are populating rows we set fields (incl.
 // custom_line on appended rows) via set_value, which would otherwise re-fire
@@ -60,7 +65,9 @@ frappe.ui.form.on('Sales Order', {
     }
 });
 
-/* ---------- helpers ---------- */
+/* ============================ shared leaf helpers ============================ */
+/* Stable primitives used across cases. Case-specific row shaping lives INSIDE   */
+/* each case handler, not here, so per-case features stay isolated.              */
 
 // Only show Specifications belonging to the selected customer in the spec
 // (custom_line) picker on each item row.
@@ -70,13 +77,14 @@ function set_spec_query(frm) {
     });
 }
 
-// Ordered quantity = packrate × number of boxes (mono uses custom_packrate,
-// mixed uses custom_packrate_mixed_box). Replaces manual entry.
+// Ordered quantity = packrate × number of boxes. A row uses the mixed packrate
+// field whenever EITHER flag is set (mixed box or mixed bunch); only a plain
+// mono-box/mono-bunch row uses custom_packrate.
 function set_ordered_qty(frm, cdt, cdn) {
     let row = locals[cdt][cdn];
     if (!row) return;
     let boxes = cint(row.custom_number_of_boxes);
-    let per = row.custom_mixed_box ? flt(row.custom_packrate_mixed_box) : flt(row.custom_packrate);
+    let per = (row.custom_mixed_box || row.custom_mixed_bunch) ? flt(row.custom_packrate_mixed_box) : flt(row.custom_packrate);
     if (boxes && per) {
         frappe.model.set_value(cdt, cdn, 'custom_ordered_quantity', per * boxes);
     }
@@ -84,14 +92,13 @@ function set_ordered_qty(frm, cdt, cdn) {
 
 // Popup the running totals whenever a box count changes, so the packer can
 // track progress toward the number of boxes the customer ordered.
-// Stems are derived from packrate × boxes (timing-independent of the qty engine).
 function show_box_tally(frm) {
     let total_boxes = 0, total_stems = 0;
     (frm.doc.items || []).forEach(it => {
         let boxes = cint(it.custom_number_of_boxes);
         if (!boxes) return;
         total_boxes += boxes;
-        let per = it.custom_mixed_box ? flt(it.custom_packrate_mixed_box) : flt(it.custom_packrate);
+        let per = (it.custom_mixed_box || it.custom_mixed_bunch) ? flt(it.custom_packrate_mixed_box) : flt(it.custom_packrate);
         total_stems += per * boxes;
     });
     frappe.show_alert({
@@ -116,6 +123,25 @@ function next_mix_group(frm) {
         if (r.custom_mixed_box && r.custom_mix_group) max = Math.max(max, cint(r.custom_mix_group));
     });
     return max + 1;
+}
+
+// Bunch analogue of next_mix_group — groups a bouquet's colour lines together.
+function next_bunch_group(frm) {
+    let max = 0;
+    (frm.doc.items || []).forEach(r => {
+        if (r.custom_mixed_bunch && r.custom_bunch_group) max = Math.max(max, cint(r.custom_bunch_group));
+    });
+    return max + 1;
+}
+
+// ---- dimension detectors (the ONLY things the router keys off) ----
+// BOX dimension: a "Mixed Box" assortment. Blank / "Mono Box" => not mixed.
+function is_mixed_box(spec) {
+    return spec && spec.box_assortment === 'Mixed Box';
+}
+// BUNCH dimension: any box_item declares bunch_type = "Mixed Bunch" (bouquet).
+function is_mixed_bunch_spec(items) {
+    return (items || []).some(bi => bi.bunch_type === 'Mixed Bunch');
 }
 
 // source_warehouse -> delivery_warehouse from SO Warehouse Mapping "Roses-MAP".
@@ -184,7 +210,9 @@ function detail_payload(spec, box_item, cons) {
     return p;
 }
 
-/* ---------- main ---------- */
+/* ================================= router ================================= */
+// Reads BOTH dimensions every time and dispatches to exactly one of four
+// isolated case handlers. This is the single decision point.
 
 function apply_spec_to_order(frm, cdt, cdn, spec) {
     const cons = consumables_map(spec);
@@ -196,19 +224,25 @@ function apply_spec_to_order(frm, cdt, cdn, spec) {
 
     if (spec.ftnft) frm.set_value('custom_ftnft', spec.ftnft);
 
-    // ONLY the assortment decides the path — a Mono Box with several box items
-    // is still mono (one straight line each), NOT a mixed box.
-    if (spec.box_assortment === 'Mixed Box') {
-        prompt_and_apply_mixed(frm, cdt, cdn, spec, items, cons);
+    const boxMixed = is_mixed_box(spec);
+    const bunchMixed = is_mixed_bunch_spec(items);
+
+    if (!boxMixed && !bunchMixed) {
+        case_monobox_monobunch(frm, cdt, cdn, spec, items, cons);   // 1
+    } else if (!boxMixed && bunchMixed) {
+        case_monobox_mixedbunch(frm, cdt, cdn, spec, items, cons);  // 2
+    } else if (boxMixed && !bunchMixed) {
+        case_mixedbox_monobunch(frm, cdt, cdn, spec, items, cons);  // 3
     } else {
-        apply_mono_lines(frm, cdt, cdn, spec, items, cons);
+        case_mixedbox_mixedbunch(frm, cdt, cdn, spec, items, cons); // 4
     }
 }
 
-// Mono: one straight line per chosen box item. A popup lists the spec's
-// varieties with a multiselect ("Use") and a per-variety box count, so the
-// ordered quantity (stems/box × boxes) is filled automatically — no manual fix.
-function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
+/* ==================== CASE 1 — Mono Box + Mono Bunch ====================== */
+/* One straight line per chosen variety. Flags: mixed_box=0, mixed_bunch=0.   */
+/* Packrate field: custom_packrate.                                           */
+
+function case_monobox_monobunch(frm, cdt, cdn, spec, items, cons) {
     const varieties = items.filter(bi => bi.variety);
     if (!varieties.length) {
         frappe.msgprint(__('Specification {0} has no varieties.', [spec.name]));
@@ -249,7 +283,7 @@ function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
                 .filter(c => c.bi);
             if (!chosen.length) { frappe.msgprint(__('Tick at least one variety.')); return; }
             d.hide();
-            do_fill_mono(frm, cdt, cdn, spec, chosen, cons);
+            fill_monobox_monobunch_rows(frm, cdt, cdn, spec, chosen, cons);
         }
     });
     d.show();
@@ -257,7 +291,7 @@ function apply_mono_lines(frm, cdt, cdn, spec, items, cons) {
 
 // Fill one straight (mono) line per chosen {bi, boxes}. First fills the
 // triggering row; the rest are appended.
-function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
+function fill_monobox_monobunch_rows(frm, cdt, cdn, spec, chosen, cons) {
     Promise.all([fetch_item_names(chosen.map(c => c.bi.variety)), load_roses_map()])
         .then(([names, map]) => {
             SPEC_AUTOFILL_BUSY = true;
@@ -270,7 +304,7 @@ function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
                         let r = frm.add_child('items');     // extra straight line
                         rcdt = r.doctype; rcdn = r.name;
                     }
-                    fill_mono_row(rcdt, rcdn, spec, c.bi, cons, names, map, c.boxes);
+                    fill_monobox_monobunch_row(rcdt, rcdn, spec, c.bi, cons, names, map, c.boxes);
                 });
             } finally {
                 SPEC_AUTOFILL_BUSY = false;
@@ -283,19 +317,21 @@ function do_fill_mono(frm, cdt, cdn, spec, chosen, cons) {
         });
 }
 
-function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map, boxes) {
+function fill_monobox_monobunch_row(rcdt, rcdn, spec, bi, cons, names, map, boxes) {
     const set = (f, v) => frappe.model.set_value(rcdt, rcdn, f, v);
     const row = locals[rcdt][rcdn];
     const boxesN = cint(boxes) || 1;
     const stems_per_box = cint(bi.pack_rate);
 
-    // custom_line is the trigger field for this whole handler — assign it
-    // DIRECTLY (never via set_value, which is async and would re-fire the
-    // handler on a later tick and loop). Same for the mix flags.
+    // custom_line is the trigger field — assign it DIRECTLY (never via set_value,
+    // which is async and would re-fire the handler on a later tick and loop).
+    // Both flags cleared explicitly: this is the plain mono/mono line.
     if (row) {
         row.custom_line = spec.name;
         row.custom_mixed_box = 0;
         row.custom_mix_group = '';
+        row.custom_mixed_bunch = 0;
+        row.custom_bunch_group = '';
     }
 
     set('item_code', bi.variety);
@@ -305,9 +341,6 @@ function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map, boxes) {
     let uom = uom_for(bi.stems_per_bunch);
     if (uom) set('uom', uom);
 
-    // Boxes + ordered quantity (stems/box × boxes) — autofilled so the user
-    // does not have to fix it (set explicitly in case the Packrate link below
-    // is missing and the reactive engine can't derive it).
     set('custom_number_of_boxes', boxesN);
     set('custom_ordered_quantity', stems_per_box * boxesN);
 
@@ -328,14 +361,101 @@ function fill_mono_row(rcdt, rcdn, spec, bi, cons, names, map, boxes) {
     Object.keys(p).forEach(k => set(k, p[k]));
 }
 
-/* ---------- mixed ---------- */
+/* ==================== CASE 2 — Mono Box + Mixed Bunch ==================== */
+/* A bouquet (several colour/variety components) packed in a MONO box.        */
+/* One row per component sharing a custom_bunch_group.                        */
+/* Flags: mixed_box=0, mixed_bunch=1.  Packrate field: custom_packrate_mixed_box. */
 
-// A mixed box has one variety per COLOUR. When a colour lists several
-// varieties they are interchangeable (customer is OK with either), so the
-// operator picks one — informed by live shelf availability per farm for that
-// stem length. Per-colour stems default to the colour's max pack_rate but are
-// editable in the dialog.
-function prompt_and_apply_mixed(frm, cdt, cdn, spec, items, cons) {
+function case_monobox_mixedbunch(frm, cdt, cdn, spec, items, cons) {
+    const comps = (items || []).filter(bi => bi.bunch_type === 'Mixed Bunch' && bi.variety);
+    if (!comps.length) {
+        frappe.msgprint(__('Specification {0} has no Mixed Bunch components.', [spec.name]));
+        return;
+    }
+
+    load_roses_map().then(map => {
+        const sources = Object.keys(map);
+        const list_html = comps.map(bi =>
+            `<div style="padding:2px 0"><b>${bi.colour || '—'}</b> · ${bi.variety}`
+            + ` <span style="color:#6b6b6b">(${cint(bi.stems_per_bunch)} stems/bunch · ${cint(bi.pack_rate)}/box · ${bi.length || 'any'})</span></div>`
+        ).join('');
+
+        const d = new frappe.ui.Dialog({
+            title: __('Mixed Bunch (mono box) from {0}', [spec.spec_name || spec.name]),
+            size: 'large',
+            fields: [
+                { fieldtype: 'HTML', options: `<div style="font-size:12px;margin-bottom:6px"><div style="font-weight:600;margin-bottom:2px">Bouquet components — one line per colour:</div>${list_html}</div>` },
+                { fieldtype: 'Data', fieldname: 'mix_name', label: __('Bunch Name'), default: spec.spec_name, reqd: 1 },
+                { fieldtype: 'Select', fieldname: 'source_warehouse', label: __('Source Warehouse'),
+                  options: sources.join('\n'), reqd: 1,
+                  description: __('Delivery warehouse is set automatically from Roses-MAP.') },
+                { fieldtype: 'Int', fieldname: 'number_of_boxes', label: __('Number of Boxes'), default: 1, reqd: 1 }
+            ],
+            primary_action_label: __('Generate Rows'),
+            primary_action(values) {
+                d.hide();
+                fill_monobox_mixedbunch_rows(frm, cdt, cdn, spec, cons, values, map, comps);
+            }
+        });
+        d.show();
+    });
+}
+
+function fill_monobox_mixedbunch_rows(frm, cdt, cdn, spec, cons, values, map, comps) {
+    const boxes = cint(values.number_of_boxes) || 1;
+    const source = values.source_warehouse || '';
+    const delivery = map[source] || '';
+    const group = next_bunch_group(frm);
+
+    fetch_item_names(comps.map(bi => bi.variety)).then(names => {
+        SPEC_AUTOFILL_BUSY = true;
+        frm.doc.items = (frm.doc.items || []).filter(r => r.name !== cdn);
+
+        comps.forEach(bi => {
+            const stems_per_box = cint(bi.pack_rate);
+            const uom = uom_for(bi.stems_per_bunch);
+            let row = frm.add_child('items');
+            row.item_code = bi.variety;
+            row.item_name = names[bi.variety] || bi.variety;
+            row.uom = uom;
+            row.custom_line = spec.name;
+            row.custom_mixed_box = 0;          // MONO box
+            row.custom_mix_group = '';
+            row.custom_mixed_bunch = 1;        // MIXED bunch
+            row.custom_bunch_group = group;
+            row.custom_mix_name = (values.mix_name || spec.spec_name || '').trim();
+            row.custom_packrate_mixed_box = stems_per_box;
+            row.custom_number_of_boxes = boxes;
+            row.custom_length = bi.length;
+            row.custom_box_type = bi.box_type;
+            row.custom_ordered_quantity = stems_per_box * boxes;
+            row.custom_truck = 0;
+            row.custom_source_warehouse = source;
+            row.warehouse = delivery;
+            let total_stems = stems_per_box * boxes;
+            row.stock_qty = total_stems;
+            row.qty = total_stems / spec_uom_factor(uom);
+            row.conversion_factor = spec_uom_factor(uom) || 1;   // rows built directly (no set_value) never fetch the UOM factor -> set it to avoid "UOM Conversion Factor is required" on save
+            let p = detail_payload(spec, bi, cons);
+            Object.assign(row, p);
+        });
+
+        SPEC_AUTOFILL_BUSY = false;
+        frm.refresh_field('items');
+        frappe.show_alert({
+            message: __('Mixed bunch (mono box) "{0}" added: {1} colour(s) × {2} box(es) → {3}',
+                [values.mix_name, comps.length, boxes, delivery || '(no map)']),
+            indicator: 'green'
+        }, 4);
+    });
+}
+
+/* ==================== CASE 3 — Mixed Box + Mono Bunch ==================== */
+/* One variety per COLOUR (interchangeable within a colour); operator picks   */
+/* one, informed by live shelf availability per farm. Rows share a mix group. */
+/* Flags: mixed_box=1, mixed_bunch=0.  Packrate field: custom_packrate_mixed_box. */
+
+function case_mixedbox_monobunch(frm, cdt, cdn, spec, items, cons) {
     const varieties = items.filter(bi => bi.variety);
     if (!varieties.length) {
         frappe.msgprint(__('Specification {0} has no varieties.', [spec.name]));
@@ -416,16 +536,16 @@ function prompt_and_apply_mixed(frm, cdt, cdn, spec, items, cons) {
                 }).filter(s => s.bi && s.stems > 0);
                 if (!selections.length) { frappe.msgprint(__('Enter stems for at least one colour.')); return; }
                 d.hide();
-                generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections);
+                fill_mixedbox_monobunch_rows(frm, cdt, cdn, spec, cons, values, map, selections);
             }
         });
         d.show();
     });
 }
 
-// One row per chosen colour/variety, sharing a mix group. Mirrors the manual
-// mixed-box rows (custom_farm left blank — the SO header carries the farm).
-function generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections) {
+// One row per chosen colour/variety, sharing a mix group. (custom_farm left
+// blank — the SO header carries the farm.)
+function fill_mixedbox_monobunch_rows(frm, cdt, cdn, spec, cons, values, map, selections) {
     const boxes = cint(values.number_of_boxes) || 1;
     const source = values.source_warehouse || '';
     const delivery = map[source] || '';
@@ -444,8 +564,10 @@ function generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections)
             row.item_name = names[bi.variety] || bi.variety;
             row.uom = uom;
             row.custom_line = spec.name;
-            row.custom_mixed_box = 1;
+            row.custom_mixed_box = 1;          // MIXED box
             row.custom_mix_group = group;
+            row.custom_mixed_bunch = 0;        // MONO bunch
+            row.custom_bunch_group = '';
             row.custom_mix_name = (values.mix_name || spec.spec_name || '').trim();
             row.custom_packrate_mixed_box = stems_per_box;
             row.custom_number_of_boxes = boxes;
@@ -458,6 +580,7 @@ function generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections)
             let total_stems = stems_per_box * boxes;
             row.stock_qty = total_stems;
             row.qty = total_stems / spec_uom_factor(uom);
+            row.conversion_factor = spec_uom_factor(uom) || 1;   // rows built directly (no set_value) never fetch the UOM factor -> set it to avoid "UOM Conversion Factor is required" on save
             let p = detail_payload(spec, bi, cons);
             Object.assign(row, p);
         });
@@ -467,6 +590,95 @@ function generate_mixed_rows(frm, cdt, cdn, spec, cons, values, map, selections)
         frappe.show_alert({
             message: __('Mix "{0}" added: {1} colour(s) × {2} box(es) → {3}',
                 [values.mix_name, selections.length, boxes, delivery || '(no map)']),
+            indicator: 'green'
+        }, 4);
+    });
+}
+
+/* ==================== CASE 4 — Mixed Box + Mixed Bunch =================== */
+/* A bouquet (several colour/variety components) packed in a MIXED box.       */
+/* One row per component sharing a custom_bunch_group.                        */
+/* Flags: mixed_box=1, mixed_bunch=1.  Packrate field: custom_packrate_mixed_box. */
+
+function case_mixedbox_mixedbunch(frm, cdt, cdn, spec, items, cons) {
+    const comps = (items || []).filter(bi => bi.bunch_type === 'Mixed Bunch' && bi.variety);
+    if (!comps.length) {
+        frappe.msgprint(__('Specification {0} has no Mixed Bunch components.', [spec.name]));
+        return;
+    }
+
+    load_roses_map().then(map => {
+        const sources = Object.keys(map);
+        const list_html = comps.map(bi =>
+            `<div style="padding:2px 0"><b>${bi.colour || '—'}</b> · ${bi.variety}`
+            + ` <span style="color:#6b6b6b">(${cint(bi.stems_per_bunch)} stems/bunch · ${cint(bi.pack_rate)}/box · ${bi.length || 'any'})</span></div>`
+        ).join('');
+
+        const d = new frappe.ui.Dialog({
+            title: __('Mixed Bunch (mixed box) from {0}', [spec.spec_name || spec.name]),
+            size: 'large',
+            fields: [
+                { fieldtype: 'HTML', options: `<div style="font-size:12px;margin-bottom:6px"><div style="font-weight:600;margin-bottom:2px">Bouquet components — one line per colour:</div>${list_html}</div>` },
+                { fieldtype: 'Data', fieldname: 'mix_name', label: __('Bunch Name'), default: spec.spec_name, reqd: 1 },
+                { fieldtype: 'Select', fieldname: 'source_warehouse', label: __('Source Warehouse'),
+                  options: sources.join('\n'), reqd: 1,
+                  description: __('Delivery warehouse is set automatically from Roses-MAP.') },
+                { fieldtype: 'Int', fieldname: 'number_of_boxes', label: __('Number of Boxes'), default: 1, reqd: 1 }
+            ],
+            primary_action_label: __('Generate Rows'),
+            primary_action(values) {
+                d.hide();
+                fill_mixedbox_mixedbunch_rows(frm, cdt, cdn, spec, cons, values, map, comps);
+            }
+        });
+        d.show();
+    });
+}
+
+function fill_mixedbox_mixedbunch_rows(frm, cdt, cdn, spec, cons, values, map, comps) {
+    const boxes = cint(values.number_of_boxes) || 1;
+    const source = values.source_warehouse || '';
+    const delivery = map[source] || '';
+    const group = next_bunch_group(frm);
+
+    fetch_item_names(comps.map(bi => bi.variety)).then(names => {
+        SPEC_AUTOFILL_BUSY = true;
+        frm.doc.items = (frm.doc.items || []).filter(r => r.name !== cdn);
+
+        comps.forEach(bi => {
+            const stems_per_box = cint(bi.pack_rate);
+            const uom = uom_for(bi.stems_per_bunch);
+            let row = frm.add_child('items');
+            row.item_code = bi.variety;
+            row.item_name = names[bi.variety] || bi.variety;
+            row.uom = uom;
+            row.custom_line = spec.name;
+            row.custom_mixed_box = 1;          // MIXED box
+            row.custom_mix_group = '';
+            row.custom_mixed_bunch = 1;        // MIXED bunch
+            row.custom_bunch_group = group;
+            row.custom_mix_name = (values.mix_name || spec.spec_name || '').trim();
+            row.custom_packrate_mixed_box = stems_per_box;
+            row.custom_number_of_boxes = boxes;
+            row.custom_length = bi.length;
+            row.custom_box_type = bi.box_type;
+            row.custom_ordered_quantity = stems_per_box * boxes;
+            row.custom_truck = 0;
+            row.custom_source_warehouse = source;
+            row.warehouse = delivery;
+            let total_stems = stems_per_box * boxes;
+            row.stock_qty = total_stems;
+            row.qty = total_stems / spec_uom_factor(uom);
+            row.conversion_factor = spec_uom_factor(uom) || 1;   // rows built directly (no set_value) never fetch the UOM factor -> set it to avoid "UOM Conversion Factor is required" on save
+            let p = detail_payload(spec, bi, cons);
+            Object.assign(row, p);
+        });
+
+        SPEC_AUTOFILL_BUSY = false;
+        frm.refresh_field('items');
+        frappe.show_alert({
+            message: __('Mixed bunch (mixed box) "{0}" added: {1} colour(s) × {2} box(es) → {3}',
+                [values.mix_name, comps.length, boxes, delivery || '(no map)']),
             indicator: 'green'
         }, 4);
     });

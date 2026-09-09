@@ -2,6 +2,7 @@
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cold Room</title>
 <script src="/assets/frappe/js/frappe-web.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -169,249 +170,105 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
 <!-- ════════ Page-specific tweaks (appended; reference tokens above are untouched) ════════ -->
 <style>
-/* Topbar: team dropdown + view toggle, restyled into aph chrome */
-.aph .dropdown{position:relative;display:inline-block}
-.aph .dropdown-menu{display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg-card);
-  border:1px solid var(--border-2);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:160px;z-index:1000;overflow:hidden}
-.aph .dropdown.open .dropdown-menu{display:block}
-.aph .dropdown-item{padding:8px 14px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s ease;font-weight:500}
-.aph .dropdown-item:last-child{border-bottom:none}
-.aph .dropdown-item:hover{background:var(--bg-hover)}
-.aph .dropdown-item.active{background:var(--bg-muted);color:var(--text);font-weight:600}
-/* multi-select team items */
-.aph .dropdown-item.ms-item{display:flex;align-items:center;gap:9px;background:var(--bg-card);font-weight:500}
-.aph .dropdown-item.ms-item:hover{background:var(--bg-hover)}
-.aph .ms-check{width:14px;height:14px;border:1px solid var(--border-2);border-radius:4px;flex:0 0 auto;position:relative;background:var(--bg-card)}
-.aph .dropdown-item.ms-item.active{background:var(--bg-card);font-weight:600}
-.aph .dropdown-item.ms-item.active .ms-check{background:var(--accent);border-color:var(--accent)}
-.aph .dropdown-item.ms-item.active .ms-check::after{content:'';position:absolute;left:4px;top:1px;width:3px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.aph .dropdown-item.ms-sep{padding:0;height:1px;background:var(--border);cursor:default}
-.aph .date-range-inputs{display:none;align-items:center;gap:6px}
-.aph .date-range-inputs.show{display:flex}
-.aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
-.aph .form-control:focus{border-color:var(--text)}
+/* Topbar: farm selector + view toggle + LIVE badge, restyled into aph chrome */
+.aph .location-wrap{display:flex;align-items:center;gap:8px;padding:0 12px;height:32px;
+  border:1px solid var(--border-2);border-radius:7px;background:var(--bg-card)}
+.aph .location-wrap.confirmed{border-color:var(--good);background:#e6f9ee}
+.aph .location-wrap svg{width:14px;height:14px;color:var(--text-3);stroke:currentColor;fill:none;stroke-width:2}
+.aph .location-label{font-size:11px;font-weight:600;color:var(--text-2);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
+.aph .location-wrap select{border:none;background:transparent;font-size:12px;font-weight:600;color:var(--text);font-family:var(--f);cursor:pointer}
+.aph .location-wrap select:focus{outline:none}
+
+/* View toggle (Dashboard / Shelf Contents) reusing presets chrome */
+.aph .view-toggle{display:flex;border:1px solid var(--border-2);border-radius:7px;overflow:hidden;height:32px}
+.aph .view-toggle .tab-btn{padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;color:var(--text-2);background:var(--bg-card);border:none;border-right:1px solid var(--border);font-family:var(--f);display:flex;align-items:center}
+.aph .view-toggle .tab-btn:last-child{border-right:0}
+.aph .view-toggle .tab-btn:hover{background:var(--bg-hover);color:var(--text)}
+.aph .view-toggle .tab-btn.active{background:var(--accent);color:#fff}
+
 /* LIVE badge */
 .aph .live-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text);background:var(--bg-card);
   border:1px solid var(--border-2);border-radius:7px;padding:0 14px;height:32px;cursor:pointer;font-family:var(--f);transition:background .12s ease}
 .aph .live-badge:hover{background:var(--bg-hover)}
 .aph .live-dot{width:7px;height:7px;background:var(--good);border-radius:50%}
 
-/* KPI value/sub override so the JS-set values + Boxes-to-Deliver date input sit nicely in aph-kpi */
-.aph .aph-kpi .v{font-feature-settings:'tnum'}
-.aph .kpi-date-row{display:flex;align-items:center;gap:4px;margin-top:8px}
-.aph .kpi-date-row label{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
-.aph .kpi-date-row input{height:24px;padding:0 6px;font-size:11px;width:120px;border-radius:5px;border:1px solid var(--border-2);background:var(--bg-card);font-family:var(--f);outline:0}
+/* Spinner & Toast */
+.aph .spinner-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.7);display:none;justify-content:center;align-items:center;z-index:2147483600}
+.aph .spinner-overlay.show{display:flex}
+.aph .spinner{width:28px;height:28px;border:2px solid var(--border);border-top:2px solid var(--text);border-radius:50%;animation:aph-spin 0.7s linear infinite}
+@keyframes aph-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.aph .toast{position:fixed;top:80px;right:20px;background:var(--bg-card);border:1px solid var(--border-2);color:var(--text);
+  padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:2147483700;
+  transform:translateX(200%);transition:transform 0.25s ease}
+.aph .toast.show{transform:translateX(0)}
+.aph .toast.success{background:#e6f9ee;border-color:#c5e8cd;color:#1a8a3a}
+.aph .toast.error{background:#fde8ec;border-color:#f5c6ce;color:var(--bad)}
 
-/* ── Issuing vs Packing wide card (lives inside an aph-card body) ── */
-.aph .kpi-dual-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
-.aph .kpi-dual-item{text-align:center}
-.aph .kpi-dual-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:6px}
-.aph .kpi-dual-value{font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.03em;font-feature-settings:'tnum'}
-.aph .kpi-dual-sub{font-size:11px;font-weight:500;color:var(--text-3);margin-top:6px}
-.aph .kpi-dual-bar{margin-top:10px}
-.aph .gap-indicator{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:10px}
-.aph .gap-positive{background:#fff3e0;color:#9a5a00}
-.aph .gap-negative{background:#e6f9ee;color:#1a8a3a}
-.aph .gap-neutral{background:var(--bg-muted);color:var(--text-2)}
-@media(max-width:600px){.aph .kpi-dual-row{grid-template-columns:1fr;gap:12px}}
+/* KPI status / sub helpers */
+.aph .sensor-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600}
+.aph .sensor-ok{color:#1a8a3a}
+.aph .sensor-warn{color:var(--warn)}
+.aph .sensor-alert{color:var(--bad)}
 
-/* ── Progress bars (used by render functions) ── */
-.aph .progress-wrap{margin:8px 0}
-.aph .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-bottom:4px;font-weight:600}
-.aph .progress-label span:last-child{color:var(--text);font-weight:600;font-feature-settings:'tnum'}
-.aph .progress-track{background:var(--bg-muted);border-radius:4px;height:6px;overflow:hidden}
-.aph .progress-fill{height:100%;background:var(--text);border-radius:4px;transition:width .15s ease}
-.aph .progress-fill.packing{background:#7c5cfc}
-.aph .progress-fill.packing.complete{background:var(--good)}
-
-/* ── Labels / badges produced by render functions ── */
+/* Labels / badges */
 .aph .label{display:inline-flex;align-items:center;padding:2px 9px;font-size:11px;font-weight:600;border-radius:10px;letter-spacing:.02em}
 .aph .label-success{background:#e6f9ee;color:#1a8a3a}
 .aph .label-warning{background:#fff3e0;color:#9a5a00}
 .aph .label-danger{background:#fde8ec;color:var(--bad)}
 .aph .label-default{background:var(--bg-muted);color:var(--text-2)}
 .aph .label-info{background:#f0ecfe;color:#7c5cfc}
-.aph .label-primary{background:var(--bg-muted);color:var(--text)}
-.aph .team-badge{display:inline-block;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px;background:var(--bg-muted);color:var(--text-2)}
-.aph .rose-badge{display:inline-block;margin-left:6px;padding:2px 8px;font-size:11px;font-weight:600;border-radius:10px}
-.aph .rose-badge.rose-spray{background:#f0ecfe;color:#7c5cfc}
-.aph .rose-badge.rose-std{background:#e6f1ff;color:#1a5fb4}
-.aph .rose-badge.rose-mixed{background:var(--bg-muted);color:var(--text-2)}
 
-/* ── OPL card grid (render output) ── */
-.aph .opl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-.aph .opl-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .opl-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .opl-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.aph .opl-order-name{font-size:13px;font-weight:600;color:var(--text)}
-.aph .opl-meta{display:flex;align-items:center;gap:6px;margin-top:4px}
-.aph .opl-id{font-size:12px;color:var(--text-2);font-family:var(--mono)}
-.aph .opl-variety{font-size:13px;font-weight:600;color:var(--text);margin:6px 0 2px}
-.aph .opl-customer{font-size:12px;color:var(--text-2);margin-bottom:10px}
-.aph .opl-details{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
-.aph .opl-detail{background:var(--bg-muted);padding:8px 6px;border-radius:7px;text-align:center}
-.aph .opl-detail-label{font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);margin-bottom:2px}
-.aph .opl-detail-value{font-size:13px;font-weight:600;color:var(--text);font-feature-settings:'tnum'}
-.aph .shelf-list{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
-.aph .shelf-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .variety-list{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
-.aph .variety-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;background:var(--bg-muted);color:var(--text-2);white-space:nowrap}
-.aph .variety-more{cursor:pointer}
-.aph .variety-more:hover{background:var(--border-2)}
+/* Charts */
+.aph .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;width:100%;box-sizing:border-box}
+@media(max-width:900px){.aph .charts-row{grid-template-columns:1fr}}
+.aph .chart-body{padding:16px;position:relative;height:300px}
+.aph .chart-canvas{width:100%!important;height:100%!important}
 
-/* ── Box card grid (render output) ── */
-.aph .box-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.aph .box-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
-.aph .box-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .box-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.aph .box-number{font-size:15px;font-weight:600;color:var(--text)}
-.aph .box-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
-.aph .box-row:last-child{border-bottom:none}
-.aph .box-row-label{color:var(--text-2)}
-.aph .box-row-value{font-weight:600;color:var(--text)}
+/* Pressure cards */
+.aph .pressure-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px}
+.aph .pressure-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.aph .pressure-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;letter-spacing:-0.01em}
+.aph .pressure-bar-wrap{margin-bottom:8px}
+.aph .pressure-bar-label{display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:4px}
+.aph .pressure-bar{height:20px;background:var(--bg-muted);border-radius:6px;overflow:hidden;display:flex;position:relative}
+.aph .pressure-segment{height:100%;transition:width 300ms ease;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
+.aph .seg-incoming{background:#fc9c30}
+.aph .seg-onshelf{background:#2490ef}
+.aph .seg-allocated{background:#29cd42}
+.aph .seg-empty{background:var(--border)}
+.aph .pressure-capacity-line{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--bad);z-index:2}
+.aph .pressure-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:11px;color:var(--text-2)}
+.aph .legend-item{display:flex;align-items:center;gap:4px}
+.aph .legend-dot{width:8px;height:8px;border-radius:2px}
 
-/* ── Empty / Loading states (render output) ── */
+/* Shelf filters (inside an aph-card) */
+.aph .stock-filters{padding:14px 22px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.aph .filter-group{display:flex;flex-direction:column;gap:4px}
+.aph .filter-group-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
+.aph .form-control{height:32px;padding:0 10px;font-size:12px;font-family:var(--f);font-feature-settings:'tnum';background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
+.aph .form-control:focus{border-color:var(--text)}
+.aph .form-control::placeholder{color:var(--text-3)}
+.aph .form-control.has-value{border-color:var(--text)}
+.aph .custom-select{position:relative}
+.aph .custom-select input{width:100%}
+.aph .select-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border-2);
+  border-top:none;border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,0.12)}
+.aph .select-dropdown.show{display:block}
+.aph .select-option{padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text);border-bottom:1px solid var(--border);transition:background .12s ease}
+.aph .select-option:last-child{border-bottom:none}
+.aph .select-option:hover{background:var(--bg-hover)}
+.aph .select-option.selected{background:var(--bg-muted);color:var(--text);font-weight:600}
+
+/* Table cell helpers */
+.aph .cell-variety{font-weight:600;color:var(--text)}
+.aph .cell-farm{font-size:12px;font-weight:600;color:var(--text)}
+
+/* Empty / loading (render output) */
 .aph .empty-state{text-align:center;padding:40px 20px;color:var(--text-3)}
 .aph .empty-state p{font-size:13px;margin-top:10px}
 .aph .loading-state{text-align:center;padding:30px;color:var(--text-3);font-size:12px}
-
-/* ── Variety modal ── */
-.vmodal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2147483100;align-items:center;justify-content:center;padding:20px}
-.vmodal.open{display:flex}
-.vmodal-card{background:var(--bg-card);border-radius:10px;width:100%;max-width:360px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.25);font-family:var(--f)}
-.vmodal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
-.vmodal-close{background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text-3)}
-.vmodal-body{padding:6px 16px 14px;overflow-y:auto}
-.vrow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
-.vrow:last-child{border-bottom:none}
-.vstems{font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
 </style>
 
-
-<style>
-.aph .sch-board{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:16px;height:calc(100vh - 232px);min-height:360px}
-.aph .sch-col{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.aph .sch-colh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.aph .sch-colh .dot{width:9px;height:9px;border-radius:50%}
-.aph .sch-colh .nm{font-weight:600;font-size:13px}
-.aph .sch-colh .cnt{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:9px;padding:1px 8px}
-.aph .sch-colh .hint{width:100%;font-size:10px;color:var(--text-3);font-weight:500;margin-top:2px}
-.aph .sch-colb{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
-.aph .sch-card{border:1px solid var(--border);border-radius:9px;padding:10px 11px;background:var(--bg-card);transition:box-shadow .12s,border-color .12s}
-.aph .sch-card:hover{border-color:var(--border-2);box-shadow:var(--shadow-sm)}
-.aph .sch-col.ready .sch-card{cursor:grab}
-.aph .sch-card.dragging{opacity:.4}
-.aph .sch-r1{display:flex;align-items:flex-start;gap:8px}
-.aph .sch-seq{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;font-family:var(--mono);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
-.aph .sch-seq.none{background:var(--bg-muted);color:var(--text-3)}
-.aph .sch-seq.done{background:var(--good)}
-.aph .sch-seq.draft{background:#7c3aed}
-.aph .sch-seq.next{box-shadow:0 0 0 2px var(--bg-card),0 0 0 4px var(--accent)}
-.aph .sch-farms{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.aph .sch-cnm{flex:1;min-width:0}
-.aph .sch-cnm .o{font-weight:600;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-cnm .sub{font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aph .sch-next{flex:0 0 auto;border:1px solid var(--border);background:var(--bg-card);color:var(--text-2);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:13px;line-height:1}
-.aph .sch-next:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
-.aph .sch-chip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
-.aph .sch-chip.farm{background:#eef2ff;color:#3730a3}
-.sch-chip.sched{background:var(--good-bg,#e2f2e8);color:var(--good,#1f7a32)}
-.sch-chip.unsched{background:var(--bg-muted);color:var(--text-3);border:1px dashed var(--border-2,#d9d9d9)}
-.aph .sch-specs{margin-top:7px;display:flex;flex-direction:column;gap:2px}
-.aph .sch-spec{font-size:11px;display:flex;justify-content:space-between;gap:8px}
-.aph .sch-spec .b{color:var(--text-2)}
-.aph .sch-meta{margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
-.aph .sch-meta .mv{font-size:13px;font-weight:700;font-feature-settings:'tnum'}
-.aph .sch-meta .ml{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em}
-.aph .sch-bar{height:5px;border-radius:3px;background:var(--bg-muted);overflow:hidden;margin-top:7px}
-.aph .sch-bar i{display:block;height:100%;background:var(--good)}
-.aph .sch-empty{padding:28px;text-align:center;color:var(--text-3);font-size:12px}
-.aph .sch-sel{height:32px;padding:0 9px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg-card);color:var(--text);font-weight:500;outline:0}
-.aph .aph-kpi .lbl{font-size:11px;color:var(--text-2);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
-.aph .aph-kpi .v{font-size:30px;font-weight:600;letter-spacing:-0.035em;font-feature-settings:'tnum';margin-top:8px;line-height:1}
-.aph .sch-search{margin-top:8px;width:100%;height:30px;padding:0 10px;border:1px solid var(--border-2);border-radius:7px;font-size:12px;font-family:var(--f);background:var(--bg);color:var(--text);outline:0}
-.aph .sch-search:focus{border-color:var(--accent)}
-.aph .sch-chk{flex:0 0 auto;width:16px;height:16px;margin-top:5px;cursor:pointer;accent-color:var(--accent)}
-.aph .sch-card.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.aph .sch-nextbadge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.04em;color:#fff;background:var(--good);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
-.aph .sch-selbar{display:none;align-items:center;gap:8px;width:100%;margin-top:9px;padding:7px 9px;background:var(--accent);border-radius:8px}
-.aph .sch-selbar.on{display:flex}
-.aph .sch-selbar .lbl{color:#fff;font-size:11px;font-weight:700;flex:1}
-.aph .sch-selbar button{border:0;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
-.aph .sch-selbar .mk{background:#fff;color:var(--accent)}
-.aph .sch-selbar .addsch{background:#fff;color:var(--accent)}
-.aph .sch-selbar .rmsch{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-.aph .sch-selbar .cl{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-/* ---- 2-tab redesign ---- */
-.aph .sch-maintabs{display:inline-flex;gap:2px;background:var(--bg-muted);border-radius:9px;padding:3px;margin-bottom:16px}
-.aph .sch-maintab{border:0;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.aph .sch-maintab:hover{color:var(--text)}
-.aph .sch-maintab.on{background:var(--bg-card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.aph .sch-maintab .tc{font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:8px;padding:0 7px}
-.aph .sch-maintab.on .tc{background:var(--accent);color:#fff}
-.aph .sch-panel{display:flex;flex-direction:column;min-height:0}
-.aph .sch-varbar{display:flex;flex-wrap:wrap;gap:6px}
-.aph .sch-varbtn{padding:5px 12px;border:1px solid var(--border-2);background:var(--bg);border-radius:999px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.aph .sch-varbtn:hover{border-color:var(--accent)}
-.aph .sch-varbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-varbtn .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.7;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-varbtn.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-search.wide{margin-top:12px;max-width:520px}
-.aph .sch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.aph .sch-schedwrap{margin-top:12px;display:flex;flex-direction:column;gap:20px}
-.aph .sch-teamgrp .sch-teamh{display:flex;align-items:baseline;gap:11px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamgrp .sch-teamh .tn{font-size:15px;font-weight:600;letter-spacing:-.2px}
-.aph .sch-teamgrp .sch-teamh .ts{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-teamgrp .sch-list{margin-top:0}
-/* Side-by-side team columns — every team's schedule visible at once, no tab-switching. */
-.aph .sch-teamcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
-.aph .sch-teamcol{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;min-width:0}
-.aph .sch-teamcol .sch-teamh{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamcol .sch-teamh .tn{font-size:14px;font-weight:700;letter-spacing:-.2px}
-.aph .sch-teamcol .sch-teamh .ts{font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
-.aph .sch-teamcol .sch-list{margin-top:0;display:flex;flex-direction:column;gap:8px}
-@media(max-width:900px){.aph .sch-teamcols{grid-template-columns:1fr}}
-.aph .sch-vchip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px}
-.aph .sch-vchip.draft{background:#f3effe;color:#6d28d9}
-.aph .sch-vchip.xfer{background:#eef6ff;color:#1d4ed8}
-.aph .sch-vchip.sub{background:#eafaf0;color:#1f7a32}
-.aph .sch-vchip.mix{background:#fff4e5;color:#b45309}
-.aph .sch-farmbar{display:flex;align-items:center;gap:11px;margin-bottom:14px}
-.aph .sch-farmbar .fb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-farmbar .sch-tabs{margin-top:0;width:auto}
-.aph .sch-tabs{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin-top:9px}
-.aph .sch-tab{flex:0 0 auto;padding:4px 11px;border:1px solid var(--border-2);background:var(--bg);border-radius:7px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-.aph .sch-tab:hover{border-color:var(--accent)}
-.aph .sch-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-tab .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.65;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-tab.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-pager{display:flex;align-items:center;gap:8px;padding:9px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-2)}
-.aph .sch-pager:empty{display:none}
-.aph .sch-pginfo{flex:1;text-align:center;font-family:var(--mono)}
-.aph .sch-pg{border:1px solid var(--border-2);background:var(--bg-card);color:var(--text);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer}
-.aph .sch-pg:hover:not(:disabled){background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-pg:disabled{opacity:.4;cursor:default}
-.aph .sch-modal{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;z-index:9999}
-.aph .sch-modal.open{display:flex}
-.aph .sch-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:380px;max-width:92vw;overflow:hidden}
-.aph .smh{display:flex;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--border)}
-.aph .smt{font-weight:600;font-size:15px;line-height:1.25}
-.aph .sms{font-size:11px;color:var(--text-2);margin-top:3px;font-family:var(--mono)}
-.aph .sch-x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--text-3);cursor:pointer;padding:0 2px}
-.aph .smb{padding:18px}
-.aph .sml{font-size:12px;color:var(--text-2);margin-bottom:13px}
-.aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
-.aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
-.aph .sch-numinp:focus{border-color:var(--accent)}
-.aph .sch-nextbtn{display:block;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;text-align:center}
-.aph .sch-nextbtn:hover{background:var(--accent);color:#fff;border-style:solid}
-.aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
-.aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
-.aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .smf .btn.ghost{background:none;text-decoration:none}
-@media(max-width:900px){.aph{display:block!important;position:static!important;height:auto!important}html,body{overflow:auto!important;height:auto!important}.aph-side{display:none}.aph .sch-board{grid-template-columns:1fr;height:auto}.aph .sch-col{min-height:300px}}
-</style>
 <style>
 
 /* neutralize old borders when this sheet is appended over the legacy chrome */
@@ -718,6 +575,11 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 
 </style>
 <div class="aph">
+
+  <!-- Overlays kept verbatim (ids preserved) -->
+  <div class="spinner-overlay" id="spinnerOverlay"><div class="spinner"></div></div>
+  <div class="toast" id="toast"></div>
+
   <aside class="aph-side">
     <a class="brand" href="app/packhouse-%26-sales" title="Back to Home"><img class="logo" alt="Upande" src="data:image/png;base64,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"/><div class="name">Karen Roses<small>Packhouse</small></div></a>
     <a class="home-link" href="app/packhouse-%26-sales">
@@ -727,7 +589,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="group-lbl">Workflow</div>
       <a class="nav-item" href="packhouse-dashboard">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Workflow</span></a>
-      <a class="nav-item active" href="packhouse-scheduler">
+      <a class="nav-item" href="packhouse-scheduler">
         <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Scheduler</span></a>
       <a class="nav-item" href="sales-allocation-planning">
         <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Allocation Planning</span></a>
@@ -738,7 +600,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
         <svg class="ic" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span>Bucket Journey</span></a>
       <a class="nav-item" href="bucket-logistics">
         <svg class="ic" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg><span>Bucket Logistics</span></a>
-      <a class="nav-item" href="cold-room">
+      <a class="nav-item active" href="cold-room">
         <svg class="ic" viewBox="0 0 24 24"><path d="M2 12h20"/><path d="M12 2v20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m19.07 4.93-14.14 14.14"/></svg><span>Cold Room</span></a>
       <a class="nav-item" href="handover-tracker">
         <svg class="ic" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span>Bunch Handover</span></a>
@@ -764,449 +626,858 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="who"><div class="nm" id="aph-foot-nm">Loading…</div><div class="em" id="aph-foot-em">kaitet-group</div></div>
     </div>
   </aside>
+
   <div class="aph-main">
     <div class="aph-topbar"><button class="collapse-btn" id="collapseBtn" title="Toggle sidebar" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-      <h1>Scheduler</h1><span class="crumb">Workflow &middot; sequence processing</span>
+      <h1>Cold Room</h1>
+      <span class="crumb">Tracking</span>
       <div class="right">
-        <input type="date" id="fDate" class="sch-sel" style="width:140px">
-        <select id="fTeam" class="sch-sel"><option value="">All teams</option></select>
-        <button class="btn" id="btnRefresh">&#8635; Refresh</button>
-        <a class="btn" href="bucket-logistics" style="text-decoration:none">Transfers &rarr;</a>
+        <div class="view-toggle">
+          <button class="tab-btn active" data-view="dashboard" onclick="switchView('dashboard')">Dashboard</button>
+          <button class="tab-btn" data-view="shelf" onclick="switchView('shelf')">Shelf Contents</button>
+          <button class="tab-btn" data-view="buckets" onclick="switchView('buckets')">Buckets</button>
+        </div>
+        <div class="location-wrap" id="locationWrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="location-label">Farm:</span>
+          <select id="farmSelector" onchange="updateFarm()">
+            <option value="">All Farms</option>
+          </select>
+        </div>
+        <button class="live-badge" onclick="loadAllData()">
+          <span class="live-dot"></span>LIVE
+        </button>
       </div>
     </div>
-    <div class="aph-content">
-      <div class="aph-kpis" id="kpis"></div>
-      <div class="sch-maintabs">
-        <button class="sch-maintab on" data-mtab="unsched">Unscheduled <span class="tc" id="cUnsched">0</span></button>
-        <button class="sch-maintab" data-mtab="sched">Schedule <span class="tc" id="cSched">0</span></button>
-      </div>
-      <div id="panelUnsched" class="sch-panel">
-        <div class="sch-varbar" id="varBar"></div>
-        <input type="text" id="readySearch" class="sch-search wide" placeholder="Search OPL, order name, customer, team&hellip;" autocomplete="off">
-        <div class="sch-selbar" id="readySelBar"></div>
-        <div class="sch-list" id="bUnsched"><div class="sch-empty">Loading&hellip;</div></div>
-        <div class="sch-pager" id="readyPager"></div>
-      </div>
-      <div id="panelSched" class="sch-panel" style="display:none">
-        <div class="sch-selbar" id="schedSelBar"></div>
-        <div class="sch-schedwrap" id="bSched"><div class="sch-empty">Loading&hellip;</div></div>
-      </div>
-    </div>
-  </div>
 
-  <div id="schModal" class="sch-modal">
-  <div class="sch-modal-card">
-    <div class="smh"><div><div class="smt" id="smTitle"></div><div class="sms" id="smSub"></div></div><button class="sch-x" id="smClose" title="Close">&times;</button></div>
-    <div class="smb">
-      <div class="sml" id="smPos"></div>
-      <label class="smfl" for="smNum">Schedule number</label>
-      <input type="number" id="smNum" min="1" class="sch-numinp">
-      <button type="button" id="smNext" class="sch-nextbtn"></button>
-      <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
+    <div class="aph-content">
+
+      <div class="aph-page-hd">
+        <div class="ttl">Cold Room</div>
+        <div class="sub">Live cold store inventory, environment &amp; stock pressure</div>
+      </div>
+
+      <!-- KPIs — Order: Shelves, Buckets, Stems, Varieties, Age, Temp, Humidity, Incoming, Allocated, Discards -->
+      <div class="aph-kpis" id="kpiRow">
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+          <div class="lbl">Shelves in Use</div>
+          <div class="v" id="kpiShelves">0</div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+          <div class="lbl">Total Buckets</div>
+          <div class="v" id="kpiBuckets">0</div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <div class="lbl">Total Stems</div>
+          <div class="v" id="kpiStems">0</div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+          <div class="lbl">Varieties</div>
+          <div class="v" id="kpiVarieties">0</div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="lbl">Avg Age</div>
+          <div class="v" id="kpiAvgAge">0d</div>
+          <div class="sub" id="kpiOldest"></div>
+        </div>
+        <div class="aph-kpi" id="kpiTempCard">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg></div>
+          <div class="lbl">Temperature</div>
+          <div class="v" id="kpiTemp">--</div>
+          <div class="sub" id="kpiTempStatus"></div>
+        </div>
+        <div class="aph-kpi" id="kpiHumCard">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></div>
+          <div class="lbl">Humidity</div>
+          <div class="v" id="kpiHumidity">--</div>
+          <div class="sub" id="kpiHumStatus"></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div class="lbl">Received (Not Shelved)</div>
+          <div class="v" id="kpiIncoming">0</div>
+          <div class="sub" id="kpiIncomingBuckets"></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="lbl">Allocated (Not Issued)</div>
+          <div class="v" id="kpiAllocated">0</div>
+          <div class="sub" id="kpiAllocatedBuckets"></div>
+        </div>
+        <div class="aph-kpi">
+          <div class="ic-wrap"><svg class="ic" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></div>
+          <div class="lbl">Discards Today</div>
+          <div class="v" id="kpiDiscards">0</div>
+          <div class="sub" id="kpiDiscardsEntries"></div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD VIEW -->
+      <div id="viewDashboard">
+        <!-- Cold Store Pressure -->
+        <div class="pressure-row" id="pressureRow"></div>
+
+        <!-- Environment Charts -->
+        <div class="charts-row">
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Cold Room Temperature (24h)</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartTemp" class="chart-canvas"></canvas></div>
+          </div>
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Cold Room Humidity (24h)</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartHumidity" class="chart-canvas"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Analytics Charts -->
+        <div class="charts-row">
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Stems by Variety (Top 15)</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartVariety" class="chart-canvas" style="max-height:280px"></canvas></div>
+          </div>
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Stock Age Distribution</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartAge" class="chart-canvas"></canvas></div>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Stems by Length</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartLength" class="chart-canvas"></canvas></div>
+          </div>
+          <div class="aph-card">
+            <div class="aph-card-hd"><span class="ttl chart-title">Stems by Farm</span></div>
+            <div class="aph-card-body chart-body"><canvas id="chartFarm" class="chart-canvas"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHELF CONTENTS VIEW -->
+      <div id="viewShelf" style="display:none">
+        <div class="aph-grid col-1">
+          <div class="aph-card">
+            <div class="aph-card-hd">
+              <span class="ttl">Stock Availability</span>
+              <span class="sub" id="stockAvailSub" style="margin-left:8px;color:var(--text-3);font-size:11px"></span>
+            </div>
+            <div class="stock-filters">
+              <div class="filter-group">
+                <label class="filter-group-label">Farm</label>
+                <div class="custom-select" style="min-width:140px">
+                  <input type="text" class="form-control" id="shelfFarmFilter" placeholder="Filter farm..." autocomplete="off">
+                  <div class="select-dropdown" id="shelfFarmDropdown"></div>
+                </div>
+              </div>
+              <div class="filter-group" style="flex:1">
+                <label class="filter-group-label">Search Varieties</label>
+                <input type="text" class="form-control" id="shelfSearch" placeholder="Search..." style="width:100%">
+              </div>
+            </div>
+            <div class="aph-card-body padless">
+              <table class="aph-tbl">
+                <thead><tr>
+                  <th>Variety</th><th>Length</th><th>Farm</th>
+                  <th class="num">Shelved</th><th class="num">Not Shelved</th><th class="num">Total</th>
+                  <th class="num">Buckets</th><th>Shelf Location</th>
+                </tr></thead>
+                <tbody id="shelfTableBody">
+                  <tr><td colspan="8" class="loading-state">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewBuckets" style="display:none">
+        <style>
+        .aph #viewBuckets .aph-card{margin-bottom:16px}
+        .aph #viewBuckets .bk-filter{height:30px;padding:0 10px;font-size:12px;font-family:var(--f);background:var(--bg-card);border:1px solid var(--border-2);border-radius:7px;color:var(--text);outline:0;font-weight:500}
+        .aph #viewBuckets .bk-count{font-size:12px;font-weight:600;color:var(--text-2);background:var(--bg-muted);padding:2px 9px;border-radius:9px}
+        .aph .farm-sec{border-bottom:1px solid var(--border)}
+        .aph .farm-sec:last-child{border-bottom:0}
+        .aph .farm-sec-hd{padding:8px 16px;font-weight:600;font-size:13px;background:var(--bg-muted);display:flex;justify-content:space-between;align-items:center}
+        .aph .farm-sec-hd span{color:var(--text-3);font-weight:500;font-family:var(--mono);font-size:11px}
+        </style>
+
+        <div class="aph-grid col-1"><div class="aph-card">
+          <div class="aph-card-hd">
+            <div class="ttl">Bucket Age &mdash; on shelf (youngest &rarr; oldest)</div>
+            <div style="display:flex;gap:10px;margin-left:auto;align-items:center">
+              <select id="ageVarietyFilter" class="bk-filter" onchange="renderBuckets()"><option value="">All varieties</option></select>
+              <select id="ageMinFilter" class="bk-filter" onchange="renderBuckets()">
+                <option value="">All ages</option>
+                <option value="0">Today (0d)</option>
+                <option value="1">1+ days</option>
+                <option value="3">3+ days</option>
+                <option value="7">7+ days</option>
+                <option value="14">14+ days</option>
+                <option value="30">30+ days</option>
+              </select>
+              <input type="text" id="ageSearch" class="bk-filter" placeholder="Search bucket / shelf..." oninput="renderBuckets()">
+              <span class="bk-count" id="ageCount">--</span>
+            </div>
+          </div>
+          <div class="aph-card-body padless">
+            <table class="aph-tbl"><thead><tr>
+              <th>Bucket</th><th>Variety</th><th>Length</th><th>Farm</th><th>Shelf</th><th class="num">Stems</th><th class="num">Age</th>
+            </tr></thead><tbody id="ageBody"><tr><td colspan="7" class="loading-state">Loading...</td></tr></tbody></table>
+          </div>
+        </div></div>
+
+        <div class="aph-grid col-1"><div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">On discard list &mdash; still on shelves</div><span class="bk-count" id="discCount">--</span></div>
+          <div class="aph-card-body padless">
+            <table class="aph-tbl"><thead><tr>
+              <th>Bucket</th><th>Variety</th><th>Length</th><th>Farm</th><th>Shelf</th><th class="num">Stems</th><th class="num">Age</th><th>Request</th>
+            </tr></thead><tbody id="discBody"></tbody></table>
+          </div>
+        </div></div>
+
+        <div class="aph-grid col-1"><div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Received &mdash; not shelved (per farm, today)</div><span class="bk-count" id="recvCount">--</span></div>
+          <div class="aph-card-body padless"><div id="recvBody"></div></div>
+        </div></div>
+
+        <div class="aph-grid col-1"><div class="aph-card">
+          <div class="aph-card-hd"><div class="ttl">Requested &mdash; not given out (today)</div><span class="bk-count" id="reqCount">--</span></div>
+          <div class="aph-card-body padless">
+            <table class="aph-tbl"><thead><tr>
+              <th>Bucket</th><th>Variety</th><th>Length</th><th>Farm</th><th class="num">Stems</th><th>Order</th><th>Customer</th>
+            </tr></thead><tbody id="reqBody"></tbody></table>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- end views -->
     </div>
-    <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
-  </div>
   </div>
 </div>
 
-<script>(function f(){function t(){if(!window.frappe||!frappe.session||!frappe.session.user){setTimeout(t,100);return;}var u=frappe.session.user||'';var fn=(frappe.session.user_fullname||(frappe.boot&&frappe.boot.user&&frappe.boot.user.full_name))||u.split('@')[0];var a=document.getElementById('aph-foot-av'),n=document.getElementById('aph-foot-nm'),e=document.getElementById('aph-foot-em');if(a)a.textContent=(fn||u||'?').substring(0,1).toUpperCase();if(n)n.textContent=fn;if(e)e.textContent=u;}t();})();</script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
+// ─── State ───
+let dashData = null;
+let sensorTemp = null, sensorHum = null;
+let selectedFarm = '';
+let charts = {};
+let currentView = 'dashboard';
+let shelfFarmValue = '';
+let bucketsData = null;
+let bucketsFarm = null;
 
-(function(){
-  var el=function(id){return document.getElementById(id);};
-  var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
-  var num=function(v){var n=typeof v==='number'?v:parseFloat(String(v||''));return isFinite(n)?n:0;};
-  var fmt=function(n){return Number(n||0).toLocaleString();};
-  function frp(method,args){return new Promise(function(res){frappe.call({method:method,args:args||{},callback:function(r){res((r&&r.message)||{});},error:function(){res({});}});});}
-  function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  function addDaysISO(iso,n){var d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d);}
-  function todayISO(){return isoOf(new Date());}
-  // Default delivery date = tomorrow: the packhouse processes tomorrow's orders today.
-  function defaultISO(){var d=new Date();d.setDate(d.getDate()+1);return isoOf(d);}
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+    initFilters();
+    setTimeout(loadAllData, 400);
+    setInterval(() => loadAllData(), 120000);
+});
 
-  var STATE={drafts:[],ready:[],packed:[],date:'',scheduled:{}};
+function showSpinner(v) { document.getElementById('spinnerOverlay').classList.toggle('show', v); }
+function showToast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast ' + type;
+    t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000);
+}
 
-  function issuingPct(o){var L=o.locations||[];if(!L.length)return num(o.custom_issuing_percentage);var iss=0;L.forEach(function(b){if(b.custom_issued)iss++;});return Math.round(100*iss/L.length);}
-  function specHtml(o){var s=o.specs||[];if(!s.length)return '';return '<div class="sch-specs">'+s.slice(0,4).map(function(x){return '<div class="sch-spec"><span>'+esc(x.spec||x.variety||'—')+'</span><span class="b">'+esc(x.length||'')+(x.boxes?(' · '+x.boxes+'bx'):'')+'</span></div>';}).join('')+(s.length>4?'<div class="sch-spec b">+'+(s.length-4)+' more</div>':'')+'</div>';}
-
-  var G={readyPage:1,farm:'',sel:new Set()};
-  var PAGE=25;
-  // Mirrors scheduler_issue_threshold in the "Issue Bucket To Sale Order Item" server
-  // script: a team's NEXT-to-issue line is its lowest-numbered line still below this %.
-  var SCHED_THRESHOLD=50;
-
-  // Board-level filters: farm (tabs) + team (topbar) apply to ALL three columns.
-  function readyView(){return applyFilters(STATE.ready);}
-
-  function varLabel(v){return v==='draft_plain'?'Draft':(v==='draft_transfer'?'Draft · transfer':'Submitted');}
-  function varCls(v){return v==='draft_plain'?'draft':(v==='draft_transfer'?'xfer':'sub');}
-
-  // lane = 'unsched' | 'sched'. Feed rows carry: name, custom_order_name, customer,
-  // custom_team, total_stems, n_buckets, n_farms, farms[], mixed_type, variation, has_transfer.
-  function card(o,lane,idx,canDrag,opts){
-    opts=opts||{};
-    var nm=esc(o.custom_order_name||o.name);
-    var sub=[o.customer,o.custom_team].filter(Boolean).map(esc).join('  ·  ');
-    var stems=fmt(num(o.total_stems));
-    var bkts=num(o.n_buckets);
-    var prio=(lane==='sched')?((G.prio&&G.prio[o.name])||'?'):null;
-    var chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
-    var seqHtml;
-    if(lane==='sched'){
-      seqHtml='<div class="sch-seq'+(opts.isNext?' next':'')+'">'+prio+'</div>';
-    } else {
-      var vi=o.variation==='draft_plain'?'D':(o.variation==='draft_transfer'?'⇄':'S');
-      seqHtml='<div class="sch-seq draft" title="'+esc(varLabel(o.variation))+'">'+vi+'</div>';
-    }
-    var chips=[];
-    if(lane==='sched'){
-      chips.push('<span class="sch-chip sched">#'+prio+'</span>');
-      if(opts.isNext) chips.push('<span class="sch-chip sched">NEXT</span>');
-    } else {
-      chips.push('<span class="sch-vchip '+varCls(o.variation)+'">'+esc(varLabel(o.variation))+'</span>');
-    }
-    if(o.mixed_type) chips.push('<span class="sch-vchip mix">'+esc(o.mixed_type)+'</span>');
-    var chipsHtml='<div class="sch-chips">'+chips.join('')+'</div>';
-    var metaParts='<div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
-      '<div class="m"><div class="mv">'+bkts+'</div><div class="ml">buckets</div></div>';
-    if(o.has_transfer&&o.n_farms){metaParts=metaParts+'<div class="m"><div class="mv">'+num(o.n_farms)+'</div><div class="ml">farm'+(num(o.n_farms)===1?'':'s')+'</div></div>';}
-    var meta='<div class="sch-meta">'+metaParts+'</div>';
-    var farmsLine=(o.has_transfer&&o.farms&&o.farms.length)?'<div class="sch-farms">'+o.farms.map(function(f){return '<span class="sch-chip farm">'+esc(f)+'</span>';}).join('')+'</div>':'';
-    var draggable=(lane==='sched'&&canDrag)?' draggable="true"':'';
-    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+draggable+'>'+
-      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+nm+'</div><div class="sub">'+sub+'</div></div></div>'+
-      chipsHtml+farmsLine+meta+'</div>';
-  }
-
-  // Per-team NEXT-to-issue set: lowest-numbered Ready line per team still below the
-  // issue threshold (mirrors the per-team server-side enforcement). Lines already at/
-  // above threshold are "cleared" and skipped; the next sub-threshold line is the team's next.
-  function applyFilters(arr){
-    var t=el('fTeam')?el('fTeam').value:'';
-    return arr.filter(function(o){return (!t||o.custom_team===t);});
-  }
-
-  // search haystack: OPL name, order name, customer, team, farms, mixed type
-  function hay(o){
-    var parts=[o.name,o.custom_order_name,o.customer,o.custom_team,o.mixed_type];
-    (o.farms||[]).forEach(function(f){parts.push(f);});
-    return parts.filter(Boolean).join('  ').toLowerCase();
-  }
-
-  function render(){
-    var feed=applyFilters(STATE.ready);
-    var unsched=feed.filter(function(o){return !STATE.scheduled[o.name];});
-    var sched=feed.filter(function(o){return STATE.scheduled[o.name];});
-    var stems=0,custs={};
-    feed.forEach(function(o){stems=stems+num(o.total_stems);if(o.customer)custs[o.customer]=1;});
-    var vc={draft_plain:0,draft_transfer:0,submitted:0};
-    unsched.forEach(function(o){if(vc[o.variation]!=null)vc[o.variation]++;});
-    el('kpis').innerHTML=[['Schedulable',feed.length],['Unscheduled',unsched.length],['Scheduled',sched.length],['Total stems',fmt(stems)],['Customers',Object.keys(custs).length]]
-      .map(function(k){return '<div class="aph-kpi"><div class="lbl">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>';}).join('');
-    if(el('cUnsched'))el('cUnsched').textContent=unsched.length;
-    if(el('cSched'))el('cSched').textContent=sched.length;
-    var mt=G.mtab||'unsched';
-    document.querySelectorAll('.sch-maintab').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mtab')===mt);});
-    if(el('panelUnsched'))el('panelUnsched').style.display=(mt==='unsched')?'':'none';
-    if(el('panelSched'))el('panelSched').style.display=(mt==='sched')?'':'none';
-    G.prio={}; var pk={}; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]){ var tm=o.custom_team||''; pk[tm]=(pk[tm]||0)+1; G.prio[o.name]=pk[tm]; } });
-    renderVarBar(vc);
-    if(mt==='unsched') renderUnscheduled(unsched); else renderSchedule(sched);
-    renderSelBar();
-  }
-
-  function renderVarBar(vc){
-    var box=el('varBar'); if(!box) return;
-    var cur=G.var||'all';
-    var tabs=[['all','All',vc.draft_plain+vc.draft_transfer+vc.submitted],
-              ['draft_plain','Draft',vc.draft_plain],
-              ['draft_transfer','Draft · transfer',vc.draft_transfer],
-              ['submitted','Submitted',vc.submitted]];
-    box.innerHTML=tabs.map(function(x){var a=(cur===x[0])?' active':'';return '<button class="sch-varbtn'+a+'" data-var="'+x[0]+'">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
-    box.querySelectorAll('.sch-varbtn').forEach(function(b){b.onclick=function(){G.var=b.getAttribute('data-var');G.readyPage=1;render();};});
-  }
-
-  // ---- Unscheduled tab: feed items not yet scheduled, filtered by variation + search ----
-  function renderUnscheduled(list){
-    var vv=G.var||'all';
-    if(vv!=='all') list=list.filter(function(o){return o.variation===vv;});
-    var term=(el('readySearch')?el('readySearch').value:'').toLowerCase().trim();
-    if(term) list=list.filter(function(o){return hay(o).indexOf(term)>=0;});
-    var pages=Math.max(1,Math.ceil(list.length/PAGE));
-    if(G.readyPage>pages)G.readyPage=pages; if(G.readyPage<1)G.readyPage=1;
-    var start=(G.readyPage-1)*PAGE, end=Math.min(list.length,start+PAGE);
-    var view=list.slice(start,end);
-    var body=el('bUnsched'); if(!body) return;
-    body.innerHTML=view.length
-      ? view.map(function(o){return card(o,'unsched',0,false,{isSel:G.sel.has(o.name)});}).join('')
-      : '<div class="sch-empty">'+(term?'No orders match the search':'Nothing unscheduled here')+'</div>';
-    renderPager(list.length,pages,start,end);
-    wireList(body,false);
-  }
-
-  // ---- Schedule tab: scheduled items grouped by team, in priority order ----
-  // Two view modes: "By team" = every team's column visible AT ONCE side by side (the
-  // whole point — switching one-team-at-a-time was "very confusing"); "All" = one flat
-  // list, no team breakdown at all, for when team boundaries don't matter right now.
-  function renderSchedule(list){
-    var body=el('bSched'); if(!body) return;
-    if(!list.length){ body.innerHTML='<div class="sch-empty">No orders scheduled yet. Schedule orders from the <b>Unscheduled</b> tab.</div>'; return; }
-    var mode=G.schedView||'byteam';
-    var modeBar='<div class="sch-varbar"><button class="sch-varbtn'+(mode==='byteam'?' active':'')+'" data-smode="byteam">By team<span class="tc">'+
-      Object.keys(list.reduce(function(a,o){a[o.custom_team||'-']=1;return a;},{})).length+'</span></button>'+
-      '<button class="sch-varbtn'+(mode==='all'?' active':'')+'" data-smode="all">All<span class="tc">'+list.length+'</span></button></div>';
-    var content;
-    if(mode==='all'){
-      // flat list — no per-team grouping, no subtotal header, just every scheduled order
-      var flatCards=list.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-      content='<div class="sch-list" data-team="">'+flatCards+'</div>';
-    } else {
-      var groups=[], gmap={};
-      list.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
-      content='<div class="sch-teamcols">'+groups.map(function(g){
-        var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
-        var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-        return '<div class="sch-teamcol"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">'+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
-          '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
-      }).join('')+'</div>';
-    }
-    body.innerHTML=modeBar+content;
-    body.querySelectorAll('.sch-varbar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedView=b.getAttribute('data-smode'); renderSchedule(list); }; });
-    body.querySelectorAll('.sch-list').forEach(function(listEl){wireList(listEl,true);});
-  }
-
-  function renderSelBar(){
-    var mt=G.mtab||'unsched';
-    var other=el(mt==='sched'?'readySelBar':'schedSelBar'); if(other){other.className='sch-selbar';other.innerHTML='';}
-    var bar=el(mt==='sched'?'schedSelBar':'readySelBar'); if(!bar) return;
-    var n=G.sel.size;
-    if(!n){ bar.className='sch-selbar'; bar.innerHTML=''; return; }
-    bar.className='sch-selbar on';
-    if(mt==='unsched'){
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="addsch">＋ Schedule</button><button class="mk">Make next to issue</button><button class="cl">Clear</button>';
-      bar.querySelector('.addsch').onclick=function(){scheduleSel(true);};
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-    } else {
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="mk">Make next to issue</button><button class="rmsch">Unschedule</button><button class="cl">Clear</button>';
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-      bar.querySelector('.rmsch').onclick=function(){scheduleSel(false);};
-    }
-    bar.querySelector('.cl').onclick=function(){G.sel.clear();render();};
-  }
-  // Deliberate scheduling — each action schedules ONLY the order(s) it acts on (the rest
-  // stay unscheduled). Priority = per-team position of the scheduled orders in STATE.ready.
-  function scheduledOpls(){ var out=[]; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]) out.push(o.name); }); return out; }
-  function saveSchedule(){ return frp('saveDaySchedule',{date:STATE.schedDate||STATE.date,order:scheduledOpls().join('|~|')}); }
-
-  // Central save: persist the scheduled subset to the Packhouse Schedule doctype, CONFIRM
-  // the result to the user, then reload the authoritative doctype state and re-render so
-  // the UI always mirrors what was actually stored.
-  function commitSchedule(){
-    render();                                   // optimistic
-    return saveSchedule().then(function(r){
-      var ok=r&&r.status==='success';
-      var cnt=0; if(r&&r.saved){ var ks=Object.keys(r.saved); ks.forEach(function(t){ cnt=cnt+r.saved[t]; }); }
-      if(window.frappe&&frappe.show_alert){
-        if(ok&&cnt>0) frappe.show_alert({message:'✓ Schedule saved — '+cnt+' order'+(cnt===1?'':'s')+' sequenced',indicator:'green'},4);
-        else if(ok) frappe.show_alert({message:'Nothing saved — a scheduled order needs a team',indicator:'orange'},6);
-        else frappe.show_alert({message:'Save failed — please try again',indicator:'red'},6);
-      }
-      return reloadScheduled().then(function(){ render(); return r; });
+// ─── View Switching ───
+function switchView(view) {
+    currentView = view;
+    document.querySelectorAll('.tab-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    ['viewDashboard','viewShelf','viewBuckets'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
     });
-  }
-
-  function scheduleSel(add){
-    if(!G.sel.size) return;
-    G.sel.forEach(function(nm){ if(add) STATE.scheduled[nm]=1; else delete STATE.scheduled[nm]; });
-    G.sel.clear();
-    commitSchedule();
-  }
-
-  // Move the selected lines to the front of the global order AND schedule them (keeping
-  // their relative order). Front = lowest per-team sequence -> that team's next to issue.
-  function makeSelectedNext(){
-    if(!G.sel.size) return;
-    var picked=[], rest=[];
-    STATE.ready.forEach(function(o){ (G.sel.has(o.name)?picked:rest).push(o); });
-    if(!picked.length) return;
-    picked.forEach(function(o){ STATE.scheduled[o.name]=1; });   // making next = scheduling
-    STATE.ready=picked.concat(rest);
-    G.sel.clear(); G.readyPage=1;
-    persist();
-  }
-
-  // ---- Packhouse Schedule: reorder IS the schedule. Reordering (drag / “set #” /
-  // send-to-front) persists the global order to each team's Packhouse Schedule doc
-  // (see persist()). An order not yet on any schedule shows “Unscheduled”. ----
-  function reloadScheduled(){return frp('getScheduledOrders',{date:STATE.schedDate||STATE.date}).then(function(r){STATE.scheduled=(r&&r.scheduled)||{};});}
-
-  function renderPager(total,pages,start,end){
-    var p=el('readyPager');if(!p)return;
-    if(total<=PAGE){p.innerHTML='';return;}
-    p.innerHTML='<button class="sch-pg" id="rPrev"'+(G.readyPage<=1?' disabled':'')+'>&lsaquo; Prev</button>'+
-      '<span class="sch-pginfo">'+(start+1)+'–'+end+' of '+total+' · pg '+G.readyPage+'/'+pages+'</span>'+
-      '<button class="sch-pg" id="rNext"'+(G.readyPage>=pages?' disabled':'')+'>Next &rsaquo;</button>';
-    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;render();}};
-    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;render();}};
-  }
-
-  // ---- order mutation ----
-  function reseq(){STATE.ready.forEach(function(o,i){o._sched=i+1;});}
-  // Persist the scheduled subset (in STATE.ready order) to the doctype, with confirmation.
-  // The schedule + priority live ONLY in the Packhouse Schedule doctype — no OPL field.
-  function persist(){ if(!STATE.ready.length)return; commitSchedule(); }
-
-  // Place `name` at schedule position `k` (1 = first to issue) AMONG ITS TEAM'S scheduled
-  // orders, and SCHEDULE it if it wasn't already. Only this one order is affected.
-  function teamScheduledNames(team,exclude){
-    var out=[]; STATE.ready.forEach(function(o){ if(o.name!==exclude && STATE.scheduled[o.name] && (o.custom_team||'')===team) out.push(o.name); }); return out;
-  }
-  function setSchedulePos(name,k){
-    var o=null; STATE.ready.forEach(function(x){ if(x.name===name) o=x; }); if(!o) return;
-    var team=o.custom_team||'';
-    STATE.scheduled[name]=1;                                   // acting on it schedules it
-    var peers=teamScheduledNames(team,name);                   // other scheduled in this team, in order
-    if(!isFinite(k)) k=peers.length+1;
-    k=Math.max(1,Math.min(peers.length+1,k));                  // clamp: e.g. "7" of 3 -> last
-    var beforeName=(k-1<peers.length)?peers[k-1]:null;
-    var idx=-1; STATE.ready.forEach(function(x,i){ if(x.name===name) idx=i; });
-    if(idx>=0) STATE.ready.splice(idx,1);
-    var insertAt=STATE.ready.length, found=false;
-    if(beforeName){ STATE.ready.forEach(function(x,i){ if(!found&&x.name===beforeName){ insertAt=i; found=true; } }); }
-    else if(peers.length){ var last=peers[peers.length-1]; STATE.ready.forEach(function(x,i){ if(x.name===last) insertAt=i+1; }); }
-    else { insertAt=0; }
-    STATE.ready.splice(insertAt,0,o);
-    G.readyPage=Math.floor(insertAt/PAGE)+1;
-    persist();
-  }
-  // Scoped to the SPECIFIC container dragged in (a team column, or the flat "All" list) —
-  // NOT the whole #bSched. With every team's column visible at once, reading .sch-card
-  // across the whole page would flatten every OTHER team's order into whatever position
-  // the dragged card landed at. Instead: replace just the contiguous run of THIS
-  // container's cards, in their new order, leaving every other team's cards untouched.
-  function commitDrag(container,draggedName){
-    var domOrder=[];
-    if(container){ container.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
-    var byName={}; STATE.ready.forEach(function(o){byName[o.name]=o;});
-    var inDom={}; domOrder.forEach(function(nm){inDom[nm]=1;});
-    var newReady=[], inserted=false;
-    STATE.ready.forEach(function(o){
-      if(inDom[o.name]){
-        if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); inserted=true; }
-      } else { newReady.push(o); }
-    });
-    if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); }
-    STATE.ready=newReady;
-    if(draggedName) STATE.scheduled[draggedName]=1;
-    persist();
-  }
-
-  var dragEl=null, dragName=null, dragContainer=null;
-  function wireList(container,canDrag){
-    if(!container) return;
-    if(canDrag){
-      container.querySelectorAll('.sch-card').forEach(function(c){
-        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');dragContainer=c.closest('.sch-list');c.classList.add('dragging');});
-        c.addEventListener('dragend',function(){var cont=c.closest('.sch-list');c.classList.remove('dragging');dragEl=null;dragContainer=null;var dn=dragName;dragName=null;commitDrag(cont,dn);});
-      });
-      // With every team's column visible at once, guard against dropping into a
-      // DIFFERENT team's column — a card's team isn't something drag should reassign.
-      container.ondragover=function(e){e.preventDefault();if(!dragEl||container!==dragContainer)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
-    } else { container.ondragover=null; }
-    container.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);render();});});
-    container.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
-  }
-  function afterEl(container,y){var els=Array.prototype.slice.call(container.querySelectorAll('.sch-card:not(.dragging)'));return els.reduce(function(closest,child){var box=child.getBoundingClientRect();var off=y-box.top-box.height/2;if(off<0&&off>closest.offset)return {offset:off,element:child};return closest;},{offset:-Infinity}).element;}
-  function openDoc(name){if(window.frappe&&frappe.set_route)frappe.set_route('Form','Order Pick List',name);else window.open('/app/order-pick-list/'+encodeURIComponent(name),'_blank');}
-
-  // ---- schedule-number popup (schedules the order at a per-team priority #) ----
-  function openSchedModal(name){
-    var o=null;STATE.ready.forEach(function(x){if(x.name===name)o=x;});if(!o)return;
-    var team=o.custom_team||'';
-    var peers=teamScheduledNames(team,name);          // other scheduled in this team
-    var isSched=!!STATE.scheduled[name];
-    var maxK=peers.length+1;                            // scheduling this order can take slots 1..N+1
-    var curK=maxK;                                      // default = last
-    if(isSched){ var all=teamScheduledNames(team,null); var ci=0; while(ci<all.length){ if(all[ci]===name){curK=ci+1;} ci=ci+1; } }
-    el('smTitle').textContent=o.custom_order_name||o.name;
-    el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
-    el('smPos').textContent=(team?team+' · ':'')+(isSched?('currently #'+curK+' of '+maxK+' scheduled'):('not scheduled — will join as one of '+maxK))+'  ·  #1 issues first';
-    var inp=el('smNum');inp.value=curK;inp.min=1;inp.max=maxK;
-    // Explicit "next available" guidance — the next open slot for THIS team, so the
-    // user never has to count the column to know what number to type.
-    var nextBtn=el('smNext');
-    if(nextBtn){
-      nextBtn.textContent=isSched
-        ? 'Move to last position for '+(team||'this team')+' (#'+maxK+')'
-        : 'Guide: next available for '+(team||'this team')+' is #'+maxK;
-      nextBtn.onclick=function(){ inp.value=maxK; inp.focus(); };
+    const map = { dashboard:'viewDashboard', shelf:'viewShelf', buckets:'viewBuckets' };
+    document.getElementById(map[view]).style.display = 'block';
+    if (view === 'buckets') {
+        if (!bucketsData || bucketsFarm !== selectedFarm) loadBuckets();
+        else renderBuckets();
+        return;
     }
-    el('schModal').setAttribute('data-opl',name);
-    el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
-    el('schModal').classList.add('open');
-    setTimeout(function(){inp.focus();inp.select();},30);
-  }
-  function closeSchedModal(){el('schModal').classList.remove('open');}
-  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();setSchedulePos(name,v);}
+    if (dashData) renderCurrentView();
+}
 
-  // ---- load ----
-  function populateFilters(){
-    var teams={};STATE.ready.forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
-    var sel=el('fTeam');if(!sel)return;var cur=sel.value;
-    sel.innerHTML='<option value="">All teams</option>'+Object.keys(teams).sort().map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
-  }
-  function load(){
-    var dd=el('fDate').value||defaultISO();STATE.date=dd;
-    // The date filter is the DELIVERY date; the Packhouse Schedule doc is keyed by the
-    // PROCESSING day = delivery - 1 (you process today for tomorrow's delivery).
-    STATE.schedDate=addDaysISO(dd,-1);
-    if(el('bUnsched'))el('bUnsched').innerHTML='<div class="sch-empty">Loading…</div>';
-    if(el('bSched'))el('bSched').innerHTML='<div class="sch-empty">Loading…</div>';
-    frp('getSchedulerFeed',{date:dd}).then(function(r){
-      var rows=(r&&r.data)||[];
-      STATE.drafts=[];STATE.packed=[];
-      STATE.ready=rows.map(function(o){
-        return {name:o.opl,custom_order_name:o.order_name,customer:o.customer,custom_team:o.team,
-                total_stems:o.total_stems,n_buckets:o.n_buckets,n_farms:o.n_farms,farms:o.farms||[],
-                n_varieties:o.n_varieties,has_transfer:o.has_transfer,mixed_type:o.mixed_type,
-                docstatus:o.docstatus,variation:o.variation};
-      });
-      reloadScheduled().then(function(){
-        STATE.ready.sort(function(a,b){
-          var sa=STATE.scheduled[a.name],sb=STATE.scheduled[b.name];
-          if(!!sa!==!!sb)return sa?-1:1;
-          if(sa){
-            var ta=(sa.team!=null?sa.team:(a.custom_team||'')),tb=(sb.team!=null?sb.team:(b.custom_team||''));
-            if(ta!==tb)return ta<tb?-1:1;
-            var qa=(sa.sequence!=null?sa.sequence:0),qb=(sb.sequence!=null?sb.sequence:0);
-            if(qa!==qb)return qa-qb;
-          }
-          return String(a.name).localeCompare(String(b.name));
+function renderCurrentView() {
+    if (!dashData) return;
+    if (currentView === 'dashboard') renderDashboard();
+    else if (currentView === 'shelf') renderShelfTable();
+}
+
+// ─── Buckets tab ───
+function loadBuckets() {
+    document.getElementById('ageBody').innerHTML = '<tr><td colspan="7" class="loading-state">Loading buckets...</td></tr>';
+    frappe.call({
+        method: 'getColdroomBuckets',
+        args: { farm: selectedFarm || '' },
+        callback: r => {
+            const m = r.message || {};
+            if (m.success) { bucketsData = m; bucketsFarm = selectedFarm; renderBuckets(); }
+            else document.getElementById('ageBody').innerHTML = '<tr><td colspan="7" class="loading-state" style="color:var(--bad)">Error: ' + (m.error || 'unknown') + '</td></tr>';
+        },
+        error: e => { console.error(e); document.getElementById('ageBody').innerHTML = '<tr><td colspan="7" class="loading-state" style="color:var(--bad)">Error loading buckets.</td></tr>'; }
+    });
+}
+function bkNum(n) { return Math.round(n || 0).toLocaleString(); }
+function bkAgeCell(d) {
+    if (d === null || d === undefined) return '<td class="num dim">&mdash;</td>';
+    const lbl = d === 0 ? 'Today' : (d + 'd');
+    let col = '';
+    if (d >= 7) col = 'color:var(--bad);font-weight:700';
+    else if (d >= 3) col = 'color:var(--warn);font-weight:700';
+    return '<td class="num" style="' + col + '">' + lbl + '</td>';
+}
+function renderBuckets() {
+    if (!bucketsData) return;
+    // variety dropdown (built once)
+    const sel = document.getElementById('ageVarietyFilter');
+    if (sel && sel.dataset.built !== '1') {
+        const vs = Array.from(new Set((bucketsData.age || []).map(x => x.variety).filter(Boolean))).sort();
+        sel.innerHTML = '<option value="">All varieties</option>' + vs.map(v => '<option value="' + v + '">' + v + '</option>').join('');
+        sel.dataset.built = '1';
+    }
+    // 1. Age (youngest -> oldest, from API)
+    const vf = document.getElementById('ageVarietyFilter').value || '';
+    const term = (document.getElementById('ageSearch').value || '').toLowerCase().trim();
+    const minAgeRaw = document.getElementById('ageMinFilter').value;
+    let ages = bucketsData.age || [];
+    if (vf) ages = ages.filter(x => x.variety === vf);
+    if (minAgeRaw !== '') { const mn = parseInt(minAgeRaw, 10); ages = ages.filter(x => x.age_days != null && x.age_days >= mn); }
+    if (term) ages = ages.filter(x => (x.bucket_id || '').toLowerCase().includes(term) || (x.shelf || '').toLowerCase().includes(term));
+    document.getElementById('ageCount').textContent = ages.length + ' buckets';
+    const MAX = 1500, shown = ages.slice(0, MAX);
+    document.getElementById('ageBody').innerHTML = (shown.map(x =>
+        '<tr><td class="mono">' + x.bucket_id + '</td><td>' + (x.variety || '&mdash;') + '</td><td>' + (x.stem_length || '&mdash;') +
+        '</td><td>' + (x.farm || '&mdash;') + '</td><td class="mono">' + (x.shelf || '&mdash;') + '</td><td class="num">' + bkNum(x.stem_qty) + '</td>' + bkAgeCell(x.age_days) + '</tr>'
+    ).join('') + (ages.length > MAX ? '<tr><td colspan="7" class="aph-empty">Showing first ' + MAX + ' of ' + ages.length + '. Filter by variety to narrow.</td></tr>' : '')) || '<tr><td colspan="7" class="aph-empty">No buckets.</td></tr>';
+    // 2. Discard list still shelved
+    const disc = bucketsData.discard_shelved || [];
+    document.getElementById('discCount').textContent = disc.length + ' buckets';
+    document.getElementById('discBody').innerHTML = disc.length ? disc.map(x =>
+        '<tr><td class="mono">' + x.bucket_id + '</td><td>' + (x.variety || '&mdash;') + '</td><td>' + (x.stem_length || '&mdash;') +
+        '</td><td>' + (x.farm || '&mdash;') + '</td><td class="mono">' + (x.shelf || '&mdash;') + '</td><td class="num">' + bkNum(x.stem_qty) + '</td>' +
+        bkAgeCell(x.age_days == null ? null : Math.round(x.age_days)) + '<td class="mono">' + (x.request || '') + '</td></tr>'
+    ).join('') : '<tr><td colspan="8" class="aph-empty">None on the discard list are still shelved.</td></tr>';
+    // 3. Received not shelved (per farm)
+    const recv = bucketsData.received_not_shelved || [];
+    const byFarm = {};
+    recv.forEach(x => { const k = x.farm || 'Unknown'; (byFarm[k] = byFarm[k] || []).push(x); });
+    document.getElementById('recvCount').textContent = recv.length + ' buckets';
+    let rh = '';
+    Object.keys(byFarm).sort().forEach(fn => {
+        const rows = byFarm[fn], st = rows.reduce((a, b) => a + (b.stems || 0), 0);
+        rh += '<div class="farm-sec"><div class="farm-sec-hd">' + fn + '<span>' + rows.length + ' buckets &middot; ' + bkNum(st) + ' stems</span></div>' +
+            '<table class="aph-tbl"><thead><tr><th>Bucket</th><th>Variety</th><th>Length</th><th class="num">Stems</th></tr></thead><tbody>' +
+            rows.map(x => '<tr><td class="mono">' + x.bucket_id + '</td><td>' + (x.variety || '&mdash;') + '</td><td>' + (x.stem_length || '&mdash;') + '</td><td class="num">' + bkNum(x.stems) + '</td></tr>').join('') +
+            '</tbody></table></div>';
+    });
+    document.getElementById('recvBody').innerHTML = rh || '<div class="aph-empty">Nothing received-but-unshelved today.</div>';
+    // 4. Requested not issued
+    const req = bucketsData.requested_not_issued || [];
+    document.getElementById('reqCount').textContent = req.length + ' buckets';
+    document.getElementById('reqBody').innerHTML = req.length ? req.map(x =>
+        '<tr><td class="mono">' + (x.bucket_id || '&mdash;') + '</td><td>' + (x.variety || '&mdash;') + '</td><td>' + (x.stem_length || '&mdash;') +
+        '</td><td>' + (x.farm || '&mdash;') + '</td><td class="num">' + bkNum(x.stems) + '</td><td class="mono">' + (x.opl || '') + '</td><td>' + (x.customer || '&mdash;') + '</td></tr>'
+    ).join('') : '<tr><td colspan="7" class="aph-empty">Nothing requested-but-unissued today.</td></tr>';
+}
+
+// ─── Farm Selector ───
+function updateFarm() {
+    selectedFarm = document.getElementById('farmSelector').value;
+    const wrap = document.getElementById('locationWrap');
+    wrap.classList.toggle('confirmed', !!selectedFarm);
+    bucketsData = null;
+    loadAllData();
+    if (currentView === 'buckets') loadBuckets();
+}
+
+function populateFarmSelector(farms) {
+    const sel = document.getElementById('farmSelector');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All Farms</option>';
+    (farms || []).forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.name; o.textContent = f.name;
+        if (f.name === cur) o.selected = true;
+        sel.appendChild(o);
+    });
+}
+
+// ─── Filters ───
+function initFilters() {
+    const sfi = document.getElementById('shelfFarmFilter');
+    const sfd = document.getElementById('shelfFarmDropdown');
+    sfi.addEventListener('focus', () => { buildShelfFarmDropdown(sfi, sfd); sfd.classList.add('show'); });
+    sfi.addEventListener('input', () => { buildShelfFarmDropdown(sfi, sfd); if (!sfi.value) { shelfFarmValue=''; renderShelfTable(); } });
+    document.getElementById('shelfSearch').addEventListener('input', () => renderShelfTable());
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.custom-select')) document.querySelectorAll('.select-dropdown').forEach(d => d.classList.remove('show'));
+    });
+}
+
+function buildShelfFarmDropdown(input, dropdown) {
+    if (!dashData) return;
+    const farms = Object.keys(dashData.aggregations.farm_stems || {}).sort();
+    const term = input.value.toLowerCase();
+    const items = farms.filter(f => f.toLowerCase().includes(term));
+    dropdown.innerHTML = items.map(f =>
+        `<div class="select-option${shelfFarmValue===f?' selected':''}" data-value="${f}">${f}</div>`
+    ).join('') || '<div class="select-option" style="color:var(--text-3)">No farms</div>';
+    dropdown.querySelectorAll('.select-option[data-value]').forEach(opt => {
+        opt.addEventListener('click', () => {
+            shelfFarmValue = opt.dataset.value;
+            input.value = shelfFarmValue; input.classList.add('has-value');
+            dropdown.classList.remove('show');
+            renderShelfTable();
         });
-        populateFilters();render();
-      });
     });
-  }
+}
 
-  el('fDate').value=defaultISO();
-  el('btnRefresh').onclick=load;
-  el('fDate').onchange=load;
-  function filterChanged(){G.readyPage=1;render();}
-  el('fTeam').onchange=filterChanged;
-  G.mtab='unsched'; G.var='all';
-  document.querySelectorAll('.sch-maintab').forEach(function(b){b.onclick=function(){G.mtab=b.getAttribute('data-mtab');G.sel.clear();G.readyPage=1;render();};});
-  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;render();};
-  if(el('smClose'))el('smClose').onclick=closeSchedModal;
-  if(el('smCancel'))el('smCancel').onclick=closeSchedModal;
-  if(el('smSave'))el('smSave').onclick=saveSchedModal;
-  if(el('schModal'))el('schModal').addEventListener('click',function(e){if(e.target===el('schModal'))closeSchedModal();});
-  if(el('smNum'))el('smNum').addEventListener('keydown',function(e){if(e.key==='Enter')saveSchedModal();});
-  function boot(){if(window.frappe&&frappe.call){load();setInterval(load,60000);}else if(boot._n++<80){setTimeout(boot,100);}}
-  boot._n=0;boot();
+// ─── Data Loading ───
+function loadAllData() {
+    showSpinner(true);
+    frappe.call({
+        method: 'fetchColdroomData',
+        args: { farm: selectedFarm || '' },
+        callback: r => {
+            showSpinner(false);
+            if (r.message && r.message.success) {
+                dashData = r.message;
+                populateFarmSelector(dashData.available_farms);
+                updateKPIs();
+                renderCurrentView();
+                loadSensorData();
+            } else {
+                showToast(r.message?.error || 'Failed to load data', 'error');
+            }
+        },
+        error: err => { showSpinner(false); showToast('Failed to load data', 'error'); console.error(err); }
+    });
+}
+
+function loadSensorData() {
+    const caps = dashData?.capacity_data || [];
+    const sensor = selectedFarm
+        ? caps.find(c => c.farm === selectedFarm)
+        : (caps[0] || null);
+    const sensorName = sensor?.sensor_name || 'Kapkolia Cold Room 2';
+    const tempMin = sensor?.temp_min || 2;
+    const tempMax = sensor?.temp_max || 4;
+    const humMin = sensor?.humidity_min || 80;
+    const humMax = sensor?.humidity_max || 95;
+
+    // Update chart titles and KPI labels with sensor name
+    const tempTitle = document.querySelector('#chartTemp')?.closest('.aph-card')?.querySelector('.chart-title');
+    const humTitle = document.querySelector('#chartHumidity')?.closest('.aph-card')?.querySelector('.chart-title');
+    if (tempTitle) tempTitle.textContent = sensorName + ' — Temperature (24h)';
+    if (humTitle) humTitle.textContent = sensorName + ' — Humidity (24h)';
+
+    // Temperature
+    frappe.call({
+        method: 'upande_sensors.api.sensor_charts.get_sensor_chart_data',
+        args: { sensor_name: sensorName, sensor_type: 'Temperature', date_from: '', timespan: 'last_24h', time_interval: 'hourly' },
+        callback: r => {
+            if (r.message) {
+                sensorTemp = r.message;
+                sensorTemp._thresholds = { min: tempMin, max: tempMax };
+                sensorTemp._sensorName = sensorName;
+                renderTempChart();
+                updateTempKPI();
+            }
+        },
+        error: () => {}
+    });
+
+    // Humidity
+    frappe.call({
+        method: 'upande_sensors.api.sensor_charts.get_sensor_chart_data',
+        args: { sensor_name: sensorName, sensor_type: 'Humidity', date_from: '', timespan: 'last_24h', time_interval: 'hourly' },
+        callback: r => {
+            if (r.message) {
+                sensorHum = r.message;
+                sensorHum._thresholds = { min: humMin, max: humMax };
+                sensorHum._sensorName = sensorName;
+                renderHumChart();
+                updateHumKPI();
+            }
+        },
+        error: () => {}
+    });
+}
+
+// ─── KPIs ───
+function updateKPIs() {
+    if (!dashData) return;
+    const a = dashData.aggregations;
+    document.getElementById('kpiBuckets').textContent = (a.total_buckets || 0).toLocaleString();
+    document.getElementById('kpiStems').textContent = (a.total_stems || 0).toLocaleString();
+    document.getElementById('kpiVarieties').textContent = a.total_varieties || 0;
+    document.getElementById('kpiAvgAge').textContent = (a.avg_age_days || 0) + 'd';
+    document.getElementById('kpiOldest').textContent = a.oldest_age_days ? 'Oldest: ' + a.oldest_age_days + 'd' : '';
+    document.getElementById('kpiAllocated').textContent = (a.total_allocated_stems || 0).toLocaleString();
+    const allocBkts = a.total_allocated_buckets || 0;
+    document.getElementById('kpiAllocatedBuckets').textContent = allocBkts ? allocBkts + ' buckets' : '';
+    document.getElementById('kpiShelves').textContent = a.total_shelves || 0;
+    document.getElementById('kpiIncoming').textContent = (a.total_incoming_stems || 0).toLocaleString();
+    const inBkts = a.total_incoming_buckets || 0;
+    document.getElementById('kpiIncomingBuckets').textContent = inBkts ? inBkts + ' buckets' : '';
+    document.getElementById('kpiDiscards').textContent = (a.total_discard_stems || 0).toLocaleString();
+    const discardEntries = a.total_discard_entries || 0;
+    document.getElementById('kpiDiscardsEntries').textContent = discardEntries ? discardEntries + ' buckets' : '';
+}
+
+function updateTempKPI() {
+    if (!sensorTemp) return;
+    const vals = sensorTemp.values || [];
+    const latest = vals[vals.length - 1];
+    const th = sensorTemp._thresholds || { min: 2, max: 4 };
+    const name = sensorTemp._sensorName || '';
+    document.getElementById('kpiTemp').textContent = latest != null ? latest.toFixed(1) + '°C' : '--';
+    const statusEl = document.getElementById('kpiTempStatus');
+    let statusHtml = name ? '<div style="font-size:10px;color:var(--text-3);margin-bottom:2px">' + name + '</div>' : '';
+    if (latest != null) {
+        if (latest >= th.min && latest <= th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-ok">● Normal</span>';
+        } else if (latest > th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-alert">● Too High</span>';
+        } else {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-warn">● Too Low</span>';
+        }
+    }
+    statusEl.innerHTML = statusHtml;
+}
+
+function updateHumKPI() {
+    if (!sensorHum) return;
+    const vals = sensorHum.values || [];
+    const latest = vals[vals.length - 1];
+    const th = sensorHum._thresholds || { min: 80, max: 95 };
+    const name = sensorHum._sensorName || '';
+    document.getElementById('kpiHumidity').textContent = latest != null ? latest.toFixed(1) + '%' : '--';
+    const statusEl = document.getElementById('kpiHumStatus');
+    let statusHtml = name ? '<div style="font-size:10px;color:var(--text-3);margin-bottom:2px">' + name + '</div>' : '';
+    if (latest != null) {
+        if (latest >= th.min && latest <= th.max) {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-ok">● Normal</span>';
+        } else {
+            statusHtml = statusHtml + '<span class="sensor-status sensor-warn">● Out of Range</span>';
+        }
+    }
+    statusEl.innerHTML = statusHtml;
+}
+
+// ─── Dashboard Rendering ───
+function renderDashboard() {
+    renderPressureCards();
+    renderVarietyChart();
+    renderAgeChart();
+    renderLengthChart();
+    renderFarmChart();
+}
+
+// ─── Pressure Cards ───
+function renderPressureCards() {
+    if (!dashData) return;
+    const a = dashData.aggregations;
+    const caps = dashData.capacity_data || [];
+    const container = document.getElementById('pressureRow');
+
+    if (!caps.length) {
+        // Single summary card
+        const incoming = Object.values(a.incoming_stems || {}).reduce((s,v) => s+v, 0);
+        const onShelf = a.total_stems || 0;
+        const allocated = a.total_allocated_stems || 0;
+        const total = incoming + onShelf;
+        container.innerHTML = buildPressureCard('All Cold Stores', incoming, onShelf, allocated, 0, total);
+        return;
+    }
+
+    let html = '';
+    caps.forEach(cap => {
+        const farm = cap.farm;
+        const incoming = (a.incoming_stems || {})[farm] || 0;
+        const onShelf = (a.farm_stems || {})[farm] || 0;
+        const allocated = a.total_allocated_stems || 0; // simplified; ideally per-farm
+        const maxStems = cap.max_stems || 0;
+        const total = incoming + onShelf;
+        html += buildPressureCard(farm + ' Cold Store', incoming, onShelf, allocated, maxStems, total);
+    });
+    container.innerHTML = html;
+}
+
+function buildPressureCard(title, incoming, onShelf, allocated, capacity, total) {
+    // The bar shows: Incoming (not shelved) | On Shelf | Allocated (not issued)
+    const unallocatedShelf = Math.max(0, onShelf - allocated);
+    const allocShow = Math.min(allocated, onShelf);
+    const allSegments = incoming + unallocatedShelf + allocShow;
+    const maxVal = capacity > 0 ? Math.max(capacity, allSegments) : (allSegments || 1);
+    const pctIn = maxVal > 0 ? (incoming / maxVal * 100) : 0;
+    const pctUnalloc = maxVal > 0 ? (unallocatedShelf / maxVal * 100) : 0;
+    const pctAlloc = maxVal > 0 ? (allocShow / maxVal * 100) : 0;
+    const pctEmpty = Math.max(0, 100 - pctIn - pctUnalloc - pctAlloc);
+    const capLine = capacity > 0 && maxVal > 0 ? (capacity / maxVal * 100) : 0;
+    const utilPct = capacity > 0 ? Math.round(allSegments / capacity * 100) : 0;
+
+    return `<div class="pressure-card">
+        <div class="pressure-title">${title}${capacity > 0 ? ` <span class="label ${utilPct > 90 ? 'label-danger' : utilPct > 70 ? 'label-warning' : 'label-success'}">${utilPct}% utilized</span>` : ''}</div>
+        <div class="pressure-bar-wrap">
+            <div class="pressure-bar-label">
+                <span>0</span>
+                ${capacity > 0 ? `<span>Capacity: ${capacity.toLocaleString()}</span>` : `<span>Total: ${allSegments.toLocaleString()}</span>`}
+            </div>
+            <div class="pressure-bar">
+                <div class="pressure-segment seg-incoming" style="width:${pctIn}%" title="Received (not shelved): ${incoming.toLocaleString()}">${incoming > 0 ? incoming.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-onshelf" style="width:${pctUnalloc}%" title="On Shelf : ${unallocatedShelf.toLocaleString()}">${unallocatedShelf > 0 ? unallocatedShelf.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-allocated" style="width:${pctAlloc}%" title="Allocated (not issued): ${allocShow.toLocaleString()}">${allocShow > 0 ? allocShow.toLocaleString() : ''}</div>
+                <div class="pressure-segment seg-empty" style="width:${pctEmpty}%"></div>
+                ${capLine > 0 ? `<div class="pressure-capacity-line" style="left:${Math.min(capLine, 100)}%"></div>` : ''}
+            </div>
+        </div>
+        <div class="pressure-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#fc9c30"></div>Received (not shelved): ${incoming.toLocaleString()}</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#2490ef"></div>On shelf: ${unallocatedShelf.toLocaleString()}</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#29cd42"></div>Allocated (not issued): ${allocShow.toLocaleString()}</div>
+        </div>
+    </div>`;
+}
+
+// ─── Charts ───
+function destroyChart(key) { if (charts[key]) { charts[key].destroy(); charts[key] = null; } }
+
+function renderTempChart() {
+    if (!sensorTemp) return;
+    destroyChart('temp');
+    const ctx = document.getElementById('chartTemp').getContext('2d');
+    const th = sensorTemp._thresholds || { min: 2, max: 4 };
+    charts.temp = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sensorTemp.labels,
+            datasets: [{
+                label: 'Temperature (°C)',
+                data: sensorTemp.values,
+                borderColor: '#2490ef',
+                backgroundColor: 'rgba(36,144,239,0.1)',
+                fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                annotation: undefined
+            },
+            scales: {
+                y: {
+                    min: Math.min(th.min - 1, sensorTemp.min_value - 0.5),
+                    max: Math.max(th.max + 1, sensorTemp.max_value + 0.5),
+                    grid: { color: '#f0f0f0' },
+                    ticks: { font: { size: 11 } }
+                },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } }
+            }
+        }
+    });
+}
+
+function renderHumChart() {
+    if (!sensorHum) return;
+    destroyChart('hum');
+    const ctx = document.getElementById('chartHumidity').getContext('2d');
+    charts.hum = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: sensorHum.labels,
+            datasets: [{
+                label: 'Humidity (%)',
+                data: sensorHum.values,
+                borderColor: '#7c5cfc',
+                backgroundColor: 'rgba(124,92,252,0.1)',
+                fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } }
+            }
+        }
+    });
+}
+
+function renderVarietyChart() {
+    if (!dashData) return;
+    destroyChart('variety');
+    const vs = dashData.aggregations.variety_stems || {};
+    const sorted = Object.entries(vs).sort((a,b) => b[1] - a[1]).slice(0, 15);
+    const ctx = document.getElementById('chartVariety').getContext('2d');
+    charts.variety = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: '#2490ef', borderRadius: 4, barThickness: 16
+            }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderAgeChart() {
+    if (!dashData) return;
+    destroyChart('age');
+    const labels = dashData.aggregations.age_dist_labels || [];
+    const values = dashData.aggregations.age_dist_values || [];
+    if (!labels.length) return;
+    // Color gradient: green for fresh, orange for mid, red for old
+    const colors = labels.map((l, i) => {
+        if (i === 0) return '#29cd42';
+        if (i === 1) return '#7cda89';
+        if (i === 2) return '#fc9c30';
+        return '#e63757';
+    });
+    const ctx = document.getElementById('chartAge').getContext('2d');
+    charts.age = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors, borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderLengthChart() {
+    if (!dashData) return;
+    destroyChart('length');
+    const ls = dashData.aggregations.length_stems || {};
+    const sorted = Object.entries(ls).sort((a,b) => {
+        const na = parseFloat(a[0]) || 0, nb = parseFloat(b[0]) || 0;
+        return na - nb;
+    });
+    const ctx = document.getElementById('chartLength').getContext('2d');
+    charts.length = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: '#7c5cfc', borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+function renderFarmChart() {
+    if (!dashData) return;
+    destroyChart('farm');
+    const fs = dashData.aggregations.farm_stems || {};
+    const sorted = Object.entries(fs).sort((a,b) => b[1] - a[1]);
+    const ctx = document.getElementById('chartFarm').getContext('2d');
+    const colors = ['#2490ef', '#29cd42', '#fc9c30', '#7c5cfc', '#e63757', '#1a8a3a'];
+    charts.farm = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{ data: sorted.map(s => s[1]), backgroundColor: colors.slice(0, sorted.length) }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { font: { size: 11 }, padding: 12, usePointStyle: true } }
+            }
+        }
+    });
+}
+
+// ─── Shelf Table ───
+function renderShelfTable() {
+    if (!dashData) return;
+    const shelf = dashData.stock_data || [];
+    const notsh = dashData.not_shelved_data || [];
+    const search = (document.getElementById('shelfSearch').value || '').toLowerCase();
+    const kf = r => (r.item_code || '') + '||' + (r.stem_length || '') + '||' + (r.farm_name || '');
+    const map = {};
+    const ensure = r => {
+        const k = kf(r);
+        if (!map[k]) map[k] = { item_code: r.item_code, stem_length: r.stem_length, farm_name: r.farm_name,
+                                shelved: 0, notshelved: 0, buckets: 0, shelf_names: '' };
+        return map[k];
+    };
+    shelf.forEach(r => { const m = ensure(r); m.shelved += r.available_stems || 0; m.buckets += r.bucket_count || 0; if (r.shelf_names) m.shelf_names = r.shelf_names; });
+    notsh.forEach(r => { const m = ensure(r); m.notshelved += r.available_stems || 0; });
+    let rows = Object.values(map);
+    rows.sort((a, b) => (a.item_code || '').localeCompare(b.item_code || '') || (a.stem_length || '').localeCompare(b.stem_length || '') || (a.farm_name || '').localeCompare(b.farm_name || ''));
+    let html = '', tShelved = 0, tNot = 0;
+    rows.forEach(r => {
+        if (search && !(r.item_code || '').toLowerCase().includes(search)) return;
+        if (shelfFarmValue && r.farm_name !== shelfFarmValue) return;
+        tShelved += r.shelved; tNot += r.notshelved;
+        const total = (r.shelved || 0) + (r.notshelved || 0);
+        html += `<tr>
+            <td class="cell-variety">${r.item_code || '--'}</td>
+            <td>${r.stem_length || 'N/A'}</td>
+            <td class="cell-farm">${r.farm_name || '--'}</td>
+            <td class="num">${(r.shelved || 0).toLocaleString()}</td>
+            <td class="num" style="${r.notshelved ? 'color:#d97706;font-weight:600' : 'color:var(--text-3)'}">${(r.notshelved || 0).toLocaleString()}</td>
+            <td class="num" style="font-weight:600">${total.toLocaleString()}</td>
+            <td class="num">${r.buckets || 0}</td>
+            <td class="mono" style="color:#2490ef">${r.shelf_names || '--'}</td>
+        </tr>`;
+    });
+    document.getElementById('shelfTableBody').innerHTML = html || '<tr><td colspan="8" class="empty-state"><p>No stock data</p></td></tr>';
+    const sub = document.getElementById('stockAvailSub');
+    if (sub) sub.textContent = 'Shelved ' + Math.round(tShelved).toLocaleString() + ' · Not shelved (coldroom) ' + Math.round(tNot).toLocaleString() + ' · Total ' + Math.round(tShelved + tNot).toLocaleString() + ' stems';
+}
+
+/* -- Sidebar footer (user identity) -- */
+(function fillFooter(){
+    function tryFill(){
+        if (!window.frappe || !frappe.session || !frappe.session.user){ setTimeout(tryFill, 100); return; }
+        var u = frappe.session.user || '';
+        var fullName = (frappe.session.user_fullname || (frappe.boot && frappe.boot.user && frappe.boot.user.full_name)) || u.split('@')[0];
+        document.getElementById('aph-foot-av').textContent = (fullName || u || '?').substring(0,1).toUpperCase();
+        document.getElementById('aph-foot-nm').textContent = fullName;
+        document.getElementById('aph-foot-em').textContent = u;
+    }
+    tryFill();
 })();
 
 </script>
+</body>
+</html>
 
 <script>
 (function(){

@@ -7,6 +7,7 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenShelvingStore } from '@/src/tenants/karen/state/karen-shelving-store';
+import { ShelvingDemandCard } from '@/src/tenants/karen/features/shelving/ShelvingDemandCard';
 import { COLORS } from '@/src/core/theme';
 
 export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
@@ -69,6 +70,11 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
 
   return (
     <Screen title="Shelving">
+      <View style={s.farmBanner}>
+        <Text style={s.farmBannerLabel}>Farm</Text>
+        <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
+      </View>
+
       <Card title="Shelf">
         <ScanField
           ref={shelfRef}
@@ -102,6 +108,8 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
       </Card>
 
       {lastOutcome ? <OutcomeCard outcome={lastOutcome} /> : null}
+
+      <ShelvingDemandCard farm={userFarm} />
     </Screen>
   );
 }
@@ -171,6 +179,24 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const s = StyleSheet.create({
+  farmBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  farmBannerLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    fontWeight: '600',
+  },
+  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700' },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',

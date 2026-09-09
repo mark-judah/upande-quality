@@ -306,8 +306,6 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .sch-seq.none{background:var(--bg-muted);color:var(--text-3)}
 .aph .sch-seq.done{background:var(--good)}
 .aph .sch-seq.draft{background:#7c3aed}
-.aph .sch-seq.next{box-shadow:0 0 0 2px var(--bg-card),0 0 0 4px var(--accent)}
-.aph .sch-farms{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .aph .sch-cnm{flex:1;min-width:0}
 .aph .sch-cnm .o{font-weight:600;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aph .sch-cnm .sub{font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -316,8 +314,6 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .sch-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
 .aph .sch-chip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--bg-muted);color:var(--text-2)}
 .aph .sch-chip.farm{background:#eef2ff;color:#3730a3}
-.sch-chip.sched{background:var(--good-bg,#e2f2e8);color:var(--good,#1f7a32)}
-.sch-chip.unsched{background:var(--bg-muted);color:var(--text-3);border:1px dashed var(--border-2,#d9d9d9)}
 .aph .sch-specs{margin-top:7px;display:flex;flex-direction:column;gap:2px}
 .aph .sch-spec{font-size:11px;display:flex;justify-content:space-between;gap:8px}
 .aph .sch-spec .b{color:var(--text-2)}
@@ -340,43 +336,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .sch-selbar .lbl{color:#fff;font-size:11px;font-weight:700;flex:1}
 .aph .sch-selbar button{border:0;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer}
 .aph .sch-selbar .mk{background:#fff;color:var(--accent)}
-.aph .sch-selbar .addsch{background:#fff;color:var(--accent)}
-.aph .sch-selbar .rmsch{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
 .aph .sch-selbar .cl{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
-/* ---- 2-tab redesign ---- */
-.aph .sch-maintabs{display:inline-flex;gap:2px;background:var(--bg-muted);border-radius:9px;padding:3px;margin-bottom:16px}
-.aph .sch-maintab{border:0;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;padding:7px 16px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.aph .sch-maintab:hover{color:var(--text)}
-.aph .sch-maintab.on{background:var(--bg-card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.aph .sch-maintab .tc{font-family:var(--mono);font-size:11px;font-weight:700;background:var(--bg-muted);color:var(--text-2);border-radius:8px;padding:0 7px}
-.aph .sch-maintab.on .tc{background:var(--accent);color:#fff}
-.aph .sch-panel{display:flex;flex-direction:column;min-height:0}
-.aph .sch-varbar{display:flex;flex-wrap:wrap;gap:6px}
-.aph .sch-varbtn{padding:5px 12px;border:1px solid var(--border-2);background:var(--bg);border-radius:999px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.aph .sch-varbtn:hover{border-color:var(--accent)}
-.aph .sch-varbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.aph .sch-varbtn .tc{font-family:var(--mono);font-size:10px;font-weight:700;opacity:.7;background:rgba(0,0,0,.06);border-radius:8px;padding:0 6px}
-.aph .sch-varbtn.active .tc{background:rgba(255,255,255,.22);opacity:.95}
-.aph .sch-search.wide{margin-top:12px;max-width:520px}
-.aph .sch-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.aph .sch-schedwrap{margin-top:12px;display:flex;flex-direction:column;gap:20px}
-.aph .sch-teamgrp .sch-teamh{display:flex;align-items:baseline;gap:11px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamgrp .sch-teamh .tn{font-size:15px;font-weight:600;letter-spacing:-.2px}
-.aph .sch-teamgrp .sch-teamh .ts{font-family:var(--mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
-.aph .sch-teamgrp .sch-list{margin-top:0}
-/* Side-by-side team columns — every team's schedule visible at once, no tab-switching. */
-.aph .sch-teamcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:start}
-.aph .sch-teamcol{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px;min-width:0}
-.aph .sch-teamcol .sch-teamh{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
-.aph .sch-teamcol .sch-teamh .tn{font-size:14px;font-weight:700;letter-spacing:-.2px}
-.aph .sch-teamcol .sch-teamh .ts{font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
-.aph .sch-teamcol .sch-list{margin-top:0;display:flex;flex-direction:column;gap:8px}
-@media(max-width:900px){.aph .sch-teamcols{grid-template-columns:1fr}}
-.aph .sch-vchip{font-size:10px;font-weight:600;padding:1px 7px;border-radius:9px}
-.aph .sch-vchip.draft{background:#f3effe;color:#6d28d9}
-.aph .sch-vchip.xfer{background:#eef6ff;color:#1d4ed8}
-.aph .sch-vchip.sub{background:#eafaf0;color:#1f7a32}
-.aph .sch-vchip.mix{background:#fff4e5;color:#b45309}
 .aph .sch-farmbar{display:flex;align-items:center;gap:11px;margin-bottom:14px}
 .aph .sch-farmbar .fb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
 .aph .sch-farmbar .sch-tabs{margin-top:0;width:auto}
@@ -404,8 +364,6 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .aph .smfl{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .aph .sch-numinp{display:block;width:100%;height:46px;margin-top:7px;border:1px solid var(--border-2);border-radius:9px;font-size:22px;font-weight:700;font-family:var(--mono);text-align:center;color:var(--text);background:var(--bg);outline:0}
 .aph .sch-numinp:focus{border-color:var(--accent)}
-.aph .sch-nextbtn{display:block;width:100%;margin-top:8px;padding:7px 10px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:var(--accent);font-size:11px;font-weight:600;cursor:pointer;text-align:center}
-.aph .sch-nextbtn:hover{background:var(--accent);color:#fff;border-style:solid}
 .aph .smhint{font-size:11px;color:var(--text-3);margin-top:11px;line-height:1.45}
 .aph .smf{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg)}
 .aph .smf .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -776,20 +734,11 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     </div>
     <div class="aph-content">
       <div class="aph-kpis" id="kpis"></div>
-      <div class="sch-maintabs">
-        <button class="sch-maintab on" data-mtab="unsched">Unscheduled <span class="tc" id="cUnsched">0</span></button>
-        <button class="sch-maintab" data-mtab="sched">Schedule <span class="tc" id="cSched">0</span></button>
-      </div>
-      <div id="panelUnsched" class="sch-panel">
-        <div class="sch-varbar" id="varBar"></div>
-        <input type="text" id="readySearch" class="sch-search wide" placeholder="Search OPL, order name, customer, team&hellip;" autocomplete="off">
-        <div class="sch-selbar" id="readySelBar"></div>
-        <div class="sch-list" id="bUnsched"><div class="sch-empty">Loading&hellip;</div></div>
-        <div class="sch-pager" id="readyPager"></div>
-      </div>
-      <div id="panelSched" class="sch-panel" style="display:none">
-        <div class="sch-selbar" id="schedSelBar"></div>
-        <div class="sch-schedwrap" id="bSched"><div class="sch-empty">Loading&hellip;</div></div>
+      <div class="sch-farmbar"><span class="fb-lbl">Farm</span><div class="sch-tabs" id="farmTabs"></div></div>
+      <div class="sch-board">
+        <div class="sch-col" id="colDraft"><div class="sch-colh"><span class="dot" style="background:#7c3aed"></span><span class="nm">Draft</span><span class="cnt" id="cDraft">0</span><span class="hint">Allocated, not yet released for processing</span></div><div class="sch-colb" id="bDraft"><div class="sch-empty">Loading&hellip;</div></div></div>
+        <div class="sch-col ready" id="colReady"><div class="sch-colh"><span class="dot" style="background:var(--accent)"></span><span class="nm">Ready</span><span class="cnt" id="cReady">0</span><span class="hint" id="readyHint">Drag to set order &middot; top = next &middot; tap a card to set #</span><input type="text" id="readySearch" class="sch-search" placeholder="Search sales order, OPL, order name, customer&hellip;" autocomplete="off"><div class="sch-selbar" id="readySelBar"></div></div><div class="sch-colb" id="bReady"><div class="sch-empty">Loading&hellip;</div></div><div class="sch-pager" id="readyPager"></div></div>
+        <div class="sch-col" id="colPacked"><div class="sch-colh"><span class="dot" style="background:var(--good)"></span><span class="nm">Packed</span><span class="cnt" id="cPacked">0</span><span class="hint">Packing complete or in progress</span></div><div class="sch-colb" id="bPacked"><div class="sch-empty">Loading&hellip;</div></div></div>
       </div>
     </div>
   </div>
@@ -801,7 +750,6 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
       <div class="sml" id="smPos"></div>
       <label class="smfl" for="smNum">Schedule number</label>
       <input type="number" id="smNum" min="1" class="sch-numinp">
-      <button type="button" id="smNext" class="sch-nextbtn"></button>
       <div class="smhint">Sets this order&rsquo;s processing position (1 = next). Other ready orders shift to make room.</div>
     </div>
     <div class="smf"><a id="smOpen" class="btn ghost" href="#">Open order</a><span style="flex:1"></span><button class="btn" id="smCancel">Cancel</button><button class="btn primary" id="smSave">Save</button></div>
@@ -820,12 +768,11 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
   var fmt=function(n){return Number(n||0).toLocaleString();};
   function frp(method,args){return new Promise(function(res){frappe.call({method:method,args:args||{},callback:function(r){res((r&&r.message)||{});},error:function(){res({});}});});}
   function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  function addDaysISO(iso,n){var d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d);}
   function todayISO(){return isoOf(new Date());}
   // Default delivery date = tomorrow: the packhouse processes tomorrow's orders today.
   function defaultISO(){var d=new Date();d.setDate(d.getDate()+1);return isoOf(d);}
 
-  var STATE={drafts:[],ready:[],packed:[],date:'',scheduled:{}};
+  var STATE={drafts:[],ready:[],packed:[],date:''};
 
   function issuingPct(o){var L=o.locations||[];if(!L.length)return num(o.custom_issuing_percentage);var iss=0;L.forEach(function(b){if(b.custom_issued)iss++;});return Math.round(100*iss/L.length);}
   function specHtml(o){var s=o.specs||[];if(!s.length)return '';return '<div class="sch-specs">'+s.slice(0,4).map(function(x){return '<div class="sch-spec"><span>'+esc(x.spec||x.variety||'—')+'</span><span class="b">'+esc(x.length||'')+(x.boxes?(' · '+x.boxes+'bx'):'')+'</span></div>';}).join('')+(s.length>4?'<div class="sch-spec b">+'+(s.length-4)+' more</div>':'')+'</div>';}
@@ -839,207 +786,148 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
   // Board-level filters: farm (tabs) + team (topbar) apply to ALL three columns.
   function readyView(){return applyFilters(STATE.ready);}
 
-  function varLabel(v){return v==='draft_plain'?'Draft':(v==='draft_transfer'?'Draft · transfer':'Submitted');}
-  function varCls(v){return v==='draft_plain'?'draft':(v==='draft_transfer'?'xfer':'sub');}
-
-  // lane = 'unsched' | 'sched'. Feed rows carry: name, custom_order_name, customer,
-  // custom_team, total_stems, n_buckets, n_farms, farms[], mixed_type, variation, has_transfer.
   function card(o,lane,idx,canDrag,opts){
     opts=opts||{};
-    var nm=esc(o.custom_order_name||o.name);
+    var name=esc(o.custom_order_name||o.name);
     var sub=[o.customer,o.custom_team].filter(Boolean).map(esc).join('  ·  ');
-    var stems=fmt(num(o.total_stems));
-    var bkts=num(o.n_buckets);
-    var prio=(lane==='sched')?((G.prio&&G.prio[o.name])||'?'):null;
-    var chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
-    var seqHtml;
-    if(lane==='sched'){
-      seqHtml='<div class="sch-seq'+(opts.isNext?' next':'')+'">'+prio+'</div>';
-    } else {
-      var vi=o.variation==='draft_plain'?'D':(o.variation==='draft_transfer'?'⇄':'S');
-      seqHtml='<div class="sch-seq draft" title="'+esc(varLabel(o.variation))+'">'+vi+'</div>';
+    var stems=fmt(num(o.custom_total_stems));
+    var boxes=o.planned_boxes!=null?o.planned_boxes:'';
+    var pct=issuingPct(o);
+    var seqHtml,nextBtn='',chk='',nextBadge='';
+    if(lane==='ready'){
+      seqHtml='<div class="sch-seq">'+(idx+1)+'</div>';
+      nextBtn='<button class="sch-next" title="Send to front" data-next="'+esc(o.name)+'">⤴</button>';
+      chk='<input type="checkbox" class="sch-chk" data-sel="'+esc(o.name)+'"'+(opts.isSel?' checked':'')+'>';
+      if(opts.isNext) nextBadge='<span class="sch-nextbadge" title="Next to issue for this team">NEXT</span>';
     }
-    var chips=[];
-    if(lane==='sched'){
-      chips.push('<span class="sch-chip sched">#'+prio+'</span>');
-      if(opts.isNext) chips.push('<span class="sch-chip sched">NEXT</span>');
-    } else {
-      chips.push('<span class="sch-vchip '+varCls(o.variation)+'">'+esc(varLabel(o.variation))+'</span>');
-    }
-    if(o.mixed_type) chips.push('<span class="sch-vchip mix">'+esc(o.mixed_type)+'</span>');
-    var chipsHtml='<div class="sch-chips">'+chips.join('')+'</div>';
-    var metaParts='<div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
-      '<div class="m"><div class="mv">'+bkts+'</div><div class="ml">buckets</div></div>';
-    if(o.has_transfer&&o.n_farms){metaParts=metaParts+'<div class="m"><div class="mv">'+num(o.n_farms)+'</div><div class="ml">farm'+(num(o.n_farms)===1?'':'s')+'</div></div>';}
-    var meta='<div class="sch-meta">'+metaParts+'</div>';
-    var farmsLine=(o.has_transfer&&o.farms&&o.farms.length)?'<div class="sch-farms">'+o.farms.map(function(f){return '<span class="sch-chip farm">'+esc(f)+'</span>';}).join('')+'</div>':'';
-    var draggable=(lane==='sched'&&canDrag)?' draggable="true"':'';
-    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+draggable+'>'+
-      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+nm+'</div><div class="sub">'+sub+'</div></div></div>'+
-      chipsHtml+farmsLine+meta+'</div>';
+    else if(lane==='packed'){seqHtml='<div class="sch-seq done">✓</div>';}
+    else {seqHtml='<div class="sch-seq draft">D</div>';}
+    var chips=o.custom_farm?'<div class="sch-chips"><span class="sch-chip farm">'+esc(o.custom_farm)+'</span></div>':'';
+    var meta='<div class="sch-meta"><div class="m"><div class="mv">'+stems+'</div><div class="ml">stems</div></div>'+
+      (boxes!==''?'<div class="m"><div class="mv">'+boxes+'</div><div class="ml">boxes</div></div>':'')+
+      (lane!=='draft'?'<div class="m"><div class="mv">'+pct+'%</div><div class="ml">issued</div></div>':'')+'</div>';
+    var bar=(lane!=='draft')?'<div class="sch-bar"><i style="width:'+Math.min(100,pct)+'%"></i></div>':'';
+    return '<div class="sch-card'+(opts.isSel?' sel':'')+'" data-opl="'+esc(o.name)+'"'+(lane==='ready'&&canDrag?' draggable="true"':'')+'>'+
+      '<div class="sch-r1">'+chk+seqHtml+'<div class="sch-cnm"><div class="o">'+name+nextBadge+'</div><div class="sub">'+sub+'</div></div>'+nextBtn+'</div>'+
+      chips+specHtml(o)+meta+bar+'</div>';
   }
 
   // Per-team NEXT-to-issue set: lowest-numbered Ready line per team still below the
   // issue threshold (mirrors the per-team server-side enforcement). Lines already at/
   // above threshold are "cleared" and skipped; the next sub-threshold line is the team's next.
-  function applyFilters(arr){
-    var t=el('fTeam')?el('fTeam').value:'';
-    return arr.filter(function(o){return (!t||o.custom_team===t);});
+  function computeNextSet(){
+    var nextSet={}, seen={};
+    STATE.ready.forEach(function(o){
+      var tm=o.custom_team||'—';
+      if(seen[tm]) return;
+      if(issuingPct(o) < SCHED_THRESHOLD){ nextSet[o.name]=1; seen[tm]=1; }
+    });
+    return nextSet;
   }
 
-  // search haystack: OPL name, order name, customer, team, farms, mixed type
+  function renderCol(bodyId,cntId,list,lane){
+    el(cntId).textContent=list.length;
+    el(bodyId).innerHTML=list.length?list.map(function(o,i){return card(o,lane,i);}).join(''):'<div class="sch-empty">No orders</div>';
+  }
+
+  function applyFilters(arr){
+    var f=G.farm, t=el('fTeam').value;
+    return arr.filter(function(o){return (!f||o.custom_farm===f)&&(!t||o.custom_team===t);});
+  }
+
+  // searchable haystack: sales order, OPL name, order name, customer, farm, team, spec lines
   function hay(o){
-    var parts=[o.name,o.custom_order_name,o.customer,o.custom_team,o.mixed_type];
-    (o.farms||[]).forEach(function(f){parts.push(f);});
-    return parts.filter(Boolean).join('  ').toLowerCase();
+    var parts=[o.name,o.custom_order_name,o.customer,o.custom_farm,o.custom_team,o.sales_order,o.custom_sales_order];
+    (o.specs||[]).forEach(function(s){parts.push(s.spec);parts.push(s.variety);});
+    return parts.filter(Boolean).join('  ').toLowerCase();
+  }
+
+  // Farm tabs span every farm present in the day's data (draft+ready+packed), so a farm
+  // stays selectable even when it has 0 ready lines (e.g. all already packed). Chip = ready count.
+  function buildFarmTabs(){
+    var box=el('farmTabs');if(!box)return;
+    var t=el('fTeam').value;
+    var inTeam=function(o){return !t||o.custom_team===t;};
+    var all=STATE.drafts.concat(STATE.ready,STATE.packed).filter(inTeam);
+    var farms={};all.forEach(function(o){var f=o.custom_farm||'—';if(!farms[f])farms[f]={ready:0,tot:0};farms[f].tot++;});
+    STATE.ready.filter(inTeam).forEach(function(o){var f=o.custom_farm||'—';if(farms[f])farms[f].ready++;});
+    var keys=Object.keys(farms).sort();
+    var readyTot=STATE.ready.filter(inTeam).length;
+    var tabs=[['','All',readyTot]].concat(keys.map(function(k){return [k,k,farms[k].ready];}));
+    box.innerHTML=tabs.map(function(x){var act=(G.farm===x[0])?' active':'';return '<button class="sch-tab'+act+'" data-farm="'+esc(x[0])+'" title="'+x[2]+' ready">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
+    box.querySelectorAll('.sch-tab').forEach(function(b){b.onclick=function(){G.farm=b.getAttribute('data-farm');G.readyPage=1;render();};});
   }
 
   function render(){
-    var feed=applyFilters(STATE.ready);
-    var unsched=feed.filter(function(o){return !STATE.scheduled[o.name];});
-    var sched=feed.filter(function(o){return STATE.scheduled[o.name];});
-    var stems=0,custs={};
-    feed.forEach(function(o){stems=stems+num(o.total_stems);if(o.customer)custs[o.customer]=1;});
-    var vc={draft_plain:0,draft_transfer:0,submitted:0};
-    unsched.forEach(function(o){if(vc[o.variation]!=null)vc[o.variation]++;});
-    el('kpis').innerHTML=[['Schedulable',feed.length],['Unscheduled',unsched.length],['Scheduled',sched.length],['Total stems',fmt(stems)],['Customers',Object.keys(custs).length]]
+    var draft=applyFilters(STATE.drafts), packed=applyFilters(STATE.packed);
+    var readyF=readyView();
+    var all=draft.concat(readyF,packed);
+    var stems=0,pctSum=0,pctN=0,custs={};
+    all.forEach(function(o){stems+=num(o.custom_total_stems);if(o.customer)custs[o.customer]=1;});
+    readyF.concat(packed).forEach(function(o){pctSum+=issuingPct(o);pctN++;});
+    var avgPct=pctN?Math.round(pctSum/pctN):0;
+    el('kpis').innerHTML=[['Total OPLs',all.length],['Draft',draft.length],['Ready',readyF.length],['Packed',packed.length],['Total stems',fmt(stems)],['Avg issued',avgPct+'%'],['Customers',Object.keys(custs).length]]
       .map(function(k){return '<div class="aph-kpi"><div class="lbl">'+k[0]+'</div><div class="v">'+k[1]+'</div></div>';}).join('');
-    if(el('cUnsched'))el('cUnsched').textContent=unsched.length;
-    if(el('cSched'))el('cSched').textContent=sched.length;
-    var mt=G.mtab||'unsched';
-    document.querySelectorAll('.sch-maintab').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-mtab')===mt);});
-    if(el('panelUnsched'))el('panelUnsched').style.display=(mt==='unsched')?'':'none';
-    if(el('panelSched'))el('panelSched').style.display=(mt==='sched')?'':'none';
-    G.prio={}; var pk={}; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]){ var tm=o.custom_team||''; pk[tm]=(pk[tm]||0)+1; G.prio[o.name]=pk[tm]; } });
-    renderVarBar(vc);
-    if(mt==='unsched') renderUnscheduled(unsched); else renderSchedule(sched);
-    renderSelBar();
+    buildFarmTabs();
+    renderCol('bDraft','cDraft',draft,'draft');
+    renderReady();
+    renderCol('bPacked','cPacked',packed,'packed');
   }
 
-  function renderVarBar(vc){
-    var box=el('varBar'); if(!box) return;
-    var cur=G.var||'all';
-    var tabs=[['all','All',vc.draft_plain+vc.draft_transfer+vc.submitted],
-              ['draft_plain','Draft',vc.draft_plain],
-              ['draft_transfer','Draft · transfer',vc.draft_transfer],
-              ['submitted','Submitted',vc.submitted]];
-    box.innerHTML=tabs.map(function(x){var a=(cur===x[0])?' active':'';return '<button class="sch-varbtn'+a+'" data-var="'+x[0]+'">'+esc(x[1])+'<span class="tc">'+x[2]+'</span></button>';}).join('');
-    box.querySelectorAll('.sch-varbtn').forEach(function(b){b.onclick=function(){G.var=b.getAttribute('data-var');G.readyPage=1;render();};});
-  }
-
-  // ---- Unscheduled tab: feed items not yet scheduled, filtered by variation + search ----
-  function renderUnscheduled(list){
-    var vv=G.var||'all';
-    if(vv!=='all') list=list.filter(function(o){return o.variation===vv;});
+  // ---- Ready column: full global order is STATE.ready; farm/team + search + pagination are view filters ----
+  function renderReady(){
+    var ft=readyView();                         // team filter + active farm tab
+    el('cReady').textContent=ft.length;
     var term=(el('readySearch')?el('readySearch').value:'').toLowerCase().trim();
-    if(term) list=list.filter(function(o){return hay(o).indexOf(term)>=0;});
+    var list=term?ft.filter(function(o){return hay(o).indexOf(term)>=0;}):ft;
+    // drag is safe only when the visible list is the full ordered list (All farms tab, no search/team) — else reorder via the popup
+    var canDrag=!term && !G.farm && !el('fTeam').value;
     var pages=Math.max(1,Math.ceil(list.length/PAGE));
     if(G.readyPage>pages)G.readyPage=pages; if(G.readyPage<1)G.readyPage=1;
     var start=(G.readyPage-1)*PAGE, end=Math.min(list.length,start+PAGE);
     var view=list.slice(start,end);
-    var body=el('bUnsched'); if(!body) return;
+    var body=el('bReady');
+    var nextSet=computeNextSet();
+    var emptyMsg;
+    if(term){emptyMsg='No ready orders match &ldquo;'+esc(term)+'&rdquo;';}
+    else if(G.farm){
+      var packedN=applyFilters(STATE.packed).length, draftN=applyFilters(STATE.drafts).length;
+      emptyMsg='No <b>ready</b> orders for '+esc(G.farm)+'.'+((packedN||draftN)?'<br>'+(packedN?packedN+' already packed':'')+(packedN&&draftN?' · ':'')+(draftN?draftN+' in draft':'')+' — see the other columns.':'');
+    } else {emptyMsg='No ready orders';}
     body.innerHTML=view.length
-      ? view.map(function(o){return card(o,'unsched',0,false,{isSel:G.sel.has(o.name)});}).join('')
-      : '<div class="sch-empty">'+(term?'No orders match the search':'Nothing unscheduled here')+'</div>';
+      ? view.map(function(o){return card(o,'ready',STATE.ready.indexOf(o),canDrag,{isNext:!!nextSet[o.name],isSel:G.sel.has(o.name)});}).join('')
+      : '<div class="sch-empty">'+emptyMsg+'</div>';
+    var hint=el('readyHint');
+    if(hint)hint.textContent='Tick lines → “Make next to issue” · '+(canDrag?'or drag to reorder · ':'')+'tap a card to set #';
+    renderSelBar();
     renderPager(list.length,pages,start,end);
-    wireList(body,false);
-  }
-
-  // ---- Schedule tab: scheduled items grouped by team, in priority order ----
-  // Two view modes: "By team" = every team's column visible AT ONCE side by side (the
-  // whole point — switching one-team-at-a-time was "very confusing"); "All" = one flat
-  // list, no team breakdown at all, for when team boundaries don't matter right now.
-  function renderSchedule(list){
-    var body=el('bSched'); if(!body) return;
-    if(!list.length){ body.innerHTML='<div class="sch-empty">No orders scheduled yet. Schedule orders from the <b>Unscheduled</b> tab.</div>'; return; }
-    var mode=G.schedView||'byteam';
-    var modeBar='<div class="sch-varbar"><button class="sch-varbtn'+(mode==='byteam'?' active':'')+'" data-smode="byteam">By team<span class="tc">'+
-      Object.keys(list.reduce(function(a,o){a[o.custom_team||'-']=1;return a;},{})).length+'</span></button>'+
-      '<button class="sch-varbtn'+(mode==='all'?' active':'')+'" data-smode="all">All<span class="tc">'+list.length+'</span></button></div>';
-    var content;
-    if(mode==='all'){
-      // flat list — no per-team grouping, no subtotal header, just every scheduled order
-      var flatCards=list.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-      content='<div class="sch-list" data-team="">'+flatCards+'</div>';
-    } else {
-      var groups=[], gmap={};
-      list.forEach(function(o){var tm=o.custom_team||'-';if(!gmap[tm]){gmap[tm]={team:tm,items:[]};groups.push(gmap[tm]);}gmap[tm].items.push(o);});
-      content='<div class="sch-teamcols">'+groups.map(function(g){
-        var tb=0,bk=0; g.items.forEach(function(o){tb=tb+num(o.total_stems);bk=bk+num(o.n_buckets);});
-        var cards=g.items.map(function(o){return card(o,'sched',0,true,{isNext:(G.prio&&G.prio[o.name]===1),isSel:G.sel.has(o.name)});}).join('');
-        return '<div class="sch-teamcol"><div class="sch-teamh"><span class="tn">'+esc(g.team)+'</span><span class="ts">'+g.items.length+' order'+(g.items.length===1?'':'s')+' · '+fmt(tb)+' stems · '+fmt(bk)+' buckets</span></div>'+
-          '<div class="sch-list" data-team="'+esc(g.team)+'">'+cards+'</div></div>';
-      }).join('')+'</div>';
-    }
-    body.innerHTML=modeBar+content;
-    body.querySelectorAll('.sch-varbar .sch-varbtn').forEach(function(b){ b.onclick=function(){ G.schedView=b.getAttribute('data-smode'); renderSchedule(list); }; });
-    body.querySelectorAll('.sch-list').forEach(function(listEl){wireList(listEl,true);});
+    wireReady(canDrag);
   }
 
   function renderSelBar(){
-    var mt=G.mtab||'unsched';
-    var other=el(mt==='sched'?'readySelBar':'schedSelBar'); if(other){other.className='sch-selbar';other.innerHTML='';}
-    var bar=el(mt==='sched'?'schedSelBar':'readySelBar'); if(!bar) return;
+    var bar=el('readySelBar'); if(!bar) return;
     var n=G.sel.size;
     if(!n){ bar.className='sch-selbar'; bar.innerHTML=''; return; }
     bar.className='sch-selbar on';
-    if(mt==='unsched'){
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="addsch">＋ Schedule</button><button class="mk">Make next to issue</button><button class="cl">Clear</button>';
-      bar.querySelector('.addsch').onclick=function(){scheduleSel(true);};
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-    } else {
-      bar.innerHTML='<span class="lbl">'+n+' selected</span><button class="mk">Make next to issue</button><button class="rmsch">Unschedule</button><button class="cl">Clear</button>';
-      bar.querySelector('.mk').onclick=makeSelectedNext;
-      bar.querySelector('.rmsch').onclick=function(){scheduleSel(false);};
-    }
-    bar.querySelector('.cl').onclick=function(){G.sel.clear();render();};
-  }
-  // Deliberate scheduling — each action schedules ONLY the order(s) it acts on (the rest
-  // stay unscheduled). Priority = per-team position of the scheduled orders in STATE.ready.
-  function scheduledOpls(){ var out=[]; STATE.ready.forEach(function(o){ if(STATE.scheduled[o.name]) out.push(o.name); }); return out; }
-  function saveSchedule(){ return frp('saveDaySchedule',{date:STATE.schedDate||STATE.date,order:scheduledOpls().join('|~|')}); }
-
-  // Central save: persist the scheduled subset to the Packhouse Schedule doctype, CONFIRM
-  // the result to the user, then reload the authoritative doctype state and re-render so
-  // the UI always mirrors what was actually stored.
-  function commitSchedule(){
-    render();                                   // optimistic
-    return saveSchedule().then(function(r){
-      var ok=r&&r.status==='success';
-      var cnt=0; if(r&&r.saved){ var ks=Object.keys(r.saved); ks.forEach(function(t){ cnt=cnt+r.saved[t]; }); }
-      if(window.frappe&&frappe.show_alert){
-        if(ok&&cnt>0) frappe.show_alert({message:'✓ Schedule saved — '+cnt+' order'+(cnt===1?'':'s')+' sequenced',indicator:'green'},4);
-        else if(ok) frappe.show_alert({message:'Nothing saved — a scheduled order needs a team',indicator:'orange'},6);
-        else frappe.show_alert({message:'Save failed — please try again',indicator:'red'},6);
-      }
-      return reloadScheduled().then(function(){ render(); return r; });
-    });
+    bar.innerHTML='<span class="lbl">'+n+' selected → next to issue</span>'+
+      '<button class="mk">Make next to issue</button><button class="cl">Clear</button>';
+    bar.querySelector('.mk').onclick=makeSelectedNext;
+    bar.querySelector('.cl').onclick=function(){G.sel.clear();renderReady();};
   }
 
-  function scheduleSel(add){
-    if(!G.sel.size) return;
-    G.sel.forEach(function(nm){ if(add) STATE.scheduled[nm]=1; else delete STATE.scheduled[nm]; });
-    G.sel.clear();
-    commitSchedule();
-  }
-
-  // Move the selected lines to the front of the global order AND schedule them (keeping
-  // their relative order). Front = lowest per-team sequence -> that team's next to issue.
+  // Move the selected lines to the front of the global order (keeping their relative
+  // order). Front = lowest schedule numbers, so each selected line becomes the lowest
+  // in its own team -> that team's next to issue. Several teams can be "next" at once.
   function makeSelectedNext(){
     if(!G.sel.size) return;
     var picked=[], rest=[];
     STATE.ready.forEach(function(o){ (G.sel.has(o.name)?picked:rest).push(o); });
     if(!picked.length) return;
-    picked.forEach(function(o){ STATE.scheduled[o.name]=1; });   // making next = scheduling
     STATE.ready=picked.concat(rest);
-    G.sel.clear(); G.readyPage=1;
-    persist();
+    reseq(); persist();
+    G.sel.clear(); G.readyPage=1; render();
+    frappe.show_alert&&frappe.show_alert({message:picked.length+' line(s) set as next to issue',indicator:'green'},4);
   }
-
-  // ---- Packhouse Schedule: reorder IS the schedule. Reordering (drag / “set #” /
-  // send-to-front) persists the global order to each team's Packhouse Schedule doc
-  // (see persist()). An order not yet on any schedule shows “Unscheduled”. ----
-  function reloadScheduled(){return frp('getScheduledOrders',{date:STATE.schedDate||STATE.date}).then(function(r){STATE.scheduled=(r&&r.scheduled)||{};});}
 
   function renderPager(total,pages,start,end){
     var p=el('readyPager');if(!p)return;
@@ -1047,143 +935,90 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
     p.innerHTML='<button class="sch-pg" id="rPrev"'+(G.readyPage<=1?' disabled':'')+'>&lsaquo; Prev</button>'+
       '<span class="sch-pginfo">'+(start+1)+'–'+end+' of '+total+' · pg '+G.readyPage+'/'+pages+'</span>'+
       '<button class="sch-pg" id="rNext"'+(G.readyPage>=pages?' disabled':'')+'>Next &rsaquo;</button>';
-    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;render();}};
-    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;render();}};
+    if(el('rPrev'))el('rPrev').onclick=function(){if(G.readyPage>1){G.readyPage--;renderReady();}};
+    if(el('rNext'))el('rNext').onclick=function(){if(G.readyPage<pages){G.readyPage++;renderReady();}};
   }
 
-  // ---- order mutation ----
+  // ---- order mutation (always persist the FULL ready order) ----
   function reseq(){STATE.ready.forEach(function(o,i){o._sched=i+1;});}
-  // Persist the scheduled subset (in STATE.ready order) to the doctype, with confirmation.
-  // The schedule + priority live ONLY in the Packhouse Schedule doctype — no OPL field.
-  function persist(){ if(!STATE.ready.length)return; commitSchedule(); }
-
-  // Place `name` at schedule position `k` (1 = first to issue) AMONG ITS TEAM'S scheduled
-  // orders, and SCHEDULE it if it wasn't already. Only this one order is affected.
-  function teamScheduledNames(team,exclude){
-    var out=[]; STATE.ready.forEach(function(o){ if(o.name!==exclude && STATE.scheduled[o.name] && (o.custom_team||'')===team) out.push(o.name); }); return out;
+  function persist(){var order=STATE.ready.map(function(o){return o.name;});if(!order.length)return;frp('setSchedulerOrder',{order:order.join('|~|')});}
+  function moveTo(name,pos){
+    var idx=-1;STATE.ready.forEach(function(o,i){if(o.name===name)idx=i;});
+    if(idx<0)return;
+    var o=STATE.ready.splice(idx,1)[0];
+    var p=Math.max(1,Math.min(STATE.ready.length+1,pos))-1;
+    STATE.ready.splice(p,0,o);
+    reseq();persist();
+    G.readyPage=Math.floor(p/PAGE)+1;
+    render();
   }
-  function setSchedulePos(name,k){
-    var o=null; STATE.ready.forEach(function(x){ if(x.name===name) o=x; }); if(!o) return;
-    var team=o.custom_team||'';
-    STATE.scheduled[name]=1;                                   // acting on it schedules it
-    var peers=teamScheduledNames(team,name);                   // other scheduled in this team, in order
-    if(!isFinite(k)) k=peers.length+1;
-    k=Math.max(1,Math.min(peers.length+1,k));                  // clamp: e.g. "7" of 3 -> last
-    var beforeName=(k-1<peers.length)?peers[k-1]:null;
-    var idx=-1; STATE.ready.forEach(function(x,i){ if(x.name===name) idx=i; });
-    if(idx>=0) STATE.ready.splice(idx,1);
-    var insertAt=STATE.ready.length, found=false;
-    if(beforeName){ STATE.ready.forEach(function(x,i){ if(!found&&x.name===beforeName){ insertAt=i; found=true; } }); }
-    else if(peers.length){ var last=peers[peers.length-1]; STATE.ready.forEach(function(x,i){ if(x.name===last) insertAt=i+1; }); }
-    else { insertAt=0; }
-    STATE.ready.splice(insertAt,0,o);
-    G.readyPage=Math.floor(insertAt/PAGE)+1;
-    persist();
-  }
-  // Scoped to the SPECIFIC container dragged in (a team column, or the flat "All" list) —
-  // NOT the whole #bSched. With every team's column visible at once, reading .sch-card
-  // across the whole page would flatten every OTHER team's order into whatever position
-  // the dragged card landed at. Instead: replace just the contiguous run of THIS
-  // container's cards, in their new order, leaving every other team's cards untouched.
-  function commitDrag(container,draggedName){
-    var domOrder=[];
-    if(container){ container.querySelectorAll('.sch-card').forEach(function(c){domOrder.push(c.getAttribute('data-opl'));}); }
-    var byName={}; STATE.ready.forEach(function(o){byName[o.name]=o;});
-    var inDom={}; domOrder.forEach(function(nm){inDom[nm]=1;});
-    var newReady=[], inserted=false;
-    STATE.ready.forEach(function(o){
-      if(inDom[o.name]){
-        if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); inserted=true; }
-      } else { newReady.push(o); }
-    });
-    if(!inserted){ domOrder.forEach(function(nm){ if(byName[nm]) newReady.push(byName[nm]); }); }
-    STATE.ready=newReady;
-    if(draggedName) STATE.scheduled[draggedName]=1;
-    persist();
+  function commitDrag(){
+    var start=(G.readyPage-1)*PAGE;
+    var pageOpls=Array.prototype.map.call(el('bReady').querySelectorAll('.sch-card'),function(c){return c.getAttribute('data-opl');});
+    var byName={};STATE.ready.forEach(function(o){byName[o.name]=o;});
+    var newPage=pageOpls.map(function(n){return byName[n];}).filter(Boolean);
+    STATE.ready.splice.apply(STATE.ready,[start,newPage.length].concat(newPage));
+    reseq();persist();render();
   }
 
-  var dragEl=null, dragName=null, dragContainer=null;
-  function wireList(container,canDrag){
-    if(!container) return;
+  var dragEl=null;
+  function wireReady(canDrag){
+    var body=el('bReady');
     if(canDrag){
-      container.querySelectorAll('.sch-card').forEach(function(c){
-        c.addEventListener('dragstart',function(){dragEl=c;dragName=c.getAttribute('data-opl');dragContainer=c.closest('.sch-list');c.classList.add('dragging');});
-        c.addEventListener('dragend',function(){var cont=c.closest('.sch-list');c.classList.remove('dragging');dragEl=null;dragContainer=null;var dn=dragName;dragName=null;commitDrag(cont,dn);});
+      body.querySelectorAll('.sch-card').forEach(function(c){
+        c.addEventListener('dragstart',function(){dragEl=c;c.classList.add('dragging');});
+        c.addEventListener('dragend',function(){c.classList.remove('dragging');dragEl=null;commitDrag();});
       });
-      // With every team's column visible at once, guard against dropping into a
-      // DIFFERENT team's column — a card's team isn't something drag should reassign.
-      container.ondragover=function(e){e.preventDefault();if(!dragEl||container!==dragContainer)return;var after=afterEl(container,e.clientY);if(after==null)container.appendChild(dragEl);else container.insertBefore(dragEl,after);};
-    } else { container.ondragover=null; }
-    container.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);render();});});
-    container.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
+      body.ondragover=function(e){e.preventDefault();if(!dragEl)return;var after=afterEl(body,e.clientY);if(after==null)body.appendChild(dragEl);else body.insertBefore(dragEl,after);};
+    } else { body.ondragover=null; }
+    body.querySelectorAll('.sch-chk').forEach(function(cb){cb.addEventListener('click',function(e){e.stopPropagation();var nm=cb.getAttribute('data-sel');if(cb.checked)G.sel.add(nm);else G.sel.delete(nm);renderReady();});});
+    body.querySelectorAll('[data-next]').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();moveTo(b.getAttribute('data-next'),1);});});
+    body.querySelectorAll('.sch-card').forEach(function(c){c.addEventListener('click',function(e){if(e.target.closest('[data-next]')||e.target.classList.contains('sch-chk'))return;openSchedModal(c.getAttribute('data-opl'));});});
+    el('bDraft').querySelectorAll('.sch-card').forEach(function(c){c.onclick=function(){openDoc(c.getAttribute('data-opl'));};});
+    el('bPacked').querySelectorAll('.sch-card').forEach(function(c){c.onclick=function(){openDoc(c.getAttribute('data-opl'));};});
   }
   function afterEl(container,y){var els=Array.prototype.slice.call(container.querySelectorAll('.sch-card:not(.dragging)'));return els.reduce(function(closest,child){var box=child.getBoundingClientRect();var off=y-box.top-box.height/2;if(off<0&&off>closest.offset)return {offset:off,element:child};return closest;},{offset:-Infinity}).element;}
   function openDoc(name){if(window.frappe&&frappe.set_route)frappe.set_route('Form','Order Pick List',name);else window.open('/app/order-pick-list/'+encodeURIComponent(name),'_blank');}
 
-  // ---- schedule-number popup (schedules the order at a per-team priority #) ----
+  // ---- manual schedule-number popup ----
   function openSchedModal(name){
     var o=null;STATE.ready.forEach(function(x){if(x.name===name)o=x;});if(!o)return;
-    var team=o.custom_team||'';
-    var peers=teamScheduledNames(team,name);          // other scheduled in this team
-    var isSched=!!STATE.scheduled[name];
-    var maxK=peers.length+1;                            // scheduling this order can take slots 1..N+1
-    var curK=maxK;                                      // default = last
-    if(isSched){ var all=teamScheduledNames(team,null); var ci=0; while(ci<all.length){ if(all[ci]===name){curK=ci+1;} ci=ci+1; } }
+    var pos=STATE.ready.indexOf(o)+1, total=STATE.ready.length;
     el('smTitle').textContent=o.custom_order_name||o.name;
     el('smSub').textContent=o.name+(o.customer?('  ·  '+o.customer):'');
-    el('smPos').textContent=(team?team+' · ':'')+(isSched?('currently #'+curK+' of '+maxK+' scheduled'):('not scheduled — will join as one of '+maxK))+'  ·  #1 issues first';
-    var inp=el('smNum');inp.value=curK;inp.min=1;inp.max=maxK;
-    // Explicit "next available" guidance — the next open slot for THIS team, so the
-    // user never has to count the column to know what number to type.
-    var nextBtn=el('smNext');
-    if(nextBtn){
-      nextBtn.textContent=isSched
-        ? 'Move to last position for '+(team||'this team')+' (#'+maxK+')'
-        : 'Guide: next available for '+(team||'this team')+' is #'+maxK;
-      nextBtn.onclick=function(){ inp.value=maxK; inp.focus(); };
-    }
+    el('smPos').textContent='Currently #'+pos+' of '+total+' ready orders';
+    var inp=el('smNum');inp.value=pos;inp.min=1;inp.max=total;
     el('schModal').setAttribute('data-opl',name);
     el('smOpen').onclick=function(e){e.preventDefault();openDoc(name);};
     el('schModal').classList.add('open');
     setTimeout(function(){inp.focus();inp.select();},30);
   }
   function closeSchedModal(){el('schModal').classList.remove('open');}
-  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();setSchedulePos(name,v);}
+  function saveSchedModal(){var name=el('schModal').getAttribute('data-opl');var v=parseInt(el('smNum').value,10);if(!isFinite(v))v=1;closeSchedModal();moveTo(name,v);}
 
   // ---- load ----
   function populateFilters(){
-    var teams={};STATE.ready.forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
-    var sel=el('fTeam');if(!sel)return;var cur=sel.value;
+    var teams={};STATE.drafts.concat(STATE.ready,STATE.packed).forEach(function(o){if(o.custom_team)teams[o.custom_team]=1;});
+    var sel=el('fTeam'),cur=sel.value;
     sel.innerHTML='<option value="">All teams</option>'+Object.keys(teams).sort().map(function(k){return '<option'+(k===cur?' selected':'')+'>'+esc(k)+'</option>';}).join('');
+    // drop a farm selection that no longer exists in this date's data
+    var farms={};STATE.drafts.concat(STATE.ready,STATE.packed).forEach(function(o){if(o.custom_farm)farms[o.custom_farm]=1;});
+    if(G.farm&&!farms[G.farm])G.farm='';
   }
   function load(){
     var dd=el('fDate').value||defaultISO();STATE.date=dd;
-    // The date filter is the DELIVERY date; the Packhouse Schedule doc is keyed by the
-    // PROCESSING day = delivery - 1 (you process today for tomorrow's delivery).
-    STATE.schedDate=addDaysISO(dd,-1);
-    if(el('bUnsched'))el('bUnsched').innerHTML='<div class="sch-empty">Loading…</div>';
-    if(el('bSched'))el('bSched').innerHTML='<div class="sch-empty">Loading…</div>';
-    frp('getSchedulerFeed',{date:dd}).then(function(r){
-      var rows=(r&&r.data)||[];
-      STATE.drafts=[];STATE.packed=[];
-      STATE.ready=rows.map(function(o){
-        return {name:o.opl,custom_order_name:o.order_name,customer:o.customer,custom_team:o.team,
-                total_stems:o.total_stems,n_buckets:o.n_buckets,n_farms:o.n_farms,farms:o.farms||[],
-                n_varieties:o.n_varieties,has_transfer:o.has_transfer,mixed_type:o.mixed_type,
-                docstatus:o.docstatus,variation:o.variation};
-      });
-      reloadScheduled().then(function(){
-        STATE.ready.sort(function(a,b){
-          var sa=STATE.scheduled[a.name],sb=STATE.scheduled[b.name];
-          if(!!sa!==!!sb)return sa?-1:1;
-          if(sa){
-            var ta=(sa.team!=null?sa.team:(a.custom_team||'')),tb=(sb.team!=null?sb.team:(b.custom_team||''));
-            if(ta!==tb)return ta<tb?-1:1;
-            var qa=(sa.sequence!=null?sa.sequence:0),qb=(sb.sequence!=null?sb.sequence:0);
-            if(qa!==qb)return qa-qb;
-          }
-          return String(a.name).localeCompare(String(b.name));
-        });
+    ['bDraft','bReady','bPacked'].forEach(function(id){el(id).innerHTML='<div class="sch-empty">Loading…</div>';});
+    Promise.all([frp('getSchedulerDrafts',{delivery_date:dd}),frp('getSchedulerData',{delivery_date:dd})]).then(function(r){
+      var drafts=(r[0]&&r[0].data)||[];var subs=(r[1]&&r[1].data)||[];
+      var names=drafts.map(function(o){return o.name;}).concat(subs.map(function(o){return o.name;}));
+      frp('getSchedulerMeta',{names:names.join('|~|')}).then(function(meta){
+        var sched=(meta&&meta.schedule)||{},packed=(meta&&meta.packed)||{};
+        STATE.drafts=drafts;
+        STATE.ready=[];STATE.packed=[];
+        subs.forEach(function(o){o._sched=num(sched[o.name])||0;if(packed[o.name])STATE.packed.push(o);else STATE.ready.push(o);});
+        // Ready sorted by schedule number (asc); unscheduled (0) sink to the bottom by name.
+        STATE.ready.sort(function(a,b){var sa=a._sched,sb=b._sched;if(sa&&sb)return sa-sb;if(sa)return -1;if(sb)return 1;return String(a.name).localeCompare(String(b.name));});
+        STATE.packed.sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
         populateFilters();render();
       });
     });
@@ -1194,9 +1029,7 @@ table.aph-tbl{width:100%;border-collapse:collapse;font-size:13px}
   el('fDate').onchange=load;
   function filterChanged(){G.readyPage=1;render();}
   el('fTeam').onchange=filterChanged;
-  G.mtab='unsched'; G.var='all';
-  document.querySelectorAll('.sch-maintab').forEach(function(b){b.onclick=function(){G.mtab=b.getAttribute('data-mtab');G.sel.clear();G.readyPage=1;render();};});
-  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;render();};
+  if(el('readySearch'))el('readySearch').oninput=function(){G.readyPage=1;renderReady();};
   if(el('smClose'))el('smClose').onclick=closeSchedModal;
   if(el('smCancel'))el('smCancel').onclick=closeSchedModal;
   if(el('smSave'))el('smSave').onclick=saveSchedModal;

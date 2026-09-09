@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as Network from 'expo-network';
-import { karenBucketRequestsRepository } from '../repository/karen-bucket-requests-repository';
+import { karenBucketRequestsRepository, type PlannedTrip } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
 
@@ -11,18 +11,23 @@ type State = {
   trolley: TrolleyOpl[];
   inTransit: TrolleyOpl[];
   vehicles: Vehicle[];
+  plannedTrips: PlannedTrip[];
   reqCount: number;
   trolleyCount: number;
   inTransitCount: number;
+  tripsCount: number;
   activeTrolleyId: string | null;
   online: boolean;
   downloading: boolean;
+  loadingTrips: boolean;
   syncingOpl: string | null;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
   refreshOnline: () => Promise<void>;
   download: (farm: string) => Promise<{ ok: boolean; message: string }>;
+  /** Refresh only the planned-trips plan for a farm (online). */
+  loadPlannedTrips: (farm: string) => Promise<{ ok: boolean; message?: string }>;
   setTrolleyFromScan: (raw: string) => { ok: boolean; message?: string; trolleyId?: string };
   clearActiveTrolley: () => void;
   scanBucketFromScan: (raw: string) => Promise<{ ok: boolean; message: string }>;
@@ -38,12 +43,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   trolley: [],
   inTransit: [],
   vehicles: [],
+  plannedTrips: [],
   reqCount: 0,
   trolleyCount: 0,
   inTransitCount: 0,
+  tripsCount: 0,
   activeTrolleyId: null,
   online: false,
   downloading: false,
+  loadingTrips: false,
   syncingOpl: null,
 
   init: async () => {
@@ -58,11 +66,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, inTransit, vehicles, c] = await Promise.all([
+    const [requests, trolley, inTransit, vehicles, plannedTrips, c] = await Promise.all([
       db.listRequests(),
       db.listTrolley(),
       db.listInTransit(),
       db.listVehicles(),
+      db.listPlannedTrips(),
       db.counts(),
     ]);
     set({
@@ -70,9 +79,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       trolley,
       inTransit,
       vehicles,
+      plannedTrips,
       reqCount: c.requests,
       trolleyCount: c.trolley,
       inTransitCount: c.inTransit,
+      tripsCount: plannedTrips.length,
     });
   },
 
@@ -106,6 +117,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       } catch {
         /* keep the cached trucks */
       }
+      // Refresh the planned-trips plan too. Non-fatal — keep the cached plan on
+      // failure so the download still succeeds.
+      try {
+        const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm);
+        if (trips.kind === 'ok') await db.replacePlannedTrips(trips.trips);
+      } catch {
+        /* keep the cached plan */
+      }
       await get().refresh();
       set({ downloading: false });
       const skip = res.skipped ? ` (${res.skipped} already on device)` : '';
@@ -116,6 +135,26 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     } catch (e) {
       set({ downloading: false });
       return { ok: false, message: (e as Error)?.message || 'Download failed.' };
+    }
+  },
+
+  loadPlannedTrips: async (farm) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to refresh the trip plan.' };
+    set({ loadingTrips: true });
+    try {
+      const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm);
+      if (trips.kind !== 'ok') {
+        set({ loadingTrips: false });
+        return { ok: false, message: trips.message };
+      }
+      await db.replacePlannedTrips(trips.trips);
+      await get().refresh();
+      set({ loadingTrips: false });
+      return { ok: true };
+    } catch (e) {
+      set({ loadingTrips: false });
+      return { ok: false, message: (e as Error)?.message || 'Failed to load trips.' };
     }
   },
 
@@ -191,3 +230,4 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
 }));
 
 export type { OrderGroup, TrolleyOpl };
+export type { PlannedTrip, PlannedTripStop } from '../repository/karen-bucket-requests-repository';

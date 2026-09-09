@@ -41,21 +41,9 @@ try:
             created[r.name] = str(r.creation)
             i = i + 1
 
-    # Packed signal = a Farm Pack List exists for the OPL. The getSchedulerData
-    # box counts (staged/loaded/labels) are unreliable, so we detect packing here.
-    packed = {}
-    if names and isinstance(names, list) and len(names) > 0:
-        fpls = frappe.get_all("Farm Pack List",
-                              filters=[["custom_order_pick_list", "in", names], ["docstatus", "!=", 2]],
-                              fields=["custom_order_pick_list"])
-        q = 0
-        while q < len(fpls):
-            on = fpls[q].custom_order_pick_list
-            if on:
-                packed[on] = 1
-            q = q + 1
-
-    frappe.response["message"] = {"success": True, "takt_minutes": takt, "schedule": schedule, "created": created, "packed": packed}
+    # Packing detection removed 2026-08-05 — the redesigned scheduler no longer has a
+    # "packed" column, and the schedulable feed (getSchedulerFeed) is the source of truth.
+    frappe.response["message"] = {"success": True, "takt_minutes": takt, "schedule": schedule, "created": created}
 
 except Exception as e:
     frappe.response["message"] = {"success": False, "error": str(e)}
