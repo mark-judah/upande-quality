@@ -109,19 +109,21 @@ export type SubmitOutcome =
   | { kind: 'ok'; message: string }
   | { kind: 'error'; message: string };
 
-/** Grading QC sampling — the operator records the total bunches they accepted
- *  and adds a row per rejection reason (with its affected bunch count), then
- *  finishes. Reject Recorder and Grading QC never quarantine — only Final QC
- *  does. */
+/** Grading QC sampling — the operator records the total bunches they sampled
+ *  from the order (typically a subset of the order's total), then adds a row
+ *  per rejection reason (with its affected bunch count) for the sampled bunches
+ *  that failed, and finishes. Reject Recorder and Grading QC never quarantine —
+ *  only Final QC does. */
 type BunchSamplingState = {
   started: boolean;
   finished: boolean;
-  /** Bunches the operator passed, entered as a whole number. */
-  acceptedBunches: string;
+  /** Total bunches the operator sampled, entered as a whole number. Includes
+   *  the rejected/affected bunches — those are a subset of what was sampled. */
+  sampledBunches: string;
 };
 
 function emptyBunchSampling(): BunchSamplingState {
-  return { started: false, finished: false, acceptedBunches: '' };
+  return { started: false, finished: false, sampledBunches: '' };
 }
 
 /** One issue found on a rejected bunch during Grading QC sampling — a QC
@@ -337,8 +339,8 @@ type State = {
   setAirportReturnField: (field: keyof AirportReturnState, value: string) => void;
 
   startBunchSampling: () => void;
-  /** Sets the whole-number count of bunches the operator accepted. */
-  setBunchesAccepted: (value: string) => void;
+  /** Sets the whole-number count of total bunches the operator sampled. */
+  setBunchesSampled: (value: string) => void;
   /** Adds a new rejected bunch with no issues yet. */
   addRejectedBunch: () => void;
   /** Sets which of the order's varieties a rejected bunch belongs to. */
@@ -883,8 +885,8 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   startBunchSampling: () => set((s) => ({ bunchSampling: { ...s.bunchSampling, started: true } })),
 
-  setBunchesAccepted: (value) =>
-    set((s) => ({ bunchSampling: { ...s.bunchSampling, acceptedBunches: value } })),
+  setBunchesSampled: (value) =>
+    set((s) => ({ bunchSampling: { ...s.bunchSampling, sampledBunches: value } })),
 
   addRejectedBunch: () =>
     set((s) => ({
@@ -1261,11 +1263,12 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     // carry at least one issue, each with a positive stem count.
     if (s.isBunchSamplingMode()) {
       if (!s.bunchSampling.started || !s.bunchSampling.finished) return false;
-      // Inspected bunches (accepted + rejected) can't exceed the order's total.
+      // Bunches sampled can't exceed the order's total, and the rejected
+      // (affected) bunches are a subset of what was sampled.
       const total = totalBunches(s.itemLocations);
-      const accepted = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
-      const inspected = accepted + s.rejectedBunches.length;
-      if (total > 0 && inspected > total) return false;
+      const sampled = Number.parseInt(s.bunchSampling.sampledBunches, 10) || 0;
+      if (total > 0 && sampled > total) return false;
+      if (s.rejectedBunches.length > sampled) return false;
       // Each rejected bunch: at least one issue, each with positive stems, and
       // its issue stems can't total more than the stems the bunch holds.
       const perBunch = gradingStemsPerBunch(s);
@@ -1453,14 +1456,22 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;
       }
-      // Inspected bunches (accepted + rejected) can't exceed the order's total.
+      // Bunches sampled can't exceed the order's total.
       const totalOrderBunches = totalBunches(s.itemLocations);
-      const acceptedForCheck = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
-      const inspectedForCheck = acceptedForCheck + s.rejectedBunches.length;
-      if (totalOrderBunches > 0 && inspectedForCheck > totalOrderBunches) {
+      const sampledForCheck = Number.parseInt(s.bunchSampling.sampledBunches, 10) || 0;
+      if (totalOrderBunches > 0 && sampledForCheck > totalOrderBunches) {
         const out: SubmitOutcome = {
           kind: 'error',
-          message: `Bunches inspected (${inspectedForCheck} = ${acceptedForCheck} accepted + ${s.rejectedBunches.length} rejected) can't exceed the order's ${totalOrderBunches} total bunches.`,
+          message: `Bunches sampled (${sampledForCheck}) can't exceed the order's ${totalOrderBunches} total bunches.`,
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // The rejected (affected) bunches are a subset of what was sampled.
+      if (s.rejectedBunches.length > sampledForCheck) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: `Rejected bunches (${s.rejectedBunches.length}) can't exceed the ${sampledForCheck} bunches sampled.`,
         };
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;
@@ -1479,18 +1490,20 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         return out;
       }
       // "Affected" means the bunch had at least one issue, i.e. every rejected
-      // bunch. Accepted bunches don't count here.
+      // bunch — a subset of the sampled bunches.
       const rejectedBunchCount = s.rejectedBunches.length;
       payload.bunches_affected = rejectedBunchCount;
-      // FTR denominator for the CAR 6% rule: everything inspected (accepted +
-      // rejected bunches), converted to stems to match the issue counts.
-      const acceptedBunches = Number.parseInt(s.bunchSampling.acceptedBunches, 10) || 0;
+      // Persist the order's total bunches and how many were sampled.
+      payload.total_bunches = totalOrderBunches;
+      payload.bunches_sampled = sampledForCheck;
+      // FTR denominator for the CAR 6% rule: the sampled bunches, converted to
+      // stems to match the issue counts.
       const gradingSpec = resolveFinalQcSpec(s);
       const gradingPerBunch =
         gradingSpec?.stemsPerBunch && gradingSpec.stemsPerBunch > 0
           ? gradingSpec.stemsPerBunch
           : stemsPerBunch(s.itemLocations);
-      payload.sampled_stems = (acceptedBunches + rejectedBunchCount) * gradingPerBunch;
+      payload.sampled_stems = sampledForCheck * gradingPerBunch;
       // Each rejected bunch carries per-stem issues, tagged with the bunch's
       // variety. Aggregate stem counts per (variety, reason) so a mix order
       // records each variety's rejections as their own issue rows (the server

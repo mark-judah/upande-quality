@@ -1,3 +1,4 @@
+import { mapAxiosError } from '@/src/core/api/client';
 import { create } from 'zustand';
 import {
   karenColdroomApi,
@@ -5,7 +6,6 @@ import {
   type InspectionPayload,
   type TemperaturePayload,
 } from '../api/karen-coldroom-api';
-import { mapAxiosError } from '@/src/core/api/client';
 
 export type SubmitOutcome =
   | { kind: 'ok'; name: string; message: string }
@@ -42,7 +42,8 @@ async function fetchAllKarenFarms(): Promise<string[]> {
         doctype: 'Farm',
         filters: JSON.stringify([['company', '=', 'Karen Roses']]),
         fields: JSON.stringify(['name']),
-        order_by: 'farm asc',
+        // order_by: 'farm asc',
+        order_by: 'name asc',
         limit_page_length: 100,
       },
       validateStatus: () => true,
