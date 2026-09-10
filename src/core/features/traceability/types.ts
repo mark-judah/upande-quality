@@ -31,6 +31,10 @@ export type JourneyStage = {
   whoKind: WhoKind;
   user: string;         // frappe user account
   detail: string;
+  /** Harvest-stage extras (from the Harvesting Stock Entry). Optional so other
+   *  tenants' repositories need not populate them. */
+  harvestTime?: string; // posting_time of the harvest, HH:MM:SS
+  cutStage?: string;    // custom_cut_stage
 };
 
 export type BunchInfo = {

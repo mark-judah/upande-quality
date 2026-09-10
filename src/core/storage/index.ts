@@ -10,6 +10,9 @@ export const StorageKeys = {
   fullName: 'fullname',
   userStation: 'userStation',
   versionLastReportedOn: 'versionLastReportedOn',
+  // Latest app version for which the user tapped "Later" on the update prompt —
+  // so we don't nag every launch for the same release.
+  updateDismissedVersion: 'updateDismissedVersion',
   userRoles: 'userRoles',
   biometricEnabled: 'biometric_enabled',
   // Password is saved on every successful password login so the biometric flow

@@ -12,6 +12,8 @@ export type RawJourneyStage = {
   who_kind?: string;
   user?: string;
   detail?: string;
+  harvest_time?: string;
+  cut_stage?: string;
 };
 
 export type RawBunchInfo = {
