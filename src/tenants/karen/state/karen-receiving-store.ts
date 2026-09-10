@@ -17,6 +17,10 @@ type State = {
   toggleBatchMode: () => void;
   endBatch: () => void;
   submitScan: (rawScan: string) => Promise<ReceivingOutcome>;
+  /** Re-submits a bucket the operator already saw the "not harvested today"
+   *  popup for, telling the backend to receive it anyway against the stale
+   *  harvest instead of asking again. */
+  confirmReceive: (bucketId: string) => Promise<ReceivingOutcome>;
   reset: () => void;
 };
 
@@ -44,6 +48,20 @@ export const useKarenReceivingStore = create<State>((set, get) => ({
     set({ loading: true });
     try {
       const outcome = await karenReceivingRepository.submit(bucketId, get().batchId);
+      set({ loading: false, lastOutcome: outcome });
+      return outcome;
+    } catch (err) {
+      const e = mapAxiosError(err);
+      const outcome: ReceivingOutcome = { kind: 'error', message: e.message };
+      set({ loading: false, lastOutcome: outcome });
+      return outcome;
+    }
+  },
+
+  confirmReceive: async (bucketId: string): Promise<ReceivingOutcome> => {
+    set({ loading: true });
+    try {
+      const outcome = await karenReceivingRepository.submit(bucketId, get().batchId, true);
       set({ loading: false, lastOutcome: outcome });
       return outcome;
     } catch (err) {
