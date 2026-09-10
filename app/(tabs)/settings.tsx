@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { checkLatestVersion, UPDATE_DOWNLOAD_URL, type VersionCheck } from '@/src/core/version';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -25,10 +26,12 @@ export default function SettingsScreen() {
   const [moduleReady, setModuleReady] = useState(false);
   const [hardwareReady, setHardwareReady] = useState(false);
   const [updatesChecking, setUpdatesChecking] = useState(false);
+  const [verCheck, setVerCheck] = useState<VersionCheck | null>(null);
 
   useEffect(() => {
     setModuleReady(Biometric.isModuleAvailable());
     Biometric.isAvailable().then(setHardwareReady);
+    checkLatestVersion().then(setVerCheck);
   }, []);
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
@@ -172,6 +175,17 @@ export default function SettingsScreen() {
               {runtimeVersion && runtimeVersion !== appVersion ? `  ·  runtime ${runtimeVersion}` : ''}
             </Text>
             <Text style={s.rowHint}>{codeLine}</Text>
+            {verCheck ? (
+              verCheck.updateAvailable && verCheck.latest ? (
+                <TouchableOpacity onPress={() => Linking.openURL(UPDATE_DOWNLOAD_URL).catch(() => {})}>
+                  <Text style={s.updateAvailable}>
+                    Update available: v{verCheck.latest} — tap to get it
+                  </Text>
+                </TouchableOpacity>
+              ) : verCheck.latest ? (
+                <Text style={s.upToDate}>You're on the latest version</Text>
+              ) : null
+            ) : null}
           </View>
         </View>
         <View style={{ height: spacing.md }} />
@@ -225,6 +239,8 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   rowLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   rowHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
+  updateAvailable: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary, marginTop: 4 },
+  upToDate: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.success, marginTop: 4 },
   toggle: {
     width: 46, height: 26, borderRadius: 13,
     backgroundColor: '#E5E5E5', padding: 3, justifyContent: 'center',

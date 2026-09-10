@@ -14,6 +14,7 @@ import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
 import { useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { startTelemetry } from '@/src/core/telemetry/service';
+import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
 
 // Hold the native splash until fonts + auth hydrated.
@@ -40,6 +41,10 @@ export default function RootLayout() {
 
   const segments = useSegments();
   const router = useRouter();
+
+  // Once the user is past the auth/biometric gate, check GitHub for a newer
+  // release and prompt to update (best-effort, once per session per version).
+  useUpdatePrompt(hydrated && hasSession && !biometricLocked);
 
   useEffect(() => {
     hydrate();

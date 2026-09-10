@@ -53,6 +53,8 @@ function toStage(raw: RawJourneyStage): JourneyStage {
     whoKind,
     user: String(raw.user ?? ''),
     detail: String(raw.detail ?? ''),
+    harvestTime: String(raw.harvest_time ?? ''),
+    cutStage: String(raw.cut_stage ?? ''),
   };
 }
 

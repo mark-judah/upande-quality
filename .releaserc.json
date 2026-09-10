@@ -1,0 +1,28 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      { "preset": "angular" }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      { "preset": "angular" }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "npm pkg set version=${nextRelease.version} && sed -ri \"s/\\\"version\\\": \\\"[0-9]+\\.[0-9]+\\.[0-9]+\\\"/\\\"version\\\": \\\"${nextRelease.version}\\\"/\" app.json"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "app.json"],
+        "message": "chore(release): v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

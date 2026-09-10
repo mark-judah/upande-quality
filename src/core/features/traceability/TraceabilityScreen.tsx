@@ -299,6 +299,12 @@ function StageRow({
           {stage.qty != null ? (
             <MetaPill label="Stems" value={String(stage.qty)} warn={false} />
           ) : null}
+          {stage.harvestTime ? (
+            <MetaPill label="Harvest Time" value={stage.harvestTime} warn={false} />
+          ) : null}
+          {stage.cutStage ? (
+            <MetaPill label="Cut Stage" value={stage.cutStage} warn={false} />
+          ) : null}
         </View>
 
         <View style={s.stageFooter}>
