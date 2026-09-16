@@ -55,6 +55,8 @@ function toStage(raw: RawJourneyStage): JourneyStage {
     detail: String(raw.detail ?? ''),
     harvestTime: String(raw.harvest_time ?? ''),
     cutStage: String(raw.cut_stage ?? ''),
+    receivingTime: String(raw.receiving_time ?? ''),
+    shelvingTime: String(raw.shelving_time ?? ''),
   };
 }
 
