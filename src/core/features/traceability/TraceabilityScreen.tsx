@@ -305,6 +305,12 @@ function StageRow({
           {stage.cutStage ? (
             <MetaPill label="Cut Stage" value={stage.cutStage} warn={false} />
           ) : null}
+          {stage.receivingTime ? (
+            <MetaPill label="Receiving Time" value={stage.receivingTime} warn={false} />
+          ) : null}
+          {stage.shelvingTime ? (
+            <MetaPill label="Shelving Time" value={stage.shelvingTime} warn={false} />
+          ) : null}
         </View>
 
         <View style={s.stageFooter}>

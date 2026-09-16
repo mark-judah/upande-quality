@@ -33,8 +33,10 @@ export type JourneyStage = {
   detail: string;
   /** Harvest-stage extras (from the Harvesting Stock Entry). Optional so other
    *  tenants' repositories need not populate them. */
-  harvestTime?: string; // posting_time of the harvest, HH:MM:SS
-  cutStage?: string;    // custom_cut_stage
+  harvestTime?: string;   // posting_time of the harvest, HH:MM:SS
+  cutStage?: string;      // custom_cut_stage
+  receivingTime?: string; // posting_time of the receiving, HH:MM:SS
+  shelvingTime?: string;  // time portion of the Shelf Item date_added, HH:MM:SS
 };
 
 export type BunchInfo = {
