@@ -10,6 +10,10 @@ import {
 } from '@/src/tenants/karen/repository/karen-vaselife-repository';
 import { create } from 'zustand';
 
+/** One failure-reason line on an observation: a reason + the stems that failed
+ *  for it. Total stems failed = sum of all rows (mirrors intake QC). */
+export type ObsFailure = { id: number; reason: string; stems: string };
+
 /** Bucket QRs may encode as `{ "<bucket-id>": "bucket" }`; fall back to raw text. */
 export function extractVaselifeBucketId(raw: string): string {
   const t = (raw ?? '').trim();
@@ -103,8 +107,8 @@ type State = {
   // ── Observation form ───────────────────────────────────────────────────────
   obsDate: string;
   obsSampleCode: string;
-  obsStemsFailed: string;
-  obsReasons: string[];
+  obsCutStage: string | null;
+  obsFailures: ObsFailure[];
   obsNotes: string;
   obsSubmitting: boolean;
 
@@ -137,9 +141,11 @@ type State = {
 
   // Observation actions
   setObsSampleCode: (v: string) => void;
-  setObsStemsFailed: (v: string) => void;
+  setObsCutStage: (v: string | null) => void;
   setObsNotes: (v: string) => void;
-  toggleObsReason: (reason: string) => void;
+  addObsFailure: (reason: string) => void;
+  removeObsFailure: (id: number) => void;
+  setObsFailureStems: (id: number, v: string) => void;
   canSubmitObservation: () => boolean;
   submitObservation: () => Promise<SubmitOutcome>;
   resetObservation: () => void;
@@ -184,8 +190,8 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
 
   obsDate: today(),
   obsSampleCode: '',
-  obsStemsFailed: '',
-  obsReasons: [],
+  obsCutStage: null,
+  obsFailures: [],
   obsNotes: '',
   obsSubmitting: false,
 
@@ -348,13 +354,22 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   },
 
   setObsSampleCode: (v) => set({ obsSampleCode: v }),
-  setObsStemsFailed: (v) => set({ obsStemsFailed: v.replace(/[^0-9]/g, '') }),
+  setObsCutStage: (v) => set({ obsCutStage: v }),
   setObsNotes: (v) => set({ obsNotes: v }),
-  toggleObsReason: (reason) =>
+  addObsFailure: (reason) =>
     set((s) => ({
-      obsReasons: s.obsReasons.includes(reason)
-        ? s.obsReasons.filter((r) => r !== reason)
-        : [...s.obsReasons, reason],
+      obsFailures: [
+        ...s.obsFailures,
+        { id: s.obsFailures.reduce((m, f) => Math.max(m, f.id), 0) + 1, reason, stems: '' },
+      ],
+    })),
+  removeObsFailure: (id) =>
+    set((s) => ({ obsFailures: s.obsFailures.filter((f) => f.id !== id) })),
+  setObsFailureStems: (id, v) =>
+    set((s) => ({
+      obsFailures: s.obsFailures.map((f) =>
+        f.id === id ? { ...f, stems: v.replace(/[^0-9]/g, '') } : f,
+      ),
     })),
 
   canSubmitObservation: () => {
@@ -367,11 +382,18 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
     const s = get();
     if (!s.obsSampleCode.trim()) return { kind: 'error', message: 'Sample code is required.' };
 
+    // Only rows with a reason count; total stems failed = sum of their stems
+    // (auto 0 when nothing failed). Sent as {reason, stems} for the backend's
+    // failure_reasons_detail child table.
+    const failures = s.obsFailures.filter((f) => f.reason);
+    const totalStemsFailed = failures.reduce((sum, f) => sum + (Number(f.stems) || 0), 0);
+
     const payload: Record<string, unknown> = {
       sample_code: s.obsSampleCode.trim(),
       date: s.obsDate,
-      stems_failed: s.obsStemsFailed ? Number(s.obsStemsFailed) : 0,
-      failure_reasons: s.obsReasons,
+      cut_stage: s.obsCutStage,
+      stems_failed: totalStemsFailed,
+      failure_reasons: failures.map((f) => ({ reason: f.reason, stems: Number(f.stems) || 0 })),
       notes: s.obsNotes.trim(),
     };
 
@@ -389,8 +411,8 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
     set({
       obsDate: today(),
       obsSampleCode: '',
-      obsStemsFailed: '',
-      obsReasons: [],
+      obsCutStage: null,
+      obsFailures: [],
       obsNotes: '',
     }),
 }));

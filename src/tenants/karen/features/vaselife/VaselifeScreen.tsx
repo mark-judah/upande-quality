@@ -22,6 +22,12 @@ import {
 
 type Section = 'sample' | 'observation';
 
+// Cut-stage values the observer selects — must match the Vaselife Observation
+// `cut_stage` Select options on the backend doctype.
+const OBS_CUT_STAGE_OPTS = ['<1.5', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0', '5.0>'].map(
+  (v) => ({ label: v, value: v }),
+);
+
 // Fixed commercial-status options (not backend-driven).
 const COMMERCIAL_STATUS_OPTS = [
   { label: 'Trials', value: 'Trials' },
@@ -99,14 +105,16 @@ export function VaselifeScreen() {
   // Observation form
   const obsDate = useKarenVaselifeStore((s) => s.obsDate);
   const obsSampleCode = useKarenVaselifeStore((s) => s.obsSampleCode);
-  const obsStemsFailed = useKarenVaselifeStore((s) => s.obsStemsFailed);
-  const obsReasons = useKarenVaselifeStore((s) => s.obsReasons);
+  const obsCutStage = useKarenVaselifeStore((s) => s.obsCutStage);
+  const obsFailures = useKarenVaselifeStore((s) => s.obsFailures);
   const obsNotes = useKarenVaselifeStore((s) => s.obsNotes);
   const obsSubmitting = useKarenVaselifeStore((s) => s.obsSubmitting);
   const setObsSampleCode = useKarenVaselifeStore((s) => s.setObsSampleCode);
-  const setObsStemsFailed = useKarenVaselifeStore((s) => s.setObsStemsFailed);
+  const setObsCutStage = useKarenVaselifeStore((s) => s.setObsCutStage);
   const setObsNotes = useKarenVaselifeStore((s) => s.setObsNotes);
-  const toggleObsReason = useKarenVaselifeStore((s) => s.toggleObsReason);
+  const addObsFailure = useKarenVaselifeStore((s) => s.addObsFailure);
+  const removeObsFailure = useKarenVaselifeStore((s) => s.removeObsFailure);
+  const setObsFailureStems = useKarenVaselifeStore((s) => s.setObsFailureStems);
   const canSubmitObservation = useKarenVaselifeStore((s) => s.canSubmitObservation);
   const submitObservation = useKarenVaselifeStore((s) => s.submitObservation);
   const resetObservation = useKarenVaselifeStore((s) => s.resetObservation);
@@ -145,8 +153,9 @@ export function VaselifeScreen() {
   const varietyOpts = varieties.map((v) => ({ label: v.variety, value: v.name }));
   const cropOpts = crops.map((c) => ({ label: c.name, value: c.name }));
   const cutStageOpts = cutStages.map((s) => ({ label: s.name, value: s.name }));
-  const selectedReasonSet = new Set(obsReasons);
+  const selectedReasonSet = new Set(obsFailures.map((f) => f.reason));
   const availableReasons = failureReasons.filter((r) => !selectedReasonSet.has(r.name));
+  const obsTotalStemsFailed = obsFailures.reduce((sum, f) => sum + (Number(f.stems) || 0), 0);
 
   // Sample dropdown options
   const sampleOptions = samples.map((sample) => ({
@@ -434,36 +443,66 @@ export function VaselifeScreen() {
                 editable={false}
                 placeholder="YYYY-MM-DD"
               />
+              <View style={{ height: 12 }} />
+              <Dropdown
+                label="Cut Stage"
+                iconName="scissors-cutting"
+                value={obsCutStage}
+                options={OBS_CUT_STAGE_OPTS}
+                placeholder="Select cut stage seen"
+                onChange={setObsCutStage}
+              />
             </Card>
 
-            {/* OBSERVATION */}
+            {/* STEM FAILURES */}
             <Card>
-              <Text style={s.section}>OBSERVATION</Text>
-              <View style={{ height: 12 }} />
-              <LabeledInput
-                label="Stems Failed"
-                iconName="numeric"
-                value={obsStemsFailed}
-                onChangeText={setObsStemsFailed}
-                placeholder="0"
-                keyboardType="number-pad"
-              />
-              <View style={{ height: 8 }} />
-              <Text style={s.fieldLabel}>Reasons for Stem Failure</Text>
-              <View style={{ height: 8 }} />
-              {obsReasons.length > 0 ? (
-                <View style={s.chipWrap}>
-                  {obsReasons.map((r) => (
-                    <Pressable key={r} onPress={() => toggleObsReason(r)} style={s.chip}>
-                      <Text style={s.chipText}>{r}</Text>
-                      <MaterialCommunityIcons name="close" size={14} color={COLORS.textMuted} style={{ marginLeft: 4 }} />
-                    </Pressable>
+              <Text style={s.section}>STEM FAILURES</Text>
+              <View style={{ height: 4 }} />
+              <Text style={s.helpText}>
+                Add each reason and the number of stems that failed for it.
+              </Text>
+              <View style={{ height: 14 }} />
+
+              {obsFailures.length > 0 ? (
+                <>
+                  <View style={s.failureHeader}>
+                    <Text style={[s.failureHeaderText, { flex: 1 }]}>REASON</Text>
+                    <Text style={[s.failureHeaderText, s.failureStemsCol]}>STEMS</Text>
+                    <View style={s.failureRemoveCol} />
+                  </View>
+                  {obsFailures.map((f) => (
+                    <View key={f.id} style={s.failureRow}>
+                      <Text style={s.failureReason} numberOfLines={2}>
+                        {f.reason}
+                      </Text>
+                      <TextInput
+                        value={f.stems}
+                        onChangeText={(v) => setObsFailureStems(f.id, v)}
+                        placeholder="0"
+                        placeholderTextColor={COLORS.textMuted}
+                        keyboardType="number-pad"
+                        style={[s.failureStemsInput, s.failureStemsCol]}
+                      />
+                      <Pressable
+                        onPress={() => removeObsFailure(f.id)}
+                        hitSlop={8}
+                        style={s.failureRemoveCol}
+                      >
+                        <MaterialCommunityIcons name="close-circle" size={22} color={COLORS.textMuted} />
+                      </Pressable>
+                    </View>
                   ))}
-                </View>
+                </>
               ) : (
-                <Text style={s.empty}>No failure reasons added yet.</Text>
+                <View style={s.emptyBox}>
+                  <MaterialCommunityIcons name="flower-tulip-outline" size={24} color={COLORS.textMuted} />
+                  <Text style={s.emptyBoxText}>
+                    No stem failures added — total saves as 0.
+                  </Text>
+                </View>
               )}
-              <View style={{ height: 12 }} />
+
+              <View style={{ height: 14 }} />
               <Pressable
                 onPress={() => setAddReasonOpen(true)}
                 style={[s.addRow, availableReasons.length === 0 && { opacity: 0.4 }]}
@@ -471,12 +510,24 @@ export function VaselifeScreen() {
               >
                 <MaterialCommunityIcons name="plus-circle-outline" size={20} color={COLORS.text} />
                 <Text style={s.addLabel}>
-                  {availableReasons.length === 0 ? 'All reasons selected' : 'Add Failure Reason'}
+                  {availableReasons.length === 0 ? 'All reasons added' : 'Add Failure Reason'}
                 </Text>
               </Pressable>
-              <View style={{ height: 16 }} />
-              <Text style={s.fieldLabel}>Notes / Remarks</Text>
-              <View style={{ height: 8 }} />
+            </Card>
+
+            {/* TOTAL STEMS FAILED — its own banner */}
+            <View style={s.totalCard}>
+              <View style={s.totalIconWrap}>
+                <MaterialCommunityIcons name="sigma" size={20} color={COLORS.bg} />
+              </View>
+              <Text style={s.totalLabel}>Total Stems Failed</Text>
+              <Text style={s.totalValue}>{obsTotalStemsFailed}</Text>
+            </View>
+
+            {/* NOTES */}
+            <Card>
+              <Text style={s.section}>NOTES / REMARKS</Text>
+              <View style={{ height: 10 }} />
               <TextInput
                 value={obsNotes}
                 onChangeText={setObsNotes}
@@ -505,7 +556,7 @@ export function VaselifeScreen() {
         onClose={() => setAddReasonOpen(false)}
         options={availableReasons.map((r) => ({ label: r.name, value: r.name }))}
         onPick={(name) => {
-          toggleObsReason(name);
+          addObsFailure(name);
           setAddReasonOpen(false);
         }}
       />
@@ -615,15 +666,17 @@ const s = StyleSheet.create({
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.bgMuted,
-    borderRadius: 8,
-    borderWidth: 1,
+    backgroundColor: COLORS.bg,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
+    borderStyle: 'dashed',
   },
-  addLabel: { color: COLORS.text, fontWeight: '600' },
+  addLabel: { color: COLORS.text, fontWeight: '700', fontSize: 13.5 },
 
   notesInput: {
     borderWidth: 1,
@@ -636,6 +689,72 @@ const s = StyleSheet.create({
     minHeight: 96,
     backgroundColor: COLORS.bg,
   },
+  helpText: { fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17 },
+  // Shared column widths so the header labels line up with each row.
+  failureStemsCol: { width: 76, textAlign: 'center' },
+  failureRemoveCol: { width: 30, alignItems: 'center', justifyContent: 'center' },
+  failureHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  failureHeaderText: { fontSize: 10.5, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.7 },
+  failureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.bgMuted,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  failureReason: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text, marginRight: 8 },
+  failureStemsInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingVertical: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    backgroundColor: COLORS.bg,
+  },
+  emptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    backgroundColor: COLORS.bgMuted,
+  },
+  emptyBoxText: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center', maxWidth: 220 },
+  totalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    backgroundColor: COLORS.text,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  totalIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginRight: 12,
+  },
+  totalLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.bg, opacity: 0.85, letterSpacing: 0.3 },
+  totalValue: { fontSize: 30, fontWeight: '800', color: COLORS.bg },
 
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
   modalHeader: {
