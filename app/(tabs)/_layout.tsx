@@ -28,6 +28,7 @@ const ICONS: Record<string, TabIconPair> = {
   'cleaning-record':    { outline: 'sparkles-outline',           filled: 'sparkles' },
   'inspection-log':     { outline: 'checkbox-outline',           filled: 'checkbox' },
   discards:             { outline: 'trash-outline',             filled: 'trash' },
+  'shelf-operations':   { outline: 'repeat-outline',            filled: 'repeat' },
   'intake-qc':          { outline: 'checkmark-done-outline',    filled: 'checkmark-done' },
   'coldroom-qc':        { outline: 'snow-outline',              filled: 'snow' },
   'packhouse-qc':       { outline: 'cube-outline',              filled: 'cube' },
@@ -82,6 +83,7 @@ export default function TabLayout() {
       <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', href: null }} />
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', href: null }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
+      <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
       <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', href: null }} />
