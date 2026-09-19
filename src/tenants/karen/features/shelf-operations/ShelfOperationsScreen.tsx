@@ -40,19 +40,15 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     useCallback(() => {
       if (mode === 'transfer') {
         focusWhenReady(shelfId ? bucketRef : shelfRef);
-      } else if (reason.trim()) {
-        focusWhenReady(bucketRef);
       }
-    }, [mode, shelfId, reason]),
+    }, [mode, shelfId]),
   );
 
   useEffect(() => {
     if (mode === 'transfer') {
       focusWhenReady(shelfId ? bucketRef : shelfRef);
-    } else if (reason.trim()) {
-      focusWhenReady(bucketRef);
     }
-  }, [mode, shelfId, reason]);
+  }, [mode, shelfId]);
 
   const switchMode = (next: ShelfOperationsMode) => {
     setMode(next);
@@ -150,6 +146,9 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
               placeholderTextColor={COLORS.textMuted}
               value={reason}
               onChangeText={setReason}
+              onBlur={() => {
+                if (reason.trim()) focusWhenReady(bucketRef);
+              }}
               multiline
               editable={!loading}
             />
