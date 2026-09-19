@@ -159,13 +159,17 @@ class IntegrationTestShelfOperations(IntegrationTestCase):
 	def setUp(self):
 		self.farm = "Test Shelf Ops Farm"
 		if not frappe.db.exists("Farm", self.farm):
-			frappe.get_doc({"doctype": "Farm", "farm_name": self.farm, "name": self.farm}).insert(
-				ignore_permissions=True
-			)
+			frappe.get_doc({
+				"doctype": "Farm",
+				"farm_name": self.farm,
+				"company": "Karen Roses",
+				"abbreviation": "TSOF",
+				"farm_type": [{"farm_type": "Has Greenhouses"}],
+			}).insert(ignore_permissions=True)
 		self.bucket_id = "TEST-BUCKET-001"
 		if not frappe.db.exists("Bucket QR Code", self.bucket_id):
 			frappe.get_doc(
-				{"doctype": "Bucket QR Code", "id": self.bucket_id, "item_code": "Test Rose"}
+				{"doctype": "Bucket QR Code", "id": self.bucket_id, "item_code": "Reflex"}
 			).insert(ignore_permissions=True)
 		frappe.db.commit()
 
@@ -184,7 +188,7 @@ class IntegrationTestShelfOperations(IntegrationTestCase):
 		shelf_doc = frappe.get_doc("Shelf", shelf_id)
 		new_item = shelf_doc.append("items", {})
 		new_item.bucket_id = self.bucket_id
-		new_item.variety = "Test Rose"
+		new_item.variety = "Reflex"
 		new_item.stem_qty = 40
 		new_item.farm = self.farm
 		new_item.date_added = frappe.utils.now_datetime()
@@ -349,13 +353,17 @@ class IntegrationTestShelfOperationsPackhouse(IntegrationTestCase):
 	def setUp(self):
 		self.farm = "Test Shelf Ops Farm"
 		if not frappe.db.exists("Farm", self.farm):
-			frappe.get_doc({"doctype": "Farm", "farm_name": self.farm, "name": self.farm}).insert(
-				ignore_permissions=True
-			)
+			frappe.get_doc({
+				"doctype": "Farm",
+				"farm_name": self.farm,
+				"company": "Karen Roses",
+				"abbreviation": "TSOF",
+				"farm_type": [{"farm_type": "Has Greenhouses"}],
+			}).insert(ignore_permissions=True)
 		self.bucket_id = "TEST-BUCKET-002"
 		if not frappe.db.exists("Bucket QR Code", self.bucket_id):
 			frappe.get_doc(
-				{"doctype": "Bucket QR Code", "id": self.bucket_id, "item_code": "Test Rose"}
+				{"doctype": "Bucket QR Code", "id": self.bucket_id, "item_code": "Reflex"}
 			).insert(ignore_permissions=True)
 		frappe.db.commit()
 
@@ -374,7 +382,7 @@ class IntegrationTestShelfOperationsPackhouse(IntegrationTestCase):
 		shelf_doc = frappe.get_doc("Shelf", shelf_id)
 		new_item = shelf_doc.append("items", {})
 		new_item.bucket_id = self.bucket_id
-		new_item.variety = "Test Rose"
+		new_item.variety = "Reflex"
 		new_item.stem_qty = 30
 		new_item.farm = self.farm
 		new_item.date_added = frappe.utils.now_datetime()
@@ -389,12 +397,87 @@ class IntegrationTestShelfOperationsPackhouse(IntegrationTestCase):
 		log = frappe.get_all(
 			"Shelving Log",
 			filters={"bucket_id": self.bucket_id, "reason": "Shelved"},
-			fields=["name", "shelf", "shelf_item"],
+			fields=["name", "shelf", "shelf_item", "shelved_by", "shelved_on"],
 		)
 		self.assertEqual(len(log), 1)
 		self.assertEqual(log[0].shelf, shelf_id)
 		self.assertEqual(log[0].shelf_item, new_item.name)
+		self.assertEqual(log[0].shelved_by, frappe.session.user)
+		self.assertTrue(log[0].shelved_on)
+
+	def test_shelve_bucket_end_to_end_writes_shelved_log_row(self):
+		"""Exercises the real shelveBucket() wiring (not just the extracted
+		helper) -- the actual bug this task fixes. Same real preconditions
+		shelveBucket enforces: a submitted Harvesting entry within 1 day of a
+		submitted Receiving entry, both same-day so the staleness gate passes."""
+		shelf_id = "TEST-SHELF-G"
+		if not frappe.db.exists("Shelf", shelf_id):
+			frappe.get_doc({"doctype": "Shelf", "shelf_id": shelf_id, "farm": self.farm}).insert(
+				ignore_permissions=True
+			)
+
+		today = frappe.utils.today()
+		harvest = frappe.get_doc({
+			"doctype": "Stock Entry",
+			"stock_entry_type": "Harvesting",
+			"purpose": "Material Receipt",
+			"company": "Karen Roses",
+			"posting_date": today,
+			"custom_bucket_id": self.bucket_id,
+			"items": [{
+				"item_code": "Reflex", "qty": 20, "t_warehouse": "Karen GH 04 - KR", "uom": "Stems",
+				"allow_zero_valuation_rate": 1,
+			}],
+		})
+		harvest.insert(ignore_permissions=True)
+		harvest.submit()
+
+		receiving = frappe.get_doc({
+			"doctype": "Stock Entry",
+			"stock_entry_type": "Receiving",
+			"purpose": "Material Transfer",
+			"company": "Karen Roses",
+			"posting_date": today,
+			"set_posting_time": 1,
+			"custom_bucket_id": self.bucket_id,
+			"items": [{
+				"item_code": "Reflex", "qty": 20, "uom": "Stems",
+				"s_warehouse": "Karen GH 04 - KR", "t_warehouse": "Karen Receiving Cold Store - KR",
+				"custom_stem_length": "52cm", "allow_zero_valuation_rate": 1,
+			}],
+		})
+		receiving.insert(ignore_permissions=True)
+		receiving.submit()
+		frappe.db.commit()
+
+		from upande_packhouse.mobile.api import shelveBucket
+
+		frappe.local.form_dict = frappe._dict({})
+		frappe.request = frappe._dict(
+			get_json=lambda: {"shelf_id": shelf_id, "bucket_id": self.bucket_id, "farm": self.farm}
+		)
+		frappe.response = frappe._dict()
+		shelveBucket()
+
+		self.assertEqual(frappe.response["data"]["status"], "success")
+
+		logs = frappe.get_all(
+			"Shelving Log",
+			filters={"bucket_id": self.bucket_id, "reason": "Shelved"},
+			fields=["shelf", "shelf_item", "shelved_by", "shelved_on", "removed_on"],
+		)
+		self.assertEqual(len(logs), 1)
+		self.assertEqual(logs[0].shelf, shelf_id)
+		self.assertTrue(logs[0].shelf_item)
+		self.assertEqual(logs[0].shelved_by, frappe.session.user)
+		self.assertTrue(logs[0].shelved_on)
+		self.assertFalse(logs[0].removed_on)
+
+		frappe.db.delete("Stock Entry", {"custom_bucket_id": self.bucket_id})
+		frappe.db.commit()
 ```
+
+Also add `frappe.db.delete("Stock Entry", {"custom_bucket_id": self.bucket_id})` to `tearDown`, before the existing two deletes, so a re-run doesn't collide with leftover submitted Stock Entries from the end-to-end test.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -532,7 +615,7 @@ Append to `/home/jk/Projects/upande-local-bench-v16/apps/upande_quality/upande_q
 		shelf_doc = frappe.get_doc("Shelf", shelf_a)
 		item = shelf_doc.append("items", {})
 		item.bucket_id = self.bucket_id
-		item.variety = "Test Rose"
+		item.variety = "Reflex"
 		item.stem_qty = 25
 		item.farm = self.farm
 		item.date_added = frappe.utils.now_datetime()
@@ -587,7 +670,7 @@ Append to `/home/jk/Projects/upande-local-bench-v16/apps/upande_quality/upande_q
 		shelf_doc = frappe.get_doc("Shelf", shelf_a)
 		item = shelf_doc.append("items", {})
 		item.bucket_id = self.bucket_id
-		item.variety = "Test Rose"
+		item.variety = "Reflex"
 		item.stem_qty = 20
 		item.farm = self.farm
 		item.date_added = frappe.utils.now_datetime()
@@ -599,9 +682,9 @@ Append to `/home/jk/Projects/upande-local-bench-v16/apps/upande_quality/upande_q
 				"naming_series": "OPL-.YYYY.-",
 				"farm": self.farm,
 				"table_ytkc": [
-					{"item_code": "Test Rose", "bucket": self.bucket_id, "shelf": shelf_a,
+					{"item_code": "Reflex", "bucket": self.bucket_id, "shelf": shelf_a,
 					 "issued": 0, "qty": 20},
-					{"item_code": "Test Rose", "bucket": self.bucket_id, "shelf": shelf_a,
+					{"item_code": "Reflex", "bucket": self.bucket_id, "shelf": shelf_a,
 					 "issued": 1, "qty": 5},
 				],
 			}
@@ -631,9 +714,13 @@ Append to `/home/jk/Projects/upande-local-bench-v16/apps/upande_quality/upande_q
 		shelf_a = "TEST-SHELF-A"
 		other_farm = "Test Shelf Ops Farm 2"
 		if not frappe.db.exists("Farm", other_farm):
-			frappe.get_doc({"doctype": "Farm", "farm_name": other_farm, "name": other_farm}).insert(
-				ignore_permissions=True
-			)
+			frappe.get_doc({
+				"doctype": "Farm",
+				"farm_name": other_farm,
+				"company": "Karen Roses",
+				"abbreviation": "TSOF2",
+				"farm_type": [{"farm_type": "Has Greenhouses"}],
+			}).insert(ignore_permissions=True)
 		shelf_d = "TEST-SHELF-D"
 		if not frappe.db.exists("Shelf", shelf_d):
 			frappe.get_doc({"doctype": "Shelf", "shelf_id": shelf_d, "farm": other_farm}).insert(
@@ -647,7 +734,7 @@ Append to `/home/jk/Projects/upande-local-bench-v16/apps/upande_quality/upande_q
 		shelf_doc = frappe.get_doc("Shelf", shelf_a)
 		item = shelf_doc.append("items", {})
 		item.bucket_id = self.bucket_id
-		item.variety = "Test Rose"
+		item.variety = "Reflex"
 		item.stem_qty = 10
 		item.farm = self.farm
 		item.date_added = frappe.utils.now_datetime()
@@ -951,7 +1038,7 @@ Append to `IntegrationTestShelfOperations` in the same test file:
 				{
 					"doctype": "Warehouse",
 					"warehouse_name": "Test Shelf Ops WH",
-					"company": frappe.defaults.get_global_default("company"),
+					"company": "Karen Roses",
 				}
 			).insert(ignore_permissions=True)
 		warehouse = frappe.get_all("Warehouse", filters={"warehouse_name": "Test Shelf Ops WH"}, pluck="name")[0]
@@ -959,7 +1046,7 @@ Append to `IntegrationTestShelfOperations` in the same test file:
 		shelf_doc = frappe.get_doc("Shelf", shelf_a)
 		item = shelf_doc.append("items", {})
 		item.bucket_id = self.bucket_id
-		item.variety = "Test Rose"
+		item.variety = "Reflex"
 		item.stem_qty = 15
 		item.farm = self.farm
 		item.warehouse = warehouse
@@ -1007,7 +1094,7 @@ Append to `IntegrationTestShelfOperations` in the same test file:
 		shelf_doc = frappe.get_doc("Shelf", shelf_a)
 		item = shelf_doc.append("items", {})
 		item.bucket_id = self.bucket_id
-		item.variety = "Test Rose"
+		item.variety = "Reflex"
 		item.stem_qty = 15
 		item.farm = self.farm
 		item.date_added = frappe.utils.now_datetime()
@@ -1017,7 +1104,7 @@ Append to `IntegrationTestShelfOperations` in the same test file:
 			{
 				"doctype": "Bucket Allocation Status",
 				"bucket_id": self.bucket_id,
-				"item_code": "Test Rose",
+				"item_code": "Reflex",
 				"total_quantity": 15,
 				"allocated_quantity": 15,
 				"available_quantity": 0,
@@ -1125,10 +1212,15 @@ def createOfflineIssuingEntry():
         }
         return
 
+    # frappe.defaults.get_global_default("company") is unreliable -- this site
+    # has no Global Defaults.default_company configured, so it silently
+    # returns None (Stock Entry then fails validation on submit). Deriving
+    # from the shelf item's own Farm is more correct anyway (multi-company
+    # safe) and always set, since every Shelf Item carries its farm.
     entry = frappe.new_doc("Stock Entry")
     entry.stock_entry_type = "Offline Issuing"
     entry.purpose = "Material Issue"
-    entry.company = frappe.defaults.get_global_default("company")
+    entry.company = frappe.db.get_value("Farm", shelf_items[0].farm, "company")
     entry.posting_date = frappe.utils.now_datetime().date()
     entry.posting_time = frappe.utils.now_datetime().time()
     entry.set_posting_time = 1
