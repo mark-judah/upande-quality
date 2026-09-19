@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
@@ -40,17 +40,19 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     useCallback(() => {
       if (mode === 'transfer') {
         focusWhenReady(shelfId ? bucketRef : shelfRef);
-      } else {
+      } else if (reason.trim()) {
         focusWhenReady(bucketRef);
       }
-    }, [mode, shelfId]),
+    }, [mode, shelfId, reason]),
   );
 
   useEffect(() => {
     if (mode === 'transfer') {
       focusWhenReady(shelfId ? bucketRef : shelfRef);
+    } else if (reason.trim()) {
+      focusWhenReady(bucketRef);
     }
-  }, [mode, shelfId]);
+  }, [mode, shelfId, reason]);
 
   const switchMode = (next: ShelfOperationsMode) => {
     setMode(next);
