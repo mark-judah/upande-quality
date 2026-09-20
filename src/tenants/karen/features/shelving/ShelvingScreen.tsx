@@ -59,6 +59,13 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
       showSuccess(outcome.message);
     } else {
       showError(outcome.message);
+      // The server is the source of truth on shelf capacity -- if it says
+      // this shelf is already full (another device shelved onto it, or this
+      // session's own tally lost sync), move on rather than leaving the
+      // operator stuck scanning buckets a full shelf will keep rejecting.
+      if (outcome.kind === 'failure' && outcome.reason === 'two_buckets_per_shelf') {
+        clearShelf();
+      }
     }
     bucketRef.current?.clear();
     // After SHELF_CAPACITY successful buckets the store auto-clears the shelf;
