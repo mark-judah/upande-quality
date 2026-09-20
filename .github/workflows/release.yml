@@ -3,7 +3,7 @@ name: Generate Semantic Release
 on:
   push:
     branches:
-      - main
+      - origin
 
 # Uses the auto-provided GITHUB_TOKEN — no manual secret setup required.
 # NOTE: if `main` is a protected branch, GITHUB_TOKEN cannot push the version

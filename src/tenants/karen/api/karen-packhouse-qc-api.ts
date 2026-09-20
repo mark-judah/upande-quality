@@ -100,6 +100,12 @@ export type RawSpecification = {
   documentation_charge?: number;
   certificate_of_origin?: number;
   box_items?: RawSpecBoxItem[];
+  approved_varieties?: {
+    variety?: string;
+    colour?: string;
+    headsize_cm?: string;
+    budcount?: string;
+  }[];
   consumables?: RawSpecConsumable[];
 };
 
@@ -150,6 +156,8 @@ export type RawPackhouseFormData = {
   order_specs?: RawOrderPickList[];
   item_locations?: RawItemLocation[];
   varieties?: string[];
+  /** Total bunches in the order, summed from the Order Pick List Packing Guide. */
+  total_bunches?: number;
   greenhouses?: string[];
   params?: RawQcParameter[];
   reasons?: RawReason[];
@@ -232,7 +240,12 @@ export const karenPackhouseQcApi = {
             : undefined;
     return api<RawPackhouseFormDataResponse>({
       method: 'GET',
-      url: '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData',
+      // TEMPORARY stopgap: prod app-code method still has the `bi.variety` crash
+      // (fix is in api.py but not yet deployed). The Server Script mirror at this
+      // path is already fixed live. REVERT to
+      // '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData' once api.py
+      // is deployed to prod.
+      url: '/api/method/fetchPackhouseQCFormData',
       // Airport Returns scans a box AND asks the server for the return context.
       params: params?.airportReturn ? { ...(base ?? {}), airport_return: 1 } : base,
     });

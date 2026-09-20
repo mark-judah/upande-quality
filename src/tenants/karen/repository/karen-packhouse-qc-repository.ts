@@ -110,6 +110,9 @@ export type SpecificationMatch = {
   documentationCharge: boolean;
   certificateOfOrigin: boolean;
   boxItems: SpecBoxItem[];
+  /** Accepted varieties for this spec (from Spec Approved Variety). Box items
+   *  carry no variety/colour of their own, so these drive the box-item labels. */
+  approvedVarieties: { variety: string; colour: string; headsizeCm: string; budcount: string }[];
   consumables: SpecConsumable[];
   /** Convenience shortcut onto the first box item — the common case is one
    *  row per spec. */
@@ -163,6 +166,8 @@ export type PackhouseFormDataOutcome =
       resolvedOrderPickList: OrderPickListOption | null;
       itemLocations: ItemLocation[];
       varieties: string[];
+      /** Total bunches in the order (from the Order Pick List Packing Guide). */
+      totalBunches: number;
       greenhouses: string[];
       params: PackhouseQcParameter[];
       reasons: ReasonOption[];
@@ -288,9 +293,23 @@ function toSpecConsumable(raw: RawSpecConsumable): SpecConsumable {
 }
 
 function toSpecification(raw: RawSpecification): SpecificationMatch {
-  const boxItems = (raw.box_items ?? []).map(toSpecBoxItem);
+  const approvedVarieties = (raw.approved_varieties ?? []).map((av) => ({
+    variety: av.variety ?? '',
+    colour: av.colour ?? '',
+    headsizeCm: av.headsize_cm ?? '',
+    budcount: av.budcount ?? '',
+  }));
+  // Spec Box Item rows carry no variety/colour of their own — fill them from
+  // the spec's approved varieties (1:1 for the common Mono spec, else by index
+  // with the first approved variety as fallback) so box items show the accepted
+  // variety instead of a blank "Variety —".
+  const boxItems = (raw.box_items ?? []).map(toSpecBoxItem).map((bi, idx) => {
+    const av = approvedVarieties[idx] ?? approvedVarieties[0];
+    return av ? { ...bi, variety: bi.variety || av.variety, colour: bi.colour || av.colour } : bi;
+  });
   const firstBox = boxItems[0];
   return {
+    approvedVarieties,
     specName: raw.spec_name ?? '',
     customer: raw.customer ?? '',
     categoryCode: raw.category_code ?? '',
@@ -401,6 +420,7 @@ export const karenPackhouseQcRepository = {
       resolvedOrderPickList: m.order_pick_list_detail ? toOrderPickList(m.order_pick_list_detail) : null,
       itemLocations: (m.item_locations ?? []).map(toItemLocation),
       varieties: m.varieties ?? [],
+      totalBunches: Number(m.total_bunches) || 0,
       greenhouses: m.greenhouses ?? [],
       params: (m.params ?? []).map(toParam),
       reasons: (m.reasons ?? []).map(toReason),

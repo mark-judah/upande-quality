@@ -252,6 +252,7 @@ type State = {
   selectedOrderPickList: OrderPickListOption | null;
   itemLocations: ItemLocation[];
   varieties: string[];
+  totalBunches: number;
   boxes: BoxLabelOption[];
   boxTotalCount: number;
   /** Full Specifications doc per variety, resolved via the real FK chain
@@ -543,10 +544,23 @@ function finalQcSampled(s: State): number {
  *  that auto-suggests quarantining the whole order. */
 function finalQcAnyBreach(s: State): boolean {
   const sampled = finalQcSampled(s);
-  return s.issues.some((i) => {
-    const threshold = s.params.find((p) => p.name === i.paramName)?.toleranceThresholds ?? 0;
-    return isThresholdBreached(i.count, sampled, threshold);
-  });
+  // Affected bunches per parameter, from the per-bunch capture: a bunch counts
+  // once toward a parameter if any of its issues names that reason.
+  const byParam = new Map<string, number>();
+  for (const b of s.rejectedBunches) {
+    const seen = new Set<string>();
+    for (const iss of b.issues) {
+      if (iss.reason && !seen.has(iss.reason)) {
+        seen.add(iss.reason);
+        byParam.set(iss.reason, (byParam.get(iss.reason) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [reason, count] of byParam) {
+    const threshold = s.params.find((p) => p.name === reason)?.toleranceThresholds ?? 0;
+    if (isThresholdBreached(count, sampled, threshold)) return true;
+  }
+  return false;
 }
 
 function extractBoxLabelFromScan(raw: string): string {
@@ -583,6 +597,7 @@ function freshOrderState() {
   return {
     itemLocations: [] as ItemLocation[],
     varieties: [] as string[],
+    totalBunches: 0,
     boxes: [] as BoxLabelOption[],
     boxTotalCount: 0,
     specifications: {} as Record<string, SpecificationMatch>,
@@ -626,6 +641,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   selectedOrderPickList: null,
   itemLocations: [],
   varieties: [],
+  totalBunches: 0,
   boxes: [],
   boxTotalCount: 0,
   specifications: {},
@@ -779,6 +795,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           orderDetailLoading: false,
           itemLocations: outcome.itemLocations,
           varieties: outcome.varieties,
+          totalBunches: outcome.totalBunches,
           // The order already tells us its variety(ies) — default to the
           // first so the operator doesn't have to pick it manually.
           selectedVariety: outcome.varieties[0] ?? null,
@@ -1286,9 +1303,20 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     if (s.isBoxSamplingMode()) {
       const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
       if (boxes <= 0) return false;
-      if (!s.issues.every((i) => i.count > 0)) return false;
+      // Affected bunches are now captured per-bunch (like Grading QC): each needs
+      // at least one issue, every issue a positive stem count, and its issue
+      // stems can't total more than the stems the bunch holds.
+      const perBunch = gradingStemsPerBunch(s);
+      const bunchesValid = s.rejectedBunches.every(
+        (b) =>
+          b.issues.length > 0 &&
+          b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0) &&
+          b.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0) <= perBunch,
+      );
+      if (!bunchesValid) return false;
       const decision = s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
-      if (decision !== 'Accept' && s.issues.length === 0) return false;
+      // A non-Accept decision must be backed by at least one affected bunch.
+      if (decision !== 'Accept' && s.rejectedBunches.length === 0) return false;
       return true;
     }
     return true;
@@ -1561,15 +1589,29 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       // bunches/stems ratio so a rejected bunch still converts to real stems.
       const perBunch = spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
       const action: IssueAction = decision === 'Quarantine' ? 'Quarantine' : 'Reject';
-      issuesPayload = s.issues.map((i) => ({
-        parameter: i.paramName,
-        // The server tallies in stems, so convert affected bunches to stems.
-        // For a whole-order Quarantine/Reject the count is documentation only;
-        // for Accept it drives the partial bunch-reject stock movement.
-        count: Math.max(0, Math.round(i.count * perBunch)),
+      // Per-bunch capture (like Grading QC): aggregate stem counts per
+      // (variety, reason) so a mix order records each variety's issues as their
+      // own rows (the server tallies issue counts as stems). bunches_affected is
+      // the number of affected bunches recorded.
+      const byKey = new Map<string, { parameter: string; variety: string; count: number }>();
+      for (const bunch of s.rejectedBunches) {
+        const v = bunch.variety || s.selectedVariety || '';
+        for (const iss of bunch.issues) {
+          const stems = Math.max(0, Number.parseInt(iss.stems, 10) || 0);
+          if (stems <= 0) continue;
+          const key = v + '||' + iss.reason;
+          const cur = byKey.get(key);
+          if (cur) cur.count += stems;
+          else byKey.set(key, { parameter: iss.reason, variety: v, count: stems });
+        }
+      }
+      issuesPayload = Array.from(byKey.values(), (x) => ({
+        parameter: x.parameter,
+        count: x.count,
         action,
-        variety: i.variety || s.selectedVariety || '',
+        variety: x.variety,
       }));
+      payload.bunches_affected = s.rejectedBunches.length;
       payload.final_decision = decision;
       payload.boxes_checked = boxesChecked;
       // "Total boxes" for the order — distinct from boxes_checked, the sample.
