@@ -121,7 +121,12 @@ export function KarenSolutionMixingScreen({
   };
 
   return (
-    <Screen title="Solution Mixing">
+    <Screen
+      title="Solution Mixing"
+      onRefresh={async () => {
+        await Promise.all([loadFarms(), loadChemicals(), loadTanks(farm || userFarm)]);
+      }}
+    >
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"

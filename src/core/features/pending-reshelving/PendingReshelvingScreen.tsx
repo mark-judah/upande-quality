@@ -56,7 +56,7 @@ export function PendingReshelvingScreen({ repository }: Props) {
   }
 
   return (
-    <Screen title="Pending Reshelving">
+    <Screen title="Pending Reshelving" onRefresh={() => loadPending(repository)}>
       <Card>
         <View style={s.headerRow}>
           <View style={{ flex: 1 }}>

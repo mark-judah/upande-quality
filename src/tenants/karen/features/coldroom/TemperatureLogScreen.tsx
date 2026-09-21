@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -43,6 +43,16 @@ export function KarenTemperatureLogScreen({ userFarm }: { userFarm: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadFarms(), loadColdStores(farm || userFarm)]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     setColdstore('');
     if (farm) loadColdStores(farm);
@@ -73,7 +83,11 @@ export function KarenTemperatureLogScreen({ userFarm }: { userFarm: string }) {
 
   return (
     <Screen title="Cold Store Temperature" scroll={false}>
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: spacing.xxl }}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <Card>
           <Text style={s.section}>COLD STORE</Text>
           <View style={{ height: 8 }} />

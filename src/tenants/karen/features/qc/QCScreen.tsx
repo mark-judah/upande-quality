@@ -43,7 +43,12 @@ export function KarenQcScreen({ userFarm: _userFarm, userGreenhouse }: Props) {
   }, [userGreenhouse]);
 
   return (
-    <Screen title={isQuarantineMode ? 'Quarantine Review' : 'Intake QC'}>
+    <Screen
+      title={isQuarantineMode ? 'Quarantine Review' : 'Intake QC'}
+      onRefresh={async () => {
+        await Promise.all([loadParameters(), userGreenhouse ? loadVarieties(userGreenhouse) : Promise.resolve()]);
+      }}
+    >
       <ScanAndBatchSection scanRef={scanRef} onError={showError} />
 
       {parametersLoading && parameters.length === 0 ? (

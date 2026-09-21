@@ -5,11 +5,11 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
@@ -76,12 +76,18 @@ export function Screen({
       </View>
     );
   } else if (scroll) {
+    // KeyboardAwareScrollView (not a plain ScrollView) so a focused input is
+    // actually scrolled clear of the keyboard on both platforms -- a plain
+    // ScrollView + the KeyboardAvoidingView below only padded on iOS and did
+    // nothing to bring the focused field/button into view.
     body = (
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={[s.content, padding]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
+        enableOnAndroid
+        extraScrollHeight={40}
         refreshControl={
           handleRefresh ? (
             <RefreshControl
@@ -94,7 +100,7 @@ export function Screen({
         }
       >
         {children}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   } else {
     body = <View style={[s.flex, padding]}>{children}</View>;
@@ -122,12 +128,18 @@ export function Screen({
         </View>
       ) : null}
       {!hideMenu ? <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} /> : null}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={s.flex}
-      >
-        {body}
-      </KeyboardAvoidingView>
+      {scroll && !loading && !error ? (
+        // KeyboardAwareScrollView above already handles keyboard avoidance --
+        // wrapping it in KeyboardAvoidingView too double-compensates on iOS.
+        body
+      ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={s.flex}
+        >
+          {body}
+        </KeyboardAvoidingView>
+      )}
       {footer ? <View style={s.footer}>{footer}</View> : null}
     </SafeAreaView>
   );

@@ -7,6 +7,7 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Pending Reshelving', route: 'pending-reshelving', icon: 'inbox-outline' },
   { label: 'Receiving',          route: 'receiving',          icon: 'download-outline' },
   { label: 'Shelving',           route: 'shelving',           icon: 'albums-outline' },
+  { label: 'Shelf Operations',   route: 'shelf-operations',   icon: 'repeat-outline' },
   { label: 'Bucket Requests',    route: 'bucket-requests',    icon: 'cart-outline' },
   { label: 'Bucket Transfers',   route: 'bucket-transfers',   icon: 'car-outline' },
   { label: 'Solution Mixing',    route: 'solution-mixing',    icon: 'flask-outline' },

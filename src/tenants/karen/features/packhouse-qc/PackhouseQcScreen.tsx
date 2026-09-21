@@ -386,7 +386,7 @@ export function PackhouseQcScreen() {
   // ── Landing: pick a workflow ────────────────────────────────────────────
   if (!hasWorkflow) {
     return (
-      <Screen title="Packhouse QC">
+      <Screen title="Packhouse QC" onRefresh={loadInitialData}>
         <View style={s.landingHeader}>
           <Text style={s.landingTitle}>Select Workflow</Text>
           <Text style={s.landingSubtitle}>Choose which quality check you&apos;re doing.</Text>

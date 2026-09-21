@@ -13,6 +13,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -39,6 +40,7 @@ export function VaselifeScreen() {
   const { showSuccess, showError } = useToast();
   const [section, setSection] = useState<Section>('sample');
   const [addReasonOpen, setAddReasonOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const scanRef = useRef<ScanFieldHandle>(null);
 
   const loading = useKarenVaselifeStore((s) => s.loading);
@@ -123,6 +125,15 @@ export function VaselifeScreen() {
     loadInitialData();
   }, [loadInitialData]);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await loadInitialData();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const onScan = async (raw: string) => {
     const r = await scanBucket(raw);
     if (!r.ok) showError(r.message ?? 'Could not load bucket.');
@@ -171,7 +182,11 @@ export function VaselifeScreen() {
       onRetry={loadInitialData}
       scroll={false}
     >
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
 
         {/* SECTION TOGGLE */}
         <View style={s.toggleRow}>
