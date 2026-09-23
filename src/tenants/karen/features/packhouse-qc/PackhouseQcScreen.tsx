@@ -97,7 +97,6 @@ export function PackhouseQcScreen() {
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
-  const [airportReasonPickerOpen, setAirportReasonPickerOpen] = useState(false);
   const [paramPickerOpen, setParamPickerOpen] = useState(false);
   const [reasonPickerOpen, setReasonPickerOpen] = useState(false);
   const [boxScanValue, setBoxScanValue] = useState('');
@@ -297,9 +296,8 @@ export function PackhouseQcScreen() {
   const specification = specificationDetail ?? currentSpecification();
   const customerOptions = customerOptionsFn();
   const specsForCustomer = specificationsForSelectedCustomer();
-  const airportReuseNum = Number.parseInt(airportReturn.reuseStems, 10) || 0;
-  const airportRejectNum = Number.parseInt(airportReturn.rejectStems, 10) || 0;
-  const airportDispositioned = airportReuseNum + airportRejectNum;
+  const airportReturnedNum = Number.parseInt(airportReturn.stemsReturned, 10) || 0;
+  const airportReusedNum = Math.max(0, airportReturnedNum - rejectedStemsTotal);
   const stemsPerBox = packRatePerBox(boxes, specification);
   // Final QC: every bunch in the sampled boxes is inspected. An issue whose
   // affected bunches breach its parameter's tolerance quarantines the WHOLE
@@ -835,19 +833,10 @@ export function PackhouseQcScreen() {
           </Card>
 
           <Card title="Inspection">
-            <Text style={s.hint}>Pick the reason, then record inspected stems and how they were dispositioned.</Text>
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={() => setAirportReasonPickerOpen(true)}
-              style={s.pickerRow}
-              disabled={params.length === 0}
-            >
-              <MaterialCommunityIcons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
-              <Text style={s.pickerText} numberOfLines={1}>
-                {airportReturn.reason || (params.length === 0 ? 'Loading reasons…' : 'Select reason')}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
-            </Pressable>
+            <Text style={s.hint}>
+              Record how many stems you inspected, then add each rejected bunch and the issues found on
+              its stems. Reused stems (returned − rejected) go back to the Kapkolia cold room.
+            </Text>
             <View style={{ height: 12 }} />
             <LabeledInput
               label="Inspected Stems"
@@ -857,33 +846,69 @@ export function PackhouseQcScreen() {
               keyboardType="number-pad"
               placeholder="0"
             />
+
+            <View style={{ height: 16 }} />
+            <Text style={s.section}>REJECTED BUNCHES ({rejectedBunches.length})</Text>
             <View style={{ height: 8 }} />
-            <LabeledInput
-              label="Reuse — stems affected"
-              iconName="recycle"
-              value={airportReturn.reuseStems}
-              onChangeText={(v) => setAirportReturnField('reuseStems', v)}
-              keyboardType="number-pad"
-              placeholder="0"
-            />
+            {rejectedBunches.length === 0 ? (
+              <Text style={s.empty}>No rejected bunches — all returned stems will be reused.</Text>
+            ) : (
+              rejectedBunches.map((b, idx) => (
+                <RejectedBunchCard
+                  key={b.id}
+                  index={idx}
+                  issues={b.issues}
+                  params={params}
+                  stemsPerBunch={stemsPerBunchVal}
+                  variety={b.variety}
+                  orderVarieties={orderVarieties}
+                  onPickVariety={() => setVarietyBunchId(b.id)}
+                  editable
+                  canReplace={false}
+                  replaceSupported={false}
+                  replaced={undefined}
+                  onAddIssue={() => {
+                    setAddIssueBunchId(b.id);
+                    setParamPickerOpen(true);
+                  }}
+                  onStemsChange={(issueId, v) => setBunchIssueStems(b.id, issueId, v)}
+                  onRemoveIssue={(issueId) => removeBunchIssue(b.id, issueId)}
+                  onRemoveBunch={() => removeRejectedBunch(b.id)}
+                  onReplaceStems={() => {}}
+                  onReplaceBunch={() => {}}
+                />
+              ))
+            )}
             <View style={{ height: 8 }} />
-            <LabeledInput
-              label="Reject — stems affected"
-              iconName="close-circle-outline"
-              value={airportReturn.rejectStems}
-              onChangeText={(v) => setAirportReturnField('rejectStems', v)}
-              keyboardType="number-pad"
-              placeholder="0"
-            />
-            {airportDispositioned > 0 ? (
+            <Button label="Add Rejected Bunch" variant="outline" onPress={addRejectedBunch} />
+
+            <View style={{ height: 16 }} />
+            <View style={s.chipRow}>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Inspected: {airportReturn.inspectedStems || '0'}</Text>
+              </View>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Returned: {airportReturnedNum}</Text>
+              </View>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Reused: {airportReusedNum}</Text>
+              </View>
+              <View style={[s.chip, s.chipDanger]}>
+                <Text style={s.chipText}>Rejected: {rejectedStemsTotal}</Text>
+              </View>
+            </View>
+            {airportReturnedNum > 0 && rejectedStemsTotal > airportReturnedNum ? (
               <>
                 <View style={{ height: 8 }} />
-                <Text style={s.muted}>
-                  Reuse {airportReuseNum} → shelved to the Kapkolia cold room (age/farm/greenhouse kept)
-                  {airportRejectNum > 0 ? ` · Reject ${airportRejectNum} → rejects` : ''}.
+                <Text style={s.warn}>
+                  Rejected stems ({rejectedStemsTotal}) exceed the {airportReturnedNum} stems returned.
                 </Text>
               </>
             ) : null}
+            <View style={{ height: 8 }} />
+            <Text style={s.muted}>
+              Reused {airportReusedNum} → Kapkolia cold room · Rejected {rejectedStemsTotal} → Airport Rejects.
+            </Text>
           </Card>
 
           <Card title="QC Incharge">
@@ -1440,17 +1465,6 @@ export function PackhouseQcScreen() {
           }
           setAddIssueBunchId(null);
           setParamPickerOpen(false);
-        }}
-      />
-
-      <PickerModal
-        open={airportReasonPickerOpen}
-        title="Reason for Return"
-        onClose={() => setAirportReasonPickerOpen(false)}
-        options={paramPickerOptions}
-        onPick={(value) => {
-          setAirportReturnField('reason', value);
-          setAirportReasonPickerOpen(false);
         }}
       />
 
