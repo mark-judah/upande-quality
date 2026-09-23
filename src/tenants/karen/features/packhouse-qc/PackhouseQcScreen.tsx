@@ -97,7 +97,6 @@ export function PackhouseQcScreen() {
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
   const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
-  const [airportReasonPickerOpen, setAirportReasonPickerOpen] = useState(false);
   const [paramPickerOpen, setParamPickerOpen] = useState(false);
   const [reasonPickerOpen, setReasonPickerOpen] = useState(false);
   const [boxScanValue, setBoxScanValue] = useState('');
@@ -144,6 +143,7 @@ export function PackhouseQcScreen() {
   const pendingQuarantineStems = useKarenPackhouseQcStore((s) => s.pendingQuarantineStems);
   const selectedVariety = useKarenPackhouseQcStore((s) => s.selectedVariety);
   const varieties = useKarenPackhouseQcStore((s) => s.varieties);
+  const serverTotalBunches = useKarenPackhouseQcStore((s) => s.totalBunches);
   const scannedBoxName = useKarenPackhouseQcStore((s) => s.scannedBoxName);
   const scannedBoxDetail = useKarenPackhouseQcStore((s) => s.scannedBoxDetail);
   const issues = useKarenPackhouseQcStore((s) => s.issues);
@@ -166,7 +166,7 @@ export function PackhouseQcScreen() {
   const airportReturn = useKarenPackhouseQcStore((s) => s.airportReturn);
   const setAirportReturnField = useKarenPackhouseQcStore((s) => s.setAirportReturnField);
   const startBunchSampling = useKarenPackhouseQcStore((s) => s.startBunchSampling);
-  const setBunchesAccepted = useKarenPackhouseQcStore((s) => s.setBunchesAccepted);
+  const setBunchesSampled = useKarenPackhouseQcStore((s) => s.setBunchesSampled);
   const addRejectedBunch = useKarenPackhouseQcStore((s) => s.addRejectedBunch);
   const addBunchIssue = useKarenPackhouseQcStore((s) => s.addBunchIssue);
   const setBunchIssueStems = useKarenPackhouseQcStore((s) => s.setBunchIssueStems);
@@ -236,7 +236,10 @@ export function PackhouseQcScreen() {
   const overallResult = computeOverallResult(issues, selectedOrderPickList?.totalStems ?? 0);
   const selectedReasonOption = reasons.find((r) => r.name === selectedReason) ?? null;
   const issuesTotal = issues.reduce((sum, i) => sum + i.count, 0);
-  const orderTotalBunches = totalBunches(itemLocations);
+  // Prefer the order's real total (Order Pick List Packing Guide, via the
+  // server) over the picked-item tally, which under-counts and could otherwise
+  // block "Finish Sampling" via inspectedExceedsTotal on a clean sample.
+  const orderTotalBunches = serverTotalBunches > 0 ? serverTotalBunches : totalBunches(itemLocations);
   // Every variety on the order (mix groups have several) — the order's own
   // `varieties` list, falling back to the distinct item codes on its lines.
   const orderVarieties =
@@ -248,13 +251,16 @@ export function PackhouseQcScreen() {
   const paramPickerOptions = params
     .map((p) => ({ value: p.name, label: p.parameter, group: categoryForParam(p.name) }))
     .sort((a, b) => categoryOrder(a.group) - categoryOrder(b.group) || a.label.localeCompare(b.label));
-  const acceptedBunchesNum = Number.parseInt(bunchSampling.acceptedBunches, 10) || 0;
+  const sampledBunchesNum = Number.parseInt(bunchSampling.sampledBunches, 10) || 0;
   const rejectedBunchCount = rejectedBunches.length;
   const rejectedStemsTotal = rejectedBunches.reduce(
     (sum, b) => sum + b.issues.reduce((a, i) => a + (Number.parseInt(i.stems, 10) || 0), 0),
     0,
   );
-  const bunchesInspected = acceptedBunchesNum + rejectedBunchCount;
+  // The sampled total already includes the rejected bunches, so the inspected
+  // count IS the sampled count; accepted is whatever wasn't rejected.
+  const bunchesInspected = sampledBunchesNum;
+  const acceptedBunchesNum = Math.max(0, sampledBunchesNum - rejectedBunchCount);
   // Inspected bunches (accepted + rejected) can't exceed the order's total.
   const inspectedExceedsTotal = orderTotalBunches > 0 && bunchesInspected > orderTotalBunches;
   // Every rejected bunch must have at least one issue, each with stems > 0,
@@ -290,9 +296,8 @@ export function PackhouseQcScreen() {
   const specification = specificationDetail ?? currentSpecification();
   const customerOptions = customerOptionsFn();
   const specsForCustomer = specificationsForSelectedCustomer();
-  const airportReuseNum = Number.parseInt(airportReturn.reuseStems, 10) || 0;
-  const airportRejectNum = Number.parseInt(airportReturn.rejectStems, 10) || 0;
-  const airportDispositioned = airportReuseNum + airportRejectNum;
+  const airportReturnedNum = Number.parseInt(airportReturn.stemsReturned, 10) || 0;
+  const airportReusedNum = Math.max(0, airportReturnedNum - rejectedStemsTotal);
   const stemsPerBox = packRatePerBox(boxes, specification);
   // Final QC: every bunch in the sampled boxes is inspected. An issue whose
   // affected bunches breach its parameter's tolerance quarantines the WHOLE
@@ -349,7 +354,6 @@ export function PackhouseQcScreen() {
 
   // Total bunches recorded — all of them are partial-rejected when the
   // decision is Accept.
-  const allIssueBunches = issues.reduce((sum, i) => sum + i.count, 0);
   const finalQcDisposition: PackhouseOverallResult =
     effectiveDecision === 'Reject' ? 'Rejected' : effectiveDecision === 'Quarantine' ? 'Quarantined' : 'Accepted';
   const readyToSubmit = canSubmit();
@@ -829,19 +833,10 @@ export function PackhouseQcScreen() {
           </Card>
 
           <Card title="Inspection">
-            <Text style={s.hint}>Pick the reason, then record inspected stems and how they were dispositioned.</Text>
-            <View style={{ height: 12 }} />
-            <Pressable
-              onPress={() => setAirportReasonPickerOpen(true)}
-              style={s.pickerRow}
-              disabled={params.length === 0}
-            >
-              <MaterialCommunityIcons name="alert-circle-outline" size={18} color={COLORS.textMuted} />
-              <Text style={s.pickerText} numberOfLines={1}>
-                {airportReturn.reason || (params.length === 0 ? 'Loading reasons…' : 'Select reason')}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
-            </Pressable>
+            <Text style={s.hint}>
+              Record how many stems you inspected, then add each rejected bunch and the issues found on
+              its stems. Reused stems (returned − rejected) go back to the Kapkolia cold room.
+            </Text>
             <View style={{ height: 12 }} />
             <LabeledInput
               label="Inspected Stems"
@@ -851,33 +846,69 @@ export function PackhouseQcScreen() {
               keyboardType="number-pad"
               placeholder="0"
             />
+
+            <View style={{ height: 16 }} />
+            <Text style={s.section}>REJECTED BUNCHES ({rejectedBunches.length})</Text>
             <View style={{ height: 8 }} />
-            <LabeledInput
-              label="Reuse — stems affected"
-              iconName="recycle"
-              value={airportReturn.reuseStems}
-              onChangeText={(v) => setAirportReturnField('reuseStems', v)}
-              keyboardType="number-pad"
-              placeholder="0"
-            />
+            {rejectedBunches.length === 0 ? (
+              <Text style={s.empty}>No rejected bunches — all returned stems will be reused.</Text>
+            ) : (
+              rejectedBunches.map((b, idx) => (
+                <RejectedBunchCard
+                  key={b.id}
+                  index={idx}
+                  issues={b.issues}
+                  params={params}
+                  stemsPerBunch={stemsPerBunchVal}
+                  variety={b.variety}
+                  orderVarieties={orderVarieties}
+                  onPickVariety={() => setVarietyBunchId(b.id)}
+                  editable
+                  canReplace={false}
+                  replaceSupported={false}
+                  replaced={undefined}
+                  onAddIssue={() => {
+                    setAddIssueBunchId(b.id);
+                    setParamPickerOpen(true);
+                  }}
+                  onStemsChange={(issueId, v) => setBunchIssueStems(b.id, issueId, v)}
+                  onRemoveIssue={(issueId) => removeBunchIssue(b.id, issueId)}
+                  onRemoveBunch={() => removeRejectedBunch(b.id)}
+                  onReplaceStems={() => {}}
+                  onReplaceBunch={() => {}}
+                />
+              ))
+            )}
             <View style={{ height: 8 }} />
-            <LabeledInput
-              label="Reject — stems affected"
-              iconName="close-circle-outline"
-              value={airportReturn.rejectStems}
-              onChangeText={(v) => setAirportReturnField('rejectStems', v)}
-              keyboardType="number-pad"
-              placeholder="0"
-            />
-            {airportDispositioned > 0 ? (
+            <Button label="Add Rejected Bunch" variant="outline" onPress={addRejectedBunch} />
+
+            <View style={{ height: 16 }} />
+            <View style={s.chipRow}>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Inspected: {airportReturn.inspectedStems || '0'}</Text>
+              </View>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Returned: {airportReturnedNum}</Text>
+              </View>
+              <View style={s.chip}>
+                <Text style={s.chipText}>Reused: {airportReusedNum}</Text>
+              </View>
+              <View style={[s.chip, s.chipDanger]}>
+                <Text style={s.chipText}>Rejected: {rejectedStemsTotal}</Text>
+              </View>
+            </View>
+            {airportReturnedNum > 0 && rejectedStemsTotal > airportReturnedNum ? (
               <>
                 <View style={{ height: 8 }} />
-                <Text style={s.muted}>
-                  Reuse {airportReuseNum} → shelved to the Kapkolia cold room (age/farm/greenhouse kept)
-                  {airportRejectNum > 0 ? ` · Reject ${airportRejectNum} → rejects` : ''}.
+                <Text style={s.warn}>
+                  Rejected stems ({rejectedStemsTotal}) exceed the {airportReturnedNum} stems returned.
                 </Text>
               </>
             ) : null}
+            <View style={{ height: 8 }} />
+            <Text style={s.muted}>
+              Reused {airportReusedNum} → Kapkolia cold room · Rejected {rejectedStemsTotal} → Airport Rejects.
+            </Text>
           </Card>
 
           <Card title="QC Incharge">
@@ -905,10 +936,10 @@ export function PackhouseQcScreen() {
             ) : (
               <>
                 <LabeledInput
-                  label="Bunches Accepted"
+                  label="Bunches Sampled"
                   iconName="check-circle-outline"
-                  value={bunchSampling.acceptedBunches}
-                  onChangeText={setBunchesAccepted}
+                  value={bunchSampling.sampledBunches}
+                  onChangeText={setBunchesSampled}
                   keyboardType="number-pad"
                   placeholder="0"
                   editable={!bunchSampling.finished}
@@ -1104,7 +1135,50 @@ export function PackhouseQcScreen() {
           </Card>
         ) : null}
 
-        {!gradingQcMode ? (
+        {boxSamplingMode ? (
+          <Card title="Affected Bunches">
+            <Text style={s.hint}>
+              Record each affected bunch, then add every issue found on its stems
+              (e.g. drooping + botrytis on the same bunch).
+            </Text>
+            <View style={{ height: 12 }} />
+            <Text style={s.section}>AFFECTED BUNCHES ({rejectedBunches.length})</Text>
+            <View style={{ height: 8 }} />
+            {rejectedBunches.length === 0 ? (
+              <Text style={s.empty}>No affected bunches recorded.</Text>
+            ) : (
+              rejectedBunches.map((b, idx) => (
+                <RejectedBunchCard
+                  key={b.id}
+                  index={idx}
+                  issues={b.issues}
+                  params={params}
+                  stemsPerBunch={stemsPerBunchVal}
+                  variety={b.variety}
+                  orderVarieties={orderVarieties}
+                  onPickVariety={() => setVarietyBunchId(b.id)}
+                  editable={true}
+                  canReplace={false}
+                  replaceSupported={false}
+                  replaced={undefined}
+                  onAddIssue={() => {
+                    setAddIssueBunchId(b.id);
+                    setParamPickerOpen(true);
+                  }}
+                  onStemsChange={(issueId, v) => setBunchIssueStems(b.id, issueId, v)}
+                  onRemoveIssue={(issueId) => removeBunchIssue(b.id, issueId)}
+                  onRemoveBunch={() => removeRejectedBunch(b.id)}
+                  onReplaceStems={() => {}}
+                  onReplaceBunch={() => {}}
+                />
+              ))
+            )}
+            <View style={{ height: 8 }} />
+            <Button label="Add Affected Bunch" variant="outline" onPress={addRejectedBunch} />
+          </Card>
+        ) : null}
+
+        {!gradingQcMode && !boxSamplingMode ? (
           <Card title="Add Issue">
             <Text style={s.hint}>Select a parameter to add it to the issues list below.</Text>
             <View style={{ height: 12 }} />
@@ -1206,34 +1280,38 @@ export function PackhouseQcScreen() {
             <>
               <Text style={effectiveDecision === 'Accept' ? s.empty : s.warn}>
                 {effectiveDecision === 'Accept'
-                  ? issues.length === 0
+                  ? rejectedBunches.length === 0
                     ? 'Accepted — no issues found.'
-                    : `Accepted — ${allIssueBunches} bunch(es) rejected; the rest of the order passes.`
+                    : `Accepted — ${rejectedBunches.length} bunch(es) affected; the rest of the order passes.`
                   : effectiveDecision === 'Quarantine'
                     ? `Quarantined — whole order (${selectedOrderPickList?.totalStems ?? 0} stems) held for rework.`
                     : `Rejected — whole order (${selectedOrderPickList?.totalStems ?? 0} stems) rejected.`}
               </Text>
-              {issues.length > 0 ? (
+              {rejectedBunches.length > 0 ? (
                 <>
                   <View style={{ height: 8 }} />
-                  {issues.map((issue) => {
-                    const param = params.find((p) => p.name === issue.paramName);
-                    return (
-                      <IssueRowCard
-                        key={issue.id}
-                        issue={issue}
-                        displayName={param?.parameter ?? issue.paramName}
-                        onRemove={() => removeIssue(issue.id)}
-                        showAction={false}
-                        tolerance={{
-                          thresholdPercent: issueThresholdFor(issue.paramName),
-                          affectedBunches: issue.count,
-                          sampled: sampledBunchCount,
-                          breached: issueBreached(issue),
-                        }}
-                      />
-                    );
-                  })}
+                  {rejectedBunches.map((b, idx) => (
+                    <RejectedBunchCard
+                      key={b.id}
+                      index={idx}
+                      issues={b.issues}
+                      params={params}
+                      stemsPerBunch={stemsPerBunchVal}
+                      variety={b.variety}
+                      orderVarieties={orderVarieties}
+                      onPickVariety={() => {}}
+                      editable={false}
+                      canReplace={false}
+                      replaceSupported={false}
+                      replaced={undefined}
+                      onAddIssue={() => {}}
+                      onStemsChange={() => {}}
+                      onRemoveIssue={() => {}}
+                      onRemoveBunch={() => {}}
+                      onReplaceStems={() => {}}
+                      onReplaceBunch={() => {}}
+                    />
+                  ))}
                 </>
               ) : null}
             </>
@@ -1387,17 +1465,6 @@ export function PackhouseQcScreen() {
           }
           setAddIssueBunchId(null);
           setParamPickerOpen(false);
-        }}
-      />
-
-      <PickerModal
-        open={airportReasonPickerOpen}
-        title="Reason for Return"
-        onClose={() => setAirportReasonPickerOpen(false)}
-        options={paramPickerOptions}
-        onPick={(value) => {
-          setAirportReturnField('reason', value);
-          setAirportReasonPickerOpen(false);
         }}
       />
 

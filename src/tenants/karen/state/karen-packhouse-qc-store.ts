@@ -252,6 +252,7 @@ type State = {
   selectedOrderPickList: OrderPickListOption | null;
   itemLocations: ItemLocation[];
   varieties: string[];
+  totalBunches: number;
   boxes: BoxLabelOption[];
   boxTotalCount: number;
   /** Full Specifications doc per variety, resolved via the real FK chain
@@ -543,10 +544,23 @@ function finalQcSampled(s: State): number {
  *  that auto-suggests quarantining the whole order. */
 function finalQcAnyBreach(s: State): boolean {
   const sampled = finalQcSampled(s);
-  return s.issues.some((i) => {
-    const threshold = s.params.find((p) => p.name === i.paramName)?.toleranceThresholds ?? 0;
-    return isThresholdBreached(i.count, sampled, threshold);
-  });
+  // Affected bunches per parameter, from the per-bunch capture: a bunch counts
+  // once toward a parameter if any of its issues names that reason.
+  const byParam = new Map<string, number>();
+  for (const b of s.rejectedBunches) {
+    const seen = new Set<string>();
+    for (const iss of b.issues) {
+      if (iss.reason && !seen.has(iss.reason)) {
+        seen.add(iss.reason);
+        byParam.set(iss.reason, (byParam.get(iss.reason) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [reason, count] of byParam) {
+    const threshold = s.params.find((p) => p.name === reason)?.toleranceThresholds ?? 0;
+    if (isThresholdBreached(count, sampled, threshold)) return true;
+  }
+  return false;
 }
 
 function extractBoxLabelFromScan(raw: string): string {
@@ -583,6 +597,7 @@ function freshOrderState() {
   return {
     itemLocations: [] as ItemLocation[],
     varieties: [] as string[],
+    totalBunches: 0,
     boxes: [] as BoxLabelOption[],
     boxTotalCount: 0,
     specifications: {} as Record<string, SpecificationMatch>,
@@ -626,6 +641,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   selectedOrderPickList: null,
   itemLocations: [],
   varieties: [],
+  totalBunches: 0,
   boxes: [],
   boxTotalCount: 0,
   specifications: {},
@@ -779,6 +795,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           orderDetailLoading: false,
           itemLocations: outcome.itemLocations,
           varieties: outcome.varieties,
+          totalBunches: outcome.totalBunches,
           // The order already tells us its variety(ies) — default to the
           // first so the operator doesn't have to pick it manually.
           selectedVariety: outcome.varieties[0] ?? null,
@@ -1250,13 +1267,25 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     // Pick List that hasn't been submitted yet.
     if (s.selectedOrderPickList.docstatus === 0) return false;
     if (!s.selectedQcIncharge) return false;
-    // Airport Returns: needs a reason and at least one stem dispositioned
-    // (reused and/or rejected).
+    // Airport Returns: needs inspected stems; rejections are captured per bunch
+    // (Grading-QC style). Each rejected bunch must carry ≥1 issue with positive
+    // stems, and total rejected can't exceed the stems returned. Zero rejects is
+    // valid (a clean return where everything is reused).
     if (s.qcType === 'Airport Returns') {
       const ar = s.airportReturn;
-      const reuse = Number.parseInt(ar.reuseStems, 10) || 0;
-      const reject = Number.parseInt(ar.rejectStems, 10) || 0;
-      return Boolean(ar.reason) && reuse + reject > 0;
+      const inspected = Number.parseInt(ar.inspectedStems, 10) || 0;
+      const returned = Number.parseInt(ar.stemsReturned, 10) || 0;
+      if (inspected <= 0) return false;
+      const validBunches = s.rejectedBunches.every(
+        (b) => b.issues.length > 0 && b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0),
+      );
+      if (!validBunches) return false;
+      const rejected = s.rejectedBunches.reduce(
+        (sum, b) => sum + b.issues.reduce((s2, i) => s2 + (Number.parseInt(i.stems, 10) || 0), 0),
+        0,
+      );
+      if (returned > 0 && rejected > returned) return false;
+      return true;
     }
     // Grading QC must go through Start → Finish sampling; Reject Recorder
     // can submit with zero issues (a clean check). Every rejected bunch must
@@ -1286,9 +1315,20 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     if (s.isBoxSamplingMode()) {
       const boxes = Number.parseInt(s.boxesChecked, 10) || suggestedBoxSampleSize(s.boxTotalCount);
       if (boxes <= 0) return false;
-      if (!s.issues.every((i) => i.count > 0)) return false;
+      // Affected bunches are now captured per-bunch (like Grading QC): each needs
+      // at least one issue, every issue a positive stem count, and its issue
+      // stems can't total more than the stems the bunch holds.
+      const perBunch = gradingStemsPerBunch(s);
+      const bunchesValid = s.rejectedBunches.every(
+        (b) =>
+          b.issues.length > 0 &&
+          b.issues.every((i) => (Number.parseInt(i.stems, 10) || 0) > 0) &&
+          b.issues.reduce((sum, i) => sum + (Number.parseInt(i.stems, 10) || 0), 0) <= perBunch,
+      );
+      if (!bunchesValid) return false;
       const decision = s.finalDecisionOverride ?? (finalQcAnyBreach(s) ? 'Quarantine' : 'Accept');
-      if (decision !== 'Accept' && s.issues.length === 0) return false;
+      // A non-Accept decision must be backed by at least one affected bunch.
+      if (decision !== 'Accept' && s.rejectedBunches.length === 0) return false;
       return true;
     }
     return true;
@@ -1317,24 +1357,52 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
     if (s.qcType === 'Airport Returns') {
       const ar = s.airportReturn;
-      const reuse = Math.max(0, Number.parseInt(ar.reuseStems, 10) || 0);
-      const reject = Math.max(0, Number.parseInt(ar.rejectStems, 10) || 0);
-      const inspected = Number.parseInt(ar.inspectedStems, 10) || 0;
-      if (!ar.reason) {
-        const out: SubmitOutcome = { kind: 'error', message: 'Pick a reason for the return.' };
+      const inspected = Math.max(0, Number.parseInt(ar.inspectedStems, 10) || 0);
+      const returned = Math.max(0, Number.parseInt(ar.stemsReturned, 10) || 0);
+      // Rejections are captured Grading-QC style: per bunch, per issue, stems
+      // affected. Every rejected bunch needs at least one issue with stems > 0.
+      if (s.rejectedBunches.some((b) => b.issues.length === 0)) {
+        const out: SubmitOutcome = { kind: 'error', message: 'Each rejected bunch needs at least one issue.' };
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;
       }
-      if (reuse + reject <= 0) {
-        const out: SubmitOutcome = { kind: 'error', message: 'Record how many stems were reused and/or rejected.' };
+      if (s.rejectedBunches.some((b) => b.issues.some((i) => (Number.parseInt(i.stems, 10) || 0) <= 0))) {
+        const out: SubmitOutcome = { kind: 'error', message: 'Every issue needs a stem count above zero.' };
         set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
         return out;
       }
-      // Each disposition becomes an issue row (reason = the parameter), split
-      // between Reuse (shelved to Kapkolia) and Reject (moved to rejects).
-      const airportIssues: { parameter: string; count: number; action: IssueAction }[] = [];
-      if (reuse > 0) airportIssues.push({ parameter: ar.reason, count: reuse, action: 'Reuse' });
-      if (reject > 0) airportIssues.push({ parameter: ar.reason, count: reject, action: 'Reject' });
+      // Aggregate rejected stems per (variety, reason) into Reject issue rows —
+      // the same shape Grading QC sends; the server sums them into stems_rejected
+      // and the quality_parameters breakdown.
+      const byKey = new Map<string, { parameter: string; variety: string; count: number }>();
+      for (const bunch of s.rejectedBunches) {
+        const v = bunch.variety || s.selectedVariety || '';
+        for (const iss of bunch.issues) {
+          const stems = Math.max(0, Number.parseInt(iss.stems, 10) || 0);
+          if (stems <= 0) continue;
+          const key = v + '||' + iss.reason;
+          const cur = byKey.get(key);
+          if (cur) cur.count += stems;
+          else byKey.set(key, { parameter: iss.reason, variety: v, count: stems });
+        }
+      }
+      const airportIssues = Array.from(byKey.values(), (x) => ({
+        parameter: x.parameter,
+        count: x.count,
+        action: 'Reject' as IssueAction,
+        variety: x.variety,
+      }));
+      const rejected = airportIssues.reduce((sum, i) => sum + i.count, 0);
+      if (returned > 0 && rejected > returned) {
+        const out: SubmitOutcome = {
+          kind: 'error',
+          message: `Rejected stems (${rejected}) can't exceed the ${returned} stems returned.`,
+        };
+        set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+        return out;
+      }
+      // Reused = returned − rejected (the good stems shelved back to Kapkolia).
+      const reused = Math.max(0, returned - rejected);
       const spec =
         s.specificationDetail?.specName ??
         (s.selectedVariety ? s.specifications[s.selectedVariety]?.specName ?? '' : '');
@@ -1347,11 +1415,14 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
         variety: s.selectedVariety ?? '',
         qc_incharge: s.selectedQcIncharge,
         invoice_number: ar.invoiceNumber,
-        reason: ar.reason,
-        // Inspected stems is what was checked; affected = reused + rejected.
-        stems_checked: inspected || reuse + reject,
-        sampled_stems: inspected || reuse + reject,
-        stems_affected: reuse + reject,
+        // stems_checked = inspected; reused (stems_accepted) = returned − rejected,
+        // recomputed server-side from stems_returned so the ledger stays authoritative.
+        stems_checked: inspected,
+        stems_returned: returned,
+        reuse_stems: reused,
+        stems_affected: rejected,
+        sampled_stems: inspected,
+        bunches_affected: s.rejectedBunches.length,
         packhouse: ar.packhouse,
         greenhouse: ar.greenhouse,
         farm: ar.farm,
@@ -1561,15 +1632,29 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       // bunches/stems ratio so a rejected bunch still converts to real stems.
       const perBunch = spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
       const action: IssueAction = decision === 'Quarantine' ? 'Quarantine' : 'Reject';
-      issuesPayload = s.issues.map((i) => ({
-        parameter: i.paramName,
-        // The server tallies in stems, so convert affected bunches to stems.
-        // For a whole-order Quarantine/Reject the count is documentation only;
-        // for Accept it drives the partial bunch-reject stock movement.
-        count: Math.max(0, Math.round(i.count * perBunch)),
+      // Per-bunch capture (like Grading QC): aggregate stem counts per
+      // (variety, reason) so a mix order records each variety's issues as their
+      // own rows (the server tallies issue counts as stems). bunches_affected is
+      // the number of affected bunches recorded.
+      const byKey = new Map<string, { parameter: string; variety: string; count: number }>();
+      for (const bunch of s.rejectedBunches) {
+        const v = bunch.variety || s.selectedVariety || '';
+        for (const iss of bunch.issues) {
+          const stems = Math.max(0, Number.parseInt(iss.stems, 10) || 0);
+          if (stems <= 0) continue;
+          const key = v + '||' + iss.reason;
+          const cur = byKey.get(key);
+          if (cur) cur.count += stems;
+          else byKey.set(key, { parameter: iss.reason, variety: v, count: stems });
+        }
+      }
+      issuesPayload = Array.from(byKey.values(), (x) => ({
+        parameter: x.parameter,
+        count: x.count,
         action,
-        variety: i.variety || s.selectedVariety || '',
+        variety: x.variety,
       }));
+      payload.bunches_affected = s.rejectedBunches.length;
       payload.final_decision = decision;
       payload.boxes_checked = boxesChecked;
       // "Total boxes" for the order — distinct from boxes_checked, the sample.
