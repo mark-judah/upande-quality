@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
