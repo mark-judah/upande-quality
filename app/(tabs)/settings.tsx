@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
-import * as Application from 'expo-application';
-import Constants from 'expo-constants';
-import { checkLatestVersion, UPDATE_DOWNLOAD_URL, type VersionCheck } from '@/src/core/version';
+import { checkLatestVersion, type VersionCheck } from '@/src/core/version';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -34,9 +32,10 @@ export default function SettingsScreen() {
     checkLatestVersion().then(setVerCheck);
   }, []);
 
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
-  const runtimeVersion = (Updates.runtimeVersion as string | undefined) || appVersion;
-  const buildNo = Application.nativeBuildVersion ?? '';
+  // Hardcoded app version hidden — the GitHub Release is the source of truth.
+  // const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  // const runtimeVersion = (Updates.runtimeVersion as string | undefined) || appVersion;
+  // const buildNo = Application.nativeBuildVersion ?? '';
   const otaId = (Updates.updateId ?? '').slice(0, 8);
   const otaChannel = (Updates.channel as string | undefined) ?? '';
   const otaDate = Updates.createdAt ? Updates.createdAt.toISOString().slice(0, 10) : '';
@@ -169,23 +168,18 @@ export default function SettingsScreen() {
         <View style={s.row}>
           <View style={{ flex: 1 }}>
             <Text style={s.rowLabel}>Version</Text>
+            {/* Hardcoded app version hidden — the GitHub Release is the source of truth.
             <Text style={s.rowHint}>
               v{appVersion}
               {buildNo ? ` (${buildNo})` : ''}
               {runtimeVersion && runtimeVersion !== appVersion ? `  ·  runtime ${runtimeVersion}` : ''}
             </Text>
+            */}
+            {/* Latest version from the GitHub Release — read-only (not a link). */}
+            <Text style={s.rowHint}>
+              {verCheck && verCheck.latest ? `v${verCheck.latest}` : '—'}
+            </Text>
             <Text style={s.rowHint}>{codeLine}</Text>
-            {verCheck ? (
-              verCheck.updateAvailable && verCheck.latest ? (
-                <TouchableOpacity onPress={() => Linking.openURL(UPDATE_DOWNLOAD_URL).catch(() => {})}>
-                  <Text style={s.updateAvailable}>
-                    Update available: v{verCheck.latest} — tap to get it
-                  </Text>
-                </TouchableOpacity>
-              ) : verCheck.latest ? (
-                <Text style={s.upToDate}>You're on the latest version</Text>
-              ) : null
-            ) : null}
           </View>
         </View>
         <View style={{ height: spacing.md }} />
