@@ -2,12 +2,12 @@ import { mapAxiosError } from '@/src/core/api/client';
 import { karenVaselifeApi, type RawVaselifeBucket, type RawVaselifeFormData } from '../api/karen-vaselife-api';
 
 export type VaselifeBreeder = { name: string };
-export type VaselifeVariety = { name: string; variety: string; breeder: string; item_group: string };
+export type VaselifeVariety = { name: string; variety: string; breeder: string; item_group: string; crop: string };
 export type VaselifeCrop = { name: string };
 export type VaselifeCommercialStatus = { name: string };
 export type VaselifeCutStage = { name: string };
-export type VaselifeFailureReason = { name: string };
-export type VaselifeSampleRef = { code: string; variety: string; samplingDate: string };
+export type VaselifeFailureReason = { name: string; category: string };
+export type VaselifeSampleRef = { code: string; variety: string; samplingDate: string; duDate: string };
 
 export type VaselifeFormData = {
   breeders: VaselifeBreeder[];
@@ -16,6 +16,7 @@ export type VaselifeFormData = {
   commercialStatuses: VaselifeCommercialStatus[];
   cutStages: VaselifeCutStage[];
   failureReasons: VaselifeFailureReason[];
+  failureCategories: string[];
   samples: VaselifeSampleRef[];
 };
 
@@ -26,6 +27,7 @@ export type VaselifeBucket = {
   farm: string;
   gh: string;
   length: string;
+  orderPickList: string;
 };
 
 export type FormDataOutcome = ({ kind: 'ok' } & VaselifeFormData) | { kind: 'error'; message: string };
@@ -45,6 +47,7 @@ function toBucket(raw: RawVaselifeBucket): VaselifeBucket {
     farm: String(raw.farm ?? ''),
     gh: String(raw.greenhouse ?? ''),
     length: String(raw.length ?? ''),
+    orderPickList: String(raw.order_pick_list ?? ''),
   };
 }
 
@@ -65,6 +68,7 @@ export const karenVaselifeRepository = {
             variety: String(v.variety ?? v.name ?? ''),
             breeder: String(v.breeder ?? ''),
             item_group: String(v.item_group ?? ''),
+            crop: String(v.crop ?? ''),
           }))
           .filter((v) => v.name),
         crops: (m.crops ?? [])
@@ -77,13 +81,17 @@ export const karenVaselifeRepository = {
           .map((s) => ({ name: String(s.name ?? '') }))
           .filter((s) => s.name),
         failureReasons: (m.failure_reasons ?? [])
-          .map((r) => ({ name: String(r.name ?? '') }))
+          .map((r) => ({ name: String(r.name ?? ''), category: String(r.category ?? 'Other') }))
           .filter((r) => r.name),
+        failureCategories: (m.failure_categories ?? [])
+          .map((c) => String(c.name ?? ''))
+          .filter(Boolean),
         samples: (m.samples ?? [])
           .map((sm) => ({
             code: String(sm.name ?? ''),
             variety: String(sm.variety ?? ''),
             samplingDate: String(sm.sampling_date ?? ''),
+            duDate: String(sm.du_date ?? ''),
           }))
           .filter((sm) => sm.code),
       };
