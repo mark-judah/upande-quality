@@ -75,8 +75,66 @@ export type BucketAllocationSnapshot = {
   harvestDate: string;
 };
 
+// ── Box traceability ────────────────────────────────────────────────────────
+// A box holds several buckets, each with its own greenhouse→pick trail; they
+// converge at packing and dispatch. Separate from the single-trail bucket/bunch
+// journey model above.
+export type BoxHarvest = {
+  greenhouse: string;
+  farm: string;
+  harvester: string;
+  cutStage: string;
+  date: string;
+  time: string;
+};
+export type BoxReceiving = { warehouse: string; date: string; time: string };
+export type BoxGrading = { gradedBy: string; stemLength: string; bunchId: string; date: string };
+export type BoxShelving = { shelf: string; greenhouse: string; date: string; shelvedBy: string };
+export type BoxPicked = { forBox: string; date: string; pickedBy: string };
+
+export type BoxBucketTrace = {
+  bucket: string;
+  variety: string;
+  stemLength: string;
+  harvest: BoxHarvest | null;
+  receiving: BoxReceiving | null;
+  grading: BoxGrading | null;
+  shelving: BoxShelving | null;
+  picked: BoxPicked | null;
+};
+
+export type BoxDispatch = {
+  salesOrder: string;
+  orderName: string;
+  customer: string;
+  consignee: string;
+  deliveryPoint: string;
+  freightAgent: string;
+  truck: string;
+  deliveryNote: string;
+  delivered: boolean;
+  date: string;
+};
+
+export type BoxTraceability = {
+  boxLabel: string;
+  boxNumber: string;
+  boxTotalCount: string;
+  orderPickList: string;
+  orderName: string;
+  customer: string;
+  length: string;
+  packRate: string;
+  farm: string;
+  packedOn: string;
+  packedBy: string;
+  exactBuckets: boolean;
+  buckets: BoxBucketTrace[];
+  dispatch: BoxDispatch;
+};
+
 export type TraceabilitySnapshot = {
-  kind: 'bucket' | 'bunch';
+  kind: 'bucket' | 'bunch' | 'box';
   roseType: RoseType;
   bucketId: string;
   bunchId: string;
@@ -94,11 +152,14 @@ export type TraceabilitySnapshot = {
   stages: JourneyStage[];
   warnings: string[];
   allocation: BucketAllocationSnapshot | null;
+  /** Populated only when kind === 'box'. */
+  box?: BoxTraceability | null;
 };
 
 export type TraceabilityQuery =
   | { kind: 'bucket'; id: string }
-  | { kind: 'bunch'; id: string };
+  | { kind: 'bunch'; id: string }
+  | { kind: 'box'; id: string };
 
 /** Traceability is read-only by design — actions live in the Replacement feature. */
 export interface TraceabilityRepository {

@@ -1439,7 +1439,15 @@ export function PackhouseQcScreen() {
         options={orderPickLists.map((opl) => ({
           value: opl.name,
           label: opl.docstatus === 0 ? `${opl.orderName || opl.name}  • DRAFT` : opl.orderName || opl.name,
-          subtitle: opl.docstatus === 0 ? `${opl.customer} · Draft (read-only)` : opl.customer,
+          subtitle: [
+            opl.customer,
+            opl.varieties || '',
+            opl.totalStems ? `${opl.totalStems} stems` : '',
+            opl.lengths || '',
+            opl.docstatus === 0 ? 'Draft (read-only)' : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
         }))}
         onPick={(value) => {
           const opl = orderPickLists.find((o) => o.name === value);

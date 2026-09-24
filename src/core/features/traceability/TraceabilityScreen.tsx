@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
@@ -8,6 +8,8 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useTraceabilityStore } from './store';
 import type {
+  BoxBucketTrace,
+  BoxTraceability,
   JourneyStage,
   SessionBunch,
   TraceabilityQuery,
@@ -26,6 +28,9 @@ function parseScan(raw: string): TraceabilityQuery {
     if (parsed && typeof parsed === 'object') {
       const obj = parsed as Record<string, unknown>;
 
+      if (typeof obj.box_label === 'string' && obj.box_label.trim()) {
+        return { kind: 'box', id: obj.box_label.trim() };
+      }
       if (typeof obj.bunch_id === 'string' && obj.bunch_id.trim()) {
         return { kind: 'bunch', id: obj.bunch_id.trim() };
       }
@@ -34,12 +39,17 @@ function parseScan(raw: string): TraceabilityQuery {
       }
 
       for (const [id, kind] of Object.entries(obj)) {
+        if (kind === 'box') return { kind: 'box', id };
         if (kind === 'bucket') return { kind: 'bucket', id };
         if (kind === 'bunch') return { kind: 'bunch', id };
       }
     }
   } catch {
     // not JSON
+  }
+  // A box label carries its own prefix (BOX-OPL-…); everything else is a bucket.
+  if (/^box[-_]/i.test(trimmed)) {
+    return { kind: 'box', id: trimmed };
   }
   return { kind: 'bucket', id: trimmed };
 }
@@ -51,6 +61,15 @@ function formatDate(iso: string | null | undefined): string {
   } catch {
     return iso;
   }
+}
+
+/** "2026-09-22 11:06:05" → "22 Sep 2026 11:06"; date-only → "22 Sep 2026". */
+function formatDateTime(v: string | null | undefined): string {
+  if (!v) return '—';
+  const parts = String(v).trim().split(' ');
+  const d = formatDate(parts[0]);
+  if (parts[1]) return `${d} ${parts[1].slice(0, 5)}`;
+  return d;
 }
 
 const STATUS_STYLE: Record<TraceabilityStatus, { bg: string; fg: string }> = {
@@ -82,15 +101,19 @@ export function TraceabilityScreen({ repository }: Props) {
   };
 
   const headerLabel =
-    scannedKind === 'bunch' ? `Bunch ${scannedId ?? ''}` : `Bucket ${scannedId ?? ''}`;
+    scannedKind === 'box'
+      ? `Box ${scannedId ?? ''}`
+      : scannedKind === 'bunch'
+        ? `Bunch ${scannedId ?? ''}`
+        : `Bucket ${scannedId ?? ''}`;
 
   const showNextButton = !loading && (snapshot !== null || error !== null);
 
   return (
     <Screen title="Traceability">
-      <Card title="Scan a bucket or bunch">
+      <Card title="Scan a bucket, bunch or box">
         <Text style={s.helper}>
-          Scan a bucket or bunch QR to view its journey. To make changes, use the Replacement page.
+          Scan a bucket, bunch or box QR to view its journey. To make changes, use the Replacement page.
         </Text>
         <View style={{ height: 12 }} />
         <ScanField
@@ -98,7 +121,7 @@ export function TraceabilityScreen({ repository }: Props) {
           onScan={onScan}
           autoFocus={!snapshot && !error}
           editable={!loading && !snapshot && !error}
-          placeholder="Bucket / Bunch ID"
+          placeholder="Bucket / Bunch / Box ID"
         />
       </Card>
 
@@ -106,18 +129,192 @@ export function TraceabilityScreen({ repository }: Props) {
         <Card><Text style={s.muted}>Looking up {headerLabel}…</Text></Card>
       ) : error ? (
         <Alert tone="danger">{error}</Alert>
+      ) : snapshot && snapshot.kind === 'box' && snapshot.box ? (
+        <BoxSnapshot box={snapshot.box} />
       ) : snapshot ? (
         <Snapshot data={snapshot} scannedBunchId={scannedKind === 'bunch' ? scannedId : null} />
       ) : (
-        <Card><Text style={s.muted}>No bucket or bunch scanned yet.</Text></Card>
+        <Card><Text style={s.muted}>No bucket, bunch or box scanned yet.</Text></Card>
       )}
 
       {showNextButton ? (
         <View style={s.nextBtnWrap}>
-          <Button label="Next bucket" onPress={handleNext} />
+          <Button label="Next scan" onPress={handleNext} />
         </View>
       ) : null}
     </Screen>
+  );
+}
+
+// ── Box traceability view ─────────────────────────────────────────────────────
+
+function BoxSnapshot({ box }: { box: BoxTraceability }) {
+  const dp = box.dispatch;
+  return (
+    <>
+      <Card>
+        <View style={s.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.bucketLabel}>BOX</Text>
+            <Text style={s.bucketId}>{box.boxLabel.toUpperCase() || '—'}</Text>
+            <Text style={s.subId}>
+              {box.orderName || box.orderPickList || '—'}
+              {box.customer ? `  ·  ${box.customer}` : ''}
+            </Text>
+          </View>
+          <View style={[s.badge, { backgroundColor: box.exactBuckets ? '#e6f9ee' : '#fff3e0' }]}>
+            <Text style={[s.badgeText, { color: box.exactBuckets ? '#1a8a3a' : '#9a5a00' }]}>
+              {box.buckets.length} bucket{box.buckets.length === 1 ? '' : 's'}
+            </Text>
+          </View>
+        </View>
+      </Card>
+
+      <Card title="Box details">
+        <Row label="Order"       value={box.orderName || box.orderPickList || '—'} />
+        <Row label="Customer"    value={box.customer || '—'} />
+        <Row label="Box number"  value={box.boxTotalCount ? `${box.boxNumber} of ${box.boxTotalCount}` : (box.boxNumber || '—')} />
+        <Row label="Length"      value={box.length || '—'} />
+        <Row label="Pack rate"   value={box.packRate ? `${box.packRate} stems` : '—'} />
+        <Row label="Farm"        value={box.farm || '—'} />
+        <Row label="Packed"      value={formatDateTime(box.packedOn)} />
+        {!box.exactBuckets ? (
+          <Text style={s.approxNote}>
+            Box-level bucket tags not found — showing all buckets for this order.
+          </Text>
+        ) : null}
+      </Card>
+
+      <Card title={`Source buckets (${box.buckets.length})`}>
+        <Text style={s.bunchSub}>Tap a bucket to see its greenhouse → shelf trail.</Text>
+        <View style={{ height: 8 }} />
+        {box.buckets.length === 0 ? (
+          <Text style={s.muted}>No buckets found for this box.</Text>
+        ) : (
+          box.buckets.map((b, i) => <BucketTraceCard key={`${b.bucket}-${i}`} b={b} />)
+        )}
+      </Card>
+
+      <Card title="Dispatch">
+        <Row label="Sales order"   value={dp.salesOrder || '—'} />
+        <Row label="Order ref"     value={dp.orderName || '—'} />
+        <Row label="Consignee"     value={dp.consignee || dp.customer || '—'} />
+        <Row label="Delivery point" value={dp.deliveryPoint || '—'} />
+        <Row label="Freight agent" value={dp.freightAgent || '—'} />
+        <Row label="Truck"         value={dp.truck || '—'} />
+        {dp.deliveryNote ? <Row label="Delivery note" value={dp.deliveryNote} small /> : null}
+        <View style={s.headerRow}>
+          <Text style={s.rowLabel}>Status</Text>
+          <View style={[s.statusChip, { backgroundColor: dp.delivered ? '#e6f9ee' : '#fff3e0' }]}>
+            <Text style={[s.statusChipText, { color: dp.delivered ? '#1a8a3a' : '#9a5a00' }]}>
+              {dp.delivered ? 'Delivered' : 'Not delivered'}
+            </Text>
+          </View>
+        </View>
+      </Card>
+    </>
+  );
+}
+
+function BucketTraceCard({ b }: { b: BoxBucketTrace }) {
+  const [open, setOpen] = useState(false);
+  const gh = b.harvest?.greenhouse || '—';
+  return (
+    <View style={s.bunchRow}>
+      <Pressable onPress={() => setOpen((v) => !v)} style={s.bucketHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.bunchId}>{b.bucket.toUpperCase()}</Text>
+          <Text style={s.bucketHeadSub}>
+            {b.variety || '—'}
+            {b.stemLength ? `  ·  ${b.stemLength}` : ''}
+            {`  ·  ${gh}`}
+          </Text>
+        </View>
+        <Text style={s.chevron}>{open ? '▲' : '▼'}</Text>
+      </Pressable>
+
+      {open ? (
+        <View style={s.bucketTrail}>
+          {b.harvest ? (
+            <TraceStage
+              name="Harvest"
+              date={b.harvest.date}
+              lines={[
+                b.harvest.greenhouse,
+                b.harvest.harvester ? `by ${b.harvest.harvester}` : '',
+                b.harvest.time ? `at ${b.harvest.time}` : '',
+                b.harvest.cutStage,
+              ]}
+            />
+          ) : null}
+          {b.receiving ? (
+            <TraceStage
+              name="Receiving"
+              date={b.receiving.date}
+              lines={[b.receiving.warehouse, b.receiving.time ? `at ${b.receiving.time}` : '']}
+            />
+          ) : null}
+          {b.grading ? (
+            <TraceStage
+              name="Grading"
+              date={b.grading.date}
+              lines={[
+                b.grading.gradedBy ? `by ${b.grading.gradedBy}` : '',
+                b.grading.stemLength ? `length ${b.grading.stemLength}` : '',
+                b.grading.bunchId ? `bunch ${b.grading.bunchId}` : '',
+              ]}
+            />
+          ) : null}
+          {b.shelving ? (
+            <TraceStage
+              name="Shelving"
+              date={b.shelving.date}
+              lines={[
+                b.shelving.shelf ? `shelf ${b.shelving.shelf}` : '',
+                b.shelving.shelvedBy ? `by ${b.shelving.shelvedBy}` : '',
+              ]}
+            />
+          ) : null}
+          {b.picked ? (
+            <TraceStage
+              name="Picked"
+              date={b.picked.date}
+              lines={[b.picked.pickedBy ? `by ${b.picked.pickedBy}` : '']}
+              isLast
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function TraceStage({
+  name,
+  date,
+  lines,
+  isLast,
+}: {
+  name: string;
+  date: string;
+  lines: (string | undefined)[];
+  isLast?: boolean;
+}) {
+  const shown = lines.map((l) => (l ?? '').trim()).filter(Boolean);
+  return (
+    <View style={s.stageRow}>
+      <View style={s.spineLine}>
+        <View style={s.spineDot} />
+        {!isLast && <View style={s.spineTrack} />}
+      </View>
+      <View style={[s.stageBody, isLast ? null : s.stageBodyGap]}>
+        <View style={s.stageHeader}>
+          <Text style={s.stageName}>{name}</Text>
+          {date ? <Text style={s.stageDate}>{formatDateTime(date)}</Text> : null}
+        </View>
+        {shown.length ? <Text style={s.stageDetail}>{shown.join('  ·  ')}</Text> : null}
+      </View>
+    </View>
   );
 }
 
@@ -365,6 +562,11 @@ const TRACK_W = 2;
 const s = StyleSheet.create({
   helper:      { fontSize: 13, color: COLORS.textMuted },
   muted:       { fontSize: 13, color: COLORS.textMuted },
+  approxNote:  { marginTop: 8, fontSize: 12, color: '#9a5a00', lineHeight: 16 },
+  bucketHead:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bucketHeadSub: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
+  chevron:     { fontSize: 11, color: COLORS.textMuted, paddingLeft: 8 },
+  bucketTrail: { marginTop: 10 },
 
   headerRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
   bucketLabel: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
