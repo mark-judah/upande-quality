@@ -1,4 +1,6 @@
 import type {
+  BoxBucketTrace,
+  BoxTraceability,
   BucketAllocationSnapshot,
   BunchInfo,
   JourneyStage,
@@ -14,6 +16,7 @@ import type {
 import {
   karenTraceabilityApi,
   type RawAllocation,
+  type RawBoxTraceability,
   type RawBunchInfo,
   type RawJourneyStage,
   type RawSessionBunch,
@@ -127,8 +130,112 @@ function toSnapshot(raw: RawTraceabilitySnapshot, query: TraceabilityQuery): Tra
   };
 }
 
+function toBoxSnapshot(raw: RawBoxTraceability, query: TraceabilityQuery): TraceabilitySnapshot {
+  if (raw.error) throw new Error(raw.error);
+  const b = raw.box ?? {};
+  const buckets: BoxBucketTrace[] = (raw.buckets ?? []).map((r) => ({
+    bucket: String(r.bucket ?? ''),
+    variety: String(r.variety ?? ''),
+    stemLength: String(r.stem_length ?? ''),
+    harvest: r.harvest
+      ? {
+          greenhouse: String(r.harvest.greenhouse ?? ''),
+          farm: String(r.harvest.farm ?? ''),
+          harvester: String(r.harvest.harvester ?? ''),
+          cutStage: String(r.harvest.cut_stage ?? ''),
+          date: String(r.harvest.date ?? ''),
+          time: String(r.harvest.time ?? ''),
+        }
+      : null,
+    receiving: r.receiving
+      ? {
+          warehouse: String(r.receiving.warehouse ?? ''),
+          date: String(r.receiving.date ?? ''),
+          time: String(r.receiving.time ?? ''),
+        }
+      : null,
+    grading: r.grading
+      ? {
+          gradedBy: String(r.grading.graded_by ?? ''),
+          stemLength: String(r.grading.stem_length ?? ''),
+          bunchId: String(r.grading.bunch_id ?? ''),
+          date: String(r.grading.date ?? ''),
+        }
+      : null,
+    shelving: r.shelving
+      ? {
+          shelf: String(r.shelving.shelf ?? ''),
+          greenhouse: String(r.shelving.greenhouse ?? ''),
+          date: String(r.shelving.date ?? ''),
+          shelvedBy: String(r.shelving.shelved_by ?? ''),
+        }
+      : null,
+    picked: r.picked
+      ? {
+          forBox: String(r.picked.for_box ?? ''),
+          date: String(r.picked.date ?? ''),
+          pickedBy: String(r.picked.picked_by ?? ''),
+        }
+      : null,
+  }));
+  const dp = raw.dispatch ?? {};
+  const box: BoxTraceability = {
+    boxLabel: String(b.box_label ?? (query.kind === 'box' ? query.id : '')),
+    boxNumber: String(b.box_number ?? ''),
+    boxTotalCount: String(b.box_total_count ?? ''),
+    orderPickList: String(b.order_pick_list ?? ''),
+    orderName: String(b.order_name ?? ''),
+    customer: String(b.customer ?? ''),
+    length: String(b.length ?? ''),
+    packRate: String(b.pack_rate ?? ''),
+    farm: String(b.farm ?? ''),
+    packedOn: String(b.packed_on ?? ''),
+    packedBy: String(b.packed_by ?? ''),
+    exactBuckets: Number(b.exact_buckets ?? 0) === 1,
+    buckets,
+    dispatch: {
+      salesOrder: String(dp.sales_order ?? ''),
+      orderName: String(dp.order_name ?? ''),
+      customer: String(dp.customer ?? ''),
+      consignee: String(dp.consignee ?? ''),
+      deliveryPoint: String(dp.delivery_point ?? ''),
+      freightAgent: String(dp.freight_agent ?? ''),
+      truck: String(dp.truck ?? ''),
+      deliveryNote: String(dp.delivery_note ?? ''),
+      delivered: Number(dp.delivered ?? 0) === 1,
+      date: String(dp.date ?? ''),
+    },
+  };
+  return {
+    kind: 'box',
+    roseType: 'Standards',
+    bucketId: '',
+    bunchId: '',
+    status: 'Harvested',
+    variety: box.buckets[0]?.variety || '—',
+    farm: box.farm || '—',
+    greenhouse: '—',
+    stemLength: box.length || '—',
+    numberOfStems: null,
+    date: null,
+    batchNo: '',
+    sessionSize: 0,
+    bunchInfo: null,
+    bunches: [],
+    stages: [],
+    warnings: [],
+    allocation: null,
+    box,
+  };
+}
+
 export const karenTraceabilityRepository: TraceabilityRepository = {
   async lookup(query: TraceabilityQuery): Promise<TraceabilitySnapshot> {
+    if (query.kind === 'box') {
+      const res = await karenTraceabilityApi.lookupBox(query.id);
+      const raw = res.message ?? res.data ?? {};
+      return toBoxSnapshot(raw, query);
+    }
     const payload = query.kind === 'bucket' ? { bucket_id: query.id } : { bunch_id: query.id };
     const res = await karenTraceabilityApi.lookup(payload);
     const raw = res.data ?? res.message ?? {};

@@ -18,6 +18,10 @@ export type RawOrderPickList = {
   team?: string;
   farm?: string;
   total_stems?: number | string;
+  /** Distinct stem lengths in the order (from the Packing Guide), comma-joined. */
+  lengths?: string;
+  /** Distinct varieties in the order (from the Packing Guide), comma-joined. */
+  varieties?: string;
   status?: string;
   schedule_number?: string;
   /** Order Pick List docstatus: 0 = Draft, 1 = Submitted. */

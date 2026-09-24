@@ -31,6 +31,10 @@ export type OrderPickListOption = {
   team: string;
   farm: string;
   totalStems: number;
+  /** Distinct stem lengths in the order (from the Packing Guide), e.g. "62cm" or "52cm, 62cm". */
+  lengths: string;
+  /** Distinct varieties in the order (from the Packing Guide), comma-joined. */
+  varieties: string;
   status: string;
   scheduleNumber: string;
   /** 0 = Draft, 1 = Submitted. Draft orders are shown but read-only (no QC submit). */
@@ -228,6 +232,8 @@ function toOrderPickList(raw: RawOrderPickList): OrderPickListOption {
     team: raw.team ?? '',
     farm: raw.farm ?? '',
     totalStems: Number(raw.total_stems) || 0,
+    lengths: raw.lengths ?? '',
+    varieties: raw.varieties ?? '',
     status: raw.status ?? '',
     scheduleNumber: raw.schedule_number ?? '',
     docstatus: Number(raw.docstatus ?? 1),

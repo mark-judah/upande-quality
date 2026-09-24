@@ -78,12 +78,62 @@ export type RawTraceabilityResponse = {
   message?: RawTraceabilitySnapshot;
 };
 
+// ── Box traceability ──────────────────────────────────────────────────────────
+
+export type RawBoxBucketTrace = {
+  bucket?: string;
+  variety?: string;
+  stem_length?: string;
+  harvest?: {
+    greenhouse?: string; farm?: string; harvester?: string; cut_stage?: string;
+    date?: string; time?: string;
+  } | null;
+  receiving?: { warehouse?: string; date?: string; time?: string } | null;
+  grading?: { graded_by?: string; stem_length?: string; bunch_id?: string; date?: string } | null;
+  shelving?: { shelf?: string; greenhouse?: string; date?: string; shelved_by?: string } | null;
+  picked?: { for_box?: string | number | null; date?: string; picked_by?: string } | null;
+};
+
+export type RawBoxTraceability = {
+  success?: boolean;
+  error?: string;
+  box?: {
+    box_label?: string; box_number?: number | string; box_total_count?: number | string;
+    order_pick_list?: string; order_name?: string; customer?: string; length?: string;
+    pack_rate?: number | string; farm?: string; packed_on?: string; packed_by?: string;
+    exact_buckets?: number;
+  };
+  buckets?: RawBoxBucketTrace[];
+  dispatch?: {
+    sales_order?: string; order_name?: string; customer?: string; consignee?: string;
+    delivery_point?: string; freight_agent?: string; truck?: string;
+    delivery_note?: string; delivered?: number; date?: string;
+  };
+};
+
+export type RawBoxTraceabilityResponse = {
+  data?: RawBoxTraceability;
+  message?: RawBoxTraceability;
+};
+
 export const karenTraceabilityApi = {
   async lookup(payload: { bucket_id?: string; bunch_id?: string }): Promise<RawTraceabilityResponse> {
     return api<RawTraceabilityResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.getTraceability',
+      // url: '/api/method/getTraceability',
       data: payload,
+    });
+  },
+
+  // Box traceability is served by the live "Get Box Traceability" Server Script
+  // (short api_method path), so it works without an api.py deploy. Port to the
+  // module path once getBoxTraceability ships in api.py.
+  async lookupBox(box_label: string): Promise<RawBoxTraceabilityResponse> {
+    return api<RawBoxTraceabilityResponse>({
+      method: 'GET',
+      url: '/api/method/getBoxTraceability',
+      params: { box_label },
     });
   },
 };

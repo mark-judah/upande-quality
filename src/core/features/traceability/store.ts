@@ -10,7 +10,7 @@ type State = {
   loading: boolean;
   error: string | null;
   snapshot: TraceabilitySnapshot | null;
-  scannedKind: 'bucket' | 'bunch' | null;
+  scannedKind: 'bucket' | 'bunch' | 'box' | null;
   scannedId: string | null;
   fetch: (repo: TraceabilityRepository, query: TraceabilityQuery) => Promise<void>;
   reset: () => void;
