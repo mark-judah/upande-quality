@@ -10,11 +10,11 @@ import { useKarenVaselifeStore } from '@/src/tenants/karen/state/karen-vaselife-
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
   Modal,
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -51,6 +51,7 @@ export function VaselifeScreen() {
   const crops = useKarenVaselifeStore((s) => s.crops);
   const cutStages = useKarenVaselifeStore((s) => s.cutStages);
   const failureReasons = useKarenVaselifeStore((s) => s.failureReasons);
+  const failureCategories = useKarenVaselifeStore((s) => s.failureCategories);
   const samples = useKarenVaselifeStore((s) => s.samples);
   // Commercial status is a fixed three-option list, not a backend lookup.
 
@@ -174,6 +175,10 @@ export function VaselifeScreen() {
     value: sample.code
   }));
 
+  // An observation can't be recorded before the selected sample's Du Date.
+  const selectedSample = samples.find((sm) => sm.code === obsSampleCode);
+  const obsTooEarly = !!selectedSample?.duDate && obsDate < selectedSample.duDate;
+
   return (
     <Screen
       title="Vaselife"
@@ -257,7 +262,7 @@ export function VaselifeScreen() {
                 keyboardType="numeric"
               />
               <LabeledInput
-                label="Due Date"
+                label="Du Date"
                 iconName="calendar-clock"
                 value={dueDate}
                 onChangeText={setDueDate}
@@ -458,6 +463,11 @@ export function VaselifeScreen() {
                 editable={false}
                 placeholder="YYYY-MM-DD"
               />
+              {obsTooEarly ? (
+                <Text style={s.errorText}>
+                  This sample can only be observed on or after its Du Date ({selectedSample?.duDate}).
+                </Text>
+              ) : null}
               <View style={{ height: 12 }} />
               <Dropdown
                 label="Cut Stage"
@@ -569,7 +579,8 @@ export function VaselifeScreen() {
       <AddReasonModal
         open={addReasonOpen}
         onClose={() => setAddReasonOpen(false)}
-        options={availableReasons.map((r) => ({ label: r.name, value: r.name }))}
+        reasons={availableReasons}
+        categoryOrder={failureCategories}
         onPick={(name) => {
           addObsFailure(name);
           setAddReasonOpen(false);
@@ -582,18 +593,37 @@ export function VaselifeScreen() {
 function AddReasonModal({
   open,
   onClose,
-  options,
+  reasons,
+  categoryOrder,
   onPick,
 }: {
   open: boolean;
   onClose: () => void;
-  options: { label: string; value: string }[];
+  reasons: { name: string; category: string }[];
+  categoryOrder: string[];
   onPick: (name: string) => void;
 }) {
   const [search, setSearch] = useState('');
-  const filtered = search
-    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+  const q = search.trim().toLowerCase();
+  const filtered = q ? reasons.filter((r) => r.name.toLowerCase().includes(q)) : reasons;
+
+  // Bucket the reasons by category, then order the sections by the backend's
+  // category order (any unknown category is appended alphabetically).
+  const byCat = new Map<string, string[]>();
+  filtered.forEach((r) => {
+    const cat = r.category || 'Other';
+    const arr = byCat.get(cat) ?? [];
+    arr.push(r.name);
+    byCat.set(cat, arr);
+  });
+  const orderedCats = [
+    ...categoryOrder.filter((c) => byCat.has(c)),
+    ...[...byCat.keys()].filter((c) => !categoryOrder.includes(c)).sort(),
+  ];
+  const sections = orderedCats.map((c) => ({
+    title: c,
+    data: (byCat.get(c) ?? []).slice().sort((a, b) => a.localeCompare(b)),
+  }));
 
   return (
     <Modal visible={open} animationType="slide" onRequestClose={onClose}>
@@ -612,16 +642,20 @@ function AddReasonModal({
           autoCapitalize="none"
           style={s.modalSearch}
         />
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.value}
-          ItemSeparatorComponent={() => <View style={s.modalSep} />}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item}
+          stickySectionHeadersEnabled
           keyboardShouldPersistTaps="handled"
+          renderSectionHeader={({ section }) => (
+            <Text style={s.modalSectionHeader}>{section.title}</Text>
+          )}
           renderItem={({ item }) => (
-            <Pressable onPress={() => onPick(item.value)} style={s.modalRow}>
-              <Text style={s.modalRowText}>{item.label}</Text>
+            <Pressable onPress={() => onPick(item)} style={s.modalRow}>
+              <Text style={s.modalRowText}>{item}</Text>
             </Pressable>
           )}
+          ItemSeparatorComponent={() => <View style={s.modalSep} />}
           ListEmptyComponent={<Text style={s.modalEmpty}>No matches.</Text>}
         />
       </View>
@@ -794,6 +828,16 @@ const s = StyleSheet.create({
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
+  modalSectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: COLORS.textMuted,
+    backgroundColor: '#F5F5F5',
+    textTransform: 'uppercase',
+  },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   modalRowText: { fontSize: 15, color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },

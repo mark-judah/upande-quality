@@ -75,6 +75,7 @@ type State = {
   commercialStatuses: VaselifeCommercialStatus[];
   cutStages: VaselifeCutStage[];
   failureReasons: VaselifeFailureReason[];
+  failureCategories: string[];
   samples: VaselifeSampleRef[];
 
   // ── Sample form ────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   commercialStatuses: [],
   cutStages: [],
   failureReasons: [],
+  failureCategories: [],
   samples: [],
 
   scanning: false,
@@ -210,6 +212,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       commercialStatuses: outcome.commercialStatuses,
       cutStages: outcome.cutStages,
       failureReasons: outcome.failureReasons,
+      failureCategories: outcome.failureCategories,
       samples: outcome.samples,
     });
   },
@@ -231,7 +234,10 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       harvestTime: bucket.harvestTime,
       farm: bucket.farm,
       gh: bucket.gh,
-      length: bucket.length,
+      // Length arrives as e.g. "52cm"; keep only the numeric part for the Float field.
+      length: (bucket.length || '').replace(/[^0-9.]/g, ''),
+      // The Line Code field holds the Order Pick List this bucket is allocated to.
+      lineCode: bucket.orderPickList || get().lineCode,
     });
     return { ok: true };
   },
@@ -247,15 +253,16 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   setDueDate: (v) => set({ dueDate: v }),
   setVaseDate: (v) => set({ vaseDate: v }),
   setBreeder: (v) => set({ breeder: v }),
-  // Auto-fill breeder from the selected variety's metadata, and recompute the
-  // supermarket/due/vase dates using that variety's item group (Spray Roses
-  // run longer than Standard Roses).
+  // Auto-fill breeder and crop from the selected variety's metadata, and
+  // recompute the supermarket/due/vase dates using that variety's item group
+  // (Spray Roses run longer than Standard Roses).
   setVariety: (v) => {
     const g = get();
     const match = g.varieties.find((vr) => vr.name === v);
     set({
       variety: v,
       breeder: match?.breeder ?? g.breeder,
+      crop: match?.crop || g.crop,
       ...vaselifeDatesFor(g.samplingDate, match?.item_group),
     });
   },
@@ -286,7 +293,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       sampling_date: s.samplingDate,
       consignment: s.consignment,
       supermarket_date: s.supermarketDate,
-      due_date: s.dueDate,
+      du_date: s.dueDate,
       vase_date: s.vaseDate,
       breeder: s.breeder,
       variety: s.variety,
@@ -311,6 +318,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
         code: outcome.sampleCode,
         variety: s.variety ?? '',
         samplingDate: s.samplingDate,
+        duDate: s.dueDate,
       };
       set((st) => ({
         sampleSubmitting: false,
@@ -375,12 +383,24 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   canSubmitObservation: () => {
     const s = get();
     if (!s.obsSampleCode.trim()) return false;
-    return !s.obsSubmitting;
+    if (s.obsSubmitting) return false;
+    // Block observations recorded before the selected sample's Du Date.
+    const sample = s.samples.find((sm) => sm.code === s.obsSampleCode);
+    if (sample?.duDate && s.obsDate < sample.duDate) return false;
+    return true;
   },
 
   submitObservation: async () => {
     const s = get();
     if (!s.obsSampleCode.trim()) return { kind: 'error', message: 'Sample code is required.' };
+
+    const sample = s.samples.find((sm) => sm.code === s.obsSampleCode);
+    if (sample?.duDate && s.obsDate < sample.duDate) {
+      return {
+        kind: 'error',
+        message: `Observation cannot be recorded before the Du Date (${sample.duDate}).`,
+      };
+    }
 
     // Only rows with a reason count; total stems failed = sum of their stems
     // (auto 0 when nothing failed). Sent as {reason, stems} for the backend's
