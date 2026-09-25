@@ -3,58 +3,26 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { AUDITS } from './constants';
 
-const TILES: { route: string; label: string; hint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  {
-    route: 'packhouse-inspection',
-    label: 'Inspection Log',
-    hint: 'Area conditions — tables, floor, lights, trolleys…',
-    icon: 'clipboard-outline',
-  },
-  {
-    route: 'packhouse-cleaning',
-    label: 'Cleaning Checklist',
-    hint: 'Mode of cleaning, detergent & disinfectant used',
-    icon: 'sparkles-outline',
-  },
-  {
-    route: 'packhouse-glass',
-    label: 'Glass Inspection',
-    hint: 'Glass & fragile items — window glass, lamps, screens…',
-    icon: 'scan-outline',
-  },
-  {
-    route: 'vehicle-hygiene',
-    label: 'Vehicle Hygiene',
-    hint: 'Floors, roof & walls — plus detergent & disinfectant used',
-    icon: 'bus-outline',
-  },
-  {
-    route: 'bucket-cleaning',
-    label: 'Bucket Cleaning',
-    hint: 'Buckets cleaned, detergent & disinfectant quantities',
-    icon: 'water-outline',
-  },
-];
-
-export function PackhouseCleaningHubScreen() {
+export function KarenFlowerAuditHubScreen() {
   return (
-    <Screen title="Packhouse Cleaning">
+    <Screen title="Flower Audit">
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
-        <Text style={s.subtitle}>Pick a checklist to fill in.</Text>
+        <Text style={s.subtitle}>Pick an audit to record samples.</Text>
         <View style={s.grid}>
-          {TILES.map((t) => (
+          {AUDITS.map((a) => (
             <Pressable
-              key={t.route}
-              onPress={() => router.push(`/${t.route}` as never)}
+              key={a.slug}
+              onPress={() => router.push(`/flower-audit-entry?audit=${a.slug}` as never)}
               style={({ pressed }) => [s.tile, pressed && { opacity: 0.7 }]}
             >
               <View style={s.tileIcon}>
-                <Ionicons name={t.icon} size={22} color={COLORS.text} />
+                <Ionicons name={a.icon} size={22} color={COLORS.text} />
               </View>
-              <Text style={s.tileLabel}>{t.label}</Text>
+              <Text style={s.tileLabel}>{a.type}</Text>
               <Text style={s.tileHint} numberOfLines={2}>
-                {t.hint}
+                {a.hint}
               </Text>
             </Pressable>
           ))}

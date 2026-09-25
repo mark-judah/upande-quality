@@ -14,6 +14,8 @@ export type DrawerItem = {
     | 'bucket-transfers'
     | 'solution-mixing'
     | 'temperature-log'
+    | 'product-temperature'
+    | 'freight-dispatch'
     | 'cleaning-record'
     | 'inspection-log'
     | 'intake-qc'
@@ -23,8 +25,14 @@ export type DrawerItem = {
     | 'packhouse-inspection'
     | 'packhouse-cleaning'
     | 'packhouse-glass'
-    | 'vaselife';
+    | 'vehicle-hygiene'
+    | 'bucket-cleaning'
+    | 'vaselife'
+    | 'flower-audit'
+    | 'flower-audit-entry';
   icon: string; // Ionicons name
+  /** When set, the item is hidden unless the signed-in user holds this role. */
+  role?: string;
   /** When true, the screen renders a "Coming soon" placeholder regardless of
    *  tenant — used for surfaced-but-not-yet-built control points. */
   comingSoon?: boolean;

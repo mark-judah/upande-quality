@@ -3,6 +3,12 @@ import { authRepository } from './repository';
 import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
 
+/** The one place the role rule lives: an explicit grant, or Administrator.
+ *  Pure so callers that already hold `roles` can apply it without the store. */
+export function rolesInclude(roles: string[], role: string): boolean {
+  return roles.includes(role) || roles.includes('Administrator');
+}
+
 type AuthState = {
   status: 'idle' | 'loading' | 'success' | 'error';
   error: string | null;
@@ -148,5 +154,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  hasRole: (role) => get().roles.includes(role) || get().roles.includes('Administrator'),
+  hasRole: (role) => rolesInclude(get().roles, role),
 }));
