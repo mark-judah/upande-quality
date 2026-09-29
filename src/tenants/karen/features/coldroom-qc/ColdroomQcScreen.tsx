@@ -1,59 +1,48 @@
+import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
+import { COLORS } from '@/src/core/theme';
+import { Button } from '@/src/core/ui/Button';
+import { Card } from '@/src/core/ui/Card';
+import { Screen } from '@/src/core/ui/Screen';
+import { useToast } from '@/src/core/ui/Toast';
+import { useKarenColdroomQcStore } from '@/src/tenants/karen/state/karen-coldroom-qc-store';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Screen } from '@/src/core/ui/Screen';
-import { Card } from '@/src/core/ui/Card';
-import { Button } from '@/src/core/ui/Button';
-import { Dropdown } from '@/src/core/ui/Dropdown';
-import { LabeledInput } from '@/src/core/ui/LabeledInput';
-import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
-import { useToast } from '@/src/core/ui/Toast';
-import { COLORS } from '@/src/core/theme';
-import {
-  useKarenColdroomQcStore,
-  type ColdroomRejectionRow,
-} from '@/src/tenants/karen/state/karen-coldroom-qc-store';
 
-export function ColdroomQcScreen() {
-  const { showSuccess, showError } = useToast();
-  const scanRef = useRef<ScanFieldHandle>(null);
-  const [addReasonOpen, setAddReasonOpen] = useState(false);
-
+export function KarenColdroomQcScreen() {
   const loading = useKarenColdroomQcStore((s) => s.loading);
   const loadError = useKarenColdroomQcStore((s) => s.loadError);
+  const parameters = useKarenColdroomQcStore((s) => s.parameters);
+  const categories = useKarenColdroomQcStore((s) => s.categories);
   const loadInitialData = useKarenColdroomQcStore((s) => s.loadInitialData);
-  const controlPoints = useKarenColdroomQcStore((s) => s.controlPoints);
-  const reasons = useKarenColdroomQcStore((s) => s.reasons);
-  const inchargeOptions = useKarenColdroomQcStore((s) => s.inchargeOptions);
-  const selectedControlPoint = useKarenColdroomQcStore((s) => s.selectedControlPoint);
-  const controlArea = useKarenColdroomQcStore((s) => s.controlArea);
-  const setControlPoint = useKarenColdroomQcStore((s) => s.setControlPoint);
+
   const scanning = useKarenColdroomQcStore((s) => s.scanning);
+  const scanError = useKarenColdroomQcStore((s) => s.scanError);
   const bucket = useKarenColdroomQcStore((s) => s.bucket);
   const scanBucket = useKarenColdroomQcStore((s) => s.scanBucket);
-  const selectedVariety = useKarenColdroomQcStore((s) => s.selectedVariety);
-  const setSelectedVariety = useKarenColdroomQcStore((s) => s.setSelectedVariety);
-  const rejections = useKarenColdroomQcStore((s) => s.rejections);
-  const addReason = useKarenColdroomQcStore((s) => s.addReason);
-  const updateRejectionStems = useKarenColdroomQcStore((s) => s.updateRejectionStems);
-  const removeRejection = useKarenColdroomQcStore((s) => s.removeRejection);
-  const qcIncharge = useKarenColdroomQcStore((s) => s.qcIncharge);
-  const setQcIncharge = useKarenColdroomQcStore((s) => s.setQcIncharge);
-  const remarks = useKarenColdroomQcStore((s) => s.remarks);
-  const setRemarks = useKarenColdroomQcStore((s) => s.setRemarks);
+
+  const rejects = useKarenColdroomQcStore((s) => s.rejects);
+  const addReject = useKarenColdroomQcStore((s) => s.addReject);
+  const removeReject = useKarenColdroomQcStore((s) => s.removeReject);
+  const setRejectStems = useKarenColdroomQcStore((s) => s.setRejectStems);
+
   const submitting = useKarenColdroomQcStore((s) => s.submitting);
   const canSubmit = useKarenColdroomQcStore((s) => s.canSubmit);
   const submit = useKarenColdroomQcStore((s) => s.submit);
-  const reset = useKarenColdroomQcStore((s) => s.reset);
+
+  const { showSuccess, showError } = useToast();
+  const scanRef = useRef<ScanFieldHandle>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -61,165 +50,138 @@ export function ColdroomQcScreen() {
 
   const onScan = async (raw: string) => {
     const r = await scanBucket(raw);
-    if (!r.ok) showError(r.message ?? 'Could not load bucket.');
+    if (!r.ok && r.message) showError(r.message);
   };
 
   const onSubmit = async () => {
     const outcome = await submit();
     if (outcome.kind === 'ok') {
       showSuccess(outcome.message);
-      reset();
-      scanRef.current?.clear();
+      scanRef.current?.focus?.();
     } else {
       showError(outcome.message);
     }
   };
 
-  const cpOptions = controlPoints.map((c) => ({ label: c.controlPoint, value: c.name }));
-  const inchargeOpts = inchargeOptions.map((u) => ({ label: u.fullName, value: u.name }));
-
-  const varieties = bucket?.varieties ?? [];
-  const activeVariety = selectedVariety ?? varieties[0]?.variety ?? null;
-  const varietyRejections = rejections.filter((r) => r.variety === activeVariety);
-  const usedReasons = new Set(varietyRejections.map((r) => r.reason));
-  const availableReasons = reasons.filter((r) => !usedReasons.has(r.name));
+  const total = rejects.reduce((sum, r) => sum + (Number(r.stems) || 0), 0);
+  const available = bucket?.availableStems ?? 0;
+  const overLimit = !!bucket && total > available;
+  const usedReasons = new Set(rejects.map((r) => r.reason));
+  const availableReasons = parameters.filter((p) => !usedReasons.has(p.name));
 
   return (
     <Screen
       title="Coldroom QC"
-      loading={loading && controlPoints.length === 0}
+      loading={loading && parameters.length === 0}
       error={loadError ?? undefined}
       onRetry={loadInitialData}
       scroll={false}
     >
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        {/* CONTROL POINT */}
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadInitialData} />}
+      >
+        {/* SCAN */}
         <Card>
-          <Text style={s.section}>CONTROL POINT</Text>
+          <Text style={s.section}>SCAN BUCKET</Text>
+          <Text style={s.hint}>Scan a bucket in the coldroom to reject stems with issues.</Text>
           <View style={{ height: 12 }} />
-          <Dropdown
-            label="Cold room"
-            iconName="snowflake"
-            value={selectedControlPoint}
-            options={cpOptions}
-            placeholder="Pick cold room"
-            onChange={setControlPoint}
+          <ScanField
+            ref={scanRef}
+            onScan={onScan}
+            placeholder="Scan or type bucket ID"
+            editable={!scanning}
           />
-          {controlArea ? <Text style={s.hint}>Control area · {controlArea}</Text> : null}
+          {scanning ? <Text style={s.hint}>Loading bucket…</Text> : null}
+          {scanError ? <Text style={s.errorText}>{scanError}</Text> : null}
         </Card>
-
-        {/* SCAN BUCKET */}
-        {selectedControlPoint ? (
-          <Card>
-            <Text style={s.section}>SCAN BUCKET</Text>
-            <Text style={s.hint}>Scan the bucket to load its varieties &amp; stock age.</Text>
-            <View style={{ height: 12 }} />
-            <ScanField ref={scanRef} onScan={onScan} placeholder="Scan or type bucket" editable={!scanning} />
-            {scanning ? <Text style={s.loadingText}>Loading bucket…</Text> : null}
-          </Card>
-        ) : null}
 
         {bucket ? (
           <>
             {/* BUCKET DETAILS */}
             <Card>
-              <Text style={s.section}>BUCKET · {bucket.bucketId}</Text>
-              <View style={{ height: 10 }} />
-              <View style={s.metaGrid}>
-                <Meta label="Farm" value={bucket.farm || '—'} />
-                <Meta label="Greenhouse" value={bucket.greenhouse || '—'} />
-                <Meta label="Pack House" value={bucket.packhouse || '—'} />
-                <Meta label="Days in Stock" value={String(bucket.daysInStock)} />
-              </View>
-            </Card>
-
-            {/* VARIETY */}
-            <Card>
-              <Text style={s.section}>VARIETY</Text>
-              <Text style={s.hint}>Pick the variety you&apos;re rejecting. Reasons below apply to it.</Text>
-              <View style={{ height: 12 }} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillRow}>
-                {varieties.map((v) => {
-                  const isActive = v.variety === activeVariety;
-                  const count = rejections.filter((r) => r.variety === v.variety).length;
-                  return (
-                    <Pressable
-                      key={v.variety}
-                      onPress={() => setSelectedVariety(v.variety)}
-                      style={[s.varietyPill, isActive && s.varietyPillActive]}
-                    >
-                      <Text
-                        style={[s.varietyPillLabel, isActive && s.varietyPillLabelActive]}
-                        numberOfLines={1}
-                      >
-                        {v.variety}
-                      </Text>
-                      <Text style={[s.varietyPillMeta, isActive && s.varietyPillMetaActive]}>
-                        {v.stems} stems{count > 0 ? ` · ${count} reason${count === 1 ? '' : 's'}` : ''}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </Card>
-
-            {/* REJECTIONS (scoped to active variety) */}
-            {activeVariety ? (
-              <Card>
-                <Text style={s.section}>REJECTIONS · {activeVariety}</Text>
-                <Text style={s.hint}>Optional — add any rejected stems for this variety.</Text>
-                <View style={{ height: 12 }} />
-                <Pressable
-                  onPress={() => setAddReasonOpen(true)}
-                  style={s.addRow}
-                  disabled={availableReasons.length === 0}
-                >
-                  <MaterialCommunityIcons name="plus-circle-outline" size={20} color={COLORS.text} />
-                  <Text style={s.addLabel}>
-                    {availableReasons.length === 0 ? 'All reasons added for this variety' : 'Add Rejection Reason'}
-                  </Text>
-                </Pressable>
-                <View style={{ height: 12 }} />
-                {varietyRejections.length === 0 ? (
-                  <Text style={s.empty}>No reasons added for {activeVariety} yet</Text>
+              <View style={s.rowBetween}>
+                <Text style={s.section}>BUCKET · {bucket.bucketId}</Text>
+                {bucket.isShelved ? (
+                  <Text style={s.shelvedBadge}>shelved</Text>
                 ) : (
-                  varietyRejections.map((r) => (
-                    <RejectionRow
-                      key={r.id}
-                      row={r}
-                      onChangeStems={(t) => updateRejectionStems(r.id, t)}
-                      onRemove={() => removeRejection(r.id)}
-                    />
-                  ))
+                  <Text style={s.coldBadge}>in coldroom</Text>
                 )}
-              </Card>
-            ) : null}
+              </View>
+              <View style={{ height: 10 }} />
+              <DetailRow label="Farm" value={bucket.farm} />
+              <DetailRow label="Greenhouse" value={bucket.greenhouse} />
+              <DetailRow label="Variety" value={bucket.variety} />
+              <DetailRow label="Stems received" value={String(bucket.stemsReceived)} />
+              <DetailRow label="Available stems" value={String(bucket.availableStems)} strong />
+            </Card>
 
-            {/* SIGN-OFF */}
+            {/* REJECTIONS */}
             <Card>
-              <Text style={s.section}>SIGN-OFF</Text>
+              <Text style={s.section}>REJECT STEMS</Text>
+              <Text style={s.hint}>Add each issue and the number of stems affected.</Text>
               <View style={{ height: 12 }} />
-              <Dropdown
-                label="QC Incharge"
-                iconName="account-check-outline"
-                value={qcIncharge || null}
-                options={inchargeOpts}
-                placeholder="Pick QC incharge"
-                onChange={setQcIncharge}
-              />
+
+              {rejects.length > 0 ? (
+                <>
+                  <View style={s.headerRow}>
+                    <Text style={[s.headerText, { flex: 1 }]}>REASON</Text>
+                    <Text style={[s.headerText, s.stemsCol]}>STEMS</Text>
+                    <View style={s.removeCol} />
+                  </View>
+                  {rejects.map((r) => (
+                    <View key={r.id} style={s.rejectRow}>
+                      <Text style={s.reasonText} numberOfLines={2}>
+                        {r.reasonLabel}
+                      </Text>
+                      <TextInput
+                        value={r.stems}
+                        onChangeText={(v) => setRejectStems(r.id, v)}
+                        placeholder="0"
+                        placeholderTextColor={COLORS.textMuted}
+                        keyboardType="number-pad"
+                        style={[s.stemsInput, s.stemsCol]}
+                      />
+                      <Pressable onPress={() => removeReject(r.id)} hitSlop={8} style={s.removeCol}>
+                        <MaterialCommunityIcons name="close-circle" size={22} color={COLORS.textMuted} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <View style={s.totalRow}>
+                    <Text style={s.totalLabel}>Total rejected</Text>
+                    <Text style={[s.totalValue, overLimit && { color: COLORS.danger }]}>
+                      {total} / {available}
+                    </Text>
+                  </View>
+                  {overLimit ? (
+                    <Text style={s.errorText}>
+                      Cannot reject more than the {available} available stems.
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <View style={s.emptyBox}>
+                  <MaterialCommunityIcons name="flower-tulip-outline" size={24} color={COLORS.textMuted} />
+                  <Text style={s.emptyText}>No stems rejected yet.</Text>
+                </View>
+              )}
+
               <View style={{ height: 12 }} />
-              <LabeledInput
-                label="Remarks"
-                iconName="note-text-outline"
-                value={remarks}
-                onChangeText={setRemarks}
-                placeholder="Optional"
-                multiline
-              />
+              <Pressable
+                style={[s.addRow, availableReasons.length === 0 && { opacity: 0.4 }]}
+                disabled={availableReasons.length === 0}
+                onPress={() => setAddOpen(true)}
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={COLORS.primary} />
+                <Text style={s.addText}>
+                  {availableReasons.length === 0 ? 'All reasons added' : 'Add Reason'}
+                </Text>
+              </Pressable>
             </Card>
 
             <Button
-              label={submitting ? 'Submitting…' : 'SUBMIT'}
+              label={submitting ? 'Saving…' : 'SAVE COLDROOM REJECT'}
               onPress={onSubmit}
               loading={submitting}
               disabled={!canSubmit()}
@@ -230,60 +192,24 @@ export function ColdroomQcScreen() {
       </ScrollView>
 
       <AddReasonModal
-        open={addReasonOpen}
-        onClose={() => setAddReasonOpen(false)}
-        options={availableReasons.map((r) => ({ label: r.parameter, value: r.name }))}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        reasons={availableReasons}
+        categoryOrder={categories}
         onPick={(name) => {
-          addReason(name);
-          setAddReasonOpen(false);
+          addReject(name);
+          setAddOpen(false);
         }}
       />
     </Screen>
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <View style={s.metaCell}>
-      <Text style={s.metaLabel}>{label}</Text>
-      <Text style={s.metaValue} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function RejectionRow({
-  row,
-  onChangeStems,
-  onRemove,
-}: {
-  row: ColdroomRejectionRow;
-  onChangeStems: (t: string) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <View style={s.rejCard}>
-      <View style={s.rejHead}>
-        <Text style={s.rejTitle}>{row.reasonLabel}</Text>
-        <Pressable onPress={onRemove} hitSlop={8}>
-          <MaterialCommunityIcons name="close" size={18} color={COLORS.textMuted} />
-        </Pressable>
-      </View>
-      <View style={{ height: 12 }} />
-      <View style={s.rejRow}>
-        <Text style={s.rejLabel}>Rejected stems:</Text>
-        <TextInput
-          value={row.stems}
-          onChangeText={onChangeStems}
-          keyboardType="number-pad"
-          textAlign="center"
-          placeholder="0"
-          placeholderTextColor={COLORS.textMuted}
-          style={s.rejInput}
-        />
-        {row.length ? <Text style={s.rejLen}>· {row.length}</Text> : null}
-      </View>
+    <View style={s.detailRow}>
+      <Text style={s.detailLabel}>{label}</Text>
+      <Text style={[s.detailValue, strong && s.detailValueStrong]}>{value || '—'}</Text>
     </View>
   );
 }
@@ -291,24 +217,43 @@ function RejectionRow({
 function AddReasonModal({
   open,
   onClose,
-  options,
+  reasons,
+  categoryOrder,
   onPick,
 }: {
   open: boolean;
   onClose: () => void;
-  options: { label: string; value: string }[];
+  reasons: { name: string; label: string; category: string }[];
+  categoryOrder: string[];
   onPick: (name: string) => void;
 }) {
   const [search, setSearch] = useState('');
-  const filtered = search
-    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+  const q = search.trim().toLowerCase();
+  const filtered = q ? reasons.filter((r) => r.label.toLowerCase().includes(q)) : reasons;
+
+  // Bucket into sections, ordered by the backend's category order (unknown
+  // categories are appended alphabetically at the end).
+  const byCat = new Map<string, { name: string; label: string }[]>();
+  filtered.forEach((r) => {
+    const cat = r.category || 'Other';
+    const arr = byCat.get(cat) ?? [];
+    arr.push({ name: r.name, label: r.label });
+    byCat.set(cat, arr);
+  });
+  const orderedCats = [
+    ...categoryOrder.filter((c) => byCat.has(c)),
+    ...[...byCat.keys()].filter((c) => !categoryOrder.includes(c)).sort(),
+  ];
+  const sections = orderedCats.map((c) => ({
+    title: c,
+    data: (byCat.get(c) ?? []).slice().sort((a, b) => a.label.localeCompare(b.label)),
+  }));
 
   return (
     <Modal visible={open} animationType="slide" onRequestClose={onClose}>
       <View style={s.modalRoot}>
         <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Rejection Reason</Text>
+          <Text style={s.modalTitle}>Add Reason</Text>
           <Pressable onPress={onClose} hitSlop={10}>
             <Text style={s.modalClose}>Cancel</Text>
           </Pressable>
@@ -321,16 +266,20 @@ function AddReasonModal({
           autoCapitalize="none"
           style={s.modalSearch}
         />
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => item.value}
-          ItemSeparatorComponent={() => <View style={s.modalSep} />}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.name}
+          stickySectionHeadersEnabled
           keyboardShouldPersistTaps="handled"
+          renderSectionHeader={({ section }) => (
+            <Text style={s.modalSectionHeader}>{section.title}</Text>
+          )}
           renderItem={({ item }) => (
-            <Pressable onPress={() => onPick(item.value)} style={s.modalRow}>
+            <Pressable onPress={() => onPick(item.name)} style={s.modalRow}>
               <Text style={s.modalRowText}>{item.label}</Text>
             </Pressable>
           )}
+          ItemSeparatorComponent={() => <View style={s.modalSep} />}
           ListEmptyComponent={<Text style={s.modalEmpty}>No matches.</Text>}
         />
       </View>
@@ -341,90 +290,88 @@ function AddReasonModal({
 const s = StyleSheet.create({
   section: { fontWeight: '700', color: COLORS.textMuted, fontSize: 12, letterSpacing: 0.4 },
   hint: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  loadingText: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
-
-  metaGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  metaCell: { width: '50%', paddingVertical: 6 },
-  metaLabel: { fontSize: 11, color: COLORS.textMuted, letterSpacing: 0.3 },
-  metaValue: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginTop: 2 },
-
-  pillRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
-  varietyPill: {
-    minWidth: 130,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.bgMuted,
+  errorText: { fontSize: 12, color: 'red', marginTop: 6 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  shelvedBadge: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
+  coldBadge: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
   },
-  varietyPillActive: { borderColor: COLORS.text, backgroundColor: COLORS.bg },
-  varietyPillLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
-  varietyPillLabelActive: { color: COLORS.text },
-  varietyPillMeta: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  varietyPillMetaActive: { color: COLORS.text },
-
-  addRow: {
+  detailLabel: { fontSize: 13, color: COLORS.textMuted },
+  detailValue: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
+  detailValueStrong: { fontWeight: '700', fontSize: 15 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
+  headerText: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
+  stemsCol: { width: 70, textAlign: 'center' },
+  removeCol: { width: 34, alignItems: 'center' },
+  rejectRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: COLORS.bgMuted,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
   },
-  addLabel: { color: COLORS.text, fontWeight: '600' },
-  empty: { color: COLORS.textMuted, textAlign: 'center', paddingVertical: 16, fontSize: 13 },
-
-  rejCard: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: COLORS.bg,
-  },
-  rejHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rejTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  rejRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rejLabel: { color: COLORS.textMuted, fontSize: 13 },
-  rejInput: {
-    width: 80,
+  reasonText: { flex: 1, fontSize: 14, color: COLORS.text },
+  stemsInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 6,
+    paddingHorizontal: 8,
     fontSize: 14,
     color: COLORS.text,
-    backgroundColor: COLORS.bg,
   },
-  rejLen: { fontSize: 12, color: COLORS.textMuted },
-
-  modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
+  totalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  totalValue: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  emptyBox: { alignItems: 'center', paddingVertical: 18, gap: 6 },
+  emptyText: { fontSize: 13, color: COLORS.textMuted },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  addText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  modalRoot: { flex: 1, backgroundColor: COLORS.surface, paddingTop: 54 },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
+  modalClose: { fontSize: 15, color: COLORS.primary },
   modalSearch: {
-    margin: 16,
+    marginHorizontal: 16,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
+  modalSectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: COLORS.textMuted,
+    backgroundColor: '#F5F5F5',
+    textTransform: 'uppercase',
+  },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   modalRowText: { fontSize: 15, color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
