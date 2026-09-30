@@ -244,12 +244,7 @@ export const karenPackhouseQcApi = {
             : undefined;
     return api<RawPackhouseFormDataResponse>({
       method: 'GET',
-      // TEMPORARY stopgap: prod app-code method still has the `bi.variety` crash
-      // (fix is in api.py but not yet deployed). The Server Script mirror at this
-      // path is already fixed live. REVERT to
-      // '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData' once api.py
-      // is deployed to prod.
-      url: '/api/method/fetchPackhouseQCFormData',
+      url: '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData',
       // Airport Returns scans a box AND asks the server for the return context.
       params: params?.airportReturn ? { ...(base ?? {}), airport_return: 1 } : base,
     });

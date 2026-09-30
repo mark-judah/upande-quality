@@ -15,6 +15,8 @@ export type AllocationItem = {
   variety: string;
   varietyLabel: string;
   shelfLocation: string;
+  /** Remote farm the bucket is transferred from. */
+  farm: string;
   stemLength: string;
   qty: number;
   uom: string;
@@ -102,8 +104,14 @@ export type FetchAllocationsOutcome =
   | { kind: 'error'; message: string };
 
 export type FetchPlannedTripsOutcome =
-  | { kind: 'ok'; trips: PlannedTrip[] }
+  | { kind: 'ok'; trips: PlannedTrip[]; schedules: OplSchedule[]; oplStates: Record<string, OplServerState> }
   | { kind: 'error'; message: string };
+
+/** An order's Packhouse Schedule slot (team + position in that team's run). */
+/** Where an order's buckets from this farm are on the server. */
+export type OplServerState = 'waiting' | 'loaded' | 'transit' | 'arrived';
+
+export type OplSchedule = { oplName: string; team: string; sequence: number; scheduled: boolean };
 
 export type SaveTrolleyOutcome =
   | { kind: 'ok'; message: string }
@@ -135,6 +143,7 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     allocatedDate: r.allocated_date ?? '',
     salesOrder: r.sales_order ?? '',
     pickListItemId: r.pick_list_item_id ?? '',
+    farm: r.farm || (r.warehouse ?? '').split(' ')[0] || '',
   };
 }
 
@@ -269,11 +278,25 @@ export const karenBucketRequestsRepository = {
   },
 
   /** Upcoming planned trips coming to collect from `farm`. */
-  async fetchPlannedTrips(farm: string): Promise<FetchPlannedTripsOutcome> {
-    const raw = await karenBucketRequestsApi.getFarmPlannedTrips(farm);
+  async fetchPlannedTrips(farm: string, opls: string[] = []): Promise<FetchPlannedTripsOutcome> {
+    const raw = await karenBucketRequestsApi.getFarmPlannedTrips(farm, opls);
     const m = raw.message ?? {};
     if (m.status === 'success') {
-      return { kind: 'ok', trips: (m.data ?? []).map(mapPlannedTrip) };
+      return {
+        kind: 'ok',
+        trips: (m.data ?? []).map(mapPlannedTrip),
+        schedules: Object.entries(m.schedules ?? {}).map(([oplName, v]) => ({
+          oplName,
+          team: v?.team ?? '',
+          sequence: num(v?.schedule),
+          scheduled: !!v?.scheduled,
+        })),
+        oplStates: Object.fromEntries(
+          Object.entries(m.opl_states ?? {}).filter(([, v]) =>
+            ['waiting', 'loaded', 'transit', 'arrived'].includes(v as string),
+          ),
+        ) as Record<string, OplServerState>,
+      };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
   },
@@ -372,5 +395,39 @@ export const karenBucketRequestsRepository = {
       };
     }
     return { kind: 'error', message: m.message ?? 'Delete failed.' };
+  },
+
+  async findBucketReplacement(
+    pickListItem: string,
+  ): Promise<
+    { kind: 'ok'; newBucket: string; shelf: string; stemLength: string } | { kind: 'error'; message: string }
+  > {
+    const raw = await karenBucketRequestsApi.findRequestedBucketReplacement(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status === 'success' && m.found && m.new_bucket) {
+      return { kind: 'ok', newBucket: m.new_bucket, shelf: m.shelf ?? '', stemLength: m.stem_length ?? '' };
+    }
+    return { kind: 'error', message: m.message ?? 'No replacement bucket found.' };
+  },
+
+  async replaceBucket(
+    pickListItem: string,
+    newBucketId: string,
+  ): Promise<
+    | { kind: 'ok'; newBucket: string; shelf: string; stemLength: string; message: string }
+    | { kind: 'error'; message: string }
+  > {
+    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId);
+    const m = raw.message ?? {};
+    if (m.status === 'success' && m.new_bucket) {
+      return {
+        kind: 'ok',
+        newBucket: m.new_bucket,
+        shelf: m.shelf ?? '',
+        stemLength: m.stem_length ?? '',
+        message: m.message ?? 'Replaced.',
+      };
+    }
+    return { kind: 'error', message: m.message ?? 'Replace failed.' };
   },
 };
