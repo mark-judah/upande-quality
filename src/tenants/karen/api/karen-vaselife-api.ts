@@ -57,7 +57,7 @@ export const karenVaselifeApi = {
   fetchFormData(): Promise<Envelope<RawVaselifeFormData>> {
     return api<Envelope<RawVaselifeFormData>>({
       method: 'GET',
-      url: '/api/method/fetchVaselifeFormData',
+      url: '/api/method/upande_quality.mobile.api.fetchVaselifeFormData',
       validateStatus: () => true,
     });
   },
@@ -65,7 +65,7 @@ export const karenVaselifeApi = {
   getBucket(bucketId: string): Promise<Envelope<RawVaselifeBucket>> {
     return api<Envelope<RawVaselifeBucket>>({
       method: 'POST',
-      url: '/api/method/getVaselifeBucket',
+      url: '/api/method/upande_quality.mobile.api.getVaselifeBucket',
       data: { bucket_id: bucketId },
       validateStatus: () => true,
     });
@@ -74,7 +74,7 @@ export const karenVaselifeApi = {
   saveSample(payload: Record<string, unknown>): Promise<Envelope<RawVaselifeSampleSave>> {
     return api<Envelope<RawVaselifeSampleSave>>({
       method: 'POST',
-      url: '/api/method/saveVaselifeSample',
+      url: '/api/method/upande_quality.mobile.api.saveVaselifeSample',
       data: { data: payload },
       validateStatus: () => true,
       timeout: 120000,
@@ -84,7 +84,7 @@ export const karenVaselifeApi = {
   saveObservation(payload: Record<string, unknown>): Promise<Envelope<RawVaselifeObservationSave>> {
     return api<Envelope<RawVaselifeObservationSave>>({
       method: 'POST',
-      url: '/api/method/saveVaselifeObservation',
+      url: '/api/method/upande_quality.mobile.api.saveVaselifeObservation',
       data: { data: payload },
       validateStatus: () => true,
       timeout: 120000,
