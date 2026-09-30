@@ -1,5 +1,10 @@
 import * as SQLite from 'expo-sqlite';
-import type { AllocationItem, PlannedTrip } from '../repository/karen-bucket-requests-repository';
+import type {
+  AllocationItem,
+  OplSchedule,
+  OplServerState,
+  PlannedTrip,
+} from '../repository/karen-bucket-requests-repository';
 
 /** A bucket row as the offline UI consumes it. */
 export type ReqBucket = {
@@ -7,11 +12,14 @@ export type ReqBucket = {
   bucketId: string;
   variety: string;
   shelf: string;
+  /** Remote farm the bucket is transferred from. */
+  farm: string;
   stemLength: string;
   qty: number;
   uom: string;
   scanned: boolean;
   trolleyId: string | null;
+  pliId: string | null;
 };
 
 /** An OPL with its buckets + scan progress. */
@@ -38,6 +46,8 @@ export type TrolleyOpl = {
   buckets: ReqBucket[];
   loadedToTruck: boolean;
   inTransit: boolean;
+  /** Buckets are shelved at the packhouse. */
+  arrived: boolean;
   /** Pick List Item names of this OPL's buckets — the sync target. */
   pliIds: string[];
 };
@@ -72,6 +82,7 @@ CREATE TABLE IF NOT EXISTS bucket (
   scanned INTEGER NOT NULL DEFAULT 0, trolley_id TEXT, scanned_at TEXT,
   UNIQUE(opl_name, bucket_id)
 );
+CREATE TABLE IF NOT EXISTS opl_schedule (opl_name TEXT PRIMARY KEY, team TEXT, sequence INTEGER NOT NULL DEFAULT 0, scheduled INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS trolley (trolley_id TEXT PRIMARY KEY, created_at TEXT);
 CREATE TABLE IF NOT EXISTS vehicle (name TEXT PRIMARY KEY, license_plate TEXT);
 CREATE TABLE IF NOT EXISTS planned_trip (
@@ -97,6 +108,17 @@ export async function initDb(): Promise<void> {
   if (!have.has('last_activity')) {
     await d.execAsync('ALTER TABLE opl ADD COLUMN last_activity TEXT');
   }
+  if (!have.has('arrived')) {
+    await d.execAsync('ALTER TABLE opl ADD COLUMN arrived INTEGER NOT NULL DEFAULT 0');
+  }
+  const scols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(opl_schedule)');
+  if (!scols.some((c) => c.name === 'scheduled')) {
+    await d.execAsync('ALTER TABLE opl_schedule ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 1');
+  }
+  const bcols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(bucket)');
+  if (!bcols.some((c) => c.name === 'farm')) {
+    await d.execAsync('ALTER TABLE bucket ADD COLUMN farm TEXT');
+  }
 }
 
 /** Insert downloaded picklists, skipping any OPL already on device. */
@@ -121,6 +143,14 @@ export async function downloadOpls(
       [oplName],
     );
     if (existing && existing.c > 0) {
+      // Already on device: only backfill the source farm on rows downloaded before it existed.
+      for (const r of rows) {
+        if (!r.farm) continue;
+        await d.runAsync(
+          "UPDATE bucket SET farm = ? WHERE opl_name = ? AND bucket_id = ? AND COALESCE(farm, '') = ''",
+          [r.farm, oplName, r.bucketId],
+        );
+      }
       skipped++;
       continue;
     }
@@ -146,12 +176,13 @@ export async function downloadOpls(
       );
       for (const r of rows) {
         await d.runAsync(
-          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, stem_length, qty, uom, pick_list_item_id, scanned) VALUES (?,?,?,?,?,?,?,?,0)',
+          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, scanned) VALUES (?,?,?,?,?,?,?,?,?,0)',
           [
             oplName,
             r.bucketId,
             r.varietyLabel || r.variety || '',
             r.shelfLocation || '',
+            r.farm || '',
             r.stemLength || '',
             r.qty || 0,
             r.uom || '',
@@ -170,6 +201,7 @@ type BucketRow = {
   bucket_id: string;
   variety: string | null;
   shelf: string | null;
+  farm: string | null;
   stem_length: string | null;
   qty: number | null;
   uom: string | null;
@@ -184,11 +216,13 @@ function mapBucketRow(r: BucketRow): ReqBucket {
     bucketId: r.bucket_id,
     variety: r.variety || '',
     shelf: r.shelf || '',
+    farm: r.farm || '',
     stemLength: r.stem_length || '',
     qty: r.qty || 0,
     uom: r.uom || '',
     scanned: r.scanned === 1,
     trolleyId: r.trolley_id || null,
+    pliId: r.pick_list_item_id || null,
   };
 }
 
@@ -236,7 +270,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
   return Array.from(groups.values());
 }
 
-type CompletedRow = OplRow & { loaded_to_truck: number; in_transit: number };
+type CompletedRow = OplRow & { loaded_to_truck: number; in_transit: number; arrived: number };
 
 /** Fully-scanned OPLs, filtered by their in_transit flag (0 = Trolley tab,
  *  1 = In Transit tab). */
@@ -244,7 +278,7 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
   const d = await db();
   const opls = await d.getAllAsync<CompletedRow>(`
     SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.total_buckets AS total,
-           o.loaded_to_truck, o.in_transit,
+           o.loaded_to_truck, o.in_transit, o.arrived,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1) AS scanned
     FROM opl o ORDER BY o.created_on DESC, o.opl_name ASC`);
   const out: TrolleyOpl[] = [];
@@ -270,6 +304,7 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
       buckets: brows.map(mapBucketRow),
       loadedToTruck: o.loaded_to_truck === 1,
       inTransit: o.in_transit === 1,
+      arrived: o.arrived === 1,
       pliIds,
     });
   }
@@ -282,6 +317,71 @@ export async function listTrolley(): Promise<TrolleyOpl[]> {
 
 export async function listInTransit(): Promise<TrolleyOpl[]> {
   return listCompleted(1);
+}
+
+export async function listOplNames(): Promise<string[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ opl_name: string }>('SELECT opl_name FROM opl');
+  return rows.map((r) => r.opl_name);
+}
+
+/** Move orders forward to what the server says happened (another device loaded
+ *  the truck, the truck left, the buckets were shelved). Never moves backwards. */
+export async function applyServerStates(states: Record<string, OplServerState>): Promise<number> {
+  const d = await db();
+  const now = new Date().toISOString();
+  let changed = 0;
+  for (const [oplName, state] of Object.entries(states)) {
+    if (state === 'waiting') continue;
+    const cur = await d.getFirstAsync<{ loaded_to_truck: number; in_transit: number; arrived: number }>(
+      'SELECT loaded_to_truck, in_transit, arrived FROM opl WHERE opl_name = ?',
+      [oplName],
+    );
+    if (!cur) continue;
+    const want = {
+      loaded: 1,
+      transit: state === 'transit' || state === 'arrived' ? 1 : 0,
+      arrived: state === 'arrived' ? 1 : 0,
+    };
+    const unscanned = await d.getFirstAsync<{ c: number }>(
+      'SELECT COUNT(*) AS c FROM bucket WHERE opl_name = ? AND scanned = 0',
+      [oplName],
+    );
+    if (
+      cur.loaded_to_truck >= want.loaded &&
+      cur.in_transit >= want.transit &&
+      cur.arrived >= want.arrived &&
+      !unscanned?.c
+    ) {
+      continue;
+    }
+    await d.withTransactionAsync(async () => {
+      await d.runAsync('UPDATE bucket SET scanned = 1, scanned_at = COALESCE(scanned_at, ?) WHERE opl_name = ? AND scanned = 0', [
+        now,
+        oplName,
+      ]);
+      await d.runAsync(
+        'UPDATE opl SET loaded_to_truck = MAX(loaded_to_truck, ?), in_transit = MAX(in_transit, ?), arrived = MAX(arrived, ?), last_activity = ? WHERE opl_name = ?',
+        [want.loaded, want.transit, want.arrived, now, oplName],
+      );
+    });
+    changed++;
+  }
+  return changed;
+}
+
+/** Point a downloaded bucket row at its server-side replacement. */
+export async function replaceBucketLocal(
+  rowId: number,
+  bucketId: string,
+  shelf: string,
+  stemLength: string,
+): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    'UPDATE bucket SET bucket_id = ?, shelf = ?, stem_length = COALESCE(NULLIF(?, \'\'), stem_length) WHERE id = ? AND scanned = 0',
+    [bucketId, shelf, stemLength, rowId],
+  );
 }
 
 /** Mark an OPL loaded-to-truck / in-transit locally (after server sync). */
@@ -403,6 +503,33 @@ export async function replacePlannedTrips(trips: PlannedTrip[]): Promise<void> {
   });
 }
 
+export async function replaceSchedules(schedules: OplSchedule[]): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync('DELETE FROM opl_schedule');
+    for (const sc of schedules) {
+      if (!sc.oplName) continue;
+      await d.runAsync(
+        'INSERT OR REPLACE INTO opl_schedule (opl_name, team, sequence, scheduled) VALUES (?, ?, ?, ?)',
+        [sc.oplName, sc.team, sc.sequence, sc.scheduled ? 1 : 0],
+      );
+    }
+  });
+}
+
+export async function listSchedules(): Promise<OplSchedule[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ opl_name: string; team: string | null; sequence: number; scheduled: number }>(
+    'SELECT opl_name, team, sequence, scheduled FROM opl_schedule',
+  );
+  return rows.map((r) => ({
+    oplName: r.opl_name,
+    team: r.team || '',
+    sequence: r.sequence || 0,
+    scheduled: r.scheduled === 1,
+  }));
+}
+
 export async function listPlannedTrips(): Promise<PlannedTrip[]> {
   const d = await db();
   const rows = await d.getAllAsync<{ payload: string }>(
@@ -422,6 +549,6 @@ export async function listPlannedTrips(): Promise<PlannedTrip[]> {
 export async function clearAll(): Promise<void> {
   const d = await db();
   await d.execAsync(
-    'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip;',
+    'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip; DELETE FROM opl_schedule;',
   );
 }

@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import * as Network from 'expo-network';
-import { karenBucketRequestsRepository, type PlannedTrip } from '../repository/karen-bucket-requests-repository';
+import {
+  karenBucketRequestsRepository,
+  type OplSchedule,
+  type PlannedTrip,
+} from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
 
@@ -12,6 +16,8 @@ type State = {
   inTransit: TrolleyOpl[];
   vehicles: Vehicle[];
   plannedTrips: PlannedTrip[];
+  /** Packhouse Schedule slot per OPL, for orders scheduled but not yet on a trip. */
+  schedules: OplSchedule[];
   reqCount: number;
   trolleyCount: number;
   inTransitCount: number;
@@ -28,13 +34,24 @@ type State = {
   download: (farm: string) => Promise<{ ok: boolean; message: string }>;
   /** Refresh only the planned-trips plan for a farm (online). */
   loadPlannedTrips: (farm: string) => Promise<{ ok: boolean; message?: string }>;
+  /** Silent background pull: new picklists, trip plan, schedules and order states. */
+  sync: (farm: string) => Promise<void>;
   setTrolleyFromScan: (raw: string) => { ok: boolean; message?: string; trolleyId?: string };
   clearActiveTrolley: () => void;
   scanBucketFromScan: (raw: string) => Promise<{ ok: boolean; message: string }>;
   loadToTruck: (oplName: string, pliIds: string[], truck: string) => Promise<{ ok: boolean; message: string }>;
   markInTransit: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
+  /** Load fully-scanned OPLs onto `truck` and mark them in transit, in one action. */
+  loadAllToTruck: (opls: TrolleyOpl[], truck: string) => Promise<{ ok: boolean; message: string }>;
+  findReplacement: (
+    pliId: string,
+  ) => Promise<{ ok: true; newBucket: string; shelf: string; stemLength: string } | { ok: false; message: string }>;
+  replaceBucket: (rowId: number, pliId: string, newBucket: string) => Promise<{ ok: boolean; message: string }>;
   clearAll: () => Promise<void>;
 };
+
+// One background sync at a time (the poll timer and app-foreground can overlap).
+let syncing = false;
 
 export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   ready: false,
@@ -44,6 +61,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   inTransit: [],
   vehicles: [],
   plannedTrips: [],
+  schedules: [],
   reqCount: 0,
   trolleyCount: 0,
   inTransitCount: 0,
@@ -66,16 +84,18 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, inTransit, vehicles, plannedTrips, c] = await Promise.all([
+    const [requests, trolley, inTransit, vehicles, plannedTrips, schedules, c] = await Promise.all([
       db.listRequests(),
       db.listTrolley(),
       db.listInTransit(),
       db.listVehicles(),
       db.listPlannedTrips(),
+      db.listSchedules(),
       db.counts(),
     ]);
     set({
       requests,
+      schedules,
       trolley,
       inTransit,
       vehicles,
@@ -120,8 +140,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       // Refresh the planned-trips plan too. Non-fatal — keep the cached plan on
       // failure so the download still succeeds.
       try {
-        const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm);
-        if (trips.kind === 'ok') await db.replacePlannedTrips(trips.trips);
+        const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm, await db.listOplNames());
+        if (trips.kind === 'ok') {
+          await db.replacePlannedTrips(trips.trips);
+          await db.replaceSchedules(trips.schedules);
+          await db.applyServerStates(trips.oplStates);
+        }
       } catch {
         /* keep the cached plan */
       }
@@ -143,18 +167,42 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     if (!get().online) return { ok: false, message: 'Connect to the internet to refresh the trip plan.' };
     set({ loadingTrips: true });
     try {
-      const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm);
+      const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm, await db.listOplNames());
       if (trips.kind !== 'ok') {
         set({ loadingTrips: false });
         return { ok: false, message: trips.message };
       }
       await db.replacePlannedTrips(trips.trips);
+      await db.replaceSchedules(trips.schedules);
+      await db.applyServerStates(trips.oplStates);
       await get().refresh();
       set({ loadingTrips: false });
       return { ok: true };
     } catch (e) {
       set({ loadingTrips: false });
       return { ok: false, message: (e as Error)?.message || 'Failed to load trips.' };
+    }
+  },
+
+  sync: async (farm) => {
+    if (syncing || !farm) return;
+    syncing = true;
+    try {
+      await get().refreshOnline();
+      if (!get().online || get().downloading || get().syncingOpl) return;
+      const alloc = await karenBucketRequestsRepository.fetchAllocations(farm);
+      if (alloc.kind === 'ok') await db.downloadOpls(alloc.items, farm);
+      const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm, await db.listOplNames());
+      if (trips.kind === 'ok') {
+        await db.replacePlannedTrips(trips.trips);
+        await db.replaceSchedules(trips.schedules);
+        await db.applyServerStates(trips.oplStates);
+      }
+      await get().refresh();
+    } catch {
+      /* background pull: keep what is on screen */
+    } finally {
+      syncing = false;
     }
   },
 
@@ -219,6 +267,59 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     } catch (e) {
       set({ syncingOpl: null });
       return { ok: false, message: (e as Error)?.message || 'Failed to mark in transit.' };
+    }
+  },
+
+  loadAllToTruck: async (opls, truck) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
+    const pliIds = opls.flatMap((o) => o.pliIds);
+    if (!pliIds.length) return { ok: false, message: 'Nothing to load.' };
+    set({ syncingOpl: opls.length === 1 ? opls[0].oplName : '*' });
+    try {
+      // One action: stamp the truck onto the rows, then send them on their way.
+      const loaded = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded', truck });
+      if (loaded.kind !== 'ok') return { ok: false, message: loaded.message };
+      for (const o of opls) await db.markLoadedLocal(o.oplName);
+      const transit = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'transit' });
+      if (transit.kind !== 'ok') {
+        await get().refresh();
+        return { ok: false, message: `Loaded to ${truck}, but not marked in transit: ${transit.message}` };
+      }
+      for (const o of opls) await db.markInTransitLocal(o.oplName);
+      await get().refresh();
+      const what = opls.length === 1 ? opls[0].orderName : `${opls.length} orders`;
+      return { ok: true, message: `${what} loaded to ${truck} and in transit.` };
+    } catch (e) {
+      return { ok: false, message: (e as Error)?.message || 'Load failed.' };
+    } finally {
+      set({ syncingOpl: null });
+    }
+  },
+
+  findReplacement: async (pliId) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
+    try {
+      const res = await karenBucketRequestsRepository.findBucketReplacement(pliId);
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      return { ok: true, newBucket: res.newBucket, shelf: res.shelf, stemLength: res.stemLength };
+    } catch (e) {
+      return { ok: false, message: (e as Error)?.message || 'Failed to find a replacement.' };
+    }
+  },
+
+  replaceBucket: async (rowId, pliId, newBucket) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
+    try {
+      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket);
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      await db.replaceBucketLocal(rowId, res.newBucket, res.shelf, res.stemLength);
+      await get().refresh();
+      return { ok: true, message: res.message };
+    } catch (e) {
+      return { ok: false, message: (e as Error)?.message || 'Replace failed.' };
     }
   },
 

@@ -20,6 +20,8 @@ export type RawAllocationItem = {
   // Location
   shelf_location?: string;
   warehouse?: string;
+  /** Remote farm the bucket is transferred from. */
+  farm?: string;
   // Bucket
   bucket_id?: string;
   harvest_date?: string;
@@ -129,10 +131,36 @@ export type RawPlannedTrip = {
 };
 
 export type RawPlannedTripsResponse = {
-  message?: { status?: string; data?: RawPlannedTrip[]; farm?: string; message?: string };
+  message?: {
+    status?: string;
+    data?: RawPlannedTrip[];
+    farm?: string;
+    message?: string;
+    /** OPL -> its Packhouse Schedule slot, for orders scheduled but not yet on a trip. */
+    schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number }>;
+    /** Live state of this farm's buckets per OPL the app sent in `opls`. */
+    opl_states?: Record<string, 'waiting' | 'loaded' | 'transit' | 'arrived' | string>;
+  };
 };
 
 /** One truck from /getDispatchTrucks (Vehicle where custom_dispatch_truck = 0). */
+/** /findRequestedBucketReplacement + /replaceRequestedBucket reply. */
+export type RawBucketReplacementResponse = {
+  message?: {
+    status?: string;
+    message?: string;
+    found?: boolean;
+    old_bucket?: string;
+    new_bucket?: string;
+    shelf?: string;
+    /** The replacement's own (graded) length — may be longer than the original. */
+    stem_length?: string;
+    available_qty?: number;
+    needed_qty?: number;
+    harvest_date?: string;
+  };
+};
+
 export type RawDispatchTruck = { name?: string; license_plate?: string };
 
 export type RawDispatchTrucksResponse = {
@@ -154,11 +182,11 @@ export const karenBucketRequestsApi = {
   /** Upcoming planned trips (Bucket Request Trip) that will collect buckets from
    *  `farm`, so the cold-store attendant can pre-stage trolleys. Standalone
    *  endpoint — separate from the production allocation/trolley scripts. */
-  getFarmPlannedTrips(farm: string): Promise<RawPlannedTripsResponse> {
+  getFarmPlannedTrips(farm: string, opls: string[] = []): Promise<RawPlannedTripsResponse> {
     return api<RawPlannedTripsResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.getFarmPlannedTrips',
-      data: { farm },
+      data: { farm, opls },
       validateStatus: () => true,
     });
   },
@@ -237,6 +265,26 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.setOfflineTrolleyFlags',
       data: { data: payload },
+      validateStatus: () => true,
+    });
+  },
+
+  /** The matching shelved bucket that would replace a requested one. */
+  findRequestedBucketReplacement(pickListItem: string): Promise<RawBucketReplacementResponse> {
+    return api<RawBucketReplacementResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.findRequestedBucketReplacement',
+      data: { data: { pick_list_item: pickListItem } },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Swap a requested bucket for `newBucketId` (OPL rows, allocation, stock entries). */
+  replaceRequestedBucket(pickListItem: string, newBucketId: string): Promise<RawBucketReplacementResponse> {
+    return api<RawBucketReplacementResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.replaceRequestedBucket',
+      data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId } },
       validateStatus: () => true,
     });
   },

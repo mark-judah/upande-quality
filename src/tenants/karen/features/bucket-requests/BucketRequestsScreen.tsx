@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Alert as RNAlert,
+  AppState,
   Modal,
   Pressable,
   RefreshControl,
@@ -27,12 +29,16 @@ import {
   type PlannedTrip,
   type PlannedTripStop,
 } from '@/src/tenants/karen/state/karen-bucket-requests-store';
+import { karenBucketRequestsRepository } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import type { ReqOpl, ReqBucket, Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 
 type Tab = 'requests' | 'trips' | 'trolley' | 'transit';
 
+const SYNC_INTERVAL_MS = 30_000;
+
 /** OPL name -> its planned trip, so the Requests tab can grey unscheduled ones. */
-type OplTripInfo = { tripId: string; confirmed: boolean; status: string };
+/** `label` is the trip id, or "Team A #2" for an order only on the Packhouse Schedule. */
+type OplTripInfo = { label: string; confirmed: boolean; status: string; onTrip: boolean };
 type OplTripMap = Record<string, OplTripInfo>;
 
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
@@ -43,7 +49,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // The completed OPL awaiting a truck choice (null = picker closed).
-  const [truckPickerFor, setTruckPickerFor] = useState<TrolleyOpl | null>(null);
+  const [truckPickerFor, setTruckPickerFor] = useState<TrolleyOpl[] | null>(null);
+  const [replacingId, setReplacingId] = useState<number | null>(null);
   const [truckQuery, setTruckQuery] = useState('');
 
   const {
@@ -54,6 +61,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     inTransit,
     vehicles,
     plannedTrips,
+    schedules,
     reqCount,
     trolleyCount,
     inTransitCount,
@@ -67,24 +75,45 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     refresh,
     download,
     loadPlannedTrips,
+    sync,
     setTrolleyFromScan,
     clearActiveTrolley,
     scanBucketFromScan,
-    loadToTruck,
-    markInTransit,
+    loadAllToTruck,
+    findReplacement,
+    replaceBucket,
     clearAll,
   } = useKarenBucketRequestsStore();
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
     const m: OplTripMap = {};
+    // Packhouse Schedule first; a trip for the same order overrides it.
+    for (const sc of schedules) {
+      if (!sc.scheduled) continue;
+      m[sc.oplName] = {
+        label: `${sc.team || 'Scheduled'}${sc.sequence ? ` #${sc.sequence}` : ''}`,
+        confirmed: false,
+        status: 'Scheduled',
+        onTrip: false,
+      };
+    }
     for (const t of plannedTrips) {
       for (const o of t.orders ?? []) {
-        if (o.opl) m[o.opl] = { tripId: t.tripId, confirmed: t.confirmed, status: t.status };
+        if (o.opl) m[o.opl] = { label: t.tripId, confirmed: t.confirmed, status: t.status, onTrip: true };
       }
     }
     return m;
-  }, [plannedTrips]);
+  }, [plannedTrips, schedules]);
+
+  // OPL -> "Team A #1" (schedule slot) or just the team stamped at allocation.
+  const oplTeam = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const sc of schedules) {
+      if (sc.team) m[sc.oplName] = sc.sequence ? `${sc.team} #${sc.sequence}` : sc.team;
+    }
+    return m;
+  }, [schedules]);
 
   useEffect(() => {
     init();
@@ -94,6 +123,22 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     useCallback(() => {
       focusWhenReady(activeTrolleyId ? bucketRef : trolleyRef);
     }, [activeTrolleyId]),
+  );
+
+  // Keep the page live while it is open: pull new picklists, the trip plan,
+  // schedules and order states in the background, and again on return to the app.
+  useFocusEffect(
+    useCallback(() => {
+      sync(userFarm);
+      const timer = setInterval(() => sync(userFarm), SYNC_INTERVAL_MS);
+      const sub = AppState.addEventListener('change', (st) => {
+        if (st === 'active') sync(userFarm);
+      });
+      return () => {
+        clearInterval(timer);
+        sub.remove();
+      };
+    }, [sync, userFarm]),
   );
   useEffect(() => {
     focusWhenReady(activeTrolleyId ? bucketRef : trolleyRef);
@@ -112,7 +157,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       setScanStatus({ ok: true, message: msg });
       showSuccess(`Trolley ${r.trolleyId}`);
       trolleyRef.current?.clear();
+      focusWhenReady(bucketRef);
     }
+  };
+
+  // Route by QR content, not by which field caught it: Android can leave focus
+  // on the (now read-only) trolley field, so a bucket QR must still land as a
+  // bucket, and a trolley QR in the bucket field switches the trolley.
+  const onAnyScan = (raw: string) => {
+    if (karenBucketRequestsRepository.extractBucketIdFromScan(raw)) return onBucketScan(raw);
+    if (karenBucketRequestsRepository.extractTrolleyIdFromScan(raw)) return onTrolleyScan(raw);
+    return activeTrolleyId ? onBucketScan(raw) : onTrolleyScan(raw);
   };
 
   const onBucketScan = async (raw: string) => {
@@ -125,22 +180,49 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   };
 
   // "Load to truck" now needs a truck: open the picker instead of loading straight away.
-  const onLoad = (o: TrolleyOpl) => {
+  const onLoad = (opls: TrolleyOpl[]) => {
     setTruckQuery('');
-    setTruckPickerFor(o);
+    setTruckPickerFor(opls);
   };
   const onPickTruck = async (truck: string) => {
     const target = truckPickerFor;
     setTruckPickerFor(null);
-    if (!target) return;
-    const r = await loadToTruck(target.oplName, target.pliIds, truck);
+    if (!target?.length) return;
+    const r = await loadAllToTruck(target, truck);
     if (r.ok) showSuccess(r.message);
     else showError(r.message);
   };
-  const onTransit = async (o: TrolleyOpl) => {
-    const r = await markInTransit(o.oplName, o.pliIds);
-    if (r.ok) showSuccess(r.message);
-    else showError(r.message);
+
+  const onReplace = async (b: ReqBucket) => {
+    if (!b.pliId) {
+      showError('Download the picklist again to replace this bucket.');
+      return;
+    }
+    const pliId = b.pliId;
+    setReplacingId(b.id);
+    const found = await findReplacement(pliId);
+    setReplacingId(null);
+    if (!found.ok) {
+      showError(found.message);
+      return;
+    }
+    RNAlert.alert(
+      `Replace ${b.bucketId}?`,
+      `${found.newBucket}${found.shelf ? ` · ${found.shelf}` : ''}\n${bucketMeta(b.variety, found.stemLength || b.stemLength)} · ${Math.round(b.qty)} ${b.uom}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Replace',
+          onPress: async () => {
+            setReplacingId(b.id);
+            const r = await replaceBucket(b.id, pliId, found.newBucket);
+            setReplacingId(null);
+            if (r.ok) showSuccess(r.message);
+            else showError(r.message);
+          },
+        },
+      ],
+    );
   };
 
   const onDownload = async () => {
@@ -171,7 +253,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     setRefreshing(true);
     try {
       // On the Trips tab a pull also re-pulls the live plan (when online).
-      if (tab === 'trips' && online) await loadPlannedTrips(userFarm);
+      if ((tab === 'trips' || tab === 'requests') && online) await loadPlannedTrips(userFarm);
       await refresh();
     } finally {
       setRefreshing(false);
@@ -227,7 +309,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               <Text style={s.scanLabel}>1 · Trolley</Text>
               <ScanField
                 ref={trolleyRef}
-                onScan={onTrolleyScan}
+                onScan={onAnyScan}
                 autoFocus={!activeTrolleyId}
                 placeholder="Scan trolley QR"
                 value={activeTrolleyId ?? undefined}
@@ -251,10 +333,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               <Text style={s.scanLabel}>2 · Bucket</Text>
               <ScanField
                 ref={bucketRef}
-                onScan={onBucketScan}
+                onScan={onAnyScan}
                 autoFocus={!!activeTrolleyId}
-                placeholder={activeTrolleyId ? 'Scan bucket QR' : 'Scan trolley first'}
-                editable={!!activeTrolleyId}
+                placeholder="Scan bucket QR"
               />
             </View>
           </View>
@@ -291,7 +372,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         />
 
         {tab === 'requests' ? (
-          <RequestsTab groups={requests} oplTrip={oplTrip} />
+          <RequestsTab
+            groups={requests}
+            oplTrip={oplTrip}
+            oplTeam={oplTeam}
+            replacingId={replacingId}
+            onReplace={onReplace}
+          />
         ) : tab === 'trips' ? (
           <TripsTab
             trips={plannedTrips}
@@ -299,17 +386,26 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             online={online}
             loading={loadingTrips}
             onRefresh={onRefreshTrips}
+            oplTeam={oplTeam}
           />
         ) : tab === 'trolley' ? (
-          <TrolleyTab items={trolley} syncingOpl={syncingOpl} onLoad={onLoad} onTransit={onTransit} />
+          <TrolleyTab
+            items={trolley}
+            allScanned={reqCount === 0}
+            syncingOpl={syncingOpl}
+            oplTeam={oplTeam}
+            onLoad={onLoad}
+          />
         ) : (
-          <InTransitTab items={inTransit} />
+          <InTransitTab items={inTransit} oplTeam={oplTeam} />
         )}
       </ScrollView>
 
       <TruckPicker
         visible={!!truckPickerFor}
-        orderName={truckPickerFor?.orderName ?? ''}
+        orderName={
+          truckPickerFor?.length === 1 ? truckPickerFor[0].orderName : `${truckPickerFor?.length ?? 0} orders`
+        }
         vehicles={vehicles}
         query={truckQuery}
         onQuery={setTruckQuery}
@@ -399,7 +495,19 @@ function TruckPicker({
   );
 }
 
-function RequestsTab({ groups, oplTrip }: { groups: OrderGroup[]; oplTrip: OplTripMap }) {
+function RequestsTab({
+  groups,
+  oplTrip,
+  oplTeam,
+  replacingId,
+  onReplace,
+}: {
+  groups: OrderGroup[];
+  oplTrip: OplTripMap;
+  oplTeam: Record<string, string>;
+  replacingId: number | null;
+  onReplace: (b: ReqBucket) => void;
+}) {
   const [query, setQuery] = useState('');
 
   if (!groups.length) {
@@ -469,7 +577,14 @@ function RequestsTab({ groups, oplTrip }: { groups: OrderGroup[]; oplTrip: OplTr
               <Text style={[s.groupCustomer, !scheduled ? s.groupHdrDim : null]}>{customer}</Text>
             ) : null}
             {g.opls.map((o) => (
-              <OplCard key={o.oplName} opl={o} trip={oplTrip[o.oplName]} />
+              <OplCard
+                key={o.oplName}
+                opl={o}
+                trip={oplTrip[o.oplName]}
+                team={oplTeam[o.oplName]}
+                replacingId={replacingId}
+                onReplace={onReplace}
+              />
             ))}
           </View>
         );
@@ -487,7 +602,19 @@ function bucketMeta(variety: string, stemLength: string): string {
   return [variety, stemLabel].filter(Boolean).join(' · ');
 }
 
-function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
+function OplCard({
+  opl,
+  trip,
+  team,
+  replacingId,
+  onReplace,
+}: {
+  opl: ReqOpl;
+  trip?: OplTripInfo;
+  team?: string;
+  replacingId: number | null;
+  onReplace: (b: ReqBucket) => void;
+}) {
   const pct = opl.total > 0 ? Math.round((opl.scanned / opl.total) * 100) : 0;
   const dimmed = !trip;
   return (
@@ -497,12 +624,12 @@ function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
         {trip ? (
           <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
             <Ionicons
-              name="car"
+              name={trip.onTrip ? 'car' : 'calendar-outline'}
               size={12}
               color={trip.confirmed ? (COLORS.textOnPrimary ?? '#fff') : COLORS.text}
             />
             <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]} numberOfLines={1}>
-              {trip.tripId} · {trip.confirmed ? 'Confirmed' : 'Planned'}
+              {trip.label} · {trip.onTrip ? (trip.confirmed ? 'Confirmed' : 'Planned') : 'Scheduled'}
             </Text>
           </View>
         ) : (
@@ -511,6 +638,7 @@ function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
             <Text style={s.oplTagUnschedText}>Unscheduled</Text>
           </View>
         )}
+        {!trip || trip.onTrip ? <TeamChip team={team} /> : null}
       </View>
       <View style={s.oplHead}>
         <View style={{ flex: 1 }}>
@@ -537,15 +665,34 @@ function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
-            {!!b.shelf && (
+            {!!(b.farm || b.shelf) && (
               <Text style={s.bShelf} numberOfLines={1}>
-                {b.shelf}
+                {[b.farm, b.shelf].filter(Boolean).join(' · ')}
               </Text>
             )}
           </View>
-          <Text style={s.bQty}>
-            {Math.round(b.qty)} {b.uom}
-          </Text>
+          <View style={s.bSide}>
+            <Text style={s.bQty}>
+              {Math.round(b.qty)} {b.uom}
+            </Text>
+            {!b.scanned ? (
+              <Pressable
+                onPress={() => onReplace(b)}
+                disabled={replacingId !== null}
+                hitSlop={8}
+                style={s.replaceBtn}
+              >
+                {replacingId === b.id ? (
+                  <ActivityIndicator size="small" color={COLORS.text} />
+                ) : (
+                  <>
+                    <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
+                    <Text style={s.changeLink}>Replace</Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ))}
     </Card>
@@ -553,9 +700,26 @@ function OplCard({ opl, trip }: { opl: ReqOpl; trip?: OplTripInfo }) {
   );
 }
 
-function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
+function TeamChip({ team }: { team?: string }) {
+  if (!team) return null;
+  return (
+    <View style={[s.oplTag, s.oplTagPlanned]}>
+      <Ionicons name="people-outline" size={12} color={COLORS.text} />
+      <Text style={s.oplTagText} numberOfLines={1}>
+        {team}
+      </Text>
+    </View>
+  );
+}
+
+function CompletedCard({ o, team, footer }: { o: TrolleyOpl; team?: string; footer: ReactNode }) {
   return (
     <Card>
+      {team ? (
+        <View style={s.oplTagRow}>
+          <TeamChip team={team} />
+        </View>
+      ) : null}
       <View style={s.oplHead}>
         <View style={{ flex: 1 }}>
           <Text style={s.bId}>{o.orderName}</Text>
@@ -576,9 +740,9 @@ function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
-            {!!b.shelf && (
+            {!!(b.farm || b.shelf) && (
               <Text style={s.bShelf} numberOfLines={1}>
-                {b.shelf}
+                {[b.farm, b.shelf].filter(Boolean).join(' · ')}
               </Text>
             )}
           </View>
@@ -593,14 +757,17 @@ function CompletedCard({ o, footer }: { o: TrolleyOpl; footer: ReactNode }) {
 
 function TrolleyTab({
   items,
+  allScanned,
   syncingOpl,
+  oplTeam,
   onLoad,
-  onTransit,
 }: {
   items: TrolleyOpl[];
+  /** Every requested bucket is on a trolley: one button loads them all. */
+  allScanned: boolean;
   syncingOpl: string | null;
-  onLoad: (o: TrolleyOpl) => void;
-  onTransit: (o: TrolleyOpl) => void;
+  oplTeam: Record<string, string>;
+  onLoad: (opls: TrolleyOpl[]) => void;
 }) {
   if (!items.length) {
     return (
@@ -613,26 +780,38 @@ function TrolleyTab({
       </Card>
     );
   }
+  const bulk = allScanned && items.length > 1;
   return (
     <>
+      {bulk ? (
+        <Card>
+          <Button
+            label="Load to truck"
+            iconLeft="car-outline"
+            loading={syncingOpl === '*'}
+            disabled={!!syncingOpl}
+            onPress={() => onLoad(items)}
+          />
+        </Card>
+      ) : null}
       {items.map((o) => (
         <CompletedCard
           key={o.oplName}
           o={o}
+          team={oplTeam[o.oplName]}
           footer={
-            o.loadedToTruck ? (
-              <Button
-                label="Mark in transit"
-                iconLeft="swap-horizontal"
-                loading={syncingOpl === o.oplName}
-                onPress={() => onTransit(o)}
-              />
+            bulk ? (
+              <View style={s.loadedInline}>
+                <Ionicons name="cart-outline" size={16} color={COLORS.text} />
+                <Text style={s.loadedInlineText}>On trolley</Text>
+              </View>
             ) : (
               <Button
                 label="Load to truck"
                 iconLeft="car-outline"
                 loading={syncingOpl === o.oplName}
-                onPress={() => onLoad(o)}
+                disabled={!!syncingOpl}
+                onPress={() => onLoad([o])}
               />
             )
           }
@@ -642,7 +821,7 @@ function TrolleyTab({
   );
 }
 
-function InTransitTab({ items }: { items: TrolleyOpl[] }) {
+function InTransitTab({ items, oplTeam }: { items: TrolleyOpl[]; oplTeam: Record<string, string> }) {
   if (!items.length) {
     return (
       <Card>
@@ -660,10 +839,11 @@ function InTransitTab({ items }: { items: TrolleyOpl[] }) {
         <CompletedCard
           key={o.oplName}
           o={o}
+          team={oplTeam[o.oplName]}
           footer={
             <View style={s.loadedInline}>
-              <Ionicons name="car" size={16} color={COLORS.text} />
-              <Text style={s.loadedInlineText}>In transit</Text>
+              <Ionicons name={o.arrived ? 'checkmark-done' : 'car'} size={16} color={COLORS.text} />
+              <Text style={s.loadedInlineText}>{o.arrived ? 'Arrived at packhouse' : 'In transit'}</Text>
             </View>
           }
         />
@@ -680,12 +860,14 @@ function TripsTab({
   online,
   loading,
   onRefresh,
+  oplTeam,
 }: {
   trips: PlannedTrip[];
   farm: string;
   online: boolean;
   loading: boolean;
   onRefresh: () => void;
+  oplTeam: Record<string, string>;
 }) {
   return (
     <>
@@ -713,7 +895,7 @@ function TripsTab({
           </View>
         </Card>
       ) : (
-        trips.map((t) => <TripCard key={t.tripId} trip={t} />)
+        trips.map((t) => <TripCard key={t.tripId} trip={t} oplTeam={oplTeam} />)
       )}
     </>
   );
@@ -753,7 +935,7 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
   );
 }
 
-function TripCard({ trip }: { trip: PlannedTrip }) {
+function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string, string> }) {
   return (
     <Card>
       <View style={s.tripHead}>
@@ -790,6 +972,26 @@ function TripCard({ trip }: { trip: PlannedTrip }) {
           <Text style={s.tripStop}>{trip.farmBuckets} bkt for you</Text>
         )}
       </View>
+
+      {(trip.orders ?? []).length ? (
+        <>
+          <View style={s.divider} />
+          <Text style={s.routeLabel}>Your orders</Text>
+          {(trip.orders ?? []).map((o) => (
+            <View key={`${trip.tripId}-${o.opl}`} style={s.tripOrderRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.bId} numberOfLines={1}>
+                  {o.orderName || o.opl}
+                </Text>
+                <Text style={s.bMeta} numberOfLines={1}>
+                  {[o.varieties, `${o.buckets} bkt`].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <TeamChip team={oplTeam[o.opl]} />
+            </View>
+          ))}
+        </>
+      ) : null}
 
       <View style={s.divider} />
       <Text style={s.routeLabel}>Collection route</Text>
@@ -855,7 +1057,7 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
-  oplTagRow: { flexDirection: 'row', marginBottom: spacing.xs },
+  oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -908,6 +1110,19 @@ const s = StyleSheet.create({
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
+  bSide: { alignItems: 'flex-end', gap: 4 },
+  tripOrderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
+  replaceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: borderRadius.sm,
+    minHeight: 24,
+  },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 3,
