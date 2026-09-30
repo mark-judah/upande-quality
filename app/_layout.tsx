@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { TenantProvider, useTenant } from '@/src/core/tenant/tenant-context';
 import { ToastProvider } from '@/src/core/ui/Toast';
 import { OfflineBanner } from '@/src/core/ui/OfflineBanner';
 import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
-import { useAuthStore } from '@/src/core/auth/store';
+import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { startTelemetry } from '@/src/core/telemetry/service';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
@@ -22,7 +22,16 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
-  return <DrawerItemsProvider items={getDrawerFor(tenant)}>{children}</DrawerItemsProvider>;
+  const roles = useAuthStore((s) => s.roles);
+
+  // Role-gated entries stay out of the drawer AND the home grid, since both
+  // render from this same list. Recomputes when roles arrive after login.
+  const items = useMemo(
+    () => getDrawerFor(tenant).filter((it) => !it.role || rolesInclude(roles, it.role)),
+    [tenant, roles],
+  );
+
+  return <DrawerItemsProvider items={items}>{children}</DrawerItemsProvider>;
 }
 
 export default function RootLayout() {

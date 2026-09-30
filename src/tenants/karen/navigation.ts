@@ -12,6 +12,9 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Bucket Transfers',   route: 'bucket-transfers',   icon: 'car-outline' },
   { label: 'Solution Mixing',    route: 'solution-mixing',    icon: 'flask-outline' },
   { label: 'Temperature Log',    route: 'temperature-log',    icon: 'thermometer-outline' },
+  { label: 'Product Temperature', route: 'product-temperature', icon: 'snow-outline' },
+  { label: 'Freight Dispatch',   route: 'freight-dispatch',   icon: 'airplane-outline',
+    role: 'Freight Dispatch Recorder' },
   { label: 'Cleaning Record',    route: 'cleaning-record',    icon: 'sparkles-outline' },
   { label: 'Inspection Log',     route: 'inspection-log',     icon: 'checkbox-outline' },
   { label: 'Discards',           route: 'discards',           icon: 'trash-outline' },
@@ -20,4 +23,5 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Packhouse QC',       route: 'packhouse-qc',       icon: 'cube-outline' },
   { label: 'Packhouse Cleaning', route: 'packhouse-checks',   icon: 'sparkles-outline' },
   { label: 'Vaselife',          route: 'vaselife',           icon: 'flower-outline' },
+  { label: 'Flower Audit',       route: 'flower-audit',       icon: 'leaf-outline' },
 ];

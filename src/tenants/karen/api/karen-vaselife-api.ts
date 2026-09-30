@@ -2,12 +2,13 @@ import { api } from '@/src/core/api/client';
 
 // ── fetchVaselifeFormData ────────────────────────────────────────────────────
 export type RawVaselifeBreeder = { name?: string };
-export type RawVaselifeVariety = { name?: string; variety?: string; breeder?: string; item_group?: string };
+export type RawVaselifeVariety = { name?: string; variety?: string; breeder?: string; item_group?: string; crop?: string };
 export type RawVaselifeCrop = { name?: string };
 export type RawVaselifeCommercialStatus = { name?: string };
 export type RawVaselifeCutStage = { name?: string };
-export type RawVaselifeFailureReason = { name?: string };
-export type RawVaselifeSampleRef = { name?: string; variety?: string; sampling_date?: string };
+export type RawVaselifeFailureReason = { name?: string; category?: string };
+export type RawVaselifeFailureCategory = { name?: string };
+export type RawVaselifeSampleRef = { name?: string; variety?: string; sampling_date?: string; du_date?: string };
 
 export type RawVaselifeFormData = {
   success?: boolean;
@@ -18,6 +19,7 @@ export type RawVaselifeFormData = {
   commercial_statuses?: RawVaselifeCommercialStatus[];
   cut_stages?: RawVaselifeCutStage[];
   failure_reasons?: RawVaselifeFailureReason[];
+  failure_categories?: RawVaselifeFailureCategory[];
   samples?: RawVaselifeSampleRef[];
 };
 
@@ -31,6 +33,7 @@ export type RawVaselifeBucket = {
   farm?: string;
   greenhouse?: string;
   length?: string;
+  order_pick_list?: string;
 };
 
 // ── saveVaselifeSample ───────────────────────────────────────────────────────

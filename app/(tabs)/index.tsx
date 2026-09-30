@@ -22,6 +22,8 @@ const ROUTE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'bucket-requests': 'cart-outline',
   'solution-mixing': 'flask-outline',
   'temperature-log': 'thermometer-outline',
+  'product-temperature': 'snow-outline',
+  'freight-dispatch': 'airplane-outline',
   'cleaning-record': 'sparkles-outline',
   'inspection-log': 'checkbox-outline',
   discards: 'trash-outline',
@@ -29,6 +31,8 @@ const ROUTE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   'coldroom-qc': 'snow-outline',
   'packhouse-qc': 'cube-outline',
   'packhouse-checks': 'sparkles-outline',
+  vaselife: 'flower-outline',
+  'flower-audit': 'leaf-outline',
 };
 
 const ROUTE_HINTS: Record<string, string> = {
@@ -41,6 +45,8 @@ const ROUTE_HINTS: Record<string, string> = {
   'bucket-requests': 'Build trolleys from the daily pick list',
   'solution-mixing': 'Log post-harvest chemical mixes',
   'temperature-log': 'Cold store temperatures throughout the day',
+  'product-temperature': 'Box temperatures with photos at each control point',
+  'freight-dispatch': 'Depart, arrive & offload — one trip at a time',
   'cleaning-record': 'Cleaning + disinfection of cold rooms',
   'inspection-log': 'Daily coldroom condition rounds',
   discards: 'Discard old or rejected buckets',
@@ -48,6 +54,8 @@ const ROUTE_HINTS: Record<string, string> = {
   'coldroom-qc': 'Quality checks in the coldroom',
   'packhouse-qc': 'Quality checks in the packhouse',
   'packhouse-checks': 'Inspection, cleaning & glass checklists',
+  vaselife: 'Vase life sampling & observations',
+  'flower-audit': 'Bud count, head size, stem weight & spray diameter',
 };
 
 export default function HomeScreen() {

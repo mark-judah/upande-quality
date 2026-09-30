@@ -35,6 +35,8 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   'bucket-transfers': 'car-outline',
   'solution-mixing': 'flask-outline',
   'temperature-log': 'thermometer-outline',
+  'product-temperature': 'snow-outline',
+  'freight-dispatch': 'airplane-outline',
   'cleaning-record': 'sparkles-outline',
   'inspection-log': 'checkbox-outline',
   discards: 'trash-outline',
@@ -45,7 +47,11 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   'packhouse-inspection': 'clipboard-outline',
   'packhouse-cleaning': 'sparkles-outline',
   'packhouse-glass': 'scan-outline',
+  'vehicle-hygiene': 'bus-outline',
+  'bucket-cleaning': 'water-outline',
   vaselife: 'flower-outline',
+  'flower-audit': 'leaf-outline',
+  'flower-audit-entry': 'leaf-outline',
 };
 
 export function SideMenu({

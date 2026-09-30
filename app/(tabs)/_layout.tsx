@@ -25,6 +25,8 @@ const ICONS: Record<string, TabIconPair> = {
   'bucket-transfers':   { outline: 'car-outline',                filled: 'car' },
   'solution-mixing':    { outline: 'flask-outline',              filled: 'flask' },
   'temperature-log':    { outline: 'thermometer-outline',        filled: 'thermometer' },
+  'product-temperature': { outline: 'snow-outline',              filled: 'snow' },
+  'freight-dispatch':   { outline: 'airplane-outline',          filled: 'airplane' },
   'cleaning-record':    { outline: 'sparkles-outline',           filled: 'sparkles' },
   'inspection-log':     { outline: 'checkbox-outline',           filled: 'checkbox' },
   discards:             { outline: 'trash-outline',             filled: 'trash' },
@@ -36,7 +38,11 @@ const ICONS: Record<string, TabIconPair> = {
   'packhouse-inspection': { outline: 'clipboard-outline',       filled: 'clipboard' },
   'packhouse-cleaning': { outline: 'sparkles-outline',          filled: 'sparkles' },
   'packhouse-glass':    { outline: 'scan-outline',              filled: 'scan' },
+  'vehicle-hygiene':    { outline: 'bus-outline',               filled: 'bus' },
+  'bucket-cleaning':    { outline: 'water-outline',             filled: 'water' },
   'vaselife':           { outline: 'flower-outline',            filled: 'flower' },
+  'flower-audit':       { outline: 'leaf-outline',              filled: 'leaf' },
+  'flower-audit-entry': { outline: 'leaf-outline',              filled: 'leaf' },
 };
 
 export default function TabLayout() {
@@ -86,6 +92,8 @@ export default function TabLayout() {
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
+      <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', href: null }} />
+      <Tabs.Screen name="freight-dispatch" options={{ title: 'Freight Dispatch', href: null }} />
       <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', href: null }} />
       <Tabs.Screen name="inspection-log"  options={{ title: 'Inspection Log',  href: null }} />
       <Tabs.Screen name="coldroom-qc" options={{ title: 'Coldroom QC', href: null }} />
@@ -94,7 +102,11 @@ export default function TabLayout() {
       <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', href: null }} />
       <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', href: null }} />
       <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', href: null }} />
+      <Tabs.Screen name="vehicle-hygiene" options={{ title: 'Vehicle Hygiene', href: null }} />
+      <Tabs.Screen name="bucket-cleaning" options={{ title: 'Bucket Cleaning', href: null }} />
       <Tabs.Screen name="vaselife" options={{ title: 'Vaselife', href: null }} />
+      <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', href: null }} />
+      <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', href: null }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
     </Tabs>
