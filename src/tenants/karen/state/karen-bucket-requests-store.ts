@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as Network from 'expo-network';
+import { isNoResponseError } from '@/src/core/api/client';
 import {
   karenBucketRequestsRepository,
   type OplSchedule,
@@ -46,7 +47,12 @@ type State = {
   findReplacement: (
     pliId: string,
   ) => Promise<{ ok: true; newBucket: string; shelf: string; stemLength: string } | { ok: false; message: string }>;
-  replaceBucket: (rowId: number, pliId: string, newBucket: string) => Promise<{ ok: boolean; message: string }>;
+  /** `pending`: no reply came back, so the swap may still land server-side. */
+  replaceBucket: (
+    rowId: number,
+    pliId: string,
+    newBucket: string,
+  ) => Promise<{ ok: boolean; message: string; pending?: boolean }>;
   clearAll: () => Promise<void>;
 };
 
@@ -305,6 +311,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       return { ok: true, newBucket: res.newBucket, shelf: res.shelf, stemLength: res.stemLength };
     } catch (e) {
+      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
       return { ok: false, message: (e as Error)?.message || 'Failed to find a replacement.' };
     }
   },
@@ -319,6 +326,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       await get().refresh();
       return { ok: true, message: res.message };
     } catch (e) {
+      if (isNoResponseError(e)) {
+        return { ok: false, pending: true, message: 'Replace still processing. Check again in a minute.' };
+      }
       return { ok: false, message: (e as Error)?.message || 'Replace failed.' };
     }
   },

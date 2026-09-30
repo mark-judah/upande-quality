@@ -143,8 +143,15 @@ export async function downloadOpls(
       [oplName],
     );
     if (existing && existing.c > 0) {
-      // Already on device: only backfill the source farm on rows downloaded before it existed.
+      // Already on device: backfill the source farm on rows downloaded before it
+      // existed, and follow a server-side bucket replacement on unscanned rows.
       for (const r of rows) {
+        if (r.pickListItemId) {
+          await d.runAsync(
+            "UPDATE OR IGNORE bucket SET bucket_id = ?, shelf = ?, stem_length = COALESCE(NULLIF(?, ''), stem_length) WHERE opl_name = ? AND pick_list_item_id = ? AND scanned = 0 AND bucket_id <> ?",
+            [r.bucketId, r.shelfLocation || '', r.stemLength || '', oplName, r.pickListItemId, r.bucketId],
+          );
+        }
         if (!r.farm) continue;
         await d.runAsync(
           "UPDATE bucket SET farm = ? WHERE opl_name = ? AND bucket_id = ? AND COALESCE(farm, '') = ''",

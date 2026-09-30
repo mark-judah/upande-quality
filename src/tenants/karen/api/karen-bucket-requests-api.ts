@@ -285,6 +285,8 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.replaceRequestedBucket',
       data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId } },
+      // The swap posts several stock entries in one transaction; allow it time.
+      timeout: 120000,
       validateStatus: () => true,
     });
   },

@@ -51,6 +51,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // The completed OPL awaiting a truck choice (null = picker closed).
   const [truckPickerFor, setTruckPickerFor] = useState<TrolleyOpl[] | null>(null);
   const [replacingId, setReplacingId] = useState<number | null>(null);
+  // Blocks a second preview/confirm before the disabled state re-renders.
+  const replaceBusy = useRef(false);
   const [truckQuery, setTruckQuery] = useState('');
 
   const {
@@ -198,10 +200,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       showError('Download the picklist again to replace this bucket.');
       return;
     }
+    if (replaceBusy.current) return;
     const pliId = b.pliId;
+    replaceBusy.current = true;
     setReplacingId(b.id);
     const found = await findReplacement(pliId);
     setReplacingId(null);
+    replaceBusy.current = false;
     if (!found.ok) {
       showError(found.message);
       return;
@@ -214,11 +219,16 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         {
           text: 'Replace',
           onPress: async () => {
+            if (replaceBusy.current) return;
+            replaceBusy.current = true;
             setReplacingId(b.id);
             const r = await replaceBucket(b.id, pliId, found.newBucket);
             setReplacingId(null);
+            replaceBusy.current = false;
             if (r.ok) showSuccess(r.message);
             else showError(r.message);
+            // The server may still commit the swap; the sync picks up the new bucket.
+            if (r.pending) sync(userFarm);
           },
         },
       ],

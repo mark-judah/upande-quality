@@ -133,6 +133,12 @@ function isTimeout(err: AxiosError): boolean {
   return typeof err.message === 'string' && /timeout|timed out|exceeded/i.test(err.message);
 }
 
+/** No reply came back (timeout or dropped connection), so a write may still
+ *  have gone through server-side. */
+export function isNoResponseError(err: unknown): boolean {
+  return isAxiosError(err) && !err.response;
+}
+
 /** A genuine connectivity failure — the request never reached the server
  *  because the network is unreachable. Deliberately excludes timeouts. */
 function isConnectivityError(err: AxiosError): boolean {
