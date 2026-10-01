@@ -28,6 +28,9 @@ type Props = {
   contentPadded?: boolean;
   children: ReactNode;
   footer?: ReactNode;
+  /** Replaces the header's right-side spacer with custom actions. Falls back to
+   *  the plain spacer when omitted, so the title stays centred. */
+  headerRight?: ReactNode;
 };
 
 export function Screen({
@@ -41,6 +44,7 @@ export function Screen({
   contentPadded = true,
   children,
   footer,
+  headerRight,
 }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -124,7 +128,7 @@ export function Screen({
           )}
           <Text style={s.title} numberOfLines={1}>{title}</Text>
           {/* Symmetric spacer keeps the title centred */}
-          <View style={s.menuBtn} />
+          {headerRight ?? <View style={s.menuBtn} />}
         </View>
       ) : null}
       {!hideMenu ? <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} /> : null}

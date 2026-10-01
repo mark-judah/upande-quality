@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import * as Network from 'expo-network';
 import { isNoResponseError } from '@/src/core/api/client';
+import { storage, StorageKeys } from '@/src/core/storage';
 import {
   karenBucketRequestsRepository,
   type OplSchedule,
   type PlannedTrip,
+  type ReplacementCandidate,
+  type ReplaceReason,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
@@ -28,6 +31,13 @@ type State = {
   downloading: boolean;
   loadingTrips: boolean;
   syncingOpl: string | null;
+  /** True once the download button completed a download (persisted). Drives
+   *  whether the clear icon is offered. */
+  manualDownloaded: boolean;
+  /** Delivery-date filter ('' = all dates) and the dates on the device to pick from. */
+  deliveryDate: string;
+  deliveryDates: string[];
+  setDeliveryDate: (date: string, farm?: string) => Promise<void>;
 
   init: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -46,12 +56,17 @@ type State = {
   loadAllToTruck: (opls: TrolleyOpl[], truck: string) => Promise<{ ok: boolean; message: string }>;
   findReplacement: (
     pliId: string,
-  ) => Promise<{ ok: true; newBucket: string; shelf: string; stemLength: string } | { ok: false; message: string }>;
+  ) => Promise<
+    | { ok: true; neededQty: number | null; candidates: ReplacementCandidate[] }
+    | { ok: false; message: string }
+  >;
   /** `pending`: no reply came back, so the swap may still land server-side. */
   replaceBucket: (
     rowId: number,
     pliId: string,
     newBucket: string,
+    reason?: ReplaceReason,
+    notes?: string,
   ) => Promise<{ ok: boolean; message: string; pending?: boolean }>;
   clearAll: () => Promise<void>;
 };
@@ -77,11 +92,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   downloading: false,
   loadingTrips: false,
   syncingOpl: null,
+  manualDownloaded: false,
+  deliveryDate: db.isoDay(1),
+  deliveryDates: [],
 
   init: async () => {
     try {
       await db.initDb();
-      set({ ready: true, error: null });
+      const downloaded = await storage.get(StorageKeys.bucketRequestsDownloaded).catch(() => null);
+      set({ ready: true, error: null, manualDownloaded: downloaded === '1' });
       await get().refresh();
       await get().refreshOnline();
     } catch (e) {
@@ -89,8 +108,28 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     }
   },
 
+  setDeliveryDate: async (date, farm) => {
+    db.setActiveDeliveryDate(date);
+    set({ deliveryDate: date });
+    await get().refresh();
+    // A date outside the usual download window (today .. day after tomorrow): fetch
+    // that date's orders now so choosing it shows them.
+    if (!date || !farm) return;
+    await get().refreshOnline();
+    if (!get().online) return;
+    try {
+      const alloc = await karenBucketRequestsRepository.fetchAllocations(farm, date, date);
+      if (alloc.kind === 'ok' && alloc.items.length) {
+        await db.downloadOpls(alloc.items, farm);
+        await get().refresh();
+      }
+    } catch {
+      /* keep what is on screen */
+    }
+  },
+
   refresh: async () => {
-    const [requests, trolley, inTransit, vehicles, plannedTrips, schedules, c] = await Promise.all([
+    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = await Promise.all([
       db.listRequests(),
       db.listTrolley(),
       db.listInTransit(),
@@ -98,8 +137,24 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       db.listPlannedTrips(),
       db.listSchedules(),
       db.counts(),
+      db.listDeliveryDates(),
     ]);
+    // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
+    const dd = get().deliveryDate;
+    const plannedTrips = dd
+      ? allTrips
+          .map((t) => ({ ...t, orders: (t.orders ?? []).filter((o) => !o.deliveryDate || o.deliveryDate === dd) }))
+          .filter((t) => t.orders.length > 0)
+      : allTrips;
+    // Dates to filter by: the orders on the device, plus the ones on planned trips.
+    const dates = [
+      ...new Set([
+        ...deliveryDates,
+        ...allTrips.flatMap((t) => (t.orders ?? []).map((o) => o.deliveryDate).filter(Boolean)),
+      ]),
+    ].sort();
     set({
+      deliveryDates: dates,
       requests,
       schedules,
       trolley,
@@ -123,6 +178,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   download: async (farm) => {
+    db.setActiveFarm(farm);
     await get().refreshOnline();
     if (!get().online) {
       return { ok: false, message: 'Connect to the internet to download picklists.' };
@@ -156,7 +212,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         /* keep the cached plan */
       }
       await get().refresh();
-      set({ downloading: false });
+      // Only a download that actually brought picklists in offers clearing; a
+      // run that fetched 0 leaves the flag as it was.
+      if (res.inserted > 0) {
+        await storage.set(StorageKeys.bucketRequestsDownloaded, '1').catch(() => {});
+        set({ downloading: false, manualDownloaded: true });
+      } else {
+        set({ downloading: false });
+      }
       const skip = res.skipped ? ` (${res.skipped} already on device)` : '';
       return {
         ok: true,
@@ -169,6 +232,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   loadPlannedTrips: async (farm) => {
+    db.setActiveFarm(farm);
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to refresh the trip plan.' };
     set({ loadingTrips: true });
@@ -191,6 +255,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   sync: async (farm) => {
+    db.setActiveFarm(farm);
     if (syncing || !farm) return;
     syncing = true;
     try {
@@ -198,6 +263,13 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (!get().online || get().downloading || get().syncingOpl) return;
       const alloc = await karenBucketRequestsRepository.fetchAllocations(farm);
       if (alloc.kind === 'ok') await db.downloadOpls(alloc.items, farm);
+      // Trucks too, so "Load to truck" has a current list without a manual download.
+      try {
+        const trucks = await karenBucketRequestsRepository.fetchDispatchTrucks();
+        if (trucks.kind === 'ok') await db.replaceVehicles(trucks.trucks);
+      } catch {
+        /* keep the cached trucks */
+      }
       const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm, await db.listOplNames());
       if (trips.kind === 'ok') {
         await db.replacePlannedTrips(trips.trips);
@@ -292,10 +364,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         await get().refresh();
         return { ok: false, message: `Loaded to ${truck}, but not marked in transit: ${transit.message}` };
       }
-      for (const o of opls) await db.markInTransitLocal(o.oplName);
+      // On the truck, not gone: the order moves to In Transit once the trip is
+      // dispatched from the dashboard (the server state says "transit" then).
       await get().refresh();
       const what = opls.length === 1 ? opls[0].orderName : `${opls.length} orders`;
-      return { ok: true, message: `${what} loaded to ${truck} and in transit.` };
+      return { ok: true, message: `${what} loaded to ${truck} — waiting for dispatch.` };
     } catch (e) {
       return { ok: false, message: (e as Error)?.message || 'Load failed.' };
     } finally {
@@ -309,18 +382,18 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     try {
       const res = await karenBucketRequestsRepository.findBucketReplacement(pliId);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
-      return { ok: true, newBucket: res.newBucket, shelf: res.shelf, stemLength: res.stemLength };
+      return { ok: true, neededQty: res.neededQty, candidates: res.candidates };
     } catch (e) {
       if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
       return { ok: false, message: (e as Error)?.message || 'Failed to find a replacement.' };
     }
   },
 
-  replaceBucket: async (rowId, pliId, newBucket) => {
+  replaceBucket: async (rowId, pliId, newBucket, reason, notes) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
     try {
-      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket);
+      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.replaceBucketLocal(rowId, res.newBucket, res.shelf, res.stemLength);
       await get().refresh();
@@ -335,10 +408,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
 
   clearAll: async () => {
     await db.clearAll();
-    set({ activeTrolleyId: null });
+    await storage.remove(StorageKeys.bucketRequestsDownloaded).catch(() => {});
+    set({ activeTrolleyId: null, manualDownloaded: false });
     await get().refresh();
   },
 }));
 
 export type { OrderGroup, TrolleyOpl };
-export type { PlannedTrip, PlannedTripStop } from '../repository/karen-bucket-requests-repository';
+export type {
+  PlannedTrip,
+  PlannedTripStop,
+  ReplacementCandidate,
+} from '../repository/karen-bucket-requests-repository';

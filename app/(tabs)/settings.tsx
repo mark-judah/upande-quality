@@ -9,6 +9,7 @@ import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
 import { useAuthStore } from '@/src/core/auth/store';
 import * as Biometric from '@/src/core/biometric';
+import { ApkUpdateSection } from '@/src/core/updates/ApkUpdateSection';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 
 export default function SettingsScreen() {
@@ -190,6 +191,9 @@ export default function SettingsScreen() {
           loading={updatesChecking}
           iconLeft="cloud-download-outline"
         />
+        {/* OTA above (unchanged) covers JS patches; a new native build ships
+            as an APK on GitHub Releases and is downloaded here. */}
+        <ApkUpdateSection />
       </Card>
 
       <Card title="Session">

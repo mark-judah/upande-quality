@@ -28,6 +28,8 @@ export type RawAllocationItem = {
   harvest_time?: string;
   /** Date the OPL was created = when the buckets were allocated. */
   allocated_date?: string;
+  /** Sales Order delivery date (YYYY-MM-DD). */
+  delivery_date?: string;
 };
 
 export type RawAllocationResponse = {
@@ -82,6 +84,7 @@ export type RawTrolleyActionResponse = {
 
 /** One order-portion from THIS farm sitting on a planned trip. */
 export type RawPlannedTripOrder = {
+  delivery_date?: string;
   opl?: string;
   order_name?: string;
   customer?: string;
@@ -158,7 +161,19 @@ export type RawBucketReplacementResponse = {
     available_qty?: number;
     needed_qty?: number;
     harvest_date?: string;
+    variety?: string;
+    /** Every matching bucket, best first (newer servers only). */
+    candidates?: RawReplacementCandidate[];
   };
+};
+
+export type RawReplacementCandidate = {
+  new_bucket?: string;
+  shelf?: string;
+  variety?: string;
+  stem_length?: string;
+  available_qty?: number;
+  harvest_date?: string | null;
 };
 
 export type RawDispatchTruck = { name?: string; license_plate?: string };
@@ -170,11 +185,13 @@ export type RawDispatchTrucksResponse = {
 export const karenBucketRequestsApi = {
   /** Pull every bucket currently awaiting transfer for `farm`, plus the
    *  vehicle list the operator can later load each trolley into. */
-  fetchAllocatedBuckets(farm: string): Promise<RawAllocationResponse> {
+  /** `fromDate`/`toDate` (YYYY-MM-DD) pick the delivery window; the server defaults to
+   *  today .. day after tomorrow. */
+  fetchAllocatedBuckets(farm: string, fromDate?: string, toDate?: string): Promise<RawAllocationResponse> {
     return api<RawAllocationResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.fetchAllocatedBuckets',
-      data: { farm },
+      data: fromDate ? { farm, from_date: fromDate, to_date: toDate || fromDate } : { farm },
       validateStatus: () => true,
     });
   },
@@ -238,6 +255,16 @@ export const karenBucketRequestsApi = {
     });
   },
 
+  /** Put a planned trip on another truck before loading ("Change truck"). */
+  changeTripVehicle(payload: { name: string; vehicle: string }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.changeTripVehicle',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
   /** Undo saved trolleys on the server (clears the grouping; does NOT re-shelve).
    *  `trolley_ids` is a "|~|"-joined string (the Server Script is safe_exec and
    *  cannot parse JSON). */
@@ -280,11 +307,16 @@ export const karenBucketRequestsApi = {
   },
 
   /** Swap a requested bucket for `newBucketId` (OPL rows, allocation, stock entries). */
-  replaceRequestedBucket(pickListItem: string, newBucketId: string): Promise<RawBucketReplacementResponse> {
+  replaceRequestedBucket(
+    pickListItem: string,
+    newBucketId: string,
+    reason?: string,
+    notes?: string,
+  ): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.replaceRequestedBucket',
-      data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId } },
+      data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId, reason, notes } },
       // The swap posts several stock entries in one transaction; allow it time.
       timeout: 120000,
       validateStatus: () => true,

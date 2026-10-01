@@ -12,10 +12,11 @@ export type TransferBucket = {
   stemLength: string;
   shelf: string;
   shelved: boolean;
+  issued: boolean;
 };
 
 /** Order-level shelving status → drives the tabs and the incoming/arrived label. */
-export type TransferStatus = 'none' | 'progress' | 'ready';
+export type TransferStatus = 'none' | 'progress' | 'ready' | 'issued';
 
 /** An order group of transferred buckets. */
 export type TransferGroup = {
@@ -27,6 +28,7 @@ export type TransferGroup = {
   deliveryDate: string;
   total: number;
   shelvedCount: number;
+  issuedCount: number;
   status: TransferStatus;
   buckets: TransferBucket[];
 };
@@ -43,12 +45,19 @@ function mapBucket(r: RawInTransitBucket): TransferBucket {
     stemLength: r.stem_length ?? '',
     shelf: r.shelf ?? '',
     shelved: !!r.shelved,
+    issued: !!r.issued,
   };
 }
 
-function statusOf(shelved: number, total: number): TransferStatus {
-  if (total > 0 && shelved >= total) return 'ready';
-  if (shelved > 0) return 'progress';
+/** A bucket counts as arrived once shelved, and stays arrived after it is
+ *  issued (issuing may clear the shelf). */
+function statusOf(buckets: TransferBucket[], shelved: number, issued: number, total: number): TransferStatus {
+  const arrived = buckets.length
+    ? buckets.filter((b) => b.shelved || b.issued).length
+    : Math.max(shelved, issued);
+  if (total > 0 && issued >= total) return 'issued';
+  if (total > 0 && arrived >= total) return 'ready';
+  if (arrived > 0) return 'progress';
   return 'none';
 }
 
@@ -59,6 +68,10 @@ function mapGroup(r: RawInTransitGroup): TransferGroup {
     typeof r.shelved_count === 'number'
       ? r.shelved_count
       : buckets.filter((b) => b.shelved).length;
+  const issuedCount =
+    typeof r.issued_count === 'number'
+      ? r.issued_count
+      : buckets.filter((b) => b.issued).length;
   return {
     oplName: r.opl_name ?? '',
     orderName: r.order_name || r.opl_name || '',
@@ -68,7 +81,8 @@ function mapGroup(r: RawInTransitGroup): TransferGroup {
     deliveryDate: r.delivery_date ?? '',
     total,
     shelvedCount,
-    status: statusOf(shelvedCount, total),
+    issuedCount,
+    status: statusOf(buckets, shelvedCount, issuedCount, total),
     buckets,
   };
 }

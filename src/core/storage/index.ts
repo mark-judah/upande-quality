@@ -22,6 +22,14 @@ export const StorageKeys = {
   // key names the legacy plaintext AsyncStorage entry that `getPassword()`
   // migrates from on first read.
   passwordBackup: 'password_backup',
+  // Instances this device has signed in to, newest first, for the login
+  // screen's picker. Survives sign-out and "Forget this device".
+  knownInstances: 'known_instances',
+  // Last GitHub Releases check for a newer APK (see src/core/updates).
+  apkUpdateCheck: 'apk_update_check',
+  // '1' once picklists were downloaded with the Bucket Requests download
+  // button; shows the clear icon. Reset when that data is cleared.
+  bucketRequestsDownloaded: 'bucket_requests_downloaded',
 } as const;
 
 export const storage = {
