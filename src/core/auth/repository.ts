@@ -1,6 +1,7 @@
 import { storage, secureStorage, StorageKeys } from '@/src/core/storage';
 import { loginRequest, probeBaseUrl } from './api';
 import { fetchCurrentUserRoles } from './roles-api';
+import { knownInstances } from './known-instances';
 
 export type LoginOutcome =
   | { ok: true; fullName: string; instanceUrl: string; roles: string[] }
@@ -36,6 +37,7 @@ export const authRepository = {
         // plaintext copy in AsyncStorage is cleared so it can't linger.
         secureStorage.set(StorageKeys.passwordBackup, password),
         storage.remove(StorageKeys.passwordBackup),
+        knownInstances.remember(fullUrl, email).catch(() => {}),
       ]);
 
       // Fetch roles in the background. Failure is non-fatal — login still succeeds.
@@ -58,7 +60,11 @@ export const authRepository = {
   },
 
   async logout(): Promise<void> {
-    await storage.clearExcept([StorageKeys.emailBackup, StorageKeys.instanceUrlBackup]);
+    await storage.clearExcept([
+      StorageKeys.emailBackup,
+      StorageKeys.instanceUrlBackup,
+      StorageKeys.knownInstances,
+    ]);
     // clearExcept only touches AsyncStorage — the password lives in secure store.
     await secureStorage.remove(StorageKeys.passwordBackup);
   },

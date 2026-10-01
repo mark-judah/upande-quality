@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Segmented } from '@/src/core/ui/Segmented';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import {
   useKarenBucketTransfersStore,
   type TransferTab,
@@ -23,6 +24,7 @@ const STATUS_LABEL: Record<TransferGroup['status'], string> = {
   none: 'Incoming',
   progress: 'Arrived · shelving',
   ready: 'Ready to issue',
+  issued: 'Issued',
 };
 
 function prettyDate(iso: string): string {
@@ -42,7 +44,7 @@ export function KarenBucketTransfersScreen() {
   }, [load]);
 
   const counts = useMemo(() => {
-    const c = { progress: 0, ready: 0, none: 0 };
+    const c = { none: 0, progress: 0, ready: 0, issued: 0 };
     for (const g of groups) c[g.status] += 1;
     return c;
   }, [groups]);
@@ -50,7 +52,26 @@ export function KarenBucketTransfersScreen() {
   const visible = useMemo(() => groups.filter((g) => g.status === tab), [groups, tab]);
 
   return (
-    <Screen title="Bucket Transfers" onRefresh={load}>
+    <Screen
+      title="Bucket Transfers"
+      onRefresh={load}
+      headerRight={
+        <Pressable
+          style={s.headerBtn}
+          hitSlop={6}
+          onPress={load}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh"
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={COLORS.text} />
+          ) : (
+            <Ionicons name="refresh" size={20} color={COLORS.text} />
+          )}
+        </Pressable>
+      }
+    >
       {/* Delivery-date stepper (single day; defaults to tomorrow). */}
       <View style={s.dateRow}>
         <Pressable onPress={() => stepDate(-1)} hitSlop={8} style={s.dateBtn}>
@@ -66,25 +87,38 @@ export function KarenBucketTransfersScreen() {
       </View>
 
       <Segmented
+        radius={10}
         value={tab}
         onChange={(v) => setTab(v as TransferTab)}
         options={[
-          { value: 'progress', label: `Shelving (${counts.progress})` },
-          { value: 'ready', label: `Ready (${counts.ready})` },
           { value: 'none', label: `Not shelved (${counts.none})` },
+          { value: 'progress', label: `Shelved (${counts.progress})` },
+          { value: 'ready', label: `Ready (${counts.ready})` },
+          { value: 'issued', label: `Issued (${counts.issued})` },
         ]}
       />
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
-      {loading && groups.length === 0 ? (
-        <Card>
-          <View style={s.empty}>
-            <ActivityIndicator color={COLORS.text} />
-            <Text style={s.emptyHint}>Loading transfers…</Text>
-          </View>
-        </Card>
-      ) : null}
+      {loading && groups.length === 0
+        ? [0, 1, 2].map((i) => (
+            <Card key={i}>
+              <View style={s.hd}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Skeleton width="50%" height={14} />
+                  <Skeleton width="70%" height={10} />
+                </View>
+                <Skeleton width={84} height={22} radius={10} />
+              </View>
+              <View style={[s.subRow, { marginTop: spacing.md }]}>
+                <Skeleton width={90} height={20} radius={10} />
+                <Skeleton width={70} height={12} />
+              </View>
+              <Skeleton height={36} style={{ marginTop: spacing.md }} />
+              <Skeleton height={36} style={{ marginTop: spacing.sm }} />
+            </Card>
+          ))
+        : null}
 
       {loaded && !loading && visible.length === 0 && !error ? (
         <Card>
@@ -106,7 +140,13 @@ export function KarenBucketTransfersScreen() {
 }
 
 function tabTitle(tab: TransferTab): string {
-  return tab === 'progress' ? 'Shelving in progress' : tab === 'ready' ? 'Ready to issue' : 'Not shelved';
+  return tab === 'progress'
+    ? 'Shelved'
+    : tab === 'ready'
+      ? 'Ready to issue'
+      : tab === 'issued'
+        ? 'Issued'
+        : 'Not shelved';
 }
 
 function OrderCard({ g }: { g: TransferGroup }) {
@@ -140,7 +180,7 @@ function OrderCard({ g }: { g: TransferGroup }) {
 
       <View style={s.divider} />
 
-      {g.buckets.map((b) => {
+      {g.buckets.map((b, i) => {
         const meta = [
           b.variety,
           b.stems != null ? `${Math.round(b.stems)} stems` : null,
@@ -149,7 +189,9 @@ function OrderCard({ g }: { g: TransferGroup }) {
           .filter(Boolean)
           .join(' · ');
         return (
-          <View key={b.bucketId} style={s.bRow}>
+          // A bucket can sit on more than one pick row of the same order
+          // (e.g. split or re-picked), so its id alone is not a unique key.
+          <View key={`${b.bucketId}-${i}`} style={s.bRow}>
             <View style={{ flex: 1 }}>
               <Text style={s.bId}>{b.bucketId}</Text>
               {meta ? (
@@ -182,6 +224,7 @@ function ShelfPill({ shelved }: { shelved: boolean }) {
 }
 
 const s = StyleSheet.create({
+  headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',

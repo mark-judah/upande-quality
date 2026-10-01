@@ -16,9 +16,18 @@ import { useNetworkStore } from '@/src/core/network/store';
 import { startTelemetry } from '@/src/core/telemetry/service';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
+import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
 
 // Hold the native splash until fonts + auth hydrated.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/** Once the user is past the auth/biometric gate, check GitHub for a newer
+ *  release and prompt to update (best-effort, once per session per version).
+ *  A component rather than a hook call in RootLayout: it needs UpdateProvider. */
+function UpdatePromptGate({ active }: { active: boolean }) {
+  useUpdatePrompt(active);
+  return null;
+}
 
 function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
@@ -50,10 +59,6 @@ export default function RootLayout() {
 
   const segments = useSegments();
   const router = useRouter();
-
-  // Once the user is past the auth/biometric gate, check GitHub for a newer
-  // release and prompt to update (best-effort, once per session per version).
-  useUpdatePrompt(hydrated && hasSession && !biometricLocked);
 
   useEffect(() => {
     hydrate();
@@ -94,37 +99,40 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <TenantProvider>
-          <TenantScopedDrawer>
-            <ToastProvider>
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  // Forward nav slides in from the right; back gesture slides
-                  // the screen out to the left. Matches platform conventions.
-                  animation: 'slide_from_right',
-                  gestureEnabled: true,
-                }}
-              >
-                {/* Bottom tab navigator — all main feature screens live inside. */}
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="login" />
-                <Stack.Screen name="biometric-lock" options={{ animation: 'fade' }} />
-                <Stack.Screen
-                  name="camera-scanner"
-                  options={{ presentation: 'fullScreenModal' }}
-                />
-                <Stack.Screen
-                  name="camera-capture"
-                  options={{ presentation: 'fullScreenModal' }}
-                />
-              </Stack>
-              {/* Sticky offline indicator across every screen. */}
-              <OfflineBanner />
-            </ToastProvider>
-          </TenantScopedDrawer>
-        </TenantProvider>
+        <UpdateProvider>
+          <UpdatePromptGate active={hydrated && hasSession && !biometricLocked} />
+          <TenantProvider>
+            <TenantScopedDrawer>
+              <ToastProvider>
+                <StatusBar style="dark" />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    // Forward nav slides in from the right; back gesture slides
+                    // the screen out to the left. Matches platform conventions.
+                    animation: 'slide_from_right',
+                    gestureEnabled: true,
+                  }}
+                >
+                  {/* Bottom tab navigator — all main feature screens live inside. */}
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="login" />
+                  <Stack.Screen name="biometric-lock" options={{ animation: 'fade' }} />
+                  <Stack.Screen
+                    name="camera-scanner"
+                    options={{ presentation: 'fullScreenModal' }}
+                  />
+                  <Stack.Screen
+                    name="camera-capture"
+                    options={{ presentation: 'fullScreenModal' }}
+                  />
+                </Stack>
+                {/* Sticky offline indicator across every screen. */}
+                <OfflineBanner />
+              </ToastProvider>
+            </TenantScopedDrawer>
+          </TenantProvider>
+        </UpdateProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

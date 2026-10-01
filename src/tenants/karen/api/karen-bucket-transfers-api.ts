@@ -9,6 +9,8 @@ export type RawInTransitBucket = {
   shelf?: string;
   /** 1 = shelved at the packhouse, 0 = still incoming/in transit. */
   shelved?: number;
+  /** 1 = issued out of the coldroom to the order. */
+  issued?: number;
 };
 
 /** One order group of transferred buckets. */
@@ -21,6 +23,7 @@ export type RawInTransitGroup = {
   delivery_date?: string;
   total?: number;
   shelved_count?: number;
+  issued_count?: number;
   buckets?: RawInTransitBucket[];
 };
 

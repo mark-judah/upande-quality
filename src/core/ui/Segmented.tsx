@@ -18,10 +18,13 @@ interface SegmentedProps<T extends string> {
   value: T;
   options: ReadonlyArray<SegmentedOption<T>>;
   onChange: (next: T) => void;
+  /** Corner radius of the track; default is a full pill. The indicator
+   *  follows, inset by the track padding. */
+  radius?: number;
 }
 
 /** Pill-shaped segmented control with a spring-animated indicator pill. */
-export function Segmented<T extends string>({ value, options, onChange }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ value, options, onChange, radius }: SegmentedProps<T>) {
   const [containerWidth, setContainerWidth] = useState(0);
 
   const activeIndex = useMemo(
@@ -46,11 +49,12 @@ export function Segmented<T extends string>({ value, options, onChange }: Segmen
   const onLayout = (e: LayoutChangeEvent) => setContainerWidth(e.nativeEvent.layout.width);
 
   return (
-    <View style={s.container} onLayout={onLayout}>
+    <View style={[s.container, radius != null && { borderRadius: radius }]} onLayout={onLayout}>
       {segmentWidth > 0 ? (
         <Animated.View
           style={[
             s.indicator,
+            radius != null && { borderRadius: Math.max(0, radius - 2) },
             {
               width: segmentWidth,
               transform: [
@@ -74,7 +78,14 @@ export function Segmented<T extends string>({ value, options, onChange }: Segmen
             activeOpacity={0.7}
             style={s.btn}
           >
-            <Text style={[s.label, active && s.labelActive]} numberOfLines={1}>
+            {/* Shrinks to fit rather than truncating ("Not shelved (3)" on a
+                four-tab bar was cut to "Not shelved..."). */}
+            <Text
+              style={[s.label, active && s.labelActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
               {opt.label}
             </Text>
           </TouchableOpacity>
@@ -108,6 +119,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 9,
+    paddingHorizontal: 2,
     zIndex: 1,
   },
   label: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
