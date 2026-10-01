@@ -41,6 +41,8 @@ type Tab = 'trips' | 'requests' | 'trolley' | 'transit';
 
 const SYNC_INTERVAL_MS = 30_000;
 
+const SYNC_INTERVAL_MS = 30_000;
+
 /** OPL name -> its planned trip, so the Requests tab can grey unscheduled ones. */
 /** `label` is the trip id, or "Team A #2" for an order only on the Packhouse Schedule. */
 type OplTripInfo = { label: string; confirmed: boolean; status: string; onTrip: boolean };
@@ -145,6 +147,22 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     useCallback(() => {
       focusWhenReady(scanRef);
     }, []),
+  );
+
+  // Keep the page live while it is open: pull new picklists, the trip plan,
+  // schedules and order states in the background, and again on return to the app.
+  useFocusEffect(
+    useCallback(() => {
+      sync(userFarm);
+      const timer = setInterval(() => sync(userFarm), SYNC_INTERVAL_MS);
+      const sub = AppState.addEventListener('change', (st) => {
+        if (st === 'active') sync(userFarm);
+      });
+      return () => {
+        clearInterval(timer);
+        sub.remove();
+      };
+    }, [sync, userFarm]),
   );
 
   // Keep the page live while it is open: pull new picklists, the trip plan,

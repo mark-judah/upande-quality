@@ -91,6 +91,11 @@ export function InspectionMode() {
     activeVariety ? (stemsCheckedByVariety[activeVariety] ?? '') : '',
     10,
   ) || 0;
+  const totalReceived = batch.buckets.reduce((a, b) => a + b.stems, 0);
+  const totalSampled = Object.values(stemsCheckedByVariety).reduce(
+    (a, v) => a + (Number.parseInt(v, 10) || 0),
+    0,
+  );
   const varietyConcerns = concerns.filter((c) => c.variety === activeVariety);
   const usedKeysForVariety = new Set(varietyConcerns.map((c) => c.paramKey));
   const availableParams = parameters.filter(
@@ -222,6 +227,12 @@ export function InspectionMode() {
             keyboardType="number-pad"
             placeholder={`0 / ${stemsPerVariety[activeVariety] ?? 0} in batch`}
           />
+          {totalSampled > totalReceived ? (
+            <Text style={[s.hint, s.tolExceeded]}>
+              Total sampled across all varieties ({totalSampled}) exceeds the{' '}
+              {totalReceived} stems received in this batch.
+            </Text>
+          ) : null}
           <View style={{ height: 4 }} />
           <Pressable
             onPress={() => setAddConcernOpen(true)}

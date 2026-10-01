@@ -569,6 +569,9 @@ function extractBoxLabelFromScan(raw: string): string {
     try {
       const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') {
+        // Box labels print as {"box_label": "BOX-..."}; older ones as {"BOX-...": "box"}.
+        const label = (parsed as Record<string, unknown>).box_label;
+        if (typeof label === 'string' && label.trim()) return label.trim();
         const entry = Object.entries(parsed as Record<string, unknown>).find(([, v]) => v === 'box');
         if (entry) return entry[0];
       }
