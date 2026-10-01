@@ -367,7 +367,7 @@ function Snapshot({
       {data.bunches.length > 0 && (
         <Card title={`Bunches in bucket (${data.bunches.length})`}>
           <Text style={s.bunchSub}>
-            Each bunch's claim from its QR code.
+            Each bunch&apos;s claim from its QR code.
           </Text>
           <View style={{ height: 8 }} />
           {data.bunches.map((bunch) => (

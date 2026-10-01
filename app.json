@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.2.1",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -38,13 +38,16 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
-      ]
+      ],
+      "versionCode": 5400
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/upande_logo.png"
     },
     "plugins": [
+      "./plugins/withReleaseSigning",
+      "./plugins/withBuildTuning",
       "expo-router",
       [
         "expo-camera",
@@ -86,7 +89,10 @@
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf"
+      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     }
   }
 }

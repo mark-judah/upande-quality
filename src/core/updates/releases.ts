@@ -10,8 +10,8 @@ import { APP_VERSION, GITHUB_OWNER, GITHUB_REPO as REPO_NAME } from '@/src/core/
  *     expo-updates handles that on its own and the Settings "Check for updates"
  *     button drives it — nothing here touches it.
  *   - An APK carries a new runtime (native code moved). The release workflow
- *     must attach it to the GitHub Release as an `.apk` asset (semantic-release
- *     currently publishes releases without one — see .releaserc.json).
+ *     attaches it to the GitHub Release as an `.apk` asset
+ *     (.github/workflows/release.yml).
  *
  * Not every release carries an APK, so "the latest release" is often not
  * something that can be downloaded. The

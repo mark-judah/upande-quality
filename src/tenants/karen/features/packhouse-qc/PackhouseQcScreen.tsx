@@ -1060,7 +1060,7 @@ export function PackhouseQcScreen() {
           {bunchSampling.started && gradingToleranceRows.length > 0 ? (
             <Card title="Rejection Summary">
               <Text style={s.muted}>
-                Rejected stems per QC parameter, checked against each parameter's tolerance over the{' '}
+                Rejected stems per QC parameter, checked against each parameter&apos;s tolerance over the{' '}
                 {bunchesInspected} bunch(es) inspected ({totalStemsChecked} stems).
               </Text>
               <View style={{ height: 12 }} />

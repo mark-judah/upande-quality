@@ -225,7 +225,7 @@ function BucketReplaceFlow({
 
       {notAllocated && (
         <Alert tone="danger">
-          Bucket {snapshot.bucketId.toUpperCase()} isn't allocated to any OPL — nothing to replace.
+          Bucket {snapshot.bucketId.toUpperCase()} isn&apos;t allocated to any OPL — nothing to replace.
           Use Edit Details to correct its variety/length instead.
         </Alert>
       )}
@@ -780,7 +780,7 @@ function BunchMoveEditor({
           </Card>
         ) : !needsOplPick ? (
           <Alert tone="warn">
-            Couldn't determine which order needs the replacement — handle it manually.
+            Couldn&apos;t determine which order needs the replacement — handle it manually.
           </Alert>
         ) : null}
 
@@ -866,7 +866,7 @@ function BunchMoveEditor({
           <Alert tone="danger">{bunchDestinationsError}</Alert>
         ) : bunchDestinations && bunchDestinations.candidates.length === 0 ? (
           <Alert tone="warn">
-            No shelved buckets match. The bunch can be flagged for pending reshelving — it'll
+            No shelved buckets match. The bunch can be flagged for pending reshelving — it&apos;ll
             wait on the packhouse floor until a matching bucket appears.
           </Alert>
         ) : bunchDestinations ? (
