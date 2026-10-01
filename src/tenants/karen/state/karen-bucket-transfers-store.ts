@@ -6,8 +6,12 @@ import {
 } from '../repository/karen-bucket-transfers-repository';
 import { mapAxiosError } from '@/src/core/api/client';
 
-/** The three status tabs (order-level shelving progress). */
-export type TransferTab = 'progress' | 'ready' | 'none';
+/** The status tabs, in the order an order moves through them. */
+export type TransferTab = 'none' | 'progress' | 'ready' | 'issued';
+
+/** Last result per delivery date for this app session, so revisiting a date
+ *  (or reopening the screen) shows it at once while a fresh load runs. */
+const cache = new Map<string, TransferGroup[]>();
 
 function isoDay(d: Date): string {
   return format(d, 'yyyy-MM-dd');
@@ -31,7 +35,7 @@ type State = {
 
 export const useKarenBucketTransfersStore = create<State>((set, get) => ({
   date: isoDay(addDays(new Date(), 1)),
-  tab: 'progress',
+  tab: 'none',
   groups: [],
   loading: false,
   error: null,
@@ -41,21 +45,29 @@ export const useKarenBucketTransfersStore = create<State>((set, get) => ({
 
   stepDate: async (deltaDays) => {
     const next = isoDay(addDays(new Date(get().date + 'T00:00:00'), deltaDays));
-    set({ date: next });
+    // Never show the previous day's orders under the new date.
+    const cached = cache.get(next);
+    set({ date: next, groups: cached ?? [], loaded: !!cached, error: null });
     await get().load();
   },
 
   load: async () => {
     const day = get().date;
+    const cached = cache.get(day);
+    if (cached && get().groups.length === 0) set({ groups: cached, loaded: true });
     set({ loading: true, error: null });
     try {
       const outcome = await karenBucketTransfersRepository.fetchInTransit(day, day);
+      // Ignore a reply for a date the user has already stepped away from.
+      if (get().date !== day) return;
       if (outcome.kind === 'ok') {
+        cache.set(day, outcome.groups);
         set({ groups: outcome.groups, loading: false, loaded: true });
       } else {
         set({ loading: false, error: outcome.message, loaded: true });
       }
     } catch (err) {
+      if (get().date !== day) return;
       set({ loading: false, error: mapAxiosError(err).message, loaded: true });
     }
   },
@@ -63,7 +75,7 @@ export const useKarenBucketTransfersStore = create<State>((set, get) => ({
   reset: () =>
     set({
       date: isoDay(addDays(new Date(), 1)),
-      tab: 'progress',
+      tab: 'none',
       groups: [],
       loading: false,
       error: null,

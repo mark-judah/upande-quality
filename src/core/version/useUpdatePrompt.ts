@@ -2,14 +2,21 @@ import { useEffect } from 'react';
 import { Alert, Linking } from 'react-native';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { checkLatestVersion, UPDATE_DOWNLOAD_URL } from '@/src/core/version';
+import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 
 /** Once per app session (when `active` becomes true), check GitHub for a newer
  *  release and, if one exists, show a one-tap "Update available" prompt. The
  *  prompt is suppressed for a version the user already dismissed with "Later",
  *  so it won't nag every launch — only when a NEWER release appears.
  *
+ *  "Update" downloads the APK in-app and opens Android's installer when the
+ *  release has one attached; otherwise it opens the releases page as before.
+ *  Must be used inside <UpdateProvider>.
+ *
  *  Fully best-effort: any failure (offline, no releases yet) is a no-op. */
 export function useUpdatePrompt(active: boolean): void {
+  const { refresh, install } = useApkUpdate();
+
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
@@ -35,7 +42,9 @@ export function useUpdatePrompt(active: boolean): void {
           },
           {
             text: 'Update',
-            onPress: () => {
+            onPress: async () => {
+              const apk = await refresh();
+              if (apk?.available && (await install(apk))) return;
               Linking.openURL(UPDATE_DOWNLOAD_URL).catch(() => {});
             },
           },
@@ -46,5 +55,8 @@ export function useUpdatePrompt(active: boolean): void {
     return () => {
       cancelled = true;
     };
+    // refresh/install are stable callbacks; re-running on `install` identity
+    // changes would re-prompt every time a check lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 }
