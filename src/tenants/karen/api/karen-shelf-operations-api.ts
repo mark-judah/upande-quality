@@ -1,5 +1,39 @@
 import { api } from '@/src/core/api/client';
 
+export type StockTakeSyncReason =
+  | 'coldstore_not_null'
+  | 'farm_not_null'
+  | 'buckets_not_null'
+  | 'unknown_error';
+
+export type RawStockTakeBucketResult = {
+  bucket_id?: string;
+  status?: 'success' | 'failed' | string;
+  reason?: string;
+  message?: string;
+  payload?: {
+    status?: 'Shelved' | 'Unshelved' | string;
+    shelf?: string | null;
+    variety?: string | null;
+    stem_length?: string | null;
+    age_days?: number | null;
+  };
+};
+
+export type RawStockTakeSyncPayload = {
+  stock_take?: string;
+  results?: RawStockTakeBucketResult[];
+};
+
+export type RawStockTakeSyncResponse = {
+  status?: 'success' | 'failed' | 'error' | string;
+  reason?: StockTakeSyncReason | string;
+  message?: string;
+  payload?: RawStockTakeSyncPayload;
+};
+
+export type RawColdStore = { name: string };
+
 export type TransferReason =
   | 'bucket_id_not_null'
   | 'to_shelf_id_not_null'
@@ -76,6 +110,57 @@ export const karenShelfOperationsApi = {
       validateStatus: () => true,
     });
     const unwrapped = res as { data?: RawOfflineIssuingResponse } & RawOfflineIssuingResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
+  /** Cold-store warehouses — same Warehouse-name-pattern lookup the Cold
+   * Store Temperature screen uses (karen-coldroom-api.ts), inlined here
+   * rather than cross-imported, matching that file's own stated convention
+   * of duplicating this one small lookup instead of adding a cross-feature
+   * dependency between otherwise-unrelated screens. */
+  async fetchColdStores(farm?: string): Promise<{ message?: RawColdStore[] }> {
+    const filters: unknown[] = [['name', 'like', '%Cold Store%']];
+    if (farm) filters.push(['name', 'like', '%' + farm + '%']);
+    return api({
+      method: 'GET',
+      url: '/api/method/frappe.client.get_list',
+      params: {
+        doctype: 'Warehouse',
+        filters: JSON.stringify(filters),
+        fields: JSON.stringify(['name']),
+        order_by: 'name asc',
+        limit_page_length: 100,
+      },
+      validateStatus: () => true,
+    });
+  },
+
+  /** POST /api/method/upande_quality.mobile.api.syncStockTakeBuckets - one
+   * call per chunk of locally-queued scans (see karen-stock-take-db.ts).
+   * The server resolves and saves the whole chunk in one round trip
+   * (bulk Shelf Item / Harvesting Stock Entry lookups, one doc.save()) -
+   * never one request per bucket, which is what makes a large stock take
+   * slow. */
+  async syncStockTakeBuckets(args: {
+    coldstore: string;
+    farm: string;
+    stockTakeDate: string;
+    buckets: { bucketId: string; scannedAt: string }[];
+  }): Promise<RawStockTakeSyncResponse> {
+    const res = await api<{ data?: RawStockTakeSyncResponse } | RawStockTakeSyncResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.syncStockTakeBuckets',
+      data: {
+        data: {
+          coldstore: args.coldstore,
+          farm: args.farm,
+          stock_take_date: args.stockTakeDate,
+          buckets: args.buckets.map((b) => ({ bucket_id: b.bucketId, scanned_at: b.scannedAt })),
+        },
+      },
+      validateStatus: () => true,
+    });
+    const unwrapped = res as { data?: RawStockTakeSyncResponse } & RawStockTakeSyncResponse;
     return unwrapped.data ?? unwrapped;
   },
 };

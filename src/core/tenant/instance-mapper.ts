@@ -28,7 +28,7 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'http://192.168.2.106:8002': 'Karen',
   'http://10.230.56.154:8002': 'Karen',
   'http://10.77.222.154:8002': 'Karen',
-  'http://192.168.88.245:8000': 'Karen'
+  'https://january-header-impacts-camel.trycloudflare.com': 'Karen'
 };
 
 export function getTenantByUrl(url: string | null | undefined): Tenant | null {

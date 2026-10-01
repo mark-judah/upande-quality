@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { Dropdown } from '@/src/core/ui/Dropdown';
+import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -10,6 +12,7 @@ import {
   useKarenShelfOperationsStore,
   type ShelfOperationsMode,
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
+import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
 import { COLORS } from '@/src/core/theme';
 
 export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
@@ -22,12 +25,25 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     loading,
     lastTransferOutcome,
     lastOfflineOutcome,
+    coldStores,
+    coldStoresLoading,
+    coldstore,
+    stockTakeScans,
+    stockTakePending,
+    stockTakeSyncing,
+    stockTakeSyncProgress,
+    stockTakeSyncError,
     setMode,
     setShelfFromScan,
     clearShelf,
     setReason,
     submitTransfer,
     submitOfflineRemoval,
+    initStockTake,
+    loadColdStores,
+    setColdstore,
+    scanStockTakeBucket,
+    syncStockTake,
     reset,
   } = useKarenShelfOperationsStore();
   const { showSuccess, showError } = useToast();
@@ -36,19 +52,33 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
   // Offline Removal mode: no shelf step, focus goes straight to the bucket field.
+  // Stock Take mode: no shelf step either - focus goes to the bucket field once
+  // a cold store is picked.
   useFocusEffect(
     useCallback(() => {
       if (mode === 'transfer') {
         focusWhenReady(shelfId ? bucketRef : shelfRef);
+      } else if (mode === 'stock-take' && coldstore) {
+        focusWhenReady(bucketRef);
       }
-    }, [mode, shelfId]),
+    }, [mode, shelfId, coldstore]),
   );
 
   useEffect(() => {
     if (mode === 'transfer') {
       focusWhenReady(shelfId ? bucketRef : shelfRef);
+    } else if (mode === 'stock-take' && coldstore) {
+      focusWhenReady(bucketRef);
     }
-  }, [mode, shelfId]);
+  }, [mode, shelfId, coldstore]);
+
+  useEffect(() => {
+    if (mode === 'stock-take') {
+      initStockTake();
+      loadColdStores(userFarm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const switchMode = (next: ShelfOperationsMode) => {
     setMode(next);
@@ -87,8 +117,28 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     focusWhenReady(bucketRef);
   };
 
+  // No success toast per scan, deliberately - this needs to stay fast
+  // through thousands of scans, and the running list below is already the
+  // per-scan feedback. Only a bad scan (no cold store yet, invalid QR)
+  // interrupts with a toast.
+  const onBucketScanStockTake = async (raw: string) => {
+    const result = await scanStockTakeBucket(raw);
+    if (!result.ok) {
+      showError(result.message ?? 'Invalid bucket QR.');
+    }
+    bucketRef.current?.clear();
+    focusWhenReady(bucketRef);
+  };
+
+  const onSyncStockTake = async () => {
+    await syncStockTake(userFarm);
+    const err = useKarenShelfOperationsStore.getState().stockTakeSyncError;
+    if (err) showError(err);
+    else showSuccess('Synced.');
+  };
+
   return (
-    <Screen title="Shelf Operations">
+    <Screen title="Shelf Operations" scroll={mode !== 'stock-take'}>
       <View style={s.farmBanner}>
         <Text style={s.farmBannerLabel}>Farm</Text>
         <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
@@ -101,9 +151,72 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
           active={mode === 'offline-removal'}
           onPress={() => switchMode('offline-removal')}
         />
+        <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
       </View>
 
-      {mode === 'transfer' ? (
+      {mode === 'stock-take' ? (
+        <FlatList<StockTakeScanRow>
+          style={{ flex: 1 }}
+          data={stockTakeScans}
+          keyExtractor={(row) => String(row.id)}
+          renderItem={({ item }) => <StockTakeScanRowView row={item} />}
+          initialNumToRender={20}
+          windowSize={7}
+          removeClippedSubviews
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            <>
+              <Card title="Cold store">
+                <Dropdown
+                  label="Cold store"
+                  iconName="snowflake"
+                  value={coldstore ?? ''}
+                  options={coldStores.map((c) => ({ label: c, value: c }))}
+                  placeholder={coldStoresLoading ? 'Loading…' : 'Pick cold store'}
+                  disabled={coldStoresLoading}
+                  onChange={(v) => setColdstore(v)}
+                />
+              </Card>
+
+              <Card title="Bucket">
+                <ScanField
+                  ref={bucketRef}
+                  onScan={onBucketScanStockTake}
+                  autoFocus={!!coldstore}
+                  placeholder={coldstore ? 'Scan bucket QR' : 'Pick the cold store first'}
+                  editable={!!coldstore}
+                />
+              </Card>
+
+              {coldstore ? (
+                <Card title="Sync">
+                  <View style={s.syncRow}>
+                    <Text style={s.syncCount}>
+                      {stockTakePending} bucket{stockTakePending === 1 ? '' : 's'} not yet synced
+                    </Text>
+                    <Button
+                      label={stockTakeSyncing ? 'Syncing…' : stockTakeSyncError ? 'Retry sync' : 'Sync'}
+                      onPress={onSyncStockTake}
+                      loading={stockTakeSyncing}
+                      disabled={stockTakeSyncing || stockTakePending === 0}
+                    />
+                  </View>
+                  {stockTakeSyncProgress ? (
+                    <Text style={s.muted}>
+                      Syncing {stockTakeSyncProgress.done} of {stockTakeSyncProgress.total}…
+                    </Text>
+                  ) : null}
+                  {stockTakeSyncError ? <Alert tone="danger">{stockTakeSyncError}</Alert> : null}
+                </Card>
+              ) : null}
+
+              {stockTakeScans.length ? (
+                <Text style={s.logHeader}>Scanned ({stockTakeScans.length})</Text>
+              ) : null}
+            </>
+          }
+        />
+      ) : mode === 'transfer' ? (
         <>
           <Card title="Destination shelf">
             <ScanField
@@ -240,6 +353,41 @@ function OfflineOutcomeCard({
   return <Alert tone="danger">{outcome.message}</Alert>;
 }
 
+function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
+  if (!row.synced) {
+    return (
+      <View style={s.stockTakeRow}>
+        <Text style={s.stockTakeBucketId}>{row.bucketId}</Text>
+        <Text style={[s.stockTakeStatus, { color: COLORS.textMuted }]}>Pending sync</Text>
+      </View>
+    );
+  }
+  if (row.syncError) {
+    return (
+      <View style={s.stockTakeRow}>
+        <Text style={s.stockTakeBucketId}>{row.bucketId}</Text>
+        <Text style={[s.stockTakeStatus, { color: COLORS.danger }]}>{row.syncError}</Text>
+      </View>
+    );
+  }
+  const statusColor = row.serverStatus === 'Shelved' ? COLORS.success : COLORS.warn;
+  const detail = [row.serverVariety, row.serverStemLength].filter(Boolean).join(' · ');
+  return (
+    <View style={s.stockTakeRow}>
+      <View style={s.stockTakeHeaderRow}>
+        <Text style={s.stockTakeBucketId}>{row.bucketId}</Text>
+        <Text style={[s.stockTakeStatus, { color: statusColor }]}>
+          {row.serverStatus === 'Shelved' ? `Shelved — ${row.serverShelf}` : 'Unshelved'}
+        </Text>
+      </View>
+      <View style={s.stockTakeHeaderRow}>
+        <Text style={s.stockTakeDetail}>{detail || '—'}</Text>
+        {row.serverAgeDays != null ? <Text style={s.stockTakeDetail}>{row.serverAgeDays}d old</Text> : null}
+      </View>
+    </View>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.detailRow}>
@@ -312,4 +460,28 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   detailValue: { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  stockTakeRow: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  stockTakeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stockTakeBucketId: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  stockTakeStatus: { fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+  stockTakeDetail: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  syncCount: { fontSize: 13, color: COLORS.text, flexShrink: 1 },
+  logHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 16,
+    marginBottom: 4,
+  },
 });
