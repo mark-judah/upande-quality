@@ -1,7 +1,26 @@
 import { storage, secureStorage, StorageKeys } from '@/src/core/storage';
+import { api } from '@/src/core/api/client';
 import { loginRequest, probeBaseUrl } from './api';
 import { fetchCurrentUserRoles } from './roles-api';
 import { knownInstances } from './known-instances';
+
+/** The stock /api/method/login response's `full_name` is computed as
+ *  `first_name + last_name` server-side (frappe/auth.py), which reads as an
+ *  empty string for any User whose name was set via the `full_name` field
+ *  directly. Read the real field straight off the User doctype instead, the
+ *  same fix the packhouse app carries. */
+async function fetchRealFullName(email: string): Promise<string | null> {
+  try {
+    const body = await api<{ message?: { full_name?: string }; data?: { full_name?: string } }>({
+      method: 'GET',
+      url: `/api/method/frappe.client.get_value?doctype=User&filters={"name":"${email}"}&fieldname=["full_name"]`,
+    });
+    const m = body?.message ?? body?.data;
+    return (m && m.full_name) || null;
+  } catch {
+    return null;
+  }
+}
 
 export type LoginOutcome =
   | { ok: true; fullName: string; instanceUrl: string; roles: string[] }
@@ -26,7 +45,8 @@ export const authRepository = {
     if (res.status === 200) {
       const cookie = extractSidCookie(res.setCookie);
       if (!cookie) return { ok: false, error: 'Login succeeded but no session cookie was returned' };
-      const fullName = res.body.full_name ?? email;
+      // `||`, not `??`: the login response's full_name is often an empty string.
+      let fullName = res.body.full_name || email;
       await Promise.all([
         storage.set(StorageKeys.cookie, cookie),
         storage.set(StorageKeys.instanceUrl, fullUrl),
@@ -37,8 +57,19 @@ export const authRepository = {
         // plaintext copy in AsyncStorage is cleared so it can't linger.
         secureStorage.set(StorageKeys.passwordBackup, password),
         storage.remove(StorageKeys.passwordBackup),
-        knownInstances.remember(fullUrl, email).catch(() => {}),
       ]);
+
+      // Now that the cookie is stored, an authenticated follow-up can read the
+      // real name. Non-fatal: keeps the response's value (or email) on failure.
+      const real = await fetchRealFullName(email);
+      if (real && real !== fullName) {
+        fullName = real;
+        await storage.set(StorageKeys.fullName, fullName);
+      }
+      // After the real name is known, so the login screen can greet by name.
+      await knownInstances
+        .remember(fullUrl, email, fullName && fullName !== email ? fullName : null)
+        .catch(() => {});
 
       // Fetch roles in the background. Failure is non-fatal — login still succeeds.
       let roles: string[] = [];
