@@ -1,13 +1,13 @@
 {
-  "id": "604aa753-ee8d-48e4-86ef-ce4b246e6ea7",
-  "createdAt": "2026-10-02T02:20:47.498Z",
+  "id": "97fcf3e9-d901-407e-8ebb-bb129aeee17b",
+  "createdAt": "2026-10-02T04:57:45.732Z",
   "runtimeVersion": "1.5",
   "launchAsset": {
-    "hash": "SXug_6Zg2E5xb4UZek5t-OGlOSY6FEaX4C8Ao5_zPLE",
+    "hash": "jqSGJxes6jYQJgPWUtuTlDXaRkbCSxOb7EBmvRrMtFE",
     "key": "bundle",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
-    "url": "https://mark-judah.github.io/upande-quality/ota/android/1.5/_expo/static/js/android/entry-42c1a1a5e54db01b8606b68049793c36.hbc"
+    "url": "https://mark-judah.github.io/upande-quality/ota/android/1.5/_expo/static/js/android/entry-63359ccbb7909eb09cfe8745ed1a5b02.hbc"
   },
   "assets": [
     {
@@ -608,7 +608,7 @@
   ],
   "metadata": {},
   "extra": {
-    "appVersion": "1.5.1",
-    "publishedAt": "2026-10-02T02:20:47.522Z"
+    "appVersion": "1.5.2",
+    "publishedAt": "2026-10-02T04:57:45.748Z"
   }
 }
