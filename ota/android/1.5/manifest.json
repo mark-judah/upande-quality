@@ -1,9 +1,9 @@
 {
-  "id": "76d3013f-e912-45ef-ac8f-4150b498a222",
-  "createdAt": "2026-10-02T06:27:17.578Z",
+  "id": "98da2043-d523-404f-af7e-cbdf3d4ec0aa",
+  "createdAt": "2026-10-02T07:00:27.906Z",
   "runtimeVersion": "1.5",
   "launchAsset": {
-    "hash": "gRQy5x--jt06ZOPICV0r1lghFNFhlQiv4g8Un-nmhXI",
+    "hash": "ypZkp_1d6HQdgOE0DXCUrxKabDTDYQqJDpUIZ6POlq4",
     "key": "bundle",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
@@ -608,7 +608,105 @@
   ],
   "metadata": {},
   "extra": {
-    "appVersion": "1.5.4",
-    "publishedAt": "2026-10-02T06:27:17.603Z"
+    "expoClient": {
+      "name": "Upande Quality",
+      "slug": "upande-quality",
+      "version": "1.5.5",
+      "orientation": "portrait",
+      "icon": "./assets/images/upande_logo.png",
+      "scheme": "upandequality",
+      "userInterfaceStyle": "light",
+      "newArchEnabled": true,
+      "platforms": [
+        "ios",
+        "android"
+      ],
+      "ios": {
+        "supportsTablet": true,
+        "bundleIdentifier": "com.upande.quality",
+        "infoPlist": {
+          "NSCameraUsageDescription": "We use the camera to scan barcodes.",
+          "NSAppTransportSecurity": {
+            "NSAllowsLocalNetworking": true
+          }
+        }
+      },
+      "android": {
+        "package": "com.upande.quality",
+        "adaptiveIcon": {
+          "backgroundColor": "#FFFFFF",
+          "foregroundImage": "./assets/images/upande_logo.png"
+        },
+        "edgeToEdgeEnabled": true,
+        "predictiveBackGestureEnabled": false,
+        "permissions": [
+          "android.permission.CAMERA",
+          "android.permission.RECORD_AUDIO",
+          "android.permission.MODIFY_AUDIO_SETTINGS",
+          "android.permission.REQUEST_INSTALL_PACKAGES"
+        ],
+        "versionCode": 5505
+      },
+      "web": {
+        "output": "static",
+        "favicon": "./assets/images/upande_logo.png"
+      },
+      "plugins": [
+        "./plugins/withReleaseSigning",
+        "./plugins/withBuildTuning",
+        "expo-router",
+        [
+          "expo-camera",
+          {
+            "cameraPermission": "We use the camera to scan barcodes."
+          }
+        ],
+        "expo-audio",
+        [
+          "expo-build-properties",
+          {
+            "android": {
+              "usesCleartextTraffic": true
+            }
+          }
+        ],
+        [
+          "expo-splash-screen",
+          {
+            "image": "./assets/images/upande_logo.png",
+            "imageWidth": 200,
+            "resizeMode": "contain",
+            "backgroundColor": "#FFFFFF"
+          }
+        ],
+        "expo-asset",
+        "expo-sqlite",
+        "expo-secure-store"
+      ],
+      "experiments": {
+        "typedRoutes": true,
+        "reactCompiler": true
+      },
+      "extra": {
+        "router": {},
+        "eas": {
+          "projectId": "df6f9c7d-18cd-4233-901e-a89544cabcbf"
+        },
+        "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota"
+      },
+      "runtimeVersion": "1.5",
+      "updates": {
+        "enabled": true,
+        "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
+        "checkAutomatically": "ON_LOAD",
+        "fallbackToCacheTimeout": 0
+      },
+      "sdkVersion": "54.0.0",
+      "androidStatusBar": {
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "appVersion": "1.5.5",
+    "publishedAt": "2026-10-02T07:00:27.924Z"
   }
 }
