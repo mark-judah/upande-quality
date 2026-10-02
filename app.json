@@ -34,6 +34,7 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
@@ -91,7 +92,7 @@
     "runtimeVersion": "1.5",
     "updates": {
       "enabled": true,
-      "url": "https://kaitet-group.upande.com/api/method/upande_quality.mobile.ota.manifest",
+      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     }

@@ -155,67 +155,76 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
       </View>
 
       {mode === 'stock-take' ? (
-        <FlatList<StockTakeScanRow>
-          style={{ flex: 1 }}
-          data={stockTakeScans}
-          keyExtractor={(row) => String(row.id)}
-          renderItem={({ item }) => <StockTakeScanRowView row={item} />}
-          initialNumToRender={20}
-          windowSize={7}
-          removeClippedSubviews
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            <>
-              <Card title="Cold store">
-                <Dropdown
-                  label="Cold store"
-                  iconName="snowflake"
-                  value={coldstore ?? ''}
-                  options={coldStores.map((c) => ({ label: c, value: c }))}
-                  placeholder={coldStoresLoading ? 'Loading…' : 'Pick cold store'}
-                  disabled={coldStoresLoading}
-                  onChange={(v) => setColdstore(v)}
+        <View style={s.flexCol}>
+          {/* These controls live OUTSIDE the FlatList (unlike an earlier
+           *  version that put them in ListHeaderComponent) because
+           *  removeClippedSubviews below can detach and recreate the native
+           *  TextInput view as the list scrolls/re-renders - a hardware
+           *  (Honeywell-style HID) scanner's keystrokes land on whatever
+           *  native view currently holds focus, and a detach/reattach drops
+           *  that without necessarily changing what's visually focused. The
+           *  camera path never depended on continuous native focus, so it
+           *  kept working while hardware scanning silently stopped. Mirrors
+           *  how Transfer/Offline Removal keep their ScanField outside any
+           *  virtualised list. */}
+          <Card title="Cold store">
+            <Dropdown
+              label="Cold store"
+              iconName="snowflake"
+              value={coldstore ?? ''}
+              options={coldStores.map((c) => ({ label: c, value: c }))}
+              placeholder={coldStoresLoading ? 'Loading…' : 'Pick cold store'}
+              disabled={coldStoresLoading}
+              onChange={(v) => setColdstore(v)}
+            />
+          </Card>
+
+          <Card title="Bucket">
+            <ScanField
+              ref={bucketRef}
+              onScan={onBucketScanStockTake}
+              autoFocus={!!coldstore}
+              placeholder={coldstore ? 'Scan bucket QR' : 'Pick the cold store first'}
+              editable={!!coldstore}
+            />
+          </Card>
+
+          {coldstore ? (
+            <Card title="Sync">
+              <View style={s.syncRow}>
+                <Text style={s.syncCount}>
+                  {stockTakePending} bucket{stockTakePending === 1 ? '' : 's'} not yet synced
+                </Text>
+                <Button
+                  label={stockTakeSyncing ? 'Syncing…' : stockTakeSyncError ? 'Retry sync' : 'Sync'}
+                  onPress={onSyncStockTake}
+                  loading={stockTakeSyncing}
+                  disabled={stockTakeSyncing || stockTakePending === 0}
                 />
-              </Card>
-
-              <Card title="Bucket">
-                <ScanField
-                  ref={bucketRef}
-                  onScan={onBucketScanStockTake}
-                  autoFocus={!!coldstore}
-                  placeholder={coldstore ? 'Scan bucket QR' : 'Pick the cold store first'}
-                  editable={!!coldstore}
-                />
-              </Card>
-
-              {coldstore ? (
-                <Card title="Sync">
-                  <View style={s.syncRow}>
-                    <Text style={s.syncCount}>
-                      {stockTakePending} bucket{stockTakePending === 1 ? '' : 's'} not yet synced
-                    </Text>
-                    <Button
-                      label={stockTakeSyncing ? 'Syncing…' : stockTakeSyncError ? 'Retry sync' : 'Sync'}
-                      onPress={onSyncStockTake}
-                      loading={stockTakeSyncing}
-                      disabled={stockTakeSyncing || stockTakePending === 0}
-                    />
-                  </View>
-                  {stockTakeSyncProgress ? (
-                    <Text style={s.muted}>
-                      Syncing {stockTakeSyncProgress.done} of {stockTakeSyncProgress.total}…
-                    </Text>
-                  ) : null}
-                  {stockTakeSyncError ? <Alert tone="danger">{stockTakeSyncError}</Alert> : null}
-                </Card>
+              </View>
+              {stockTakeSyncProgress ? (
+                <Text style={s.muted}>
+                  Syncing {stockTakeSyncProgress.done} of {stockTakeSyncProgress.total}…
+                </Text>
               ) : null}
+              {stockTakeSyncError ? <Alert tone="danger">{stockTakeSyncError}</Alert> : null}
+            </Card>
+          ) : null}
 
-              {stockTakeScans.length ? (
-                <Text style={s.logHeader}>Scanned ({stockTakeScans.length})</Text>
-              ) : null}
-            </>
-          }
-        />
+          <FlatList<StockTakeScanRow>
+            style={s.flex}
+            data={stockTakeScans}
+            keyExtractor={(row) => String(row.id)}
+            renderItem={({ item }) => <StockTakeScanRowView row={item} />}
+            initialNumToRender={20}
+            windowSize={7}
+            removeClippedSubviews
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              stockTakeScans.length ? <Text style={s.logHeader}>Scanned ({stockTakeScans.length})</Text> : null
+            }
+          />
+        </View>
       ) : mode === 'transfer' ? (
         <>
           <Card title="Destination shelf">
@@ -398,6 +407,8 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const s = StyleSheet.create({
+  flex: { flex: 1 },
+  flexCol: { flex: 1, flexDirection: 'column' },
   farmBanner: {
     flexDirection: 'row',
     alignItems: 'center',
