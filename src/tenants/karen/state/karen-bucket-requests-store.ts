@@ -68,11 +68,47 @@ type State = {
     reason?: ReplaceReason,
     notes?: string,
   ) => Promise<{ ok: boolean; message: string; pending?: boolean }>;
+  /** Leave a requested bucket out of the transfer — not in the cold room and nothing
+   *  to replace it — so its order can load with the buckets that are there. */
+  markNotFound: (bucketId: string, pliId: string, notes?: string) => Promise<{ ok: boolean; message: string }>;
+  /** "Truck leaving": close this farm's stop on a trip. */
+  closeStop: (tripId: string, farm: string) => Promise<{ ok: boolean; message: string }>;
   clearAll: () => Promise<void>;
 };
 
 // One background sync at a time (the poll timer and app-foreground can overlap).
 let syncing = false;
+
+/** "Sat 4 Oct" for a YYYY-MM-DD delivery date. */
+function dayLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** Download result for the delivery date on screen: picklists for other days are on
+ *  the device too, but counting them ("0 downloaded, 5 already on device") reads as if
+ *  the chosen day's picklists were missing. */
+/** The download pulls every picklist waiting for this farm — new ones are added, ones
+ *  already on the device are refreshed — so the count is everything that came down,
+ *  never "0 downloaded" while the device holds the farm's picklists. */
+function downloadMessage(
+  res: { insertedOpls: string[]; refreshedOpls: string[] },
+  items: { oplName: string; deliveryDate: string }[],
+  date: string,
+): string {
+  const all = [...res.insertedOpls, ...res.refreshedOpls];
+  if (!all.length) return 'No picklists waiting for this farm right now.';
+  const total = `Downloaded ${plural(all.length, 'picklist')}`;
+  if (!date) return `${total}.`;
+  const oplDate = new Map(items.map((i) => [i.oplName, i.deliveryDate]));
+  // An order without a delivery date shows under every date (bucket-requests-db dateCond).
+  const forDay = all.filter((n) => !oplDate.get(n) || oplDate.get(n) === date).length;
+  if (!forDay) return `${total} — none for ${dayLabel(date)}, pick a date above.`;
+  return forDay === all.length ? `${total} for ${dayLabel(date)}.` : `${total} (${forDay} for ${dayLabel(date)}).`;
+}
 
 export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   ready: false,
@@ -190,7 +226,19 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         set({ downloading: false });
         return { ok: false, message: outcome.message };
       }
-      const res = await db.downloadOpls(outcome.items, farm);
+      // The default pull is today .. day after tomorrow: also ask for the chosen
+      // delivery date itself, so a date outside that window downloads too. Whole
+      // OPLs only from the second pull — the same OPL from both would double its stems.
+      const date = get().deliveryDate;
+      let items = outcome.items;
+      if (date) {
+        const forDate = await karenBucketRequestsRepository.fetchAllocations(farm, date, date);
+        if (forDate.kind === 'ok') {
+          const have = new Set(items.map((i) => i.oplName));
+          items = items.concat(forDate.items.filter((i) => !have.has(i.oplName)));
+        }
+      }
+      const res = await db.downloadOpls(items, farm);
       // Also refresh the offline truck list. Non-fatal: a truck-fetch failure
       // must not fail the picklist download — we keep any previously cached list.
       try {
@@ -212,19 +260,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         /* keep the cached plan */
       }
       await get().refresh();
-      // Only a download that actually brought picklists in offers clearing; a
-      // run that fetched 0 leaves the flag as it was.
-      if (res.inserted > 0) {
+      // Any download that brought picklists down (new or refreshed) offers clearing;
+      // a run that found none leaves the flag as it was.
+      if (res.insertedOpls.length + res.refreshedOpls.length > 0) {
         await storage.set(StorageKeys.bucketRequestsDownloaded, '1').catch(() => {});
         set({ downloading: false, manualDownloaded: true });
       } else {
         set({ downloading: false });
       }
-      const skip = res.skipped ? ` (${res.skipped} already on device)` : '';
-      return {
-        ok: true,
-        message: `Downloaded ${res.inserted} picklist${res.inserted === 1 ? '' : 's'}${skip}.`,
-      };
+      return { ok: true, message: downloadMessage(res, items, date) };
     } catch (e) {
       set({ downloading: false });
       return { ok: false, message: (e as Error)?.message || 'Download failed.' };
@@ -403,6 +447,35 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { ok: false, pending: true, message: 'Replace still processing. Check again in a minute.' };
       }
       return { ok: false, message: (e as Error)?.message || 'Replace failed.' };
+    }
+  },
+
+  markNotFound: async (bucketId, pliId, notes) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to mark a bucket not found.' };
+    try {
+      const res = await karenBucketRequestsRepository.markBucketNotFound(pliId, notes);
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      await db.markNotFoundLocal(bucketId);
+      await get().refresh();
+      return { ok: true, message: res.message };
+    } catch (e) {
+      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
+      return { ok: false, message: (e as Error)?.message || 'Could not mark it not found.' };
+    }
+  },
+
+  closeStop: async (tripId, farm) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
+    try {
+      const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm });
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      await get().loadPlannedTrips(farm);
+      return { ok: true, message: res.message };
+    } catch (e) {
+      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
+      return { ok: false, message: (e as Error)?.message || 'Could not close the stop.' };
     }
   },
 

@@ -131,6 +131,23 @@ export type RawPlannedTrip = {
   stops?: RawPlannedTripStop[];
   /** THIS farm's order lines on the trip (used to tag the Requests tab). */
   orders?: RawPlannedTripOrder[];
+  /** Which run of the truck's route this trip drives (packhouse → farms → packhouse);
+   *  0 = a trip from before runs existed. */
+  run?: number;
+  runs?: number;
+  /** "Kapkolia → Chepsito → Kapkolia". */
+  run_chain?: string;
+  /** Route time window, "06:00–18:00". */
+  window?: string;
+  /** current = the run the truck is loading now; later = waits for an earlier run. */
+  run_state?: string;
+  /** The run it waits for (run_state later). */
+  after_run?: number;
+  /** 1 = this farm's stop is closed (the truck left it). */
+  your_stop_closed?: number;
+  loaded_buckets?: number;
+  departed_stops?: string[];
+  heading_to?: string;
 };
 
 export type RawPlannedTripsResponse = {
@@ -251,6 +268,28 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.loadTrolleyInTruck',
       data: { data: payload },
+      validateStatus: () => true,
+    });
+  },
+
+  /** The requested bucket isn't in the cold room and nothing can replace it: leave it
+   *  out of the transfer so the order can load with the buckets that are there. */
+  markRequestedBucketNotFound(payload: { pick_list_item: string; notes?: string }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.markRequestedBucketNotFound',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
+   *  stop, or to the packhouse from the last one. */
+  closeTripStop(payload: { name: string; farm: string }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
+      data: payload,
       validateStatus: () => true,
     });
   },

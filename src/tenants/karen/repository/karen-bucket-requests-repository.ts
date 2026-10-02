@@ -105,6 +105,17 @@ export type PlannedTrip = {
   capacity: number;
   stops: PlannedTripStop[];
   orders: PlannedTripOrder[];
+  /** Run of the truck's route (one trip per run: packhouse → farms → packhouse); 0 = none. */
+  run: number;
+  runs: number;
+  runChain: string;
+  window: string;
+  /** The truck is loading this run now (else it waits for run `afterRun` to come back). */
+  current: boolean;
+  afterRun: number;
+  /** This farm's stop is closed — the truck has left it. */
+  yourStopClosed: boolean;
+  loadedBuckets: number;
 };
 
 export type FetchAllocationsOutcome =
@@ -220,6 +231,14 @@ function mapPlannedTrip(r: RawPlannedTrip): PlannedTrip {
     capacity: num(r.capacity),
     stops: (r.stops ?? []).map(mapPlannedTripStop),
     orders: (r.orders ?? []).map(mapPlannedTripOrder),
+    run: num(r.run),
+    runs: num(r.runs),
+    runChain: r.run_chain ?? '',
+    window: r.window ?? '',
+    current: (r.run_state ?? 'current') !== 'later',
+    afterRun: num(r.after_run),
+    yourStopClosed: !!r.your_stop_closed,
+    loadedBuckets: num(r.loaded_buckets),
   };
 }
 
@@ -450,7 +469,27 @@ export const karenBucketRequestsRepository = {
         candidates: list.map(toCandidate).filter((c) => c.bucketId),
       };
     }
+    // The server answered and nothing matches: no candidates (the screen then offers
+    // "not found"), not an error.
+    if (m.found === false) return { kind: 'ok', neededQty: typeof m.needed_qty === 'number' ? m.needed_qty : null, candidates: [] };
     return { kind: 'error', message: m.message ?? 'No replacement bucket found.' };
+  },
+
+  async markBucketNotFound(pickListItem: string, notes?: string): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketNotFound({ pick_list_item: pickListItem, notes });
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked not found.' };
+    return { kind: 'error', message: m.message ?? 'Could not mark it not found.' };
+  },
+
+  async closeTripStop(args: { tripId: string; farm: string }): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.closeTripStop({ name: args.tripId, farm: args.farm });
+    const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
+    if (m.status === 'success') {
+      const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;
+      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next run` : ''}.` };
+    }
+    return { kind: 'error', message: m.message ?? 'Could not close the stop.' };
   },
 
   async replaceBucket(

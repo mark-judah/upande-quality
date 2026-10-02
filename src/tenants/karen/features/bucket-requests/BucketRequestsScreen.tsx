@@ -94,13 +94,21 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     loadAllToTruck,
     findReplacement,
     replaceBucket,
+    markNotFound,
+    closeStop,
     clearAll,
     deliveryDate,
+    deliveryDates,
     setDeliveryDate,
   } = useKarenBucketRequestsStore();
 
-  // Delivery date to work on: today or tomorrow (opens on tomorrow).
-  const dateChoices = useMemo(() => [isoDay(0), isoDay(1)], []);
+  // Delivery date to work on: today, tomorrow (opens on tomorrow) and every other date
+  // the downloaded orders carry — else an order for another day sits on the device
+  // ("already on device") with no chip to reach it.
+  const dateChoices = useMemo(
+    () => [...new Set([isoDay(0), isoDay(1), ...deliveryDates])].sort(),
+    [deliveryDates],
+  );
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
@@ -252,11 +260,27 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       showError(found.message);
       return;
     }
-    if (!found.candidates.length) {
-      showError('No matching bucket to replace it with.');
-      return;
-    }
+    // No match still opens the sheet: the bucket can be marked not found there.
     setReplacePick({ bucket: b, pliId, neededQty: found.neededQty, candidates: found.candidates });
+  };
+
+  const onNotFound = async () => {
+    const pick = replacePick;
+    if (!pick || replaceBusy.current) return;
+    replaceBusy.current = true;
+    setReplacePick(null);
+    setReplacingId(pick.bucket.id);
+    const r = await markNotFound(pick.bucket.bucketId, pick.pliId);
+    setReplacingId(null);
+    replaceBusy.current = false;
+    if (r.ok) showSuccess(`${pick.bucket.bucketId} marked not found — load the order with the buckets you have.`);
+    else showError(r.message);
+  };
+
+  const onCloseStop = async (t: PlannedTrip) => {
+    const r = await closeStop(t.tripId, userFarm);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
   };
 
   const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason) => {
@@ -440,6 +464,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {dateChoices.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
+            {/* The farm these requests are for: the list only ever holds this station's farm. */}
+            {userFarm ? (
+              <View style={s.farmBadge}>
+                <Ionicons name="location-outline" size={14} color={COLORS.textMuted} />
+                <Text style={s.farmText} numberOfLines={1}>
+                  {userFarm}
+                </Text>
+              </View>
+            ) : null}
             {dateChoices.map((d) => (
               <Pressable
                 key={d}
@@ -482,6 +515,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             farm={userFarm}
             online={online}
             oplTeam={oplTeam}
+            onCloseStop={onCloseStop}
           />
         ) : tab === 'trolley' ? (
           <TrolleyTab
@@ -507,6 +541,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         pick={replacePick}
         onClose={() => setReplacePick(null)}
         onPick={onConfirmReplace}
+        onNotFound={onNotFound}
       />
       <ClearDataModal
         visible={clearOpen}
@@ -523,11 +558,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 type PlannedLoad = { vehicle: string; plannedVehicle: string; tripId: string; status: string; opls: TrolleyOpl[] };
 
 /** Group the orders being loaded by the truck their planned trip uses. An order on
- *  several trips takes the earliest one still open (the list comes date-sorted). */
+ *  several trips takes the run the truck is loading now, else the earliest one still
+ *  open (the list comes date- and run-sorted); a trip whose stop here is closed is done. */
 function planLoads(opls: TrolleyOpl[], trips: PlannedTrip[]): PlannedLoad[] {
   const byTrip = new Map<string, PlannedLoad>();
+  const open = trips.filter((tr) => tr.vehicle && !tr.yourStopClosed);
   for (const o of opls) {
-    const t = trips.find((tr) => tr.vehicle && (tr.orders ?? []).some((x) => x.opl === o.oplName));
+    const has = (tr: PlannedTrip) => (tr.orders ?? []).some((x) => x.opl === o.oplName);
+    const t = open.find((tr) => tr.current && has(tr)) ?? open.find(has);
     if (!t) continue;
     const g = byTrip.get(t.tripId) ?? {
       vehicle: t.vehicle,
@@ -686,6 +724,7 @@ function ReplacePicker({
   pick,
   onClose,
   onPick,
+  onNotFound,
 }: {
   pick: {
     bucket: ReqBucket;
@@ -694,6 +733,8 @@ function ReplacePicker({
   } | null;
   onClose: () => void;
   onPick: (c: ReplacementCandidate, reason: ReplaceReason) => void;
+  /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
+  onNotFound: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
@@ -789,13 +830,31 @@ function ReplacePicker({
           })}
         </ScrollView>
 
+        {!candidates.length ? (
+          <Text style={s.repNone}>
+            No bucket matches {b?.bucketId}. If it isn’t in the cold room, mark it not found — the order
+            then loads with the buckets you have.
+          </Text>
+        ) : null}
+        {candidates.length ? (
+          <View style={s.repActions}>
+            <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
+            <Button
+              label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
+              iconLeft="swap-horizontal"
+              onPress={() => chosen && onPick(chosen, reason)}
+              disabled={!chosen}
+              style={{ flex: 2 }}
+            />
+          </View>
+        ) : null}
         <View style={s.repActions}>
-          <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
+          {!candidates.length ? <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} /> : null}
           <Button
-            label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
-            iconLeft="swap-horizontal"
-            onPress={() => chosen && onPick(chosen, reason)}
-            disabled={!chosen}
+            label="Not found — no replacement"
+            iconLeft="close-circle-outline"
+            variant={candidates.length ? 'outline' : undefined}
+            onPress={onNotFound}
             style={{ flex: 2 }}
           />
         </View>
@@ -1064,12 +1123,15 @@ function OplCard({
       {opl.buckets.map((b) => (
         <View key={b.id} style={s.bRow}>
           <Ionicons
-            name={b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
+            name={b.notFound ? 'close-circle' : b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
             size={18}
-            color={b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
+            color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
           />
           <View style={{ flex: 1 }}>
-            <Text style={s.bId}>{b.bucketId}</Text>
+            <Text style={s.bId}>
+              {b.bucketId}
+              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
+            </Text>
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
@@ -1273,11 +1335,13 @@ function TripsTab({
   farm,
   online,
   oplTeam,
+  onCloseStop,
 }: {
   trips: PlannedTrip[];
   farm: string;
   online: boolean;
   oplTeam: Record<string, string>;
+  onCloseStop: (t: PlannedTrip) => Promise<void>;
 }) {
   return (
     <>
@@ -1290,7 +1354,9 @@ function TripsTab({
           </View>
         </Card>
       ) : (
-        trips.map((t) => <TripCard key={t.tripId} trip={t} oplTeam={oplTeam} />)
+        trips.map((t) => (
+          <TripCard key={t.tripId} trip={t} oplTeam={oplTeam} online={online} onCloseStop={onCloseStop} />
+        ))
       )}
     </>
   );
@@ -1322,7 +1388,7 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
         </Text>
         <Text style={[s.stopStatus, { color: ui.color }]} numberOfLines={1}>
           {ui.label} · {progress}
-          {stop.delaying ? ' · holding up the run' : ''}
+          {stop.delaying ? ' · holding up the trip' : ''}
         </Text>
       </View>
       <Ionicons name={ui.icon} size={16} color={ui.color} />
@@ -1330,8 +1396,23 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
   );
 }
 
-function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string, string> }) {
+function TripCard({
+  trip,
+  oplTeam,
+  online,
+  onCloseStop,
+}: {
+  trip: PlannedTrip;
+  oplTeam: Record<string, string>;
+  online: boolean;
+  onCloseStop: (t: PlannedTrip) => Promise<void>;
+}) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
+  const [closing, setClosing] = useState(false);
+  // "Truck leaving" once something of this farm is on the truck (the rest, if any, goes
+  // on the truck's next run).
+  const canClose =
+    !!yourStop && !trip.yourStopClosed && trip.current && yourStop.loaded + yourStop.transit + yourStop.shelved > 0;
   return (
     <Card>
       <View style={s.tripHead}>
@@ -1358,6 +1439,26 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
           </Text>
         </View>
       </View>
+
+      {trip.run ? (
+        <View style={s.tripRunRow}>
+          <Text style={s.tripRun}>
+            Trip {trip.run}
+            {trip.runs > 1 ? ` of ${trip.runs}` : ''}
+            {trip.window ? ` · ${trip.window}` : ''}
+          </Text>
+          {trip.runChain ? (
+            <Text style={s.tripChain} numberOfLines={2}>
+              {trip.runChain}
+            </Text>
+          ) : null}
+          {!trip.current ? (
+            <Text style={s.tripLater}>
+              Next trip — the truck comes after trip {trip.afterRun || trip.run - 1} is back
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={s.tripMetaRow}>
         <Text style={s.tripMeta} numberOfLines={1}>
@@ -1403,11 +1504,38 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
         .map((st) => (
           <StopRow key={`${trip.tripId}-${st.stop}-${st.farm}`} stop={st} />
         ))}
+      {trip.yourStopClosed ? (
+        <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
+      ) : canClose ? (
+        <Button
+          label={closing ? 'Closing…' : 'Truck leaving — close my stop'}
+          iconLeft="exit-outline"
+          disabled={closing || !online}
+          onPress={async () => {
+            setClosing(true);
+            await onCloseStop(trip);
+            setClosing(false);
+          }}
+          style={{ marginTop: spacing.sm }}
+        />
+      ) : null}
     </Card>
   );
 }
 
 const s = StyleSheet.create({
+  tripRunRow: { marginTop: spacing.xs, gap: 2 },
+  tripRun: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  tripChain: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
+  tripLater: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.warn },
+  tripClosed: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
+  repNone: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: COLORS.textMuted,
+    marginVertical: spacing.sm,
+  },
+  bNotFound: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.danger },
   scroll: { paddingBottom: 40 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
@@ -1780,7 +1908,7 @@ const s = StyleSheet.create({
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
   loadChange: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary },
   loadOrder: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: COLORS.border },
-  loadOrderName: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  loadOrderName: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   loadOrderCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
   reasonChip: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border },
@@ -1792,6 +1920,8 @@ const s = StyleSheet.create({
   dateChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   dateText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   dateTextOn: { color: '#fff' },
+  farmBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.surfaceAlt },
+  farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   truckRow: {
     flexDirection: 'row',
     alignItems: 'center',

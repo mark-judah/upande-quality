@@ -18,6 +18,9 @@ export type ReqBucket = {
   qty: number;
   uom: string;
   scanned: boolean;
+  /** Not in the cold room and nothing to replace it: counts as done for the order but
+   *  never goes on a trolley or truck. */
+  notFound: boolean;
   trolleyId: string | null;
   pliId: string | null;
 };
@@ -82,9 +85,10 @@ let _deliveryDate = isoDay(1);
 export function setActiveDeliveryDate(date: string): void {
   _deliveryDate = (date || '').trim();
 }
-/** SQL condition on opl alias `o` for the active delivery date, plus its two arguments. */
+/** SQL condition on opl alias `o` for the active delivery date, plus its two arguments.
+ *  An order without a delivery date shows under every date, so it never goes missing. */
 function dateCond(): [string, string[]] {
-  return ["(? = '' OR COALESCE(o.delivery_date, '') = ?)", [_deliveryDate, _deliveryDate]];
+  return ["(? = '' OR COALESCE(o.delivery_date, '') IN (?, ''))", [_deliveryDate, _deliveryDate]];
 }
 /** Delivery dates of this farm's orders on the device, soonest first. */
 export async function listDeliveryDates(): Promise<string[]> {
@@ -180,6 +184,9 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   if (!bcols.some((c) => c.name === 'farm')) {
     await d.execAsync('ALTER TABLE bucket ADD COLUMN farm TEXT');
   }
+  if (!bcols.some((c) => c.name === 'not_found')) {
+    await d.execAsync('ALTER TABLE bucket ADD COLUMN not_found INTEGER NOT NULL DEFAULT 0');
+  }
 }
 
 /** One entry per bucket: the server sends a pick row per BOX, so a bucket packed into
@@ -208,11 +215,12 @@ function mergeBucketRows(rows: AllocationItem[]): AllocationItem[] {
   );
 }
 
-/** Insert downloaded picklists, skipping any OPL already on device. */
+/** Insert downloaded picklists; an OPL already on the device is refreshed from the
+ *  server copy instead (`skipped` / `refreshedOpls`). */
 export async function downloadOpls(
   items: AllocationItem[],
   farm: string,
-): Promise<{ inserted: number; skipped: number }> {
+): Promise<{ inserted: number; skipped: number; insertedOpls: string[]; refreshedOpls: string[] }> {
   const d = await db();
   const groups = new Map<string, AllocationItem[]>();
   for (const it of items) {
@@ -221,8 +229,8 @@ export async function downloadOpls(
     if (arr) arr.push(it);
     else groups.set(it.oplName, [it]);
   }
-  let inserted = 0;
-  let skipped = 0;
+  const insertedOpls: string[] = [];
+  const refreshedOpls: string[] = [];
   const now = new Date().toISOString();
   for (const [oplName, rows] of groups) {
     const existing = await d.getFirstAsync<{ c: number }>(
@@ -245,15 +253,32 @@ export async function downloadOpls(
           [r.farm, oplName, r.bucketId],
         );
       }
-      if (rows[0]?.deliveryDate) {
-        await d.runAsync('UPDATE opl SET delivery_date = ? WHERE opl_name = ?', [rows[0].deliveryDate, oplName]);
-      }
+      // Re-download: the order's details follow the server too.
+      const head = rows[0];
+      await d.runAsync(
+        `UPDATE opl SET order_name = COALESCE(NULLIF(?, ''), order_name), customer = COALESCE(NULLIF(?, ''), customer),
+           sales_order = COALESCE(NULLIF(?, ''), sales_order), delivery_date = COALESCE(NULLIF(?, ''), delivery_date),
+           downloaded_at = ? WHERE opl_name = ?`,
+        [head.orderName || '', head.customer || '', head.salesOrder || '', head.deliveryDate || '', now, oplName],
+      );
       // The order may also collect from another farm: add this farm's buckets of it,
       // and correct stems / contents saved from a single box row before.
       for (const r of mergeBucketRows(rows)) {
         await d.runAsync(
-          "UPDATE bucket SET qty = ?, variety = ?, stem_length = ? WHERE opl_name = ? AND UPPER(bucket_id) = ?",
-          [r.qty || 0, r.varietyLabel || r.variety || '', r.stemLength || '', oplName, r.bucketId.toUpperCase()],
+          `UPDATE bucket SET qty = ?, variety = ?, stem_length = ?,
+             shelf = CASE WHEN scanned = 0 AND ? <> '' THEN ? ELSE shelf END,
+             pick_list_item_id = COALESCE(NULLIF(?, ''), pick_list_item_id)
+           WHERE opl_name = ? AND UPPER(bucket_id) = ?`,
+          [
+            r.qty || 0,
+            r.varietyLabel || r.variety || '',
+            r.stemLength || '',
+            r.shelfLocation || '',
+            r.shelfLocation || '',
+            r.pickListItemId || '',
+            oplName,
+            r.bucketId.toUpperCase(),
+          ],
         );
         await d.runAsync(
           'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, scanned) VALUES (?,?,?,?,?,?,?,?,?,0)',
@@ -270,7 +295,19 @@ export async function downloadOpls(
           ],
         );
       }
-      skipped++;
+      // Drop this farm's unscanned buckets the server no longer lists for the order
+      // (unallocated or moved since the last download), so the refreshed copy matches
+      // the server instead of keeping buckets nobody will send. Rows saved before the
+      // farm was recorded ('') may be another farm's and are left alone.
+      if (farm) {
+        const keep = [...new Set(rows.map((r) => r.bucketId.toUpperCase()))];
+        await d.runAsync(
+          `DELETE FROM bucket WHERE opl_name = ? AND scanned = 0 AND not_found = 0 AND farm = ?
+             AND UPPER(bucket_id) NOT IN (${keep.map(() => '?').join(',')})`,
+          [oplName, farm, ...keep],
+        );
+      }
+      refreshedOpls.push(oplName);
       continue;
     }
     const head = rows[0];
@@ -311,9 +348,9 @@ export async function downloadOpls(
         );
       }
     });
-    inserted++;
+    insertedOpls.push(oplName);
   }
-  return { inserted, skipped };
+  return { inserted: insertedOpls.length, skipped: refreshedOpls.length, insertedOpls, refreshedOpls };
 }
 
 type BucketRow = {
@@ -326,6 +363,7 @@ type BucketRow = {
   qty: number | null;
   uom: string | null;
   scanned: number;
+  not_found?: number | null;
   trolley_id: string | null;
   pick_list_item_id: string | null;
 };
@@ -341,6 +379,7 @@ function mapBucketRow(r: BucketRow): ReqBucket {
     qty: r.qty || 0,
     uom: r.uom || '',
     scanned: r.scanned === 1,
+    notFound: r.not_found === 1,
     trolleyId: r.trolley_id || null,
     pliId: r.pick_list_item_id || null,
   };
@@ -425,8 +464,9 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
     const trolleys = Array.from(
       new Set(brows.map((b) => b.trolley_id).filter((t): t is string => !!t)),
     );
+    // Not-found buckets are done for the order but are never loaded.
     const pliIds = Array.from(
-      new Set(brows.map((b) => b.pick_list_item_id).filter((p): p is string => !!p)),
+      new Set(brows.filter((b) => b.not_found !== 1).map((b) => b.pick_list_item_id).filter((p): p is string => !!p)),
     );
     out.push({
       oplName: o.opl_name,
@@ -547,6 +587,16 @@ export async function replaceBucketLocal(
 }
 
 /** Mark an OPL loaded-to-truck / in-transit locally (after server sync). */
+/** The server left this bucket out of the transfer (not found, no replacement): it is
+ *  done for every order on the device waiting on it, without a trolley. */
+export async function markNotFoundLocal(bucketId: string): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    'UPDATE bucket SET scanned = 1, not_found = 1, trolley_id = NULL, scanned_at = COALESCE(scanned_at, ?) WHERE LOWER(bucket_id) = ? AND scanned = 0',
+    [new Date().toISOString(), bucketId.trim().toLowerCase()],
+  );
+}
+
 export async function markLoadedLocal(oplName: string): Promise<void> {
   const d = await db();
   await d.runAsync('UPDATE opl SET loaded_to_truck = 1 WHERE opl_name = ?', [oplName]);

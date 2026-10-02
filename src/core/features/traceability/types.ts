@@ -15,7 +15,17 @@ export type StageName =
   | 'Quarantine Rejects'
   | 'Shelving'
   | 'Allocation'
-  | 'Issued';
+  | 'Issued'
+  // Remote transfer (farm → packhouse by truck), from getTraceability's remote_transfers.
+  | 'Awaiting transfer'
+  | 'Not found at farm'
+  | 'Left remote shelf'
+  | 'On trolley'
+  | 'Loaded on truck'
+  | 'In transit'
+  | 'Off the truck'
+  | 'Shelved at sales farm'
+  | 'Stock moved';
 
 export type WhoKind = 'payroll' | 'user' | '';
 

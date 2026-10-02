@@ -28,7 +28,37 @@ const VALID_STATUSES: TraceabilityStatus[] = [
 ];
 const VALID_STAGES: StageName[] = [
   'Harvest', 'Grading', 'Receiving', 'Quarantine Rejects', 'Shelving', 'Allocation', 'Issued',
+  'Awaiting transfer', 'Not found at farm', 'Left remote shelf', 'On trolley', 'Loaded on truck', 'In transit', 'Off the truck',
+  'Shelved at sales farm', 'Stock moved',
 ];
+
+/** A remote transfer's events as journey stages (newest transfer last, events in order). */
+function transferStages(raw: RawTraceabilitySnapshot): JourneyStage[] {
+  const out: JourneyStage[] = [];
+  for (const tr of [...(raw.remote_transfers ?? [])].reverse()) {
+    for (const e of tr.events ?? []) {
+      out.push(
+        toStage({
+          stage: e.stage,
+          doc: e.trip || tr.opl || '',
+          date: (e.datetime || '').split(' ')[0],
+          datetime: e.datetime || '',
+          variety: tr.variety || '',
+          user: e.user || '',
+          detail: e.detail || '',
+        }),
+      );
+    }
+  }
+  return out;
+}
+
+/** Remote transfer stages go right after Allocation (before Issued). */
+function withTransfers(stages: JourneyStage[], transfers: JourneyStage[]): JourneyStage[] {
+  if (!transfers.length) return stages;
+  const at = stages.findIndex((st) => st.stage === 'Issued');
+  return at < 0 ? [...stages, ...transfers] : [...stages.slice(0, at), ...transfers, ...stages.slice(at)];
+}
 const VALID_WHO_KIND: WhoKind[] = ['payroll', 'user', ''];
 
 function toStatus(raw: string | undefined): TraceabilityStatus {
@@ -124,7 +154,7 @@ function toSnapshot(raw: RawTraceabilitySnapshot, query: TraceabilityQuery): Tra
     sessionSize: raw.session_size ?? 0,
     bunchInfo: toBunchInfo(raw.bunch_info),
     bunches: (raw.bunches ?? []).map(toSessionBunch),
-    stages: (raw.stages ?? []).map(toStage),
+    stages: withTransfers((raw.stages ?? []).map(toStage), transferStages(raw)),
     warnings: raw.warnings ?? [],
     allocation: toAllocation(raw.allocation),
   };
