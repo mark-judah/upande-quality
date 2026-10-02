@@ -274,7 +274,7 @@ const s = StyleSheet.create({
   avatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   name: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   email: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
-  meta: { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  meta: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text, marginTop: 2 },
 
   nav: { paddingTop: spacing.xs, paddingBottom: spacing.sm },
   navItem: {
