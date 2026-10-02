@@ -1,60 +1,36 @@
 import { create } from 'zustand';
-import { useAuthStore } from '@/src/core/auth/store';
 import {
   extractColdroomBucketId,
   karenColdroomQcRepository,
   type ColdroomBucket,
-  type ColdroomIncharge,
-  type ColdroomReason,
-  type ColdroomControlPoint,
+  type ColdroomParameter,
 } from '@/src/tenants/karen/repository/karen-coldroom-qc-repository';
 
-export type ColdroomRejectionRow = {
-  id: string;
-  variety: string;
-  reason: string; // QC Parameters name (the Link value)
-  reasonLabel: string; // human label for display
-  stems: string; // text input, parsed on submit
-  length: string;
-};
+/** One reject line: a QC parameter (reason) + the stems rejected for it. */
+export type ColdroomRejectRow = { id: number; reason: string; reasonLabel: string; stems: string };
 
 export type SubmitOutcome = { kind: 'ok'; message: string } | { kind: 'error'; message: string };
-
-let rowSeq = 0;
-const newRowId = () => `r${++rowSeq}`;
 
 type State = {
   loading: boolean;
   loadError: string | null;
-  controlPoints: ColdroomControlPoint[];
-  reasons: ColdroomReason[];
-  inchargeOptions: ColdroomIncharge[];
-
-  selectedControlPoint: string | null;
-  controlArea: string;
+  parameters: ColdroomParameter[];
+  categories: string[];
 
   scanning: boolean;
   scanError: string | null;
   bucket: ColdroomBucket | null;
-  selectedVariety: string | null;
 
-  rejections: ColdroomRejectionRow[];
-  qcIncharge: string;
-  remarks: string;
+  rejects: ColdroomRejectRow[];
 
   submitting: boolean;
-  lastSubmitMessage: string | null;
-  lastSubmitKind: 'ok' | 'error' | null;
 
   loadInitialData: () => Promise<void>;
-  setControlPoint: (name: string) => void;
   scanBucket: (raw: string) => Promise<{ ok: boolean; message?: string }>;
-  setSelectedVariety: (variety: string) => void;
-  addReason: (reasonName: string) => void;
-  updateRejectionStems: (id: string, stems: string) => void;
-  removeRejection: (id: string) => void;
-  setQcIncharge: (email: string) => void;
-  setRemarks: (text: string) => void;
+  addReject: (reasonName: string) => void;
+  removeReject: (id: number) => void;
+  setRejectStems: (id: number, v: string) => void;
+  totalRejected: () => number;
   canSubmit: () => boolean;
   submit: () => Promise<SubmitOutcome>;
   reset: () => void;
@@ -63,46 +39,25 @@ type State = {
 export const useKarenColdroomQcStore = create<State>((set, get) => ({
   loading: false,
   loadError: null,
-  controlPoints: [],
-  reasons: [],
-  inchargeOptions: [],
-
-  selectedControlPoint: null,
-  controlArea: '',
+  parameters: [],
+  categories: [],
 
   scanning: false,
   scanError: null,
   bucket: null,
-  selectedVariety: null,
 
-  rejections: [],
-  qcIncharge: '',
-  remarks: '',
+  rejects: [],
 
   submitting: false,
-  lastSubmitMessage: null,
-  lastSubmitKind: null,
 
   loadInitialData: async () => {
     set({ loading: true, loadError: null });
-    const outcome = await karenColdroomQcRepository.fetchFormData();
+    const outcome = await karenColdroomQcRepository.fetchParameters();
     if (outcome.kind === 'error') {
       set({ loading: false, loadError: outcome.message });
       return;
     }
-    const email = useAuthStore.getState().email ?? '';
-    set({
-      loading: false,
-      controlPoints: outcome.controlPoints,
-      reasons: outcome.reasons,
-      inchargeOptions: outcome.inchargeOptions,
-      qcIncharge: get().qcIncharge || email,
-    });
-  },
-
-  setControlPoint: (name) => {
-    const cp = get().controlPoints.find((c) => c.name === name);
-    set({ selectedControlPoint: name, controlArea: cp?.controlArea ?? 'Cold Room' });
+    set({ loading: false, parameters: outcome.parameters, categories: outcome.categories });
   },
 
   scanBucket: async (raw) => {
@@ -114,96 +69,70 @@ export const useKarenColdroomQcStore = create<State>((set, get) => ({
       set({ scanning: false, scanError: outcome.message });
       return { ok: false, message: outcome.message };
     }
-    set({
-      scanning: false,
-      bucket: outcome.bucket,
-      selectedVariety: outcome.bucket.varieties[0]?.variety ?? null,
-      rejections: [],
-    });
+    set({ scanning: false, bucket: outcome.bucket, rejects: [] });
     return { ok: true };
   },
 
-  setSelectedVariety: (variety) => set({ selectedVariety: variety }),
+  addReject: (reasonName) =>
+    set((s) => {
+      if (s.rejects.some((r) => r.reason === reasonName)) return s;
+      const p = s.parameters.find((x) => x.name === reasonName);
+      return {
+        rejects: [
+          ...s.rejects,
+          {
+            id: s.rejects.reduce((m, r) => Math.max(m, r.id), 0) + 1,
+            reason: reasonName,
+            reasonLabel: p?.label ?? reasonName,
+            stems: '',
+          },
+        ],
+      };
+    }),
 
-  addReason: (reasonName) => {
-    const s = get();
-    const variety = s.selectedVariety;
-    if (!variety) return;
-    // Ignore duplicates of the same reason on the same variety.
-    if (s.rejections.some((r) => r.variety === variety && r.reason === reasonName)) return;
-    const reason = s.reasons.find((r) => r.name === reasonName);
-    const length = s.bucket?.varieties.find((v) => v.variety === variety)?.length ?? '';
-    set({
-      rejections: [
-        ...s.rejections,
-        {
-          id: newRowId(),
-          variety,
-          reason: reasonName,
-          reasonLabel: reason?.parameter ?? reasonName,
-          stems: '',
-          length,
-        },
-      ],
-    });
-  },
+  removeReject: (id) => set((s) => ({ rejects: s.rejects.filter((r) => r.id !== id) })),
 
-  updateRejectionStems: (id, stems) =>
+  setRejectStems: (id, v) =>
     set((s) => ({
-      rejections: s.rejections.map((r) =>
-        r.id === id ? { ...r, stems: stems.replace(/[^0-9]/g, '') } : r,
-      ),
+      rejects: s.rejects.map((r) => (r.id === id ? { ...r, stems: v.replace(/[^0-9]/g, '') } : r)),
     })),
 
-  removeRejection: (id) => set((s) => ({ rejections: s.rejections.filter((r) => r.id !== id) })),
-
-  setQcIncharge: (email) => set({ qcIncharge: email }),
-  setRemarks: (text) => set({ remarks: text }),
+  totalRejected: () => get().rejects.reduce((sum, r) => sum + (Number(r.stems) || 0), 0),
 
   canSubmit: () => {
     const s = get();
-    // Rejections are optional — a clean quality check can still be submitted.
-    if (!s.selectedControlPoint || !s.bucket || !s.qcIncharge) return false;
-    return !s.submitting;
+    if (s.submitting || !s.bucket) return false;
+    const total = s.rejects.reduce((sum, r) => sum + (Number(r.stems) || 0), 0);
+    if (total <= 0) return false;
+    // Client-side over-rejection guard (backend also enforces).
+    if (total > s.bucket.availableStems) return false;
+    return true;
   },
 
   submit: async () => {
     const s = get();
-    if (!s.selectedControlPoint) return { kind: 'error', message: 'Pick a control point.' };
     if (!s.bucket) return { kind: 'error', message: 'Scan a bucket first.' };
-    // Rejections are optional; only completed rows are sent (each becomes a
-    // Coldroom-rejects stock transfer server-side).
-    const rejections = s.rejections
-      .map((r) => ({
-        variety: r.variety,
-        reason: r.reason,
-        stems: Number.parseInt(r.stems, 10) || 0,
-        length: r.length,
-      }))
-      .filter((r) => r.variety && r.reason && r.stems > 0);
-
-    const payload: Record<string, unknown> = {
-      control_point: s.selectedControlPoint,
-      bucket_id: s.bucket.bucketId,
-      farm: s.bucket.farm,
-      greenhouse: s.bucket.greenhouse,
-      packhouse: s.bucket.packhouse,
-      days_in_stock: s.bucket.daysInStock,
-      qc_incharge: s.qcIncharge,
-      remarks: s.remarks,
-      rejections,
-    };
+    const failures = s.rejects
+      .map((r) => ({ reason: r.reason, stems: Number(r.stems) || 0 }))
+      .filter((r) => r.reason && r.stems > 0);
+    if (!failures.length) return { kind: 'error', message: 'Add at least one reason with stems.' };
+    const total = failures.reduce((sum, r) => sum + r.stems, 0);
+    if (total > s.bucket.availableStems) {
+      return {
+        kind: 'error',
+        message: `Cannot reject ${total} stems; only ${s.bucket.availableStems} available.`,
+      };
+    }
 
     set({ submitting: true });
-    const outcome = await karenColdroomQcRepository.save(payload);
+    const outcome = await karenColdroomQcRepository.save(s.bucket.bucketId, failures);
     if (outcome.kind === 'ok') {
-      set({ submitting: false, lastSubmitMessage: outcome.message, lastSubmitKind: 'ok' });
+      set({ submitting: false, bucket: null, rejects: [] });
       return { kind: 'ok', message: outcome.message };
     }
-    set({ submitting: false, lastSubmitMessage: outcome.message, lastSubmitKind: 'error' });
+    set({ submitting: false });
     return { kind: 'error', message: outcome.message };
   },
 
-  reset: () =>
-    set({ bucket: null, selectedVariety: null, scanError: null, rejections: [], remarks: '' }),
+  reset: () => set({ bucket: null, rejects: [], scanError: null }),
 }));

@@ -4,7 +4,9 @@ import {
   type RawTransferResponse,
   type RawOfflineIssuingPayload,
   type RawOfflineIssuingResponse,
+  type RawStockTakeSyncResponse,
 } from '../api/karen-shelf-operations-api';
+import type { StockTakeSyncResult } from '../offline/karen-stock-take-db';
 
 export type TransferSuccess = {
   kind: 'success';
@@ -47,6 +49,19 @@ export type OfflineIssuingFailure = {
 export type OfflineIssuingError = { kind: 'error'; message: string };
 
 export type OfflineIssuingOutcome = OfflineIssuingSuccess | OfflineIssuingFailure | OfflineIssuingError;
+
+export type StockTakeSyncSuccess = {
+  kind: 'success';
+  stockTake: string;
+  results: StockTakeSyncResult[];
+  message: string;
+};
+
+export type StockTakeSyncFailure = { kind: 'failure'; reason: string; message: string };
+
+export type StockTakeSyncError = { kind: 'error'; message: string };
+
+export type StockTakeSyncOutcome = StockTakeSyncSuccess | StockTakeSyncFailure | StockTakeSyncError;
 
 function pickMessage(raw: { message?: string }, fallback: string): string {
   return raw.message?.trim() || fallback;
@@ -136,5 +151,45 @@ export const karenShelfOperationsRepository = {
       };
     }
     return { kind: 'error', message: pickMessage(raw, 'Report failed.') };
+  },
+
+  async syncStockTakeBuckets(args: {
+    coldstore: string;
+    farm: string;
+    stockTakeDate: string;
+    buckets: { bucketId: string; scannedAt: string }[];
+  }): Promise<StockTakeSyncOutcome> {
+    const raw: RawStockTakeSyncResponse = await karenShelfOperationsApi.syncStockTakeBuckets(args);
+    if (raw.status === 'success' && raw.payload) {
+      const results: StockTakeSyncResult[] = (raw.payload.results ?? []).map((r) => {
+        if (r.status === 'success' && r.payload) {
+          return {
+            bucketId: r.bucket_id ?? '',
+            ok: true,
+            status: r.payload.status === 'Shelved' ? 'Shelved' : 'Unshelved',
+            shelf: r.payload.shelf ?? null,
+            variety: r.payload.variety ?? null,
+            stemLength: r.payload.stem_length ?? null,
+            ageDays: typeof r.payload.age_days === 'number' ? r.payload.age_days : null,
+          };
+        }
+        return { bucketId: r.bucket_id ?? '', ok: false, message: pickMessage(r, 'Could not resolve this bucket.') };
+      });
+      return {
+        kind: 'success',
+        stockTake: raw.payload.stock_take ?? '',
+        results,
+        message: pickMessage(raw, 'Synced.'),
+      };
+    }
+    if (raw.status === 'failed') {
+      return { kind: 'failure', reason: raw.reason ?? 'unknown', message: pickMessage(raw, 'Sync failed.') };
+    }
+    return { kind: 'error', message: pickMessage(raw, 'Sync failed.') };
+  },
+
+  async fetchColdStores(farm?: string): Promise<string[]> {
+    const res = await karenShelfOperationsApi.fetchColdStores(farm);
+    return (res.message ?? []).map((c) => c.name).filter(Boolean);
   },
 };

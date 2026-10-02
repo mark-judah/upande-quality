@@ -346,6 +346,17 @@ export const useKarenQcStore = create<State>((set, get) => ({
     }
     const totalSampled = Object.values(stemsByVariety).reduce((a, b) => a + b, 0);
 
+    // Total stems sampled across all varieties can't exceed what the batch received.
+    const totalReceived = batch.buckets.reduce((a, b) => a + b.stems, 0);
+    if (totalSampled > totalReceived) {
+      const out: SubmitOutcome = {
+        kind: 'error',
+        message: `Total stems sampled (${totalSampled}) exceeds stems received in this batch (${totalReceived}).`,
+      };
+      set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
+      return out;
+    }
+
     // Each concern must have a variety AND that variety must have a positive
     // sample size — otherwise the per-variety tolerance % is meaningless.
     for (const c of s.concerns) {

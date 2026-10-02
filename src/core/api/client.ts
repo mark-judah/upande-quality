@@ -176,10 +176,47 @@ export function mapAxiosError(err: unknown): HttpError {
     let message = err.message;
     if (body && typeof body === 'object') {
       const exc = body as { exc_type?: string; _server_messages?: string; message?: string };
-      if (exc.message) message = exc.message;
+      const serverMessage = extractServerMessage(exc._server_messages);
+      if (serverMessage) message = serverMessage;
+      else if (exc.message) message = exc.message;
       else if (exc.exc_type) message = exc.exc_type;
     }
     return new HttpError(status, message, body);
   }
   return new HttpError(0, err instanceof Error ? err.message : 'Unknown error', null);
+}
+
+/** `_server_messages` is a JSON-encoded array of JSON-encoded message objects
+ *  -- Frappe's wrapper around every `frappe.throw()`/`msgprint(raise_exception=1)`.
+ *  This is where the actual human-written message lives (e.g. "Please contact
+ *  your IT administrator..."); `exc_type` is just the exception's class name
+ *  ("ValidationError"), which is all that was ever surfacing to the user --
+ *  a real backend message only ever showed up in console logs. */
+function extractServerMessage(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || !raw) return undefined;
+  try {
+    const arr = JSON.parse(raw) as unknown[];
+    const parsed = arr
+      .filter((s): s is string => typeof s === 'string')
+      .map((s) => {
+        try {
+          return JSON.parse(s) as { message?: string; raise_exception?: number };
+        } catch {
+          return { message: s };
+        }
+      });
+    // Prefer the entry that was actually raised as an exception.
+    const chosen = parsed.find((o) => o.raise_exception) ?? parsed[parsed.length - 1];
+    const msg = chosen?.message ? stripHtml(String(chosen.message)) : '';
+    return msg || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Frappe messages can carry basic HTML (`<br>`, `<b>`, ...) meant for the
+ *  desk's HTML-rendering msgprint dialog; a plain RN Text can't render that,
+ *  so it's flattened to plain text instead of showing literal tags. */
+function stripHtml(s: string): string {
+  return s.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
 }
