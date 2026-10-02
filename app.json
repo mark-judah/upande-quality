@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -39,7 +39,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 5500
+      "versionCode": 5501
     },
     "web": {
       "output": "static",
