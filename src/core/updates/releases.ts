@@ -25,7 +25,9 @@ import { APP_VERSION, GITHUB_OWNER, GITHUB_REPO as REPO_NAME } from '@/src/core/
 export const GITHUB_REPO = `${GITHUB_OWNER}/${REPO_NAME}`;
 export const RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
-const RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`;
+// Up to 99 OTA releases can follow an APK within one runtime, so a short page
+// would push the newest APK off it and report "no APK".
+const RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`;
 const TIMEOUT_MS = 15000;
 
 /** One automatic check per device per day — unauthenticated GitHub calls are
