@@ -2,13 +2,16 @@ import { create } from 'zustand';
 import {
   karenShelfOperationsRepository,
   type TransferOutcome,
-  type OfflineIssuingOutcome,
+  type IssueOfflineOutcome,
+  type OfflineBucket,
+  type OfflineOpl,
 } from '../repository/karen-shelf-operations-repository';
+import type { IssueOfflineReason } from '../api/karen-shelf-operations-api';
 import { mapAxiosError } from '@/src/core/api/client';
 import * as stockTakeDb from '../offline/karen-stock-take-db';
 import type { StockTakeScanRow } from '../offline/karen-stock-take-db';
 
-export type ShelfOperationsMode = 'transfer' | 'offline-removal' | 'stock-take';
+export type ShelfOperationsMode = 'transfer' | 'issue-offline' | 'stock-take';
 
 /** How many locally-queued scans go up in one sync request. Keeps each
  * request's doc.save() fast and bounded regardless of how many thousand
@@ -18,13 +21,31 @@ const STOCK_TAKE_SYNC_CHUNK_SIZE = 200;
 
 type State = {
   mode: ShelfOperationsMode;
-  /** Destination shelf for Transfer mode. Not used in Offline Removal mode. */
+  /** Destination shelf for Transfer mode. */
   shelfId: string | null;
-  /** Free-text reason for Offline Removal mode. */
-  reason: string;
   loading: boolean;
   lastTransferOutcome: TransferOutcome | null;
-  lastOfflineOutcome: OfflineIssuingOutcome | null;
+
+  // Issue Offline mode: pick the OPL, the allocated bucket that never reached
+  // the issuing scan and why, then scan the bucket that went out instead.
+  opls: OfflineOpl[];
+  oplsLoading: boolean;
+  /** Delivery date the OPL list is for (YYYY-MM-DD); opens on tomorrow. */
+  oplDeliveryDate: string;
+  /** Packing team the OPL list is narrowed to; '' = every team. */
+  oplTeam: string;
+  opl: string | null;
+  offlineBuckets: OfflineBucket[];
+  offlineBucketsLoading: boolean;
+  allocatedBucket: string | null;
+  reason: IssueOfflineReason | null;
+  /** Wrong variety: the allocated bucket's real details, for its record. */
+  correctVariety: string;
+  correctStemLength: string;
+  varieties: string[];
+  /** Stem Length masters the real length is picked from. */
+  stemLengths: string[];
+  lastOfflineOutcome: IssueOfflineOutcome | null;
 
   // Stock Take mode - scanning is local-only (karen-stock-take-db.ts,
   // expo-sqlite - no new library), so it's instant regardless of
@@ -41,9 +62,16 @@ type State = {
   setMode: (mode: ShelfOperationsMode) => void;
   setShelfFromScan: (raw: string) => { ok: boolean; message?: string; shelfId?: string };
   clearShelf: () => void;
-  setReason: (reason: string) => void;
   submitTransfer: (rawBucket: string) => Promise<TransferOutcome>;
-  submitOfflineRemoval: (rawBucket: string) => Promise<OfflineIssuingOutcome>;
+  loadOpls: () => Promise<void>;
+  setOplDeliveryDate: (date: string) => Promise<void>;
+  setOplTeam: (team: string) => void;
+  selectOpl: (opl: string) => Promise<void>;
+  selectAllocatedBucket: (bucket: string | null) => void;
+  setReason: (reason: IssueOfflineReason) => void;
+  setCorrectVariety: (variety: string) => void;
+  setCorrectStemLength: (length: string) => void;
+  submitIssueOffline: (rawBucket: string) => Promise<IssueOfflineOutcome>;
   initStockTake: () => Promise<void>;
   loadColdStores: (farm?: string) => Promise<void>;
   setColdstore: (coldstore: string) => Promise<void>;
@@ -53,17 +81,41 @@ type State = {
   reset: () => void;
 };
 
+/** Local YYYY-MM-DD, `addDays` from today. */
+export function localDay(addDays = 0): string {
+  const dt = new Date();
+  dt.setDate(dt.getDate() + addDays);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Everything Issue Offline keeps for one OPL; cleared on mode or OPL change. */
+const ISSUE_OFFLINE_RESET = {
+  opl: null,
+  offlineBuckets: [],
+  offlineBucketsLoading: false,
+  allocatedBucket: null,
+  reason: null,
+  correctVariety: '',
+  correctStemLength: '',
+  lastOfflineOutcome: null,
+} satisfies Partial<State>;
+
 export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   mode: 'transfer',
   shelfId: null,
-  reason: '',
   loading: false,
   lastTransferOutcome: null,
-  lastOfflineOutcome: null,
+  ...ISSUE_OFFLINE_RESET,
+  opls: [],
+  oplsLoading: false,
+  oplDeliveryDate: localDay(1),
+  oplTeam: '',
+  varieties: [],
+  stemLengths: [],
 
   coldStores: [],
   coldStoresLoading: false,
@@ -78,9 +130,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     set({
       mode,
       shelfId: null,
-      reason: '',
       lastTransferOutcome: null,
-      lastOfflineOutcome: null,
+      ...ISSUE_OFFLINE_RESET,
       coldstore: null,
       stockTakeScans: [],
       stockTakePending: 0,
@@ -98,8 +149,6 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   },
 
   clearShelf: () => set({ shelfId: null, lastTransferOutcome: null }),
-
-  setReason: (reason) => set({ reason }),
 
   submitTransfer: async (rawBucket) => {
     const state = get();
@@ -129,31 +178,110 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     }
   },
 
-  submitOfflineRemoval: async (rawBucket) => {
+  loadOpls: async () => {
+    const date = get().oplDeliveryDate;
+    set({ oplsLoading: true });
+    try {
+      const opls = await karenShelfOperationsRepository.fetchOfflineIssueOpls(date);
+      // A slow answer for a date the operator has since moved off is dropped.
+      if (get().oplDeliveryDate !== date) return;
+      // Keep the team filter only while that team still has OPLs on this date.
+      const team = get().oplTeam;
+      set({ opls, oplsLoading: false, oplTeam: opls.some((o) => o.team === team) ? team : '' });
+    } catch {
+      if (get().oplDeliveryDate === date) set({ oplsLoading: false });
+    }
+  },
+
+  setOplDeliveryDate: async (oplDeliveryDate) => {
+    // The picked OPL belongs to the old date's list: start over on the new one.
+    set({ ...ISSUE_OFFLINE_RESET, oplDeliveryDate, opls: [] });
+    await get().loadOpls();
+  },
+
+  setOplTeam: (oplTeam) => {
+    const picked = get().opls.find((o) => o.oplName === get().opl);
+    // An OPL of another team drops out of the list, so it can't stay picked.
+    if (oplTeam && picked && picked.team !== oplTeam) set({ ...ISSUE_OFFLINE_RESET, oplTeam });
+    else set({ oplTeam });
+  },
+
+  selectOpl: async (opl) => {
+    set({ ...ISSUE_OFFLINE_RESET, opl, offlineBucketsLoading: true });
+    try {
+      const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl);
+      // A slow answer for an OPL the operator has since moved off is dropped.
+      if (get().opl === opl) set({ offlineBuckets, offlineBucketsLoading: false });
+    } catch {
+      if (get().opl === opl) set({ offlineBucketsLoading: false });
+    }
+  },
+
+  selectAllocatedBucket: (allocatedBucket) =>
+    set({ allocatedBucket, correctVariety: '', correctStemLength: '', lastOfflineOutcome: null }),
+
+  setReason: (reason) => {
+    set({ reason, lastOfflineOutcome: null });
+    if (reason === 'wrong_variety' && !get().varieties.length) {
+      karenShelfOperationsRepository
+        .fetchVarieties()
+        .then((varieties) => set({ varieties }))
+        .catch(() => {});
+    }
+    if (reason === 'wrong_variety' && !get().stemLengths.length) {
+      karenShelfOperationsRepository
+        .fetchStemLengths()
+        .then((stemLengths) => set({ stemLengths }))
+        .catch(() => {});
+    }
+  },
+
+  setCorrectVariety: (correctVariety) => set({ correctVariety }),
+  setCorrectStemLength: (correctStemLength) => set({ correctStemLength }),
+
+  submitIssueOffline: async (rawBucket) => {
     const state = get();
-    if (!state.reason.trim()) {
-      const out: OfflineIssuingOutcome = { kind: 'error', message: 'Enter a reason first.' };
+    const fail = (message: string): IssueOfflineOutcome => {
+      const out: IssueOfflineOutcome = { kind: 'failure', message, candidates: [] };
       set({ lastOfflineOutcome: out });
       return out;
+    };
+    if (!state.opl) return fail('Pick the OPL first.');
+    if (!state.allocatedBucket) return fail('Pick the allocated bucket first.');
+    if (!state.reason) return fail('Say why it was not issued: not found or wrong variety.');
+    if (state.reason === 'wrong_variety' && !state.correctVariety && !state.correctStemLength.trim()) {
+      return fail("Enter the allocated bucket's real variety or stem length.");
     }
-    const bucketId = karenShelfOperationsRepository.extractBucketIdFromScan(rawBucket);
-    if (!bucketId) {
-      const out: OfflineIssuingOutcome = { kind: 'error', message: 'Please scan a valid bucket QR code.' };
-      set({ lastOfflineOutcome: out });
-      return out;
-    }
+    const scannedBucket = karenShelfOperationsRepository.extractBucketIdFromScan(rawBucket);
+    if (!scannedBucket) return fail('Please scan a valid bucket QR code.');
+
     set({ loading: true });
     try {
-      const outcome = await karenShelfOperationsRepository.reportOfflineRemoval({
-        bucketId,
-        reason: state.reason.trim(),
+      const outcome = await karenShelfOperationsRepository.issueOffline({
+        oplName: state.opl,
+        allocatedBucket: state.allocatedBucket,
+        scannedBucket,
+        reason: state.reason,
+        variety: state.reason === 'wrong_variety' ? state.correctVariety : undefined,
+        stemLength: state.reason === 'wrong_variety' ? state.correctStemLength.trim() : undefined,
       });
       set({ loading: false, lastOfflineOutcome: outcome });
+      if (outcome.kind === 'success') {
+        // The bucket is done: drop it from the list and refresh the OPL's progress.
+        set({ allocatedBucket: null, reason: null, correctVariety: '', correctStemLength: '' });
+        const opl = state.opl;
+        karenShelfOperationsRepository
+          .fetchOfflineIssueBuckets(opl)
+          .then((offlineBuckets) => {
+            if (get().opl === opl) set({ offlineBuckets });
+          })
+          .catch(() => {});
+        get().loadOpls();
+      }
       return outcome;
     } catch (err) {
-      const out: OfflineIssuingOutcome = { kind: 'error', message: mapAxiosError(err).message };
-      set({ loading: false, lastOfflineOutcome: out });
-      return out;
+      set({ loading: false });
+      return fail(mapAxiosError(err).message);
     }
   },
 
@@ -265,10 +393,11 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     set({
       mode: 'transfer',
       shelfId: null,
-      reason: '',
       loading: false,
       lastTransferOutcome: null,
-      lastOfflineOutcome: null,
+      ...ISSUE_OFFLINE_RESET,
+      oplDeliveryDate: localDay(1),
+      oplTeam: '',
       coldstore: null,
       stockTakeScans: [],
       stockTakePending: 0,

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ActivityIndicator,
   AppState,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
+import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
+import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
@@ -32,12 +33,17 @@ import {
 import {
   karenBucketRequestsRepository,
   REPLACE_REASONS,
+  type CompletedTrip,
   type OplSchedule,
   type ReplaceReason,
+  type TripArrival,
+  type ShelvedTrip,
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import { isoDay, setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
+import { lineColors, type LineColor } from './line-colors';
+import { CompletedView } from './CompletedView';
 
-type Tab = 'trips' | 'requests' | 'trolley' | 'transit';
+type Tab = 'requests' | 'trolley' | 'transit' | 'shelved';
 
 const SYNC_INTERVAL_MS = 30_000;
 
@@ -49,7 +55,7 @@ type OplTripMap = Record<string, OplTripInfo>;
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const { showSuccess, showError } = useToast();
-  const [tab, setTab] = useState<Tab>('trips');
+  const [tab, setTab] = useState<Tab>('requests');
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // Orders waiting for "Load to planned truck" to be confirmed (null = sheet closed).
@@ -77,7 +83,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     reqCount,
     trolleyCount,
     inTransitCount,
-    tripsCount,
     activeTrolleyId,
     online,
     downloading,
@@ -94,13 +99,83 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     loadAllToTruck,
     findReplacement,
     replaceBucket,
+    markNotFound,
+    closeStop,
     clearAll,
     deliveryDate,
+    deliveryDates,
     setDeliveryDate,
+    completedTrips,
+    loadingCompleted,
+    loadCompletedTrips,
+    reopenStop,
+    arrivals,
+    tripArrival,
+    shelvedTrips,
+    shelvedHub,
+    loadingShelved,
+    loadShelvedBuckets,
   } = useKarenBucketRequestsStore();
 
-  // Delivery date to work on: today or tomorrow (opens on tomorrow).
-  const dateChoices = useMemo(() => [isoDay(0), isoDay(1)], []);
+  // Shelved: the selected delivery date's buckets, pulled with the screen (its tab
+  // shows the count), again when the date or tab changes, and on pull-to-refresh.
+  useEffect(() => {
+    if (online && userFarm) loadShelvedBuckets(userFarm);
+  }, [tab, deliveryDate, online, userFarm, loadShelvedBuckets]);
+  const shelvedCount = useMemo(
+    () => ({
+      done: shelvedTrips.reduce((n, t) => n + t.shelved, 0),
+      total: shelvedTrips.reduce((n, t) => n + t.total, 0),
+    }),
+    [shelvedTrips],
+  );
+
+  // In Transit: this farm's trips on the road (dispatched, not received yet), with
+  // their arrival at the hub. Pulled when the tab opens.
+  // Trucks on the road carrying an order for the delivery date on screen (Today /
+  // Tomorrow) — a truck can carry several days' orders.
+  const roadTrips = useMemo(
+    () =>
+      completedTrips.filter(
+        (t) =>
+          t.status === 'Dispatched' &&
+          (!deliveryDate || t.orders.some((o) => !o.deliveryDate || o.deliveryDate === deliveryDate)),
+      ),
+    [completedTrips, deliveryDate],
+  );
+  useEffect(() => {
+    if (tab !== 'transit' || !online || !userFarm) return;
+    let live = true;
+    loadCompletedTrips(userFarm).then(() => {
+      if (!live) return;
+      for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
+        if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status');
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [tab, online, userFarm, loadCompletedTrips, tripArrival]);
+  const onArrival = async (tripId: string, action: 'status' | 'arrive' | 'complete') => {
+    const r = await tripArrival(tripId, userFarm, action);
+    if (!r.ok) showError(r.message);
+    else if (r.message) showSuccess(r.message);
+    return r.ok;
+  };
+
+  // "Completed" (after the date chips): finished trips and picklists, every date.
+  const [completedView, setCompletedView] = useState(false);
+  // A trip the truck has left this farm on is done here until the next run: it moves
+  // from Trips to Completed.
+  const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
+
+  // Delivery date to work on: today, tomorrow (opens on tomorrow) and every other date
+  // the downloaded orders carry — else an order for another day sits on the device
+  // ("already on device") with no chip to reach it.
+  const dateChoices = useMemo(
+    () => [...new Set([isoDay(0), isoDay(1), ...deliveryDates])].sort(),
+    [deliveryDates],
+  );
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
@@ -122,6 +197,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
     return m;
   }, [plannedTrips, schedules]);
+
+  // OPL -> its packing line's colour (same palette on every tab).
+  const oplLine = useMemo(() => lineColors(schedules).byOpl, [schedules]);
 
   // OPL -> "Team A #1" (schedule slot) or just the team stamped at allocation.
   const oplTeam = useMemo(() => {
@@ -205,22 +283,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // Trip on the Remote Transfers dashboard) — no vehicle list to pick from. An order
   // with no planned trip can't be loaded until it is planned.
   const onLoad = (opls: TrolleyOpl[]) => {
-    const groups = planLoads(opls, plannedTrips);
-    const unplanned = opls.filter((o) => !groups.some((g) => g.opls.includes(o)));
-    if (unplanned.length) {
-      showError(
-        `No truck planned for ${unplanned.map((o) => o.orderName || o.oplName).join(', ')} — plan it on Remote Transfers first.`,
-      );
-      return;
-    }
-    setLoadConfirm(groups);
+    // Orders without a planned trip are offered too: the farm picks the truck that came.
+    setLoadConfirm(planLoads(opls, plannedTrips));
   };
   const onConfirmLoad = async (groups: PlannedLoad[]) => {
     setLoadConfirm(null);
     if (!groups.length) return;
     for (const g of groups) {
       // "Change truck": move the planned trip to the truck that came, then load it.
-      if (g.vehicle !== g.plannedVehicle) {
+      if (g.tripId !== UNPLANNED && g.vehicle !== g.plannedVehicle) {
         const moved = await karenBucketRequestsRepository.changeTripVehicle({ tripId: g.tripId, vehicle: g.vehicle });
         if (moved.kind !== 'ok') {
           showError(moved.message);
@@ -252,11 +323,28 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       showError(found.message);
       return;
     }
-    if (!found.candidates.length) {
-      showError('No matching bucket to replace it with.');
-      return;
-    }
+    // No match still opens the sheet: the bucket can be marked not found there.
     setReplacePick({ bucket: b, pliId, neededQty: found.neededQty, candidates: found.candidates });
+  };
+
+  const onNotFound = async () => {
+    const pick = replacePick;
+    if (!pick || replaceBusy.current) return;
+    replaceBusy.current = true;
+    setReplacePick(null);
+    setReplacingId(pick.bucket.id);
+    const r = await markNotFound(pick.bucket.bucketId, pick.pliId);
+    setReplacingId(null);
+    replaceBusy.current = false;
+    if (r.ok) showSuccess(`${pick.bucket.bucketId} marked not found — load the order with the buckets you have.`);
+    else showError(r.message);
+  };
+
+  const onCloseStop = async (t: PlannedTrip, reason?: string) => {
+    const r = await closeStop(t.tripId, userFarm, reason);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
+    return r.ok;
   };
 
   const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason) => {
@@ -298,11 +386,32 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
   };
 
+  // "Completed" is a toggle beside the date chips: the date stays selected and the
+  // Completed page follows it (Today / Tomorrow are the filters in use).
+  const openCompleted = async () => {
+    if (completedView) {
+      setCompletedView(false);
+      return;
+    }
+    setCompletedView(true);
+    if (!deliveryDate) await setDeliveryDate(isoDay(1), userFarm);
+    const r = await loadCompletedTrips(userFarm);
+    if (!r.ok && r.message) showError(r.message);
+  };
+
+  const onReopen = async (t: CompletedTrip) => {
+    const r = await reopenStop(t.tripId, userFarm);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
+      if (completedView && online) await loadCompletedTrips(userFarm);
       // On the Trips tab a pull also re-pulls the live plan (when online).
-      if ((tab === 'trips' || tab === 'requests') && online) await loadPlannedTrips(userFarm);
+      if (tab === 'requests' && online) await loadPlannedTrips(userFarm);
+      if (tab === 'shelved' && online) await loadShelvedBuckets(userFarm);
       await refresh();
     } finally {
       setRefreshing(false);
@@ -440,6 +549,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {dateChoices.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
+            {/* The farm these requests are for: the list only ever holds this station's farm. */}
+            {userFarm ? (
+              <View style={s.farmBadge}>
+                <Ionicons name="location-outline" size={14} color={COLORS.textMuted} />
+                <Text style={s.farmText} numberOfLines={1}>
+                  {userFarm}
+                </Text>
+              </View>
+            ) : null}
             {dateChoices.map((d) => (
               <Pressable
                 key={d}
@@ -451,18 +569,42 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
                 <Text style={[s.dateText, deliveryDate === d && s.dateTextOn]}>{dateLabel(d)}</Text>
               </Pressable>
             ))}
+            <Pressable
+              onPress={openCompleted}
+              style={[s.dateChip, completedView && s.dateChipOn]}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: completedView }}
+            >
+              <Text style={[s.dateText, completedView && s.dateTextOn]}>Completed</Text>
+            </Pressable>
           </ScrollView>
         ) : null}
 
+        {completedView ? (
+          <CompletedView
+            farm={userFarm}
+            deliveryDate={deliveryDate}
+            trips={completedTrips}
+            loading={loadingCompleted}
+            trolley={trolley}
+            inTransit={inTransit}
+            oplLine={oplLine}
+            onReopen={onReopen}
+          />
+        ) : (
+          <>
         <Segmented
           radius={10}
           value={tab}
           onChange={(v) => setTab(v as Tab)}
           options={[
-            { value: 'trips', label: `Trips (${tripsCount})` },
             { value: 'requests', label: `Requests (${reqCount})` },
             { value: 'trolley', label: `Trolley (${trolleyCount})` },
             { value: 'transit', label: `In Transit (${inTransitCount})` },
+            {
+              value: 'shelved',
+              label: shelvedCount.total ? `Shelved (${shelvedCount.done}/${shelvedCount.total})` : 'Shelved',
+            },
           ]}
         />
 
@@ -471,17 +613,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             groups={requests}
             schedules={schedules}
             plannedTrips={plannedTrips}
+            trips={openTrips}
             oplTrip={oplTrip}
             oplTeam={oplTeam}
+            oplLine={oplLine}
+            online={online}
             replacingId={replacingId}
             onReplace={onReplace}
-          />
-        ) : tab === 'trips' ? (
-          <TripsTab
-            trips={plannedTrips}
-            farm={userFarm}
-            online={online}
-            oplTeam={oplTeam}
+            onCloseStop={onCloseStop}
           />
         ) : tab === 'trolley' ? (
           <TrolleyTab
@@ -489,10 +628,30 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             allScanned={reqCount === 0}
             syncingOpl={syncingOpl}
             oplTeam={oplTeam}
+            oplLine={oplLine}
             onLoad={onLoad}
           />
+        ) : tab === 'shelved' ? (
+          <ShelvedTab
+            trips={shelvedTrips}
+            hub={shelvedHub}
+            loading={loadingShelved}
+            online={online}
+            day={deliveryDate ? dateLabel(deliveryDate) : ''}
+          />
         ) : (
-          <InTransitTab items={inTransit} oplTeam={oplTeam} />
+          <InTransitTab
+            items={inTransit}
+            oplTeam={oplTeam}
+            oplLine={oplLine}
+            trips={roadTrips}
+            arrivals={arrivals}
+            deliveryDate={deliveryDate}
+            online={online}
+            onArrival={onArrival}
+          />
+        )}
+          </>
         )}
       </ScrollView>
 
@@ -507,6 +666,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         pick={replacePick}
         onClose={() => setReplacePick(null)}
         onPick={onConfirmReplace}
+        onNotFound={onNotFound}
       />
       <ClearDataModal
         visible={clearOpen}
@@ -522,13 +682,25 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 /** One truck's share of a load: the orders planned on that truck's trip. */
 type PlannedLoad = { vehicle: string; plannedVehicle: string; tripId: string; status: string; opls: TrolleyOpl[] };
 
+/** Orders on no planned trip load onto the truck the farm picks; the server puts them
+ *  on that truck's run visiting the farm (or an unscheduled trip). */
+const UNPLANNED = 'unplanned';
+
 /** Group the orders being loaded by the truck their planned trip uses. An order on
- *  several trips takes the earliest one still open (the list comes date-sorted). */
+ *  several trips takes the run the truck is loading now, else the earliest one still
+ *  open (the list comes date- and run-sorted); a trip whose stop here is closed is done. */
 function planLoads(opls: TrolleyOpl[], trips: PlannedTrip[]): PlannedLoad[] {
   const byTrip = new Map<string, PlannedLoad>();
+  const open = trips.filter((tr) => tr.vehicle && !tr.yourStopClosed);
   for (const o of opls) {
-    const t = trips.find((tr) => tr.vehicle && (tr.orders ?? []).some((x) => x.opl === o.oplName));
-    if (!t) continue;
+    const has = (tr: PlannedTrip) => (tr.orders ?? []).some((x) => x.opl === o.oplName);
+    const t = open.find((tr) => tr.current && has(tr)) ?? open.find(has);
+    if (!t) {
+      const g = byTrip.get(UNPLANNED) ?? { vehicle: '', plannedVehicle: '', tripId: UNPLANNED, status: '', opls: [] };
+      g.opls.push(o);
+      byTrip.set(UNPLANNED, g);
+      continue;
+    }
     const g = byTrip.get(t.tripId) ?? {
       vehicle: t.vehicle,
       plannedVehicle: t.vehicle,
@@ -565,7 +737,8 @@ function LoadConfirm({
   const [query, setQuery] = useState('');
   useEffect(() => {
     setDraft(loads ?? []);
-    setChanging(null);
+    // No planned trip: open the truck list straight away.
+    setChanging((loads ?? []).some((g) => g.tripId === UNPLANNED && !g.vehicle) ? UNPLANNED : null);
     setQuery('');
   }, [loads]);
 
@@ -586,96 +759,103 @@ function LoadConfirm({
   const trucks = draft.map((g) => plate(g.vehicle));
 
   return (
-    <Modal visible={!!loads} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.sheetBackdrop} onPress={onClose} />
-      <View style={s.sheet}>
-        <View style={s.sheetHandle} />
-        <Text style={s.sheetTitle}>Load to planned truck</Text>
-        <Text style={s.sheetSub} numberOfLines={1}>
-          {total} bucket{total === 1 ? '' : 's'} · {draft.reduce((n, g) => n + g.opls.length, 0)} order
-          {draft.reduce((n, g) => n + g.opls.length, 0) === 1 ? '' : 's'}
-        </Text>
-        {!online ? (
-          <Text style={s.sheetOffline}>You’re offline — connect to load to the truck.</Text>
-        ) : null}
-        <ScrollView style={s.sheetList} contentContainerStyle={{ paddingBottom: spacing.sm }} keyboardShouldPersistTaps="handled">
-          {draft.map((g) => (
-            <View key={g.tripId} style={s.loadGroup}>
-              <View style={s.truckRow}>
-                <Ionicons name="car-outline" size={18} color={COLORS.text} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.truckName}>{plate(g.vehicle)}</Text>
-                  <Text style={s.sheetHintText} numberOfLines={1}>
-                    {g.tripId}
-                    {g.vehicle !== g.plannedVehicle ? ` · planned ${plate(g.plannedVehicle)}` : ''}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => {
-                    setChanging(changing === g.tripId ? null : g.tripId);
-                    setQuery('');
-                  }}
-                  hitSlop={8}
-                >
-                  <Text style={s.loadChange}>{changing === g.tripId ? 'Cancel' : 'Change truck'}</Text>
-                </Pressable>
-              </View>
-              {changing === g.tripId ? (
-                <View>
-                  <TextInput
-                    value={query}
-                    onChangeText={setQuery}
-                    placeholder="Search truck / plate"
-                    placeholderTextColor={COLORS.textMuted}
-                    autoCorrect={false}
-                    autoCapitalize="characters"
-                    style={s.sheetSearch}
-                  />
-                  {choices.map((v) => (
-                    <Pressable key={v.name} style={s.truckRow} onPress={() => pick(v.name)}>
-                      <Ionicons
-                        name={v.name === g.vehicle ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={COLORS.text}
-                      />
-                      <Text style={s.truckName}>{v.licensePlate || v.name}</Text>
-                    </Pressable>
-                  ))}
-                  {choices.length === 0 ? (
-                    <Text style={s.emptyHint}>{vehicles.length ? `No truck matches “${query}”.` : 'No trucks downloaded.'}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-              {g.opls.map((o) => (
-                <View key={o.oplName} style={s.loadOrder}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.loadOrderName} numberOfLines={1}>
-                      {o.orderName || o.oplName}
-                    </Text>
-                    <Text style={s.sheetHintText} numberOfLines={1}>
-                      {[o.oplName, o.customer].filter(Boolean).join(' · ')}
-                    </Text>
-                  </View>
-                  <Text style={s.loadOrderCount}>
-                    {bucketCount(o)} bkt
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ))}
-        </ScrollView>
-        <View style={s.repActions}>
+    <Dialog
+      visible={!!loads}
+      onClose={onClose}
+      title="Load to planned truck"
+      align="left"
+      closeButton
+      subtitle={
+        <View style={s.dialogSubBlock}>
+          <Text style={s.sheetSub} numberOfLines={1}>
+            {total} bucket{total === 1 ? '' : 's'} · {draft.reduce((n, g) => n + g.opls.length, 0)} order
+            {draft.reduce((n, g) => n + g.opls.length, 0) === 1 ? '' : 's'}
+          </Text>
+          {!online ? (
+            <Text style={s.sheetOffline}>You’re offline — connect to load to the truck.</Text>
+          ) : null}
+        </View>
+      }
+      actions={
+        <>
           <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
           <Button
             label={trucks.length === 1 ? `Load ${total} to ${trucks[0]}` : `Load ${total}`}
             iconLeft="car-outline"
             onPress={() => onConfirm(draft)}
-            disabled={!online || !!changing || !draft.length}
+            disabled={!online || !!changing || !draft.length || draft.some((g) => !g.vehicle)}
             style={{ flex: 2 }}
           />
+        </>
+      }
+    >
+      {draft.map((g) => (
+        <View key={g.tripId} style={s.loadGroup}>
+          <View style={s.truckRow}>
+            <Ionicons name="car-outline" size={18} color={COLORS.text} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.truckName}>{g.vehicle ? plate(g.vehicle) : 'Pick the truck'}</Text>
+              <Text style={s.sheetHintText} numberOfLines={1}>
+                {g.tripId === UNPLANNED ? 'No trip planned' : g.tripId}
+                {g.tripId !== UNPLANNED && g.vehicle !== g.plannedVehicle ? ` · planned ${plate(g.plannedVehicle)}` : ''}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                setChanging(changing === g.tripId ? null : g.tripId);
+                setQuery('');
+              }}
+              hitSlop={8}
+            >
+              <Text style={s.loadChange}>
+                {changing === g.tripId ? 'Cancel' : g.vehicle ? 'Change truck' : 'Pick truck'}
+              </Text>
+            </Pressable>
+          </View>
+          {changing === g.tripId ? (
+            <View>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search truck / plate"
+                placeholderTextColor={COLORS.textMuted}
+                autoCorrect={false}
+                autoCapitalize="characters"
+                style={s.sheetSearch}
+              />
+              {choices.map((v) => (
+                <Pressable key={v.name} style={s.truckRow} onPress={() => pick(v.name)}>
+                  <Ionicons
+                    name={v.name === g.vehicle ? 'radio-button-on' : 'radio-button-off'}
+                    size={18}
+                    color={COLORS.text}
+                  />
+                  <Text style={s.truckName}>{v.licensePlate || v.name}</Text>
+                </Pressable>
+              ))}
+              {choices.length === 0 ? (
+                <Text style={s.emptyHint}>{vehicles.length ? `No truck matches “${query}”.` : 'No trucks downloaded.'}</Text>
+              ) : null}
+            </View>
+          ) : null}
+          {g.opls.map((o) => (
+            <View key={o.oplName} style={s.loadOrder}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.loadOrderName} numberOfLines={1}>
+                  {o.orderName || o.oplName}
+                </Text>
+                <Text style={s.sheetHintText} numberOfLines={1}>
+                  {[o.oplName, o.customer].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <Text style={s.loadOrderCount}>
+                {bucketCount(o)} bkt
+              </Text>
+            </View>
+          ))}
         </View>
-      </View>
-    </Modal>
+      ))}
+    </Dialog>
   );
 }
 
@@ -686,6 +866,7 @@ function ReplacePicker({
   pick,
   onClose,
   onPick,
+  onNotFound,
 }: {
   pick: {
     bucket: ReqBucket;
@@ -694,6 +875,8 @@ function ReplacePicker({
   } | null;
   onClose: () => void;
   onPick: (c: ReplacementCandidate, reason: ReplaceReason) => void;
+  /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
+  onNotFound: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
@@ -711,96 +894,119 @@ function ReplacePicker({
   const needed = pick?.neededQty ?? b?.qty ?? null;
 
   return (
-    <Modal visible={!!pick} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.sheetBackdrop} onPress={onClose} />
-      <View style={s.sheet}>
-        <View style={s.sheetHandle} />
-        <Text style={s.sheetTitle}>Replace {b?.bucketId}</Text>
-        <Text style={s.sheetSub} numberOfLines={2}>
-          {[
-            b ? bucketMeta(b.variety, b.stemLength) : '',
-            needed != null ? `${Math.round(needed)} ${b?.uom || 'stems'} needed` : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-        <View style={s.reasonRow}>
-          {REPLACE_REASONS.map((r) => (
-            <Pressable
-              key={r}
-              onPress={() => setReason(r)}
-              style={[s.reasonChip, reason === r && s.reasonChipOn]}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: reason === r }}
-            >
-              <Text style={[s.reasonText, reason === r && s.reasonTextOn]}>{r}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={s.repCount}>
-          {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
-        </Text>
-
-        <ScrollView style={s.sheetList} contentContainerStyle={{ paddingBottom: spacing.sm }}>
-          {candidates.map((c, i) => {
-            const on = c.bucketId === selected;
-            return (
+    <Dialog
+      visible={!!pick}
+      onClose={onClose}
+      title={`Replace ${b?.bucketId ?? ''}`}
+      align="left"
+      closeButton
+      subtitle={
+        <View style={s.dialogSubBlock}>
+          <Text style={s.sheetSub} numberOfLines={2}>
+            {[
+              b ? bucketMeta(b.variety, b.stemLength) : '',
+              needed != null ? `${Math.round(needed)} ${b?.uom || 'stems'} needed` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+          <View style={s.reasonRow}>
+            {REPLACE_REASONS.map((r) => (
               <Pressable
-                key={`${c.bucketId}-${i}`}
-                onPress={() => setSelected(c.bucketId)}
-                style={[s.repRow, on && s.repRowOn]}
+                key={r}
+                onPress={() => setReason(r)}
+                style={[s.reasonChip, reason === r && s.reasonChipOn]}
                 accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
+                accessibilityState={{ selected: reason === r }}
               >
-                <Ionicons
-                  name={on ? 'radio-button-on' : 'radio-button-off'}
-                  size={20}
-                  color={on ? COLORS.text : COLORS.textMuted}
-                />
-                <View style={{ flex: 1 }}>
-                  <View style={s.repTop}>
-                    <Text style={s.repId}>{c.bucketId}</Text>
-                    {i === 0 ? (
-                      <View style={s.repBest}>
-                        <Text style={s.repBestText}>Best match</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={s.repMeta} numberOfLines={1}>
-                    {[
-                      c.stemLength ? (/^\d+(\.\d+)?$/.test(c.stemLength) ? `${c.stemLength}cm` : c.stemLength) : '',
-                      c.availableQty != null ? `${Math.round(c.availableQty)} stems` : '',
-                      c.harvestDate ? `Harvested ${c.harvestDate}` : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                  {c.shelf ? (
-                    <View style={s.repShelf}>
-                      <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
-                      <Text style={s.repShelfText} numberOfLines={1}>
-                        {c.shelf}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Text style={[s.reasonText, reason === r && s.reasonTextOn]}>{r}</Text>
               </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <View style={s.repActions}>
-          <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
-          <Button
-            label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
-            iconLeft="swap-horizontal"
-            onPress={() => chosen && onPick(chosen, reason)}
-            disabled={!chosen}
-            style={{ flex: 2 }}
-          />
+            ))}
+          </View>
+          <Text style={s.repCount}>
+            {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
+          </Text>
         </View>
-      </View>
-    </Modal>
+      }
+      actions={
+        <View style={s.dialogActionsCol}>
+          {!candidates.length ? (
+            <Text style={s.repNone}>
+              No bucket matches {b?.bucketId}. If it isn’t in the cold room, mark it not found — the order
+              then loads with the buckets you have.
+            </Text>
+          ) : null}
+          {candidates.length ? (
+            <View style={s.repActions}>
+              <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
+              <Button
+                label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
+                iconLeft="swap-horizontal"
+                onPress={() => chosen && onPick(chosen, reason)}
+                disabled={!chosen}
+                style={{ flex: 2 }}
+              />
+            </View>
+          ) : null}
+          <View style={s.repActions}>
+            {!candidates.length ? <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} /> : null}
+            <Button
+              label="Not found — no replacement"
+              iconLeft="close-circle-outline"
+              variant={candidates.length ? 'outline' : undefined}
+              onPress={onNotFound}
+              style={{ flex: 2 }}
+            />
+          </View>
+        </View>
+      }
+    >
+      {candidates.map((c, i) => {
+        const on = c.bucketId === selected;
+        return (
+          <Pressable
+            key={`${c.bucketId}-${i}`}
+            onPress={() => setSelected(c.bucketId)}
+            style={[s.repRow, on && s.repRowOn]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+          >
+            <Ionicons
+              name={on ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={on ? COLORS.text : COLORS.textMuted}
+            />
+            <View style={{ flex: 1 }}>
+              <View style={s.repTop}>
+                <Text style={s.repId}>{c.bucketId}</Text>
+                {i === 0 ? (
+                  <View style={s.repBest}>
+                    <Text style={s.repBestText}>Best match</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={s.repMeta} numberOfLines={1}>
+                {[
+                  c.stemLength ? (/^\d+(\.\d+)?$/.test(c.stemLength) ? `${c.stemLength}cm` : c.stemLength) : '',
+                  c.availableQty != null ? `${Math.round(c.availableQty)} stems` : '',
+                  c.harvestDate ? `Harvested ${c.harvestDate}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              {c.shelf ? (
+                <View style={s.repShelf}>
+                  <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
+                  <Text style={s.repShelfText} numberOfLines={1}>
+                    {c.shelf}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </Pressable>
+        );
+      })}
+    </Dialog>
   );
 }
 
@@ -824,64 +1030,73 @@ function ClearDataModal({
     { icon: 'car-outline', label: 'In transit', count: counts.transit },
   ];
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={s.dialogWrap}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
-        <View style={s.dialog}>
-          <View style={s.dialogIcon}>
-            <Ionicons name="trash-outline" size={26} color={COLORS.danger} />
+    <Dialog
+      visible={visible}
+      onClose={onCancel}
+      busy={busy}
+      icon={{ name: 'trash-outline', tone: 'danger' }}
+      title="Clear downloaded data?"
+      subtitle="This removes everything below from this device. Scheduled picklists download again automatically; unsynced scans are lost."
+      actions={
+        <>
+          <Button label="Cancel" variant="outline" onPress={onCancel} disabled={busy} style={{ flex: 1 }} />
+          <Button
+            label="Clear"
+            color={COLORS.danger}
+            iconLeft="trash-outline"
+            onPress={onConfirm}
+            loading={busy}
+            style={{ flex: 1 }}
+          />
+        </>
+      }
+    >
+      <View style={s.dialogList}>
+        {items.map((it) => (
+          <View key={it.label} style={s.dialogRow}>
+            <Ionicons name={it.icon} size={16} color={COLORS.textMuted} />
+            <Text style={s.dialogRowLabel}>{it.label}</Text>
+            <Text style={s.dialogRowCount}>{it.count}</Text>
           </View>
-          <Text style={s.dialogTitle}>Clear downloaded data?</Text>
-          <Text style={s.dialogBody}>
-            This removes everything below from this device. Scheduled picklists download again
-            automatically; unsynced scans are lost.
-          </Text>
-          <View style={s.dialogList}>
-            {items.map((it) => (
-              <View key={it.label} style={s.dialogRow}>
-                <Ionicons name={it.icon} size={16} color={COLORS.textMuted} />
-                <Text style={s.dialogRowLabel}>{it.label}</Text>
-                <Text style={s.dialogRowCount}>{it.count}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={s.dialogActions}>
-            <Button label="Cancel" variant="outline" onPress={onCancel} disabled={busy} style={{ flex: 1 }} />
-            <Button
-              label="Clear"
-              color={COLORS.danger}
-              iconLeft="trash-outline"
-              onPress={onConfirm}
-              loading={busy}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </View>
+        ))}
       </View>
-    </Modal>
+    </Dialog>
   );
 }
 
+/** Picklists to scan, under the planned trip that collects them (trip header with the
+ *  truck, this farm's stop and "Truck leaving"), then the orders not on a trip yet —
+ *  one list, so trips and requests are not two places to look. */
 function RequestsTab({
   groups,
   schedules,
   plannedTrips,
+  trips,
   oplTrip,
   oplTeam,
+  oplLine,
+  online,
   replacingId,
   onReplace,
+  onCloseStop,
 }: {
   groups: OrderGroup[];
   schedules: OplSchedule[];
   plannedTrips: PlannedTrip[];
+  /** Open trips for this farm (stop not closed yet). */
+  trips: PlannedTrip[];
   oplTrip: OplTripMap;
   oplTeam: Record<string, string>;
+  oplLine: Record<string, LineColor>;
+  online: boolean;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
+  onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState('');
+  const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
-  if (!groups.length) {
+  if (!groups.length && !trips.length) {
     return (
       <Card>
         <View style={s.empty}>
@@ -929,7 +1144,47 @@ function RequestsTab({
     const [tb, sb] = rankOf(b);
     return ta === tb ? sa - sb : ta < tb ? -1 : 1;
   });
-  const firstUnschedIdx = sorted.findIndex((g) => !isScheduled(g));
+  // Trips as steps in the order they collect: by day, the run the truck is loading
+  // now first, then its later runs.
+  const steps = [...trips].sort(
+    (a, b) =>
+      (a.tripDate || '').localeCompare(b.tripDate || '') ||
+      Number(b.current) - Number(a.current) ||
+      (a.run || 0) - (b.run || 0) ||
+      (a.vehicle || '').localeCompare(b.vehicle || ''),
+  );
+  // Each open trip with its orders' picklists still to scan; an order split over two
+  // trips shows its picklists under each. What is left goes below the trips.
+  const tripOf = new Map<string, string>();
+  for (const t of steps) for (const o of t.orders ?? []) if (o.opl && !tripOf.has(o.opl)) tripOf.set(o.opl, t.tripId);
+  const onTrip = (tripId: string) =>
+    sorted
+      .map((g) => ({ ...g, opls: g.opls.filter((o) => tripOf.get(o.oplName) === tripId) }))
+      .filter((g) => g.opls.length);
+  const rest = sorted
+    .map((g) => ({ ...g, opls: g.opls.filter((o) => !tripOf.has(o.oplName)) }))
+    .filter((g) => g.opls.length);
+  const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
+  const renderGroup = (g: OrderGroup, dim: boolean) => {
+    const customer = g.opls.find((o) => o.customer)?.customer;
+    return (
+      <View key={g.orderName}>
+        <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]}>{g.orderName}</Text>
+        {customer ? <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>{customer}</Text> : null}
+        {g.opls.map((o) => (
+          <OplCard
+            key={o.oplName}
+            opl={o}
+            trip={oplTrip[o.oplName]}
+            team={oplTeam[o.oplName]}
+            line={lineColor.byOpl[o.oplName]}
+            replacingId={replacingId}
+            onReplace={onReplace}
+          />
+        ))}
+      </View>
+    );
+  };
 
   return (
     <>
@@ -951,7 +1206,20 @@ function RequestsTab({
         ) : null}
       </View>
 
-      {sorted.length === 0 ? (
+      {lineColor.lines.length > 1 ? (
+        <View style={s.lineLegend}>
+          {lineColor.lines.map((l) => (
+            <View key={l.team} style={s.lineLegendItem}>
+              <View style={[s.lineDot, { backgroundColor: l.color }]} />
+              <Text style={s.lineLegendText} numberOfLines={1}>
+                {l.team}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {q && sorted.length === 0 ? (
         <Card>
           <View style={s.empty}>
             <Text style={s.emptyHint}>No orders match “{query}”.</Text>
@@ -959,31 +1227,55 @@ function RequestsTab({
         </Card>
       ) : null}
 
-      {sorted.map((g, idx) => {
-        const customer = g.opls.find((o) => o.customer)?.customer;
-        const scheduled = isScheduled(g);
+      {steps.map((t, i) => {
+        const tripGroups = onTrip(t.tripId);
+        // Searching hides trips with nothing matching.
+        if (q && !tripGroups.length) return null;
+        const last = i === steps.length - 1;
         return (
-          <View key={g.orderName}>
-            {firstUnschedIdx > 0 && idx === firstUnschedIdx ? (
-              <Text style={s.sectionHdr}>Not on a trip yet</Text>
-            ) : null}
-            <Text style={[s.groupHdr, !scheduled ? s.groupHdrDim : null]}>{g.orderName}</Text>
-            {customer ? (
-              <Text style={[s.groupCustomer, !scheduled ? s.groupHdrDim : null]}>{customer}</Text>
-            ) : null}
-            {g.opls.map((o) => (
-              <OplCard
-                key={o.oplName}
-                opl={o}
-                trip={oplTrip[o.oplName]}
-                team={oplTeam[o.oplName]}
-                replacingId={replacingId}
-                onReplace={onReplace}
-              />
-            ))}
+          <View key={t.tripId} style={s.step}>
+            {/* Step rail: number, then a line down to the next trip. */}
+            <View style={s.stepRail}>
+              <View style={[s.stepDot, t.current ? s.stepDotCurrent : null]}>
+                <Text style={[s.stepNum, t.current ? s.stepNumCurrent : null]}>{i + 1}</Text>
+              </View>
+              {!last ? <View style={s.stepLine} /> : null}
+            </View>
+            <View style={[s.stepBody, !t.current ? s.stepBodyLater : null]}>
+              <View style={s.stepHead}>
+                <Text style={[s.stepLabel, t.current ? s.stepLabelCurrent : null]}>
+                  {t.current ? 'Current trip' : 'Next trip'}
+                </Text>
+                <Text style={s.stepMeta} numberOfLines={1}>
+                  {[
+                    t.vehicle,
+                    t.run ? `run ${t.run}${t.runs > 1 ? ` of ${t.runs}` : ''}` : '',
+                    `${t.farmBuckets} bkt`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </View>
+              <TripCard trip={t} oplTeam={oplTeam} oplLine={oplLine} online={online} onCloseStop={onCloseStop} compact />
+              {tripGroups.length ? (
+                tripGroups.map((g) => renderGroup(g, false))
+              ) : (
+                <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
+              )}
+            </View>
           </View>
         );
       })}
+
+      {rest.length && trips.length ? (
+        <Text style={s.sectionHdr}>{firstUnschedIdx === 0 ? 'Not on a trip yet' : 'Scheduled — not on a trip yet'}</Text>
+      ) : null}
+      {rest.map((g, idx) => (
+        <View key={g.orderName}>
+          {firstUnschedIdx > 0 && idx === firstUnschedIdx ? <Text style={s.sectionHdr}>Not on a trip yet</Text> : null}
+          {renderGroup(g, !isScheduled(g))}
+        </View>
+      ))}
     </>
   );
 }
@@ -1014,12 +1306,15 @@ function OplCard({
   opl,
   trip,
   team,
+  line,
   replacingId,
   onReplace,
 }: {
   opl: ReqOpl;
   trip?: OplTripInfo;
   team?: string;
+  /** The packing line's colour: a thin stripe down the card and a dot on its tag. */
+  line?: LineColor;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
 }) {
@@ -1031,6 +1326,7 @@ function OplCard({
       <View style={s.oplTagRow}>
         {trip ? (
           <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
+            {line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null}
             <Ionicons
               name={trip.onTrip ? 'car' : 'calendar-outline'}
               size={12}
@@ -1046,7 +1342,7 @@ function OplCard({
             <Text style={s.oplTagUnschedText}>Unscheduled</Text>
           </View>
         )}
-        {!trip || trip.onTrip ? <TeamChip team={team} /> : null}
+        {!trip || trip.onTrip ? <TeamChip team={team} color={trip ? undefined : line?.color} /> : null}
       </View>
       <View style={s.oplHead}>
         <View style={{ flex: 1 }}>
@@ -1064,12 +1360,15 @@ function OplCard({
       {opl.buckets.map((b) => (
         <View key={b.id} style={s.bRow}>
           <Ionicons
-            name={b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
+            name={b.notFound ? 'close-circle' : b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
             size={18}
-            color={b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
+            color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
           />
           <View style={{ flex: 1 }}>
-            <Text style={s.bId}>{b.bucketId}</Text>
+            <Text style={s.bId}>
+              {b.bucketId}
+              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
+            </Text>
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
@@ -1108,10 +1407,11 @@ function OplCard({
   );
 }
 
-function TeamChip({ team }: { team?: string }) {
+function TeamChip({ team, color }: { team?: string; color?: string }) {
   if (!team) return null;
   return (
     <View style={[s.oplTag, s.oplTagPlanned]}>
+      {color ? <View style={[s.lineDot, { backgroundColor: color }]} /> : null}
       <Ionicons name="people-outline" size={12} color={COLORS.text} />
       <Text style={s.oplTagText} numberOfLines={1}>
         {team}
@@ -1120,12 +1420,22 @@ function TeamChip({ team }: { team?: string }) {
   );
 }
 
-function CompletedCard({ o, team, footer }: { o: TrolleyOpl; team?: string; footer: ReactNode }) {
+function CompletedCard({
+  o,
+  team,
+  line,
+  footer,
+}: {
+  o: TrolleyOpl;
+  team?: string;
+  line?: LineColor;
+  footer: ReactNode;
+}) {
   return (
     <Card>
       {team ? (
         <View style={s.oplTagRow}>
-          <TeamChip team={team} />
+          <TeamChip team={team} color={line?.color} />
         </View>
       ) : null}
       <View style={s.oplHead}>
@@ -1168,6 +1478,7 @@ function TrolleyTab({
   allScanned,
   syncingOpl,
   oplTeam,
+  oplLine,
   onLoad,
 }: {
   items: TrolleyOpl[];
@@ -1175,6 +1486,7 @@ function TrolleyTab({
   allScanned: boolean;
   syncingOpl: string | null;
   oplTeam: Record<string, string>;
+  oplLine: Record<string, LineColor>;
   onLoad: (opls: TrolleyOpl[]) => void;
 }) {
   if (!items.length) {
@@ -1209,6 +1521,7 @@ function TrolleyTab({
           key={o.oplName}
           o={o}
           team={oplTeam[o.oplName]}
+          line={oplLine[o.oplName]}
           footer={
             o.loadedToTruck ? (
               <View style={s.loadedInline}>
@@ -1236,8 +1549,37 @@ function TrolleyTab({
   );
 }
 
-function InTransitTab({ items, oplTeam }: { items: TrolleyOpl[]; oplTeam: Record<string, string> }) {
-  if (!items.length) {
+function InTransitTab({
+  items,
+  oplTeam,
+  oplLine,
+  trips,
+  arrivals,
+  deliveryDate,
+  online,
+  onArrival,
+}: {
+  items: TrolleyOpl[];
+  oplTeam: Record<string, string>;
+  oplLine: Record<string, LineColor>;
+  /** This farm's trips on the road (dispatched, not received). */
+  trips: CompletedTrip[];
+  arrivals: Record<string, TripArrival>;
+  deliveryDate: string;
+  online: boolean;
+  onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
+}) {
+  const tripCards = trips.map((t) => (
+    <TripArrivalCard
+      key={t.tripId}
+      trip={t}
+      arrival={arrivals[t.tripId]}
+      deliveryDate={deliveryDate}
+      online={online}
+      onArrival={onArrival}
+    />
+  ));
+  if (!items.length && !trips.length) {
     return (
       <Card>
         <View style={s.empty}>
@@ -1249,11 +1591,13 @@ function InTransitTab({ items, oplTeam }: { items: TrolleyOpl[]; oplTeam: Record
   }
   return (
     <>
+      {tripCards}
       {items.map((o) => (
         <CompletedCard
           key={o.oplName}
           o={o}
           team={oplTeam[o.oplName]}
+          line={oplLine[o.oplName]}
           footer={
             <View style={s.loadedInline}>
               <Ionicons name={o.arrived ? 'checkmark-done' : 'car'} size={16} color={COLORS.text} />
@@ -1266,36 +1610,291 @@ function InTransitTab({ items, oplTeam }: { items: TrolleyOpl[]; oplTeam: Record
   );
 }
 
-/** Upcoming planned trips coming to collect from this farm — so the attendant
- *  can pre-stage trolleys before the truck arrives. */
-function TripsTab({
+/** After transit: did this farm's dispatched buckets get shelved at the hub? One card
+ *  per recent trip, buckets still waiting first, then shelved ones with shelf and time. */
+function ShelvedTab({
   trips,
-  farm,
+  hub,
+  loading,
   online,
-  oplTeam,
+  day,
 }: {
-  trips: PlannedTrip[];
-  farm: string;
+  trips: ShelvedTrip[];
+  hub: string;
+  loading: boolean;
   online: boolean;
-  oplTeam: Record<string, string>;
+  /** Selected delivery date ("Tomorrow", "Today", "Fri 3 Oct"); '' = every date. */
+  day: string;
 }) {
+  const [onlyWaiting, setOnlyWaiting] = useState(false);
+  const where = hub || 'the packhouse';
+  const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
+
+  if (!trips.length) {
+    return (
+      <Card>
+        <View style={s.empty}>
+          <Ionicons name="file-tray-full-outline" size={26} color={COLORS.textMuted} />
+          <Text style={s.emptyTitle}>
+            {loading
+              ? 'Loading…'
+              : !online
+                ? 'Connect to see shelved buckets'
+                : day
+                  ? `No buckets dispatched for ${day.toLowerCase() === 'today' || day.toLowerCase() === 'tomorrow' ? day.toLowerCase() : day}'s orders yet`
+                  : 'No dispatched buckets yet'}
+          </Text>
+        </View>
+      </Card>
+    );
+  }
+
+  const total = trips.reduce((n, t) => n + t.total, 0);
+  const shelved = trips.reduce((n, t) => n + t.shelved, 0);
   return (
     <>
+      <Card>
+        <View style={s.arrivalRow}>
+          <Text style={s.routeLabel}>
+            Shelved at {where}
+            {day ? ` · ${day}` : ''}
+          </Text>
+          <Text style={s.arrivalCount}>
+            {shelved} / {total}
+          </Text>
+        </View>
+        <ProgressBar value={total ? shelved / total : 0} />
+        <View style={s.reasonRow}>
+          {[
+            { on: !onlyWaiting, label: 'All', press: () => setOnlyWaiting(false) },
+            { on: onlyWaiting, label: `Not shelved (${total - shelved})`, press: () => setOnlyWaiting(true) },
+          ].map((c) => (
+            <Pressable key={c.label} onPress={c.press} style={[s.reasonChip, c.on && s.reasonChipOn]}>
+              <Text style={[s.reasonText, c.on && s.reasonTextOn]}>{c.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Card>
 
-      {!trips.length ? (
-        <Card>
-          <View style={s.empty}>
-            <Ionicons name="bus-outline" size={26} color={COLORS.textMuted} />
-            <Text style={s.emptyTitle}>No planned trips</Text>
-          </View>
-        </Card>
-      ) : (
-        trips.map((t) => <TripCard key={t.tripId} trip={t} oplTeam={oplTeam} />)
-      )}
+      {trips.map((t) => {
+        const rows = onlyWaiting ? t.buckets.filter((b) => !b.shelved) : t.buckets;
+        if (!rows.length) return null;
+        const done = t.shelved === t.total;
+        return (
+          <Card key={t.tripId}>
+            <View style={s.tripHead}>
+              <View style={s.tripTruck}>
+                <Ionicons name="car" size={16} color={COLORS.text} />
+                <Text style={s.tripTruckText} numberOfLines={1}>
+                  {t.vehicle || 'Truck'}
+                </Text>
+              </View>
+              <View style={[s.tripPill, done ? s.tripPillConfirmed : s.tripPillDraft]}>
+                <Text style={[s.tripPillText, done ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
+                  {done ? 'All shelved' : `${t.shelved}/${t.total} shelved`}
+                </Text>
+              </View>
+            </View>
+            <Text style={s.tripMeta} numberOfLines={1}>
+              {[
+                t.tripId,
+                t.dispatchedAt ? `left ${time(t.dispatchedAt)}` : '',
+                t.arrivedAt ? `arrived ${time(t.arrivedAt)}` : '',
+                t.status === 'Received' ? 'received' : '',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+            <View style={s.divider} />
+            {rows.map((b) => (
+              <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
+                <Ionicons
+                  name={b.shelved ? 'checkmark-circle' : 'time-outline'}
+                  size={18}
+                  color={b.shelved ? COLORS.text : COLORS.warn}
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={s.bId} numberOfLines={1}>
+                    {b.bucketId}
+                  </Text>
+                  <Text style={s.bMeta} numberOfLines={1}>
+                    {b.orderName}
+                  </Text>
+                </View>
+                <View style={s.shelvedWhere}>
+                  <Text style={[s.shelvedState, !b.shelved && s.shelvedStateWaiting]} numberOfLines={1}>
+                    {b.shelved ? b.shelf || 'Shelved' : 'Not shelved'}
+                  </Text>
+                  {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{time(b.shelvedAt)}</Text> : null}
+                </View>
+              </View>
+            ))}
+          </Card>
+        );
+      })}
     </>
   );
 }
 
+/** A trip on the road to the hub: confirm the truck arrived, watch its buckets get
+ *  shelved there, then complete the trip — only once every bucket is shelved. */
+function TripArrivalCard({
+  trip,
+  arrival,
+  deliveryDate,
+  online,
+  onArrival,
+}: {
+  trip: CompletedTrip;
+  arrival?: TripArrival;
+  /** Delivery date on screen ('' = every date): only its buckets are counted / listed. */
+  deliveryDate: string;
+  online: boolean;
+  onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
+}) {
+  const [ask, setAsk] = useState<'arrive' | 'complete' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const hub = arrival?.hub || 'the packhouse';
+  const arrived = !!arrival?.arrivedAt;
+  // The buckets for the delivery date on screen; Complete still needs the whole trip
+  // shelved (the server checks every bucket on the truck).
+  const forDay = (arrival?.buckets ?? []).filter((b) => !deliveryDate || !b.deliveryDate || b.deliveryDate === deliveryDate);
+  const dated = !!deliveryDate && !!arrival?.buckets?.length;
+  const total = dated ? forDay.length : (arrival?.total ?? 0);
+  const shelved = dated ? forDay.filter((b) => b.shelved).length : (arrival?.shelved ?? 0);
+  const waiting = dated ? forDay.filter((b) => !b.shelved && !b.offTruck).map((b) => b.bucket) : (arrival?.waiting ?? []);
+  const otherWaiting = Math.max(0, (arrival?.waiting.length ?? 0) - waiting.length);
+  const allShelved = !!arrival && (arrival.total ?? 0) > 0 && arrival.waiting.length === 0 && (arrival.shelved ?? 0) > 0;
+  const time = (iso: string) => (iso ? iso.slice(11, 16) : '');
+
+  const run = async (action: 'status' | 'arrive' | 'complete') => {
+    setBusy(true);
+    const ok = await onArrival(trip.tripId, action);
+    setBusy(false);
+    if (ok || action !== 'status') setAsk(null);
+  };
+
+  return (
+    <Card>
+      <View style={s.tripHead}>
+        <View style={s.tripTruck}>
+          <Ionicons name="car" size={16} color={COLORS.text} />
+          <Text style={s.tripTruckText} numberOfLines={1}>
+            {trip.vehicle || 'Truck'}
+          </Text>
+        </View>
+        <View style={[s.tripPill, arrived ? s.tripPillConfirmed : s.tripPillDraft]}>
+          <Text style={[s.tripPillText, arrived ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
+            {arrived ? `At ${hub}` : 'On the road'}
+          </Text>
+        </View>
+      </View>
+      <Text style={s.tripMeta} numberOfLines={1}>
+        {trip.tripId}
+        {trip.leftAt ? ` · left ${time(trip.leftAt)}` : ''}
+        {arrived ? ` · arrived ${time(arrival?.arrivedAt ?? '')}` : ''}
+      </Text>
+
+      {!arrived ? (
+        <Button
+          label={`Truck arrived at ${hub}?`}
+          iconLeft="flag-outline"
+          disabled={!online || busy || !arrival}
+          onPress={() => setAsk('arrive')}
+          style={{ marginTop: spacing.md }}
+        />
+      ) : (
+        <>
+          <View style={s.divider} />
+          <View style={s.arrivalRow}>
+            <Text style={s.routeLabel}>Shelved at {hub}</Text>
+            <Text style={s.arrivalCount}>
+              {shelved} / {total}
+            </Text>
+          </View>
+          <ProgressBar value={total ? shelved / total : 0} />
+          {waiting.length ? (
+            <>
+              <Text style={s.arrivalHint}>
+                Still on the truck — shelve {waiting.length === 1 ? 'it' : 'them'} at {hub}:
+              </Text>
+              <View style={s.reasonRow}>
+                {waiting.slice(0, 24).map((b) => (
+                  <View key={b} style={s.reasonChip}>
+                    <Text style={s.reasonText}>{b}</Text>
+                  </View>
+                ))}
+                {waiting.length > 24 ? <Text style={s.arrivalHint}>+{waiting.length - 24} more</Text> : null}
+              </View>
+            </>
+          ) : allShelved ? (
+            <Text style={s.arrivalHint}>Every bucket is shelved — the trip can be completed.</Text>
+          ) : otherWaiting ? (
+            <Text style={s.arrivalHint}>
+              {otherWaiting} bucket{otherWaiting === 1 ? '' : 's'} for other delivery dates still on the truck — the
+              trip completes once they are shelved too.
+            </Text>
+          ) : null}
+          <View style={[s.repActions, { justifyContent: 'flex-end' }]}>
+            <Button
+              label="Check"
+              variant="outline"
+              iconLeft="refresh"
+              size="sm"
+              disabled={!online || busy}
+              onPress={() => run('status')}
+            />
+            <Button
+              label="Complete"
+              iconLeft="checkmark-done"
+              size="sm"
+              disabled={!online || busy || !allShelved}
+              onPress={() => setAsk('complete')}
+            />
+          </View>
+        </>
+      )}
+
+      <Dialog
+        visible={ask === 'arrive'}
+        onClose={() => setAsk(null)}
+        busy={busy}
+        icon={{ name: 'flag-outline', tone: 'info' }}
+        title={`Truck at ${hub}?`}
+        subtitle={`Confirm ${trip.vehicle || 'the truck'} has arrived at ${hub} with trip ${trip.tripId}.`}
+        actions={
+          <>
+            <Button label="Not yet" variant="outline" onPress={() => setAsk(null)} disabled={busy} style={{ flex: 1 }} />
+            <Button label="Yes, it's here" loading={busy} onPress={() => run('arrive')} style={{ flex: 1 }} />
+          </>
+        }
+      >
+        <DialogList>
+          <DialogRow label="Buckets on the trip" value={String(total)} />
+          <DialogRow label="Shelved so far" value={String(shelved)} />
+        </DialogList>
+      </Dialog>
+
+      <Dialog
+        visible={ask === 'complete'}
+        onClose={() => setAsk(null)}
+        busy={busy}
+        icon={{ name: 'checkmark-done', tone: 'success' }}
+        title="Complete the trip?"
+        subtitle={`All ${total} bucket${total === 1 ? '' : 's'} from ${trip.tripId} are shelved at ${hub}. The trip is marked received.`}
+        actions={
+          <>
+            <Button label="Cancel" variant="outline" onPress={() => setAsk(null)} disabled={busy} style={{ flex: 1 }} />
+            <Button label="Complete trip" loading={busy} onPress={() => run('complete')} style={{ flex: 1 }} />
+          </>
+        }
+      />
+    </Card>
+  );
+}
+
+/** Upcoming planned trips coming to collect from this farm — so the attendant
+ *  can pre-stage trolleys before the truck arrives. */
 /** Visual treatment per stop status. */
 const STOP_UI: Record<
   PlannedTripStop['status'],
@@ -1303,7 +1902,7 @@ const STOP_UI: Record<
 > = {
   waiting: { label: 'Not staged', color: COLORS.danger, icon: 'ellipse-outline' },
   loading: { label: 'Staging', color: COLORS.warn, icon: 'time-outline' },
-  ready: { label: 'Trolleys ready', color: COLORS.success, icon: 'checkmark-circle' },
+  ready: { label: 'Trolleys ready', color: COLORS.text, icon: 'checkmark-circle' },
   transit: { label: 'On the truck', color: '#2E90FA', icon: 'car' },
   done: { label: 'Delivered', color: COLORS.textMuted, icon: 'checkmark-done-circle' },
 };
@@ -1322,7 +1921,7 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
         </Text>
         <Text style={[s.stopStatus, { color: ui.color }]} numberOfLines={1}>
           {ui.label} · {progress}
-          {stop.delaying ? ' · holding up the run' : ''}
+          {stop.delaying ? ' · holding up the trip' : ''}
         </Text>
       </View>
       <Ionicons name={ui.icon} size={16} color={ui.color} />
@@ -1330,8 +1929,49 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
   );
 }
 
-function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string, string> }) {
+/** Why a farm's stop leaves with fewer buckets than planned (saved on the trip). */
+const SHORT_REASONS = ['Bucket not found', 'Not ready yet', 'Quality reject', 'Truck full', 'Other'] as const;
+type ShortReason = (typeof SHORT_REASONS)[number];
+
+function TripCard({
+  trip,
+  oplTeam,
+  oplLine,
+  online,
+  onCloseStop,
+  compact,
+}: {
+  trip: PlannedTrip;
+  oplTeam: Record<string, string>;
+  oplLine: Record<string, LineColor>;
+  online: boolean;
+  onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
+  /** Trip header in the Requests list: its picklists are listed right below, so
+   *  the "Your orders" summary is left out. */
+  compact?: boolean;
+}) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
+  const [closing, setClosing] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  // Short stop (not every planned bucket on the truck): why, before it leaves.
+  const [shortReason, setShortReason] = useState<ShortReason | null>(null);
+  const [shortNote, setShortNote] = useState('');
+  const onTruck = yourStop ? yourStop.loaded + yourStop.transit + yourStop.shelved : 0;
+  const forStop = yourStop ? yourStop.total || yourStop.planned : 0;
+  const short = forStop > onTruck;
+  const reasonText = shortReason
+    ? [shortReason === 'Other' ? '' : shortReason, shortNote.trim()].filter(Boolean).join(' — ')
+    : '';
+  const reasonReady = !short || (!!shortReason && (shortReason !== 'Other' || !!shortNote.trim()));
+  const openLeave = () => {
+    setShortReason(null);
+    setShortNote('');
+    setConfirmLeave(true);
+  };
+  // "Truck leaving" once something of this farm is on the truck (the rest, if any, goes
+  // on the truck's next run).
+  const canClose =
+    !!yourStop && !trip.yourStopClosed && trip.current && yourStop.loaded + yourStop.transit + yourStop.shelved > 0;
   return (
     <Card>
       <View style={s.tripHead}>
@@ -1359,6 +1999,26 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
         </View>
       </View>
 
+      {trip.run ? (
+        <View style={s.tripRunRow}>
+          <Text style={s.tripRun}>
+            Trip {trip.run}
+            {trip.runs > 1 ? ` of ${trip.runs}` : ''}
+            {trip.window ? ` · ${trip.window}` : ''}
+          </Text>
+          {trip.runChain ? (
+            <Text style={s.tripChain} numberOfLines={2}>
+              {trip.runChain}
+            </Text>
+          ) : null}
+          {!trip.current ? (
+            <Text style={s.tripLater}>
+              Next trip — the truck comes after trip {trip.afterRun || trip.run - 1} is back
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={s.tripMetaRow}>
         <Text style={s.tripMeta} numberOfLines={1}>
           {trip.tripId}
@@ -1373,12 +2033,15 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
         )}
       </View>
 
-      {(trip.orders ?? []).length ? (
+      {!compact && (trip.orders ?? []).length ? (
         <>
           <View style={s.divider} />
           <Text style={s.routeLabel}>Your orders</Text>
           {(trip.orders ?? []).map((o) => (
-            <View key={`${trip.tripId}-${o.opl}`} style={s.tripOrderRow}>
+            <View
+              key={`${trip.tripId}-${o.opl}`}
+              style={s.tripOrderRow}
+            >
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.bId} numberOfLines={1}>
                   {o.orderName || o.opl}
@@ -1387,7 +2050,7 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
                   {[o.varieties, `${o.buckets} bkt`].filter(Boolean).join(' · ')}
                 </Text>
               </View>
-              <TeamChip team={oplTeam[o.opl]} />
+              <TeamChip team={oplTeam[o.opl]} color={oplLine[o.opl]?.color} />
             </View>
           ))}
         </>
@@ -1403,11 +2066,164 @@ function TripCard({ trip, oplTeam }: { trip: PlannedTrip; oplTeam: Record<string
         .map((st) => (
           <StopRow key={`${trip.tripId}-${st.stop}-${st.farm}`} stop={st} />
         ))}
+      {trip.yourStopClosed ? (
+        <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
+      ) : canClose ? (
+        <Button
+          label={closing ? 'Closing…' : 'Truck leaving — close my stop'}
+          iconLeft="exit-outline"
+          disabled={closing || !online}
+          onPress={openLeave}
+          style={{ marginTop: spacing.sm }}
+        />
+      ) : null}
+      {/* Closing the stop can't be undone from the farm, so ask first. */}
+      {yourStop ? (
+        <Dialog
+          visible={confirmLeave}
+          onClose={() => setConfirmLeave(false)}
+          busy={closing}
+          icon={{ name: 'exit-outline', tone: 'warn' }}
+          title="Truck leaving the farm?"
+          subtitle={`${trip.vehicle || 'The truck'} leaves ${yourStop.farm} and this stop is closed.`}
+          actions={
+            <>
+              <Button
+                label="Cancel"
+                variant="outline"
+                onPress={() => setConfirmLeave(false)}
+                disabled={closing}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Yes, it's leaving"
+                iconLeft="exit-outline"
+                loading={closing}
+                disabled={!online || !reasonReady}
+                onPress={async () => {
+                  setClosing(true);
+                  const ok = await onCloseStop(trip, short ? reasonText : undefined);
+                  setClosing(false);
+                  // A failed close keeps the dialog (and the reason typed) for a retry.
+                  if (ok) setConfirmLeave(false);
+                }}
+                style={{ flex: 1 }}
+              />
+            </>
+          }
+        >
+          <DialogList>
+            <DialogRow label="On the truck" value={`${onTruck} bkt`} />
+            <DialogRow label="For this stop" value={`${forStop} bkt`} />
+          </DialogList>
+          {short ? (
+            <>
+              <Text style={s.leaveNote}>
+                {forStop - onTruck} bucket{forStop - onTruck === 1 ? '' : 's'} not on the truck — they go on its
+                next run. Why is it leaving short?
+              </Text>
+              <View style={s.reasonRow}>
+                {SHORT_REASONS.map((r) => (
+                  <Pressable
+                    key={r}
+                    onPress={() => setShortReason(r)}
+                    disabled={closing}
+                    style={[s.reasonChip, shortReason === r && s.reasonChipOn]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: shortReason === r }}
+                  >
+                    <Text style={[s.reasonText, shortReason === r && s.reasonTextOn]}>{r}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <TextInput
+                value={shortNote}
+                onChangeText={setShortNote}
+                placeholder={shortReason === 'Other' ? 'Say why (required)' : 'Add a note (optional)'}
+                placeholderTextColor={COLORS.textMuted}
+                editable={!closing}
+                multiline
+                maxLength={300}
+                style={s.leaveInput}
+              />
+            </>
+          ) : null}
+        </Dialog>
+      ) : null}
     </Card>
   );
 }
 
 const s = StyleSheet.create({
+  step: { flexDirection: 'row', gap: spacing.sm },
+  stepRail: { width: 28, alignItems: 'center' },
+  stepDot: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.full,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotCurrent: { borderColor: COLORS.text, backgroundColor: COLORS.text },
+  stepNum: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.textMuted },
+  stepNumCurrent: { color: COLORS.surface },
+  stepLine: { flex: 1, width: 2, backgroundColor: COLORS.border, marginVertical: spacing.xs },
+  stepBody: { flex: 1, minWidth: 0, paddingBottom: spacing.lg },
+  stepBodyLater: { opacity: 0.75 },
+  stepHead: { minHeight: 28, justifyContent: 'center', marginBottom: spacing.xs },
+  stepLabel: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textMuted },
+  stepLabelCurrent: { color: COLORS.text },
+  stepMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
+  tripAllScanned: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    marginTop: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  tripRunRow: { marginTop: spacing.xs, gap: 2 },
+  tripRun: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  tripChain: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
+  tripLater: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.warn },
+  shelvedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
+  shelvedWhere: { alignItems: 'flex-end', maxWidth: '45%' },
+  shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  shelvedStateWaiting: { color: COLORS.warn },
+  arrivalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
+  arrivalCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
+  arrivalHint: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
+  leaveNote: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    color: COLORS.warn,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  leaveInput: {
+    marginTop: spacing.sm,
+    minHeight: 56,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.text,
+    textAlignVertical: 'top',
+  },
+  tripClosed: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
+  repNone: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: COLORS.textMuted,
+    marginVertical: spacing.sm,
+  },
+  bNotFound: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.danger },
   scroll: { paddingBottom: 40 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
@@ -1475,6 +2291,10 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
+  lineLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.sm },
+  lineLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  lineLegendText: { fontFamily: fontFamily.medium, fontSize: 12, color: COLORS.text },
+  lineDot: { width: 10, height: 10, borderRadius: 5 },
   oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
     flexDirection: 'row',
@@ -1484,7 +2304,7 @@ const s = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: borderRadius.full,
   },
-  oplTagConfirmed: { backgroundColor: COLORS.success },
+  oplTagConfirmed: { backgroundColor: COLORS.text },
   oplTagPlanned: { backgroundColor: COLORS.surfaceAlt },
   oplTagText: { fontFamily: fontFamily.semiBold, fontSize: 11, color: COLORS.text },
   oplTagTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
@@ -1553,7 +2373,7 @@ const s = StyleSheet.create({
   tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
   tripTruckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   tripPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
-  tripPillConfirmed: { backgroundColor: COLORS.success },
+  tripPillConfirmed: { backgroundColor: COLORS.text },
   tripPillDraft: { backgroundColor: COLORS.surfaceAlt },
   tripPillText: { fontFamily: fontFamily.bold, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
   tripPillTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
@@ -1632,44 +2452,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surfaceAlt,
   },
   loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  dialogWrap: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: COLORS.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  dialogIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: borderRadius.full,
-    backgroundColor: '#FEF2F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  dialogTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, textAlign: 'center' },
-  dialogBody: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 19,
-    marginTop: spacing.sm,
-  },
   dialogList: {
     alignSelf: 'stretch',
     marginTop: spacing.lg,
@@ -1681,30 +2463,8 @@ const s = StyleSheet.create({
   dialogRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   dialogRowLabel: { flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
   dialogRowCount: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  dialogActions: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch', marginTop: spacing.xl },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: '80%',
-    backgroundColor: COLORS.surface ?? '#fff',
-    borderTopLeftRadius: borderRadius.lg ?? 16,
-    borderTopRightRadius: borderRadius.lg ?? 16,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    marginBottom: spacing.sm,
-  },
-  sheetTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text },
+  dialogSubBlock: { alignSelf: 'stretch' },
+  dialogActionsCol: { flex: 1, gap: spacing.sm },
   sheetSub: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
@@ -1730,7 +2490,6 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     color: COLORS.text,
   },
-  sheetList: { marginTop: spacing.sm },
   repCount: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.xs,
@@ -1780,7 +2539,7 @@ const s = StyleSheet.create({
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
   loadChange: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary },
   loadOrder: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: COLORS.border },
-  loadOrderName: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  loadOrderName: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   loadOrderCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.sm },
   reasonChip: { paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border },
@@ -1792,6 +2551,8 @@ const s = StyleSheet.create({
   dateChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   dateText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   dateTextOn: { color: '#fff' },
+  farmBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.surfaceAlt },
+  farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   truckRow: {
     flexDirection: 'row',
     alignItems: 'center',

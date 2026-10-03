@@ -12,6 +12,7 @@ import {
 import Slider from '@react-native-community/slider';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Button } from '@/src/core/ui/Button';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { Dropdown } from '@/src/core/ui/Dropdown';
@@ -483,14 +484,9 @@ function AddConcernModal({
     : options;
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Quality Concern</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title="Add Quality Concern" onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -618,17 +614,6 @@ const s = StyleSheet.create({
   },
   checkLabel: { fontSize: 14, color: COLORS.text },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
   modalSearch: {
     margin: 16,
     borderWidth: 1,

@@ -1,4 +1,5 @@
 import { api } from '@/src/core/api/client';
+import { fetchRoseVarieties } from './rose-varieties';
 
 export type RawCandidate = {
   bucket_id?: string;
@@ -146,7 +147,6 @@ export type RawPendingResponse = {
 
 type RawListResponse<T> = { data?: T[] };
 
-type RawItemRow = { item_code?: string };
 type RawStemLengthRow = { name?: string; length?: string };
 
 export const karenReplacementApi = {
@@ -278,18 +278,9 @@ export const karenReplacementApi = {
     });
   },
 
+  /** Every rose variety, sub-groups included (see rose-varieties). */
   async listVarieties(): Promise<string[]> {
-    const res = await api<RawListResponse<RawItemRow>>({
-      method: 'GET',
-      url: '/api/resource/Item',
-      params: {
-        filters: JSON.stringify([['item_group', 'in', ['Spray Roses', 'Standard Roses']]]),
-        fields: JSON.stringify(['item_code']),
-        limit_page_length: 1000,
-        order_by: 'item_code asc',
-      },
-    });
-    return (res.data ?? []).map((r) => r.item_code ?? '').filter((s) => s.length > 0);
+    return fetchRoseVarieties();
   },
 
   /** Map of item_code → item_group for the given varieties, so the UI can gate

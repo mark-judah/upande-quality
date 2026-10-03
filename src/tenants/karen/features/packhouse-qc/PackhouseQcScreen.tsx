@@ -2,6 +2,7 @@ import { useAuthStore } from '@/src/core/auth/store';
 import { ScanField } from '@/src/core/scanning/ScanField';
 import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Alert, Card } from '@/src/core/ui/Card';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
@@ -1543,14 +1544,9 @@ function GradingReplaceModal({
   const title = state.mode === 'bunch' ? 'Replace whole bunch' : 'Replace rejected stems';
   const canConfirm = !!state.selectedDonor && state.stems > 0 && !state.submitting && !state.loading;
   return (
-    <Modal visible={state.open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={state.open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title={title} onClose={onClose} />
 
         {state.phase === 'scan' ? (
           <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
@@ -2174,14 +2170,9 @@ function PickerModal({
   );
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title={title} onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -2414,17 +2405,6 @@ const s = StyleSheet.create({
   badgeWarn: { backgroundColor: '#B45309' },
   badgeDanger: { backgroundColor: COLORS.danger },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
   modalSearch: {
     margin: 16,
     borderWidth: 1,
