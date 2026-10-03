@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { checkLatestVersion, UPDATE_DOWNLOAD_URL } from '@/src/core/version';
 import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
+import { showDialog } from '@/src/core/ui/DialogHost';
 
 /** Once per app session (when `active` becomes true), check GitHub for a newer
  *  release and, if one exists, show a one-tap "Update available" prompt. The
@@ -28,7 +29,7 @@ export function useUpdatePrompt(active: boolean): void {
       const dismissed = await storage.get(StorageKeys.updateDismissedVersion);
       if (dismissed === check.latest) return; // already told them about this one
 
-      Alert.alert(
+      showDialog(
         'Update available',
         `A newer version (v${check.latest}) of Upande Quality is available. ` +
           `You're on v${check.current}. Update to get the latest fixes.`,
@@ -49,6 +50,7 @@ export function useUpdatePrompt(active: boolean): void {
             },
           },
         ],
+        { name: 'cloud-download-outline', tone: 'info' },
       );
     })();
 

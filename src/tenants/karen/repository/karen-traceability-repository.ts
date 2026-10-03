@@ -29,7 +29,8 @@ const VALID_STATUSES: TraceabilityStatus[] = [
 const VALID_STAGES: StageName[] = [
   'Harvest', 'Grading', 'Receiving', 'Quarantine Rejects', 'Shelving', 'Allocation', 'Issued',
   'Awaiting transfer', 'Not found at farm', 'Left remote shelf', 'On trolley', 'Loaded on truck', 'In transit', 'Off the truck',
-  'Shelved at sales farm', 'Stock moved',
+  'Shelved at sales farm', 'Stock moved', 'Load refused', 'Left the farm', 'Arrived at packhouse',
+  'Shelving farm corrected', 'Shelving refused', 'Shelved at remote farm', 'Removed from wrong shelf', 'Ready for packing',
 ];
 
 /** A remote transfer's events as journey stages (newest transfer last, events in order). */

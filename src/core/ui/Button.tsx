@@ -19,6 +19,8 @@ type Props = {
   variant?: 'primary' | 'outline' | 'ghost';
   iconLeft?: keyof typeof Ionicons.glyphMap;
   style?: ViewStyle;
+  /** 'sm': a compact pill for secondary actions inside a card. */
+  size?: 'md' | 'sm';
 };
 
 export function Button({
@@ -30,7 +32,9 @@ export function Button({
   variant = 'primary',
   iconLeft,
   style,
+  size = 'md',
 }: Props) {
+  const sm = size === 'sm';
   const isDisabled = !!disabled || !!loading;
   const isOutline = variant === 'outline';
   const isGhost = variant === 'ghost';
@@ -43,6 +47,7 @@ export function Button({
       onPress={isDisabled ? undefined : onPress}
       style={({ pressed }) => [
         s.btn,
+        sm ? s.btnSm : null,
         {
           backgroundColor: bg,
           borderColor,
@@ -55,8 +60,8 @@ export function Button({
         <ActivityIndicator color={fg} />
       ) : (
         <View style={s.inner}>
-          {iconLeft ? <Ionicons name={iconLeft} size={18} color={fg} /> : null}
-          <Text style={[s.label, { color: fg }]}>{label}</Text>
+          {iconLeft ? <Ionicons name={iconLeft} size={sm ? 14 : 18} color={fg} /> : null}
+          <Text style={[s.label, sm ? s.labelSm : null, { color: fg }]}>{label}</Text>
         </View>
       )}
     </Pressable>
@@ -73,6 +78,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  btnSm: { paddingVertical: 6, paddingHorizontal: spacing.md, minHeight: 32 },
   inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   label: { fontFamily: fontFamily.bold, fontSize: fontSize.md },
+  labelSm: { fontSize: fontSize.sm },
 });

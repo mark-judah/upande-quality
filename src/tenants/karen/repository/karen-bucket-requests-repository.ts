@@ -63,6 +63,11 @@ export type PlannedTripOrder = {
   varieties: string;
   buckets: number;
   stems: number;
+  /** This order's own progress at the farm. */
+  total: number;
+  loaded: number;
+  transit: number;
+  shelved: number;
 };
 
 export type StopStatus = 'waiting' | 'loading' | 'ready' | 'transit' | 'done';
@@ -116,6 +121,58 @@ export type PlannedTrip = {
   /** This farm's stop is closed — the truck has left it. */
   yourStopClosed: boolean;
   loadedBuckets: number;
+};
+
+/** A trip the truck has left this farm on (stop closed, dispatched or received). */
+export type CompletedTrip = {
+  tripId: string;
+  vehicle: string;
+  tripDate: string;
+  status: string;
+  run: number;
+  runs: number;
+  runChain: string;
+  leftAt: string;
+  planned: number;
+  loaded: number;
+  leftBehind: number;
+  /** Open trips that now carry what this one left behind. */
+  carriedTo: string[];
+  /** Still on its run: the stop itself can reopen (else the rest goes to the next run). */
+  stopReopenable: boolean;
+  orders: { opl: string; deliveryDate: string; orderName: string; customer: string; varieties: string; buckets: number; loaded: number }[];
+};
+
+/** A dispatched trip at the transfer hub: whether the truck is confirmed there and how
+ *  many of the buckets it carried are shelved (whole trip, and this farm's). */
+export type TripArrival = {
+  tripId: string;
+  hub: string;
+  tripStatus: string;
+  arrivedAt: string;
+  receivedAt: string;
+  total: number;
+  shelved: number;
+  /** Buckets still on the truck — not shelved at the hub yet. */
+  waiting: string[];
+  farmTotal: number;
+  farmShelved: number;
+  /** Every bucket on the trip with its order's delivery date (for the date filter). */
+  buckets: { bucket: string; opl: string; shelved: boolean; offTruck: boolean; deliveryDate: string }[];
+};
+
+/** A dispatched trip from this farm and each bucket it carried: shelved at the hub yet? */
+export type ShelvedTrip = {
+  tripId: string;
+  vehicle: string;
+  status: string;
+  tripDate: string;
+  dispatchedAt: string;
+  arrivedAt: string;
+  receivedAt: string;
+  total: number;
+  shelved: number;
+  buckets: { bucketId: string; opl: string; orderName: string; shelved: boolean; shelf: string; shelvedAt: string }[];
 };
 
 export type FetchAllocationsOutcome =
@@ -191,6 +248,10 @@ function mapPlannedTripOrder(r: RawPlannedTripOrder): PlannedTripOrder {
     varieties: r.varieties ?? '',
     buckets: num(r.buckets),
     stems: num(r.stems),
+    total: num(r.total),
+    loaded: num(r.loaded),
+    transit: num(r.transit),
+    shelved: num(r.shelved),
   };
 }
 
@@ -482,8 +543,130 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Could not mark it not found.' };
   },
 
-  async closeTripStop(args: { tripId: string; farm: string }): Promise<SaveTrolleyOutcome> {
-    const raw = await karenBucketRequestsApi.closeTripStop({ name: args.tripId, farm: args.farm });
+  async fetchCompletedTrips(
+    farm: string,
+  ): Promise<{ kind: 'ok'; trips: CompletedTrip[] } | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.getFarmCompletedTrips(farm);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not load completed trips.' };
+    return {
+      kind: 'ok',
+      trips: (m.trips ?? []).map((t) => ({
+        tripId: t.trip ?? '',
+        vehicle: t.vehicle ?? '',
+        tripDate: t.trip_date ?? '',
+        status: t.status ?? '',
+        run: t.run ?? 0,
+        runs: t.runs ?? 0,
+        runChain: t.run_chain ?? '',
+        leftAt: t.left_at ?? '',
+        planned: t.planned ?? 0,
+        loaded: t.loaded ?? 0,
+        leftBehind: t.left_behind ?? 0,
+        carriedTo: t.carried_to ?? [],
+        stopReopenable: !!t.stop_reopenable,
+        orders: (t.orders ?? []).map((o) => ({
+          opl: o.opl ?? '',
+          deliveryDate: o.delivery_date ?? '',
+          orderName: o.order_name ?? o.opl ?? '',
+          customer: o.customer ?? '',
+          varieties: o.varieties ?? '',
+          buckets: o.buckets ?? 0,
+          loaded: o.loaded ?? 0,
+        })),
+      })),
+    };
+  },
+
+  async fetchShelvedBuckets(
+    farm: string,
+    deliveryDate?: string,
+  ): Promise<{ kind: 'ok'; hub: string; trips: ShelvedTrip[] } | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.getFarmShelvedBuckets(farm, deliveryDate);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not load shelved buckets.' };
+    return {
+      kind: 'ok',
+      hub: m.hub || 'the packhouse',
+      trips: (m.trips ?? []).map((t) => ({
+        tripId: t.trip ?? '',
+        vehicle: t.vehicle ?? '',
+        status: t.status ?? '',
+        tripDate: t.trip_date ?? '',
+        dispatchedAt: t.dispatched_at ?? '',
+        arrivedAt: t.arrived_at ?? '',
+        receivedAt: t.received_at ?? '',
+        total: t.total ?? 0,
+        shelved: t.shelved ?? 0,
+        buckets: (t.buckets ?? []).map((b) => ({
+          bucketId: b.bucket ?? '',
+          opl: b.opl ?? '',
+          orderName: b.order_name ?? b.opl ?? '',
+          shelved: !!b.shelved,
+          shelf: b.shelf ?? '',
+          shelvedAt: b.shelved_at ?? '',
+        })),
+      })),
+    };
+  },
+
+  /** Arrival at the transfer hub for a dispatched trip (see the API). */
+  async tripArrival(args: {
+    tripId: string;
+    farm: string;
+    action: 'status' | 'arrive' | 'complete';
+  }): Promise<{ kind: 'ok'; arrival: TripArrival } | { kind: 'error'; message: string; unshelved: string[] }> {
+    const raw = await karenBucketRequestsApi.tripArrival({ name: args.tripId, farm: args.farm, action: args.action });
+    const m = raw.message ?? {};
+    if (m.status !== 'success') {
+      return { kind: 'error', message: m.message ?? 'Could not update the trip.', unshelved: m.unshelved ?? [] };
+    }
+    return {
+      kind: 'ok',
+      arrival: {
+        tripId: m.name ?? args.tripId,
+        hub: m.hub || 'the packhouse',
+        tripStatus: m.trip_status ?? '',
+        arrivedAt: m.arrived_at ?? '',
+        receivedAt: m.received_at ?? '',
+        total: m.total ?? 0,
+        shelved: m.shelved ?? 0,
+        waiting: m.waiting ?? [],
+        farmTotal: m.farm_total ?? 0,
+        farmShelved: m.farm_shelved ?? 0,
+        buckets: (m.buckets ?? []).map((b) => ({
+          bucket: b.bucket ?? '',
+          opl: b.opl ?? '',
+          shelved: !!b.shelved,
+          offTruck: !!b.off_truck,
+          deliveryDate: b.delivery_date ?? '',
+        })),
+      },
+    };
+  },
+
+  async reopenTripStop(args: { tripId: string; farm: string }): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.reopenTripStop({ name: args.tripId, farm: args.farm });
+    const m = raw.message ?? {};
+    if (m.status === 'success') {
+      const n = m.left_behind ?? 0;
+      return {
+        kind: 'ok',
+        message:
+          m.mode === 'stop'
+            ? `Stop reopened — load the ${n} bucket${n === 1 ? '' : 's'} left behind onto ${args.tripId}.`
+            : `${n} bucket${n === 1 ? '' : 's'} left behind moved to ${(m.trips ?? []).join(', ')}.`,
+      };
+    }
+    return { kind: 'error', message: m.message ?? 'Could not reopen the trip.' };
+  },
+
+  async closeTripStop(args: { tripId: string; farm: string; reason?: string }): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.closeTripStop({
+      name: args.tripId,
+      farm: args.farm,
+      ...(args.reason ? { reason: args.reason } : {}),
+    });
     const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
     if (m.status === 'success') {
       const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;

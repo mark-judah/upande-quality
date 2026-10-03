@@ -1,4 +1,5 @@
 import { api } from '@/src/core/api/client';
+import { fetchRoseVarieties } from './rose-varieties';
 
 export type StockTakeSyncReason =
   | 'coldstore_not_null'
@@ -64,28 +65,125 @@ export type RawTransferResponse = {
   payload?: RawTransferPayload;
 };
 
-export type OfflineIssuingReason =
-  | 'bucket_id_not_null'
-  | 'reason_not_null'
-  | 'not_on_shelf'
-  | 'bucket_allocated'
-  | 'unknown_error';
+export type IssueOfflineReason = 'not_found' | 'wrong_variety';
 
-export type RawOfflineIssuingPayload = {
-  bucket_id?: string;
+export type RawOfflineOpl = {
+  opl_name: string;
+  order_name?: string | null;
+  customer?: string | null;
+  team?: string | null;
+  delivery_date?: string | null;
+  total_stems?: number;
+  issued_stems?: number;
+  issued_pct?: number;
+  open_buckets?: number;
+};
+
+export type RawOfflineBucket = {
+  bucket: string;
+  variety?: string | null;
+  stem_length?: string | null;
   stems?: number;
-  stock_entry?: string;
-  sales_orders?: string[];
+  shelf?: string | null;
+  on_shelf?: boolean;
+  not_found?: boolean;
+  in_transit?: boolean;
 };
 
-export type RawOfflineIssuingResponse = {
-  status?: 'success' | 'failed' | 'error' | string;
-  reason?: OfflineIssuingReason | string;
-  message?: string;
-  payload?: RawOfflineIssuingPayload;
+export type RawReplacementCandidate = {
+  new_bucket: string;
+  shelf?: string | null;
+  variety?: string | null;
+  stem_length?: string | null;
+  available_qty?: number;
+  harvest_date?: string | null;
 };
+
+export type RawIssueOfflineResponse = {
+  success?: boolean;
+  message?: string;
+  reason?: string;
+  issued_bucket?: string;
+  replacement?: string | null;
+  candidates?: RawReplacementCandidate[];
+  correction?: { ok?: boolean; message?: string } | null;
+};
+
+const OFFLINE_ISSUE = '/api/method/upande_packhouse.api.offline_issue';
 
 export const karenShelfOperationsApi = {
+  /** Open OPLs that still have buckets to issue — delivering on `deliveryDate`
+   *  (YYYY-MM-DD), or recent delivery dates when it is not given. */
+  async fetchOfflineIssueOpls(deliveryDate?: string): Promise<RawOfflineOpl[]> {
+    const res = await api<{ message?: { opls?: RawOfflineOpl[] } }>({
+      method: 'GET',
+      url: `${OFFLINE_ISSUE}.offline_issue_opls`,
+      params: deliveryDate ? { delivery_date: deliveryDate } : undefined,
+    });
+    return res.message?.opls ?? [];
+  },
+
+  /** The buckets an OPL is still waiting on. */
+  async fetchOfflineIssueBuckets(oplName: string): Promise<RawOfflineBucket[]> {
+    const res = await api<{ message?: { buckets?: RawOfflineBucket[] } }>({
+      method: 'GET',
+      url: `${OFFLINE_ISSUE}.offline_issue_buckets`,
+      params: { opl_name: oplName },
+    });
+    return res.message?.buckets ?? [];
+  },
+
+  /** Swap the allocated bucket for the scanned one (when they differ) and
+   * issue it against the OPL, as the packhouse issuing scan would. */
+  async issueOffline(args: {
+    oplName: string;
+    allocatedBucket: string;
+    scannedBucket: string;
+    reason: IssueOfflineReason;
+    variety?: string;
+    stemLength?: string;
+    notes?: string;
+  }): Promise<RawIssueOfflineResponse> {
+    const res = await api<{ message?: RawIssueOfflineResponse }>({
+      method: 'POST',
+      url: `${OFFLINE_ISSUE}.issue_offline`,
+      data: {
+        opl_name: args.oplName,
+        allocated_bucket: args.allocatedBucket,
+        scanned_bucket: args.scannedBucket,
+        reason: args.reason,
+        variety: args.variety || undefined,
+        stem_length: args.stemLength || undefined,
+        notes: args.notes || undefined,
+      },
+      // A swap can wait on stock locks and retry (see offline_issue._swap).
+      timeout: 120000,
+    });
+    return res.message ?? {};
+  },
+
+  /** Rose varieties, for correcting a wrong-variety bucket. Same lookup as the
+   * Replacement screen's (karen-replacement-api.ts), inlined per this file's
+   * convention. */
+  /** Every rose variety, sub-groups included (see rose-varieties). */
+  async fetchVarieties(): Promise<string[]> {
+    return fetchRoseVarieties();
+  },
+
+  /** Stem Length masters ("37cm", "42cm", ...), shortest first. */
+  async fetchStemLengths(): Promise<string[]> {
+    const res = await api<{ data?: { name?: string; length?: string }[] }>({
+      method: 'GET',
+      url: '/api/resource/Stem Length',
+      params: {
+        fields: JSON.stringify(['name', 'length']),
+        limit_page_length: 500,
+        order_by: 'length asc',
+      },
+    });
+    return (res.data ?? []).map((r) => r.length ?? r.name ?? '').filter((s) => s.length > 0);
+  },
+
   /** POST /api/method/upande_quality.mobile.api.transferBucket */
   async transferBucket(args: { bucketId: string; toShelfId: string }): Promise<RawTransferResponse> {
     const res = await api<{ data?: RawTransferResponse } | RawTransferResponse>({
@@ -95,21 +193,6 @@ export const karenShelfOperationsApi = {
       validateStatus: () => true,
     });
     const unwrapped = res as { data?: RawTransferResponse } & RawTransferResponse;
-    return unwrapped.data ?? unwrapped;
-  },
-
-  /** POST /api/method/upande_quality.mobile.api.createOfflineIssuingEntry */
-  async reportOfflineRemoval(args: {
-    bucketId: string;
-    reason: string;
-  }): Promise<RawOfflineIssuingResponse> {
-    const res = await api<{ data?: RawOfflineIssuingResponse } | RawOfflineIssuingResponse>({
-      method: 'POST',
-      url: '/api/method/upande_quality.mobile.api.createOfflineIssuingEntry',
-      data: { bucket_id: args.bucketId, reason: args.reason },
-      validateStatus: () => true,
-    });
-    const unwrapped = res as { data?: RawOfflineIssuingResponse } & RawOfflineIssuingResponse;
     return unwrapped.data ?? unwrapped;
   },
 

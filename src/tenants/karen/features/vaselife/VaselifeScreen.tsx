@@ -1,6 +1,7 @@
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { COLORS } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
@@ -626,14 +627,9 @@ function AddReasonModal({
   }));
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Failure Reason</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title="Add Failure Reason" onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -806,17 +802,6 @@ const s = StyleSheet.create({
   totalValue: { fontSize: 30, fontWeight: '800', color: COLORS.bg },
 
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
   modalSearch: {
     margin: 16,
     borderWidth: 1,

@@ -63,7 +63,6 @@ export type ScanResult =
  *  works without connectivity. `name` is the Vehicle docname (= license plate). */
 export type Vehicle = { name: string; licensePlate: string };
 
-let _db: SQLite.SQLiteDatabase | null = null;
 
 /** The station's farm. Every list, count and scan only sees this farm's buckets, so a
  *  device set up for one farm never shows (or loads) another farm's transfers — also when
@@ -108,23 +107,65 @@ function farmCond(): [string, string[]] {
   return ["(? = '' OR COALESCE(b.farm, '') IN (?, ''))", [_farm, _farm]];
 }
 
-let _ready: Promise<SQLite.SQLiteDatabase> | null = null;
+/** One connection for the whole app, kept on globalThis: a hot reload re-runs this
+ *  module, and a second openDatabaseAsync left code still holding the old module on a
+ *  connection native code had released ("NativeDatabase.prepareAsync … NullPointerException"). */
+type DbCache = { conn: Promise<SQLite.SQLiteDatabase> | null; queue?: Promise<unknown> };
+const G = globalThis as unknown as { __karenBucketRequestsDb?: DbCache };
+const cache: DbCache = (G.__karenBucketRequestsDb ??= { conn: null });
+// Per module instance, so a hot reload that adds a column still migrates.
+let _migrated: Promise<void> | null = null;
+
+function open(): Promise<SQLite.SQLiteDatabase> {
+  if (!cache.conn) {
+    cache.conn = SQLite.openDatabaseAsync('karen_bucket_requests.db').catch((e) => {
+      cache.conn = null;
+      throw e;
+    });
+  }
+  return cache.conn;
+}
+
+/** A released native connection: reopen and retry once instead of failing the screen. */
+const isDeadConnection = (e: unknown) => /NullPointerException|has been rejected|database is closed/i.test(String((e as Error)?.message ?? e));
+
+function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
+  return new Proxy(d, {
+    get(target, prop, receiver) {
+      const v = Reflect.get(target, prop, receiver);
+      if (typeof v !== 'function') return v;
+      if (typeof prop !== 'string' || !prop.endsWith('Async')) return v.bind(target);
+      return async (...args: unknown[]) => {
+        try {
+          return await v.apply(target, args);
+        } catch (e) {
+          if (!isDeadConnection(e)) throw e;
+          cache.conn = null;
+          _migrated = null;
+          const fresh = await db();
+          return (fresh as unknown as Record<string, (...a: unknown[]) => unknown>)[prop](...args);
+        }
+      };
+    },
+  });
+}
 
 /** The database, with its schema brought up to date on first use. Migrating here (not
  *  only in initDb) means a hot reload that adds a column can't leave every query failing
  *  on the old table until the app is restarted. */
 async function db(): Promise<SQLite.SQLiteDatabase> {
-  if (!_ready) {
-    _ready = (async () => {
-      _db = await SQLite.openDatabaseAsync('karen_bucket_requests.db');
-      await migrate(_db);
-      return _db;
-    })().catch((e) => {
-      _ready = null;
+  const d = await open();
+  if (!_migrated) {
+    // One migration at a time across module copies (each copy migrates once).
+    const run = (cache.queue ?? Promise.resolve()).catch(() => {}).then(() => migrate(d));
+    cache.queue = run;
+    _migrated = run.catch((e) => {
+      _migrated = null;
       throw e;
     });
   }
-  return _ready;
+  await _migrated;
+  return guarded(d);
 }
 
 const DDL = `
@@ -156,36 +197,72 @@ export async function initDb(): Promise<void> {
   await db();
 }
 
+/** ADD COLUMN that tolerates the column already being there (another copy of this
+ *  module — a hot reload — may have just added it). */
+async function addColumn(d: SQLite.SQLiteDatabase, sql: string): Promise<void> {
+  try {
+    await d.execAsync(sql);
+  } catch (e) {
+    if (!/duplicate column/i.test(String((e as Error)?.message ?? e))) throw e;
+  }
+}
+
 async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   await d.execAsync(DDL);
   // Migrate DBs created before the loaded/transit columns existed.
   const cols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(opl)');
   const have = new Set(cols.map((c) => c.name));
   if (!have.has('loaded_to_truck')) {
-    await d.execAsync('ALTER TABLE opl ADD COLUMN loaded_to_truck INTEGER NOT NULL DEFAULT 0');
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN loaded_to_truck INTEGER NOT NULL DEFAULT 0');
   }
   if (!have.has('in_transit')) {
-    await d.execAsync('ALTER TABLE opl ADD COLUMN in_transit INTEGER NOT NULL DEFAULT 0');
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN in_transit INTEGER NOT NULL DEFAULT 0');
   }
   if (!have.has('last_activity')) {
-    await d.execAsync('ALTER TABLE opl ADD COLUMN last_activity TEXT');
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN last_activity TEXT');
   }
   if (!have.has('arrived')) {
-    await d.execAsync('ALTER TABLE opl ADD COLUMN arrived INTEGER NOT NULL DEFAULT 0');
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN arrived INTEGER NOT NULL DEFAULT 0');
   }
   if (!have.has('delivery_date')) {
-    await d.execAsync('ALTER TABLE opl ADD COLUMN delivery_date TEXT');
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN delivery_date TEXT');
   }
   const scols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(opl_schedule)');
   if (!scols.some((c) => c.name === 'scheduled')) {
-    await d.execAsync('ALTER TABLE opl_schedule ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 1');
+    await addColumn(d, 'ALTER TABLE opl_schedule ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 1');
   }
   const bcols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(bucket)');
   if (!bcols.some((c) => c.name === 'farm')) {
-    await d.execAsync('ALTER TABLE bucket ADD COLUMN farm TEXT');
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN farm TEXT');
   }
   if (!bcols.some((c) => c.name === 'not_found')) {
-    await d.execAsync('ALTER TABLE bucket ADD COLUMN not_found INTEGER NOT NULL DEFAULT 0');
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN not_found INTEGER NOT NULL DEFAULT 0');
+  }
+  // Truck state per bucket: an order collecting from two farms moves on each farm's
+  // part separately (the order-level flags put the second farm's bucket straight
+  // into In Transit once the first farm's part was loaded).
+  if (!bcols.some((c) => c.name === 'truck_loaded')) {
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN truck_loaded INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!bcols.some((c) => c.name === 'truck_transit')) {
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN truck_transit INTEGER NOT NULL DEFAULT 0');
+  }
+  // Once: carry the old order-level truck state onto the buckets, so orders already
+  // loaded / in transit stay there. Only for orders whose buckets on this device are
+  // all one farm's — a two-farm order is left to the server's per-farm state (the
+  // order-level flag is exactly what wrongly moved the second farm's part).
+  const ver = await d.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  if ((ver?.user_version ?? 0) < 2) {
+    const oneFarm = `opl_name IN (SELECT opl_name FROM bucket GROUP BY opl_name HAVING COUNT(DISTINCT COALESCE(farm, '')) = 1)`;
+    await d.runAsync(
+      `UPDATE bucket SET truck_loaded = 1 WHERE scanned = 1 AND not_found = 0 AND ${oneFarm}
+         AND opl_name IN (SELECT opl_name FROM opl WHERE loaded_to_truck = 1 OR in_transit = 1)`,
+    );
+    await d.runAsync(
+      `UPDATE bucket SET truck_transit = 1 WHERE scanned = 1 AND not_found = 0 AND ${oneFarm}
+         AND opl_name IN (SELECT opl_name FROM opl WHERE in_transit = 1)`,
+    );
+    await d.execAsync('PRAGMA user_version = 2');
   }
 }
 
@@ -438,6 +515,18 @@ export async function listRequests(): Promise<OrderGroup[]> {
 
 type CompletedRow = OplRow & { loaded_to_truck: number; in_transit: number; arrived: number };
 
+/** This farm's part of an order is on the truck / in transit when every one of its
+ *  buckets (not-found ones aside) is — per bucket, so two farms of one order move on
+ *  separately. Columns loaded_to_truck / in_transit for opl alias `o`; binds the farm
+ *  condition's arguments twice. */
+function truckState(fc: string): string {
+  return `
+  (SELECT CASE WHEN COUNT(*) > 0 AND MIN(b.truck_loaded) = 1 THEN 1 ELSE 0 END FROM bucket b
+     WHERE b.opl_name = o.opl_name AND b.not_found = 0 AND ${fc}) AS loaded_to_truck,
+  (SELECT CASE WHEN COUNT(*) > 0 AND MIN(b.truck_transit) = 1 THEN 1 ELSE 0 END FROM bucket b
+     WHERE b.opl_name = o.opl_name AND b.not_found = 0 AND ${fc}) AS in_transit`;
+}
+
 /** Fully-scanned OPLs, filtered by their in_transit flag (0 = Trolley tab,
  *  1 = In Transit tab). */
 async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
@@ -448,10 +537,11 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
     `
     SELECT o.opl_name, o.order_name, o.created_on, o.customer,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total,
-           o.loaded_to_truck, o.in_transit, o.arrived,
+           ${truckState(fc)},
+           o.arrived,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned
     FROM opl o WHERE ${dc} ORDER BY o.created_on DESC, o.opl_name ASC`,
-    [...fa, ...fa, ...da],
+    [...fa, ...fa, ...fa, ...fa, ...da],
   );
   const out: TrolleyOpl[] = [];
   for (const o of opls) {
@@ -528,22 +618,19 @@ export async function applyServerStates(states: Record<string, OplServerState>):
       changed++;
       continue;
     }
+    // This farm's part only: the server's state is for the farm asking.
     const cur = await d.getFirstAsync<{ loaded_to_truck: number; in_transit: number; arrived: number }>(
-      'SELECT loaded_to_truck, in_transit, arrived FROM opl WHERE opl_name = ?',
-      [oplName],
+      `SELECT ${truckState(fc)}, o.arrived FROM opl o WHERE o.opl_name = ?`,
+      [...fa, ...fa, oplName],
     );
     if (!cur) continue;
+    // Loaded on the truck counts as in transit for the farm (it's off the farm's
+    // hands), whether or not the truck has left yet.
     const want = {
       loaded: 1,
-      transit: state === 'transit' ? 1 : 0,
+      transit: 1,
       arrived: 0, // arrived orders were removed above
     };
-    // "In transit" is the server's call (the trip was dispatched). An order the device
-    // marked in transit itself while the truck is still loading goes back to "loaded".
-    if (state === 'loaded' && cur.in_transit === 1 && cur.arrived !== 1) {
-      await d.runAsync('UPDATE opl SET in_transit = 0, last_activity = ? WHERE opl_name = ?', [now, oplName]);
-      changed++;
-    }
     const unscanned = await d.getFirstAsync<{ c: number }>(
       `SELECT COUNT(*) AS c FROM bucket b WHERE b.opl_name = ? AND b.scanned = 0 AND ${fc}`,
       [oplName, ...fa],
@@ -563,9 +650,11 @@ export async function applyServerStates(states: Record<string, OplServerState>):
         [now, oplName, ...fa],
       );
       await d.runAsync(
-        'UPDATE opl SET loaded_to_truck = MAX(loaded_to_truck, ?), in_transit = MAX(in_transit, ?), arrived = MAX(arrived, ?), last_activity = ? WHERE opl_name = ?',
-        [want.loaded, want.transit, want.arrived, now, oplName],
+        `UPDATE bucket SET truck_loaded = MAX(truck_loaded, ?), truck_transit = MAX(truck_transit, ?)
+         WHERE id IN (SELECT b.id FROM bucket b WHERE b.opl_name = ? AND ${fc})`,
+        [want.loaded, want.transit, oplName, ...fa],
       );
+      await d.runAsync('UPDATE opl SET last_activity = ? WHERE opl_name = ?', [now, oplName]);
     });
     changed++;
   }
@@ -597,13 +686,23 @@ export async function markNotFoundLocal(bucketId: string): Promise<void> {
   );
 }
 
+/** Loaded / in transit: this farm's scanned buckets of the order (an order collecting
+ *  from two farms is loaded farm by farm). */
 export async function markLoadedLocal(oplName: string): Promise<void> {
   const d = await db();
-  await d.runAsync('UPDATE opl SET loaded_to_truck = 1 WHERE opl_name = ?', [oplName]);
+  const [fc, fa] = farmCond();
+  await d.runAsync(
+    `UPDATE bucket SET truck_loaded = 1 WHERE id IN (SELECT b.id FROM bucket b WHERE b.opl_name = ? AND b.scanned = 1 AND ${fc})`,
+    [oplName, ...fa],
+  );
 }
 export async function markInTransitLocal(oplName: string): Promise<void> {
   const d = await db();
-  await d.runAsync('UPDATE opl SET in_transit = 1 WHERE opl_name = ?', [oplName]);
+  const [fc, fa] = farmCond();
+  await d.runAsync(
+    `UPDATE bucket SET truck_loaded = 1, truck_transit = 1 WHERE id IN (SELECT b.id FROM bucket b WHERE b.opl_name = ? AND b.scanned = 1 AND ${fc})`,
+    [oplName, ...fa],
+  );
 }
 
 export async function counts(): Promise<{ requests: number; trolley: number; inTransit: number }> {
@@ -612,11 +711,11 @@ export async function counts(): Promise<{ requests: number; trolley: number; inT
   const [dc, da] = dateCond();
   const rows = await d.getAllAsync<{ total: number; scanned: number; in_transit: number }>(
     `
-    SELECT (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, o.in_transit,
+    SELECT (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, ${truckState(fc)},
       (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned
     FROM opl o
     WHERE EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AND ${dc}`,
-    [...fa, ...fa, ...fa, ...da],
+    [...fa, ...fa, ...fa, ...fa, ...fa, ...da],
   );
   let requests = 0;
   let trolley = 0;

@@ -25,7 +25,16 @@ export type StageName =
   | 'In transit'
   | 'Off the truck'
   | 'Shelved at sales farm'
-  | 'Stock moved';
+  | 'Stock moved'
+  // Logged steps (Bucket Transfer Event): refusals, wrong-farm shelving, truck left / arrived.
+  | 'Load refused'
+  | 'Left the farm'
+  | 'Arrived at packhouse'
+  | 'Shelving farm corrected'
+  | 'Shelving refused'
+  | 'Shelved at remote farm'
+  | 'Removed from wrong shelf'
+  | 'Ready for packing';
 
 export type WhoKind = 'payroll' | 'user' | '';
 

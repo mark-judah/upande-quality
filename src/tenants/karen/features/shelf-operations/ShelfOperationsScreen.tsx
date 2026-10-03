@@ -1,19 +1,25 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Dropdown } from '@/src/core/ui/Dropdown';
+import { BottomSheet } from '@/src/core/ui/Dialog';
 import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import {
+  localDay,
   useKarenShelfOperationsStore,
   type ShelfOperationsMode,
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
 import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
 import { COLORS } from '@/src/core/theme';
+
+/** Group / filter label for an OPL allocated without a packing team. */
+const NO_TEAM = 'No team';
 
 export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
@@ -21,9 +27,21 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   const {
     mode,
     shelfId,
-    reason,
     loading,
     lastTransferOutcome,
+    opls,
+    oplsLoading,
+    oplDeliveryDate,
+    oplTeam,
+    opl,
+    offlineBuckets,
+    offlineBucketsLoading,
+    allocatedBucket,
+    reason,
+    correctVariety,
+    correctStemLength,
+    varieties,
+    stemLengths,
     lastOfflineOutcome,
     coldStores,
     coldStoresLoading,
@@ -36,9 +54,16 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     setMode,
     setShelfFromScan,
     clearShelf,
-    setReason,
     submitTransfer,
-    submitOfflineRemoval,
+    loadOpls,
+    setOplDeliveryDate,
+    setOplTeam,
+    selectOpl,
+    selectAllocatedBucket,
+    setReason,
+    setCorrectVariety,
+    setCorrectStemLength,
+    submitIssueOffline,
     initStockTake,
     loadColdStores,
     setColdstore,
@@ -48,10 +73,25 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   } = useKarenShelfOperationsStore();
   const { showSuccess, showError } = useToast();
 
+  // Issue Offline: the date's OPLs, grouped by packing team (no team last), and the
+  // teams to filter by.
+  const oplTeams = useMemo(
+    () => [...new Set(opls.map((o) => o.team || NO_TEAM))].sort((a, b) => (a === NO_TEAM ? 1 : b === NO_TEAM ? -1 : a.localeCompare(b))),
+    [opls],
+  );
+  const pickedBucket = offlineBuckets.find((b) => b.bucket === allocatedBucket) ?? null;
+  const shownOpls = useMemo(
+    () =>
+      opls
+        .filter((o) => !oplTeam || (o.team || NO_TEAM) === oplTeam)
+        .sort((a, b) => oplTeams.indexOf(a.team || NO_TEAM) - oplTeams.indexOf(b.team || NO_TEAM)),
+    [opls, oplTeam, oplTeams],
+  );
+
   useEffect(() => () => reset(), [reset]);
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
-  // Offline Removal mode: no shelf step, focus goes straight to the bucket field.
+  // Issue Offline mode: OPL, allocated bucket and reason first, then the scan.
   // Stock Take mode: no shelf step either - focus goes to the bucket field once
   // a cold store is picked.
   useFocusEffect(
@@ -76,6 +116,8 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     if (mode === 'stock-take') {
       initStockTake();
       loadColdStores(userFarm);
+    } else if (mode === 'issue-offline') {
+      loadOpls();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -106,8 +148,8 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     focusWhenReady(bucketRef);
   };
 
-  const onBucketScanOfflineRemoval = async (raw: string) => {
-    const outcome = await submitOfflineRemoval(raw);
+  const onBucketScanIssueOffline = async (raw: string) => {
+    const outcome = await submitIssueOffline(raw);
     if (outcome.kind === 'success') {
       showSuccess(outcome.message);
     } else {
@@ -140,16 +182,40 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   return (
     <Screen title="Shelf Operations" scroll={mode !== 'stock-take'}>
       <View style={s.farmBanner}>
-        <Text style={s.farmBannerLabel}>Farm</Text>
-        <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
+        <View style={s.farmBannerFarm}>
+          <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.textMuted} />
+          <Text style={s.farmBannerValue} numberOfLines={1}>
+            {userFarm || 'All farms'}
+          </Text>
+        </View>
+        {mode === 'issue-offline' ? (
+          <View style={s.teamSelect}>
+            <Dropdown
+              compact
+              label="Team"
+              iconName="account-group-outline"
+              value={oplTeam}
+              options={[
+                { label: `All teams (${opls.length})`, value: '' },
+                ...oplTeams.map((t) => ({
+                  label: `${t} (${opls.filter((o) => (o.team || NO_TEAM) === t).length})`,
+                  value: t,
+                })),
+              ]}
+              searchable={false}
+              disabled={oplsLoading}
+              onChange={setOplTeam}
+            />
+          </View>
+        ) : null}
       </View>
 
       <View style={s.modeRow}>
         <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
         <ModeButton
-          label="Report Offline Removal"
-          active={mode === 'offline-removal'}
-          onPress={() => switchMode('offline-removal')}
+          label="Issue Offline"
+          active={mode === 'issue-offline'}
+          onPress={() => switchMode('issue-offline')}
         />
         <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
       </View>
@@ -261,33 +327,143 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
         </>
       ) : (
         <>
-          <Card title="Reason">
-            <TextInput
-              style={s.reasonInput}
-              placeholder="Why is this bucket being removed? (e.g. damaged, quality hold)"
-              placeholderTextColor={COLORS.textMuted}
-              value={reason}
-              onChangeText={setReason}
-              onBlur={() => {
-                if (reason.trim()) focusWhenReady(bucketRef);
-              }}
-              multiline
-              editable={!loading}
+          <Card title="Order pick list">
+            <Text style={s.filterLabel}>Delivery date</Text>
+            <View style={s.modeRow}>
+              <ModeButton
+                label="Today"
+                active={oplDeliveryDate === localDay(0)}
+                onPress={() => setOplDeliveryDate(localDay(0))}
+              />
+              <ModeButton
+                label="Tomorrow"
+                active={oplDeliveryDate === localDay(1)}
+                onPress={() => setOplDeliveryDate(localDay(1))}
+              />
+            </View>
+            <Dropdown
+              label="OPL"
+              iconName="clipboard-list-outline"
+              value={opl ?? ''}
+              options={shownOpls.map((o) => ({
+                label: `${o.team || NO_TEAM} · ${o.orderName} · ${o.issuedPct}% issued`,
+                value: o.oplName,
+                sublabel: [o.oplName, o.customer, o.deliveryDate].filter(Boolean).join(' · '),
+              }))}
+              placeholder={
+                oplsLoading
+                  ? 'Loading…'
+                  : shownOpls.length
+                    ? 'Pick the OPL'
+                    : `No OPL delivering ${oplDeliveryDate === localDay(1) ? 'tomorrow' : 'today'} has buckets left to issue`
+              }
+              disabled={oplsLoading || loading}
+              onChange={(v) => selectOpl(v)}
             />
           </Card>
 
-          <Card title="Bucket to report">
-            <ScanField
-              ref={bucketRef}
-              onScan={onBucketScanOfflineRemoval}
-              autoFocus={!!reason.trim()}
-              placeholder={reason.trim() ? 'Scan bucket QR' : 'Enter a reason first'}
-              editable={!loading && !!reason.trim()}
-            />
-            {loading ? <Text style={s.muted}>Reporting…</Text> : null}
-          </Card>
+          {opl ? (
+            <Card title="Allocated bucket that was not issued">
+              {offlineBucketsLoading ? (
+                <Text style={s.muted}>Loading buckets…</Text>
+              ) : offlineBuckets.length === 0 ? (
+                <Text style={s.muted}>Every bucket on this OPL is issued.</Text>
+              ) : (
+                offlineBuckets.map((b) => {
+                  const picked = allocatedBucket === b.bucket;
+                  return (
+                    <Pressable
+                      key={b.bucket}
+                      style={[s.pickRow, picked && s.pickRowActive]}
+                      onPress={() => selectAllocatedBucket(picked ? null : b.bucket)}
+                      disabled={loading}
+                    >
+                      <View style={s.flex}>
+                        <Text style={s.pickTitle}>{b.bucket}</Text>
+                        <Text style={s.pickDetail}>
+                          {[b.variety, b.stemLength, `${b.stems} stems`, b.shelf ?? 'not on a shelf']
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      </View>
+                      <Text style={[s.pickMark, picked && s.pickMarkActive]}>{picked ? '●' : '○'}</Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </Card>
+          ) : null}
 
-          {lastOfflineOutcome ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+          {lastOfflineOutcome?.kind === 'success' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+
+          {/* Picking a bucket slides this up: the reason, the record fix and the
+           *  scan all happen here, no scrolling to the end of the page. Issuing
+           *  clears the picked bucket, which closes it. */}
+          <BottomSheet
+            visible={!!allocatedBucket}
+            onClose={() => selectAllocatedBucket(null)}
+            busy={loading}
+            title="Why was it not issued?"
+            subtitle={pickedBucket ? [pickedBucket.bucket, pickedBucket.variety, pickedBucket.stemLength, `${pickedBucket.stems} stems`].filter(Boolean).join(' · ') : undefined}
+          >
+            <View style={[s.modeRow, s.noMargin]}>
+              <ModeButton label="Not found" active={reason === 'not_found'} onPress={() => setReason('not_found')} />
+              <ModeButton
+                label="Wrong variety"
+                active={reason === 'wrong_variety'}
+                onPress={() => setReason('wrong_variety')}
+              />
+            </View>
+            {reason === 'wrong_variety' ? (
+              <View>
+                <Text style={[s.muted, s.noTopMargin]}>
+                  {allocatedBucket} stays in the cold store. Enter what it really holds so its record is corrected.
+                </Text>
+                <View style={{ height: 8 }} />
+                <Dropdown
+                  label="Real variety"
+                  iconName="flower-outline"
+                  value={correctVariety}
+                  options={varieties.map((v) => ({ label: v, value: v }))}
+                  placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
+                  disabled={loading}
+                  onChange={setCorrectVariety}
+                />
+                <Dropdown
+                  label="Real stem length"
+                  iconName="ruler"
+                  value={correctStemLength}
+                  options={[
+                    { label: 'Same as recorded', value: '' },
+                    ...stemLengths.map((l) => ({ label: l, value: l })),
+                  ]}
+                  placeholder={stemLengths.length ? 'Pick the stem length, if it differs' : 'Loading…'}
+                  disabled={loading}
+                  onChange={setCorrectStemLength}
+                />
+              </View>
+            ) : null}
+            {reason ? (
+              <View>
+                <Text style={s.sheetLabel}>Bucket that went out</Text>
+                <ScanField
+                  ref={bucketRef}
+                  onScan={onBucketScanIssueOffline}
+                  autoFocus
+                  placeholder={
+                    reason === 'not_found'
+                      ? `Scan the bucket issued instead of ${allocatedBucket} (or ${allocatedBucket} itself if found)`
+                      : `Scan the bucket issued instead of ${allocatedBucket}`
+                  }
+                  editable={!loading}
+                />
+                {loading ? <Text style={s.muted}>Issuing…</Text> : null}
+              </View>
+            ) : (
+              <Text style={[s.muted, s.noTopMargin]}>Pick a reason, then scan the bucket that went out.</Text>
+            )}
+            {lastOfflineOutcome?.kind === 'failure' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+          </BottomSheet>
         </>
       )}
     </Screen>
@@ -338,28 +514,32 @@ function OfflineOutcomeCard({
 }) {
   if (outcome.kind === 'success') {
     return (
-      <Card title="Removal reported">
-        <Row label="Bucket" value={outcome.bucketId} />
-        {outcome.stems != null ? <Row label="Stems" value={String(outcome.stems)} /> : null}
-        {outcome.stockEntry ? <Row label="Stock entry" value={outcome.stockEntry} /> : null}
+      <Card title="Issued offline">
+        <Row label="Issued" value={outcome.issuedBucket} />
+        {outcome.replacement ? <Row label="Replacement record" value={outcome.replacement} /> : null}
+        {outcome.correction && !outcome.correction.ok ? (
+          <Alert tone="danger">{outcome.correction.message || 'The bucket record could not be corrected.'}</Alert>
+        ) : null}
+        <Text style={s.muted}>{outcome.message}</Text>
       </Card>
     );
   }
-  if (outcome.kind === 'failure' && outcome.reason === 'bucket_allocated') {
-    return (
-      <>
-        <Alert tone="danger">{outcome.message}</Alert>
-        {outcome.payload?.sales_orders?.length ? (
-          <Card title="Allocated to">
-            {outcome.payload.sales_orders.map((so) => (
-              <Row key={so} label="Sales order" value={so} />
-            ))}
-          </Card>
-        ) : null}
-      </>
-    );
-  }
-  return <Alert tone="danger">{outcome.message}</Alert>;
+  return (
+    <>
+      <Alert tone="danger">{outcome.message}</Alert>
+      {outcome.candidates.length ? (
+        <Card title="Buckets that could go out instead">
+          {outcome.candidates.map((c) => (
+            <Row
+              key={c.bucket}
+              label={c.bucket}
+              value={[c.stemLength, c.stems != null ? `${c.stems} stems` : null, c.shelf].filter(Boolean).join(' · ')}
+            />
+          ))}
+        </Card>
+      ) : null}
+    </>
+  );
 }
 
 function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
@@ -419,15 +599,14 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  farmBannerLabel: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    fontWeight: '600',
-  },
-  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700' },
+  farmBannerFarm: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700', flexShrink: 1 },
+  teamSelect: { width: 170, marginLeft: 12 },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  noMargin: { marginBottom: 0 },
+  noTopMargin: { marginTop: 0 },
+  sheetLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginBottom: 6 },
+  filterLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
     flex: 1,
     paddingVertical: 10,
@@ -453,16 +632,22 @@ const s = StyleSheet.create({
   },
   changeLink: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
   muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
-  reasonInput: {
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    color: COLORS.text,
-    minHeight: 60,
-    textAlignVertical: 'top',
+    marginBottom: 6,
   },
+  pickRowActive: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
+  pickTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  pickDetail: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  pickMark: { fontSize: 16, color: COLORS.textMuted },
+  pickMarkActive: { color: COLORS.text },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   detailLabel: {
     fontSize: 12,

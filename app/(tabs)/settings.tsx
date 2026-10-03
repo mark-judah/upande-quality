@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import {
@@ -19,6 +19,7 @@ import { ApkUpdateSection } from '@/src/core/updates/ApkUpdateSection';
 import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { showDialog } from '@/src/core/ui/DialogHost';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
@@ -58,13 +59,18 @@ export default function SettingsScreen() {
   const onToggleBiometric = async () => {
     if (!biometricEnabled) {
       if (!moduleReady) {
-        Alert.alert('Update needed', 'Install the latest build to enable biometric unlock.');
+        showDialog('Update needed', 'Install the latest build to enable biometric unlock.', undefined, {
+          name: 'finger-print',
+          tone: 'warn',
+        });
         return;
       }
       if (!hardwareReady) {
-        Alert.alert(
+        showDialog(
           'Biometric unavailable',
           'Enroll a fingerprint or face in your device settings, then try again.',
+          undefined,
+          { name: 'finger-print', tone: 'warn' },
         );
         return;
       }
@@ -84,7 +90,7 @@ export default function SettingsScreen() {
   };
 
   const onSignOut = () => {
-    Alert.alert('Sign out?', 'You can sign back in with biometrics or your password.', [
+    showDialog('Sign out?', 'You can sign back in with biometrics or your password.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign out',
@@ -98,7 +104,7 @@ export default function SettingsScreen() {
   };
 
   const onForgetDevice = () => {
-    Alert.alert(
+    showDialog(
       'Forget this device?',
       'Clears your session and disables biometric unlock.',
       [

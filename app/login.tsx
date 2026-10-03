@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -26,6 +18,7 @@ import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
 import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { APP_VERSION } from '@/src/core/version';
+import { showDialog } from '@/src/core/ui/DialogHost';
 
 const APP_NAME = 'Upande Quality';
 const HOME_ROUTE = '/';
@@ -147,7 +140,7 @@ export default function Login() {
   };
 
   const removeInstance = (inst: KnownInstance) => {
-    Alert.alert('Remove instance?', `${instanceLabel(inst.url)} will no longer be suggested here.`, [
+    showDialog('Remove instance?', `${instanceLabel(inst.url)} will no longer be suggested here.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',

@@ -92,6 +92,11 @@ export type RawPlannedTripOrder = {
   varieties?: string;
   buckets?: number;
   stems?: number;
+  /** This order's own progress at the farm (transfer buckets / on trolley / in transit / shelved). */
+  total?: number;
+  loaded?: number;
+  transit?: number;
+  shelved?: number;
 };
 
 /** One stop (farm) on a trip's collection route, with its live loading status. */
@@ -199,6 +204,64 @@ export type RawDispatchTrucksResponse = {
   message?: { status?: string; trucks?: RawDispatchTruck[]; message?: string };
 };
 
+export type RawCompletedTrip = {
+  trip?: string;
+  vehicle?: string;
+  trip_date?: string;
+  status?: string;
+  run?: number;
+  runs?: number;
+  run_chain?: string;
+  left_at?: string;
+  dispatched_at?: string;
+  planned?: number;
+  loaded?: number;
+  left_behind?: number;
+  carried_to?: string[];
+  stop_reopenable?: boolean;
+  orders?: { opl?: string; delivery_date?: string; order_name?: string; customer?: string; varieties?: string; buckets?: number; loaded?: number }[];
+};
+export type RawCompletedTripsMessage = { status?: string; message?: string; trips?: RawCompletedTrip[] };
+export type RawReopenMessage = {
+  status?: string;
+  message?: string;
+  mode?: 'stop' | 'next_trip';
+  left_behind?: number;
+  trips?: string[];
+};
+
+export type RawShelvedTrip = {
+  trip?: string;
+  vehicle?: string;
+  status?: string;
+  trip_date?: string;
+  dispatched_at?: string;
+  arrived_at?: string;
+  received_at?: string;
+  total?: number;
+  shelved?: number;
+  buckets?: { bucket?: string; opl?: string; order_name?: string; shelved?: boolean; shelf?: string; shelved_at?: string }[];
+};
+
+export type RawTripArrival = {
+  status?: string;
+  message?: string;
+  reason?: string;
+  unshelved?: string[];
+  name?: string;
+  hub?: string;
+  trip_status?: string;
+  arrived_at?: string;
+  received_at?: string;
+  total?: number;
+  shelved?: number;
+  waiting?: string[];
+  farm_total?: number;
+  farm_shelved?: number;
+  /** Every bucket on the trip with its order's delivery date. */
+  buckets?: { bucket?: string; opl?: string; farm?: string; shelved?: boolean; off_truck?: boolean; delivery_date?: string }[];
+};
+
 export const karenBucketRequestsApi = {
   /** Pull every bucket currently awaiting transfer for `farm`, plus the
    *  vehicle list the operator can later load each trolley into. */
@@ -285,10 +348,58 @@ export const karenBucketRequestsApi = {
 
   /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
    *  stop, or to the packhouse from the last one. */
-  closeTripStop(payload: { name: string; farm: string }): Promise<RawTrolleyActionResponse> {
+  /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */
+  closeTripStop(payload: { name: string; farm: string; reason?: string }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** This farm's finished trips (stop closed / dispatched / received), newest first. */
+  getFarmCompletedTrips(farm: string): Promise<{ message?: RawCompletedTripsMessage }> {
+    return api<{ message?: RawCompletedTripsMessage }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.getFarmCompletedTrips',
+      data: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Reopen this farm's stop on a trip that left before every planned bucket loaded:
+   *  the stop opens again (truck still on its run) or the rest moves to the next run. */
+  reopenTripStop(payload: { name: string; farm: string }): Promise<{ message?: RawReopenMessage }> {
+    return api<{ message?: RawReopenMessage }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.reopenTripStop',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** This farm's dispatched buckets for orders delivering on `deliveryDate` and whether
+   *  each is shelved at the hub. */
+  getFarmShelvedBuckets(farm: string, deliveryDate?: string): Promise<{ message?: { status?: string; message?: string; hub?: string; trips?: RawShelvedTrip[] } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.getFarmShelvedBuckets',
+      data: deliveryDate ? { farm, delivery_date: deliveryDate } : { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Truck at the transfer hub: `status`, confirm `arrive`, or `complete` the trip once
+   *  every bucket it carried is shelved there. */
+  tripArrival(payload: {
+    name: string;
+    farm: string;
+    action: 'status' | 'arrive' | 'complete';
+  }): Promise<{ message?: RawTripArrival }> {
+    return api<{ message?: RawTripArrival }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.tripArrival',
       data: payload,
       validateStatus: () => true,
     });

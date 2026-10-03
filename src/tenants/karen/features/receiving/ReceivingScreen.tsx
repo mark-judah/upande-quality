@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
+import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -13,7 +13,7 @@ import type {
   BucketDetails,
   ReceivingOutcome,
 } from '@/src/tenants/karen/repository/karen-receiving-repository';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS } from '@/src/core/theme';
 
 export function KarenReceivingScreen() {
   const scanRef = useRef<ScanFieldHandle>(null);
@@ -188,37 +188,24 @@ function ReceivedPopup({
   }, [outcome, onDismiss]);
 
   return (
-    <Modal
+    <Dialog
       visible={!!outcome}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-      statusBarTranslucent
+      onClose={onDismiss}
+      icon={{ name: 'checkmark-circle', tone: 'success' }}
+      title="Bucket received"
+      subtitle={outcome?.bucketId}
+      actions={<Button label="Next bucket" onPress={onDismiss} style={{ flex: 1 }} />}
     >
-      <Pressable style={popup.backdrop} onPress={onDismiss}>
-        <Pressable style={popup.sheet} onPress={(e) => e.stopPropagation()}>
-          <View style={popup.iconCircle}>
-            <Ionicons name="checkmark-circle" size={32} color={COLORS.success ?? '#22C55E'} />
-          </View>
-          <Text style={popup.title}>Bucket received</Text>
-          {outcome ? (
-            <>
-              <Text style={popup.subtitle}>{outcome.bucketId}</Text>
-              <View style={popup.divider} />
-              <PopupRow label="Variety" value={outcome.details.variety} />
-              <PopupRow label="Stems" value={outcome.details.numberOfStems} />
-              {outcome.details.bunches ? (
-                <PopupRow label="Bunches" value={outcome.details.bunches} />
-              ) : null}
-              <PopupRow label="Greenhouse" value={outcome.details.greenhouse} />
-              <PopupRow label="Harvested" value={outcome.details.harvestDate} />
-            </>
-          ) : null}
-          <View style={{ height: spacing.md }} />
-          <Button label="Next bucket" onPress={onDismiss} />
-        </Pressable>
-      </Pressable>
-    </Modal>
+      {outcome ? (
+        <DialogList>
+          <DialogRow label="Variety" value={outcome.details.variety} />
+          <DialogRow label="Stems" value={outcome.details.numberOfStems} />
+          <DialogRow label="Bunches" value={outcome.details.bunches} />
+          <DialogRow label="Greenhouse" value={outcome.details.greenhouse} />
+          <DialogRow label="Harvested" value={outcome.details.harvestDate} />
+        </DialogList>
+      ) : null}
+    </Dialog>
   );
 }
 
@@ -243,59 +230,37 @@ function StaleHarvestPopup({
   const canConfirm = outcome?.kind === 'no_harvest_on_date';
 
   return (
-    <Modal
+    <Dialog
       visible={!!outcome}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-      statusBarTranslucent
+      onClose={onDismiss}
+      busy={confirming}
+      icon={{ name: 'alert-circle', tone: 'warn' }}
+      title={canConfirm ? 'Not harvested today' : 'Already received'}
+      subtitle={outcome ? `${outcome.bucketId}\n${outcome.message}` : undefined}
+      actions={
+        canConfirm ? (
+          <>
+            <Button label="Cancel" variant="outline" onPress={onDismiss} disabled={confirming} style={{ flex: 1 }} />
+            <Button label="Receive anyway" onPress={onConfirm} loading={confirming} style={{ flex: 1 }} />
+          </>
+        ) : (
+          <Button label="OK" onPress={onDismiss} style={{ flex: 1 }} />
+        )
+      }
     >
-      <Pressable style={popup.backdrop} onPress={confirming ? undefined : onDismiss}>
-        <Pressable style={popup.sheet} onPress={(e) => e.stopPropagation()}>
-          <View style={popup.iconCircle}>
-            <Ionicons name="alert-circle" size={32} color={COLORS.warn} />
-          </View>
-          <Text style={popup.title}>{canConfirm ? 'Not harvested today' : 'Already received'}</Text>
-          {outcome ? (
-            <>
-              <Text style={popup.subtitle}>{outcome.bucketId}</Text>
-              <Text style={popup.message}>{outcome.message}</Text>
-              <View style={popup.divider} />
-              <PopupRow label="Variety" value={outcome.details.variety} />
-              <PopupRow label="Greenhouse" value={outcome.details.greenhouse} />
-              <PopupRow label="Farm" value={outcome.details.farm} />
-              <PopupRow label="Harvested" value={outcome.details.harvestDate} />
-              <PopupRow label="Stems" value={outcome.details.numberOfStems} />
-            </>
-          ) : null}
-          <View style={{ height: spacing.md }} />
-          {canConfirm ? (
-            <View style={s.row}>
-              <View style={{ flex: 1 }}>
-                <Button label="Cancel" variant="outline" onPress={onDismiss} disabled={confirming} />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Button label="Receive anyway" onPress={onConfirm} loading={confirming} />
-              </View>
-            </View>
-          ) : (
-            <Button label="OK" onPress={onDismiss} />
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
+      {outcome ? (
+        <DialogList>
+          <DialogRow label="Variety" value={outcome.details.variety} />
+          <DialogRow label="Greenhouse" value={outcome.details.greenhouse} />
+          <DialogRow label="Farm" value={outcome.details.farm} />
+          <DialogRow label="Harvested" value={outcome.details.harvestDate} />
+          <DialogRow label="Stems" value={outcome.details.numberOfStems} />
+        </DialogList>
+      ) : null}
+    </Dialog>
   );
 }
 
-function PopupRow({ label, value }: { label: string; value: string | undefined }) {
-  if (!value) return null;
-  return (
-    <View style={popup.row}>
-      <Text style={popup.rowLabel}>{label}</Text>
-      <Text style={popup.rowValue}>{value}</Text>
-    </View>
-  );
-}
 
 function OutcomeCard({ outcome }: { outcome: ReceivingOutcome }) {
   switch (outcome.kind) {
@@ -390,76 +355,4 @@ const s = StyleSheet.create({
     borderColor: COLORS.text,
   },
   endBatchLabel: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
-});
-
-const popup = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: COLORS.overlay ?? 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  sheet: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: COLORS.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    alignItems: 'stretch',
-  },
-  iconCircle: {
-    alignSelf: 'center',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  message: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: COLORS.text,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: COLORS.border,
-    marginVertical: spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  rowLabel: {
-    fontFamily: fontFamily.medium,
-    fontSize: 12,
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  rowValue: {
-    fontFamily: fontFamily.semiBold,
-    fontSize: fontSize.sm,
-    color: COLORS.text,
-    flexShrink: 1,
-    textAlign: 'right',
-  },
 });

@@ -1,6 +1,7 @@
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { COLORS } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
 import { Screen } from '@/src/core/ui/Screen';
 import { useToast } from '@/src/core/ui/Toast';
@@ -250,14 +251,9 @@ function AddReasonModal({
   }));
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Reason</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title="Add Reason" onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -340,16 +336,7 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 13, color: COLORS.textMuted },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   addText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
-  modalRoot: { flex: 1, backgroundColor: COLORS.surface, paddingTop: 54 },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 15, color: COLORS.primary },
+  modalRoot: { flex: 1, backgroundColor: COLORS.surface },
   modalSearch: {
     marginHorizontal: 16,
     marginBottom: 8,
