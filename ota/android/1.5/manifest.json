@@ -1,13 +1,13 @@
 {
-  "id": "98da2043-d523-404f-af7e-cbdf3d4ec0aa",
-  "createdAt": "2026-10-02T07:00:27.906Z",
+  "id": "37425d9e-ff4c-4013-81e8-082d1455a70d",
+  "createdAt": "2026-10-03T01:34:13.249Z",
   "runtimeVersion": "1.5",
   "launchAsset": {
-    "hash": "ypZkp_1d6HQdgOE0DXCUrxKabDTDYQqJDpUIZ6POlq4",
+    "hash": "DvLv3lJUp-r4cFAK34Dvupa5Zak_JD-6OAlMCPc7XqY",
     "key": "bundle",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
-    "url": "https://mark-judah.github.io/upande-quality/ota/android/1.5/_expo/static/js/android/entry-bda9166e734e8ae63bf1948ccbf68b8e.hbc"
+    "url": "https://mark-judah.github.io/upande-quality/ota/android/1.5/_expo/static/js/android/entry-87dc454a03ececa57a515b555f85cd15.hbc"
   },
   "assets": [
     {
@@ -611,7 +611,7 @@
     "expoClient": {
       "name": "Upande Quality",
       "slug": "upande-quality",
-      "version": "1.5.5",
+      "version": "1.5.6",
       "orientation": "portrait",
       "icon": "./assets/images/upande_logo.png",
       "scheme": "upandequality",
@@ -645,7 +645,7 @@
           "android.permission.MODIFY_AUDIO_SETTINGS",
           "android.permission.REQUEST_INSTALL_PACKAGES"
         ],
-        "versionCode": 5505
+        "versionCode": 5506
       },
       "web": {
         "output": "static",
@@ -697,7 +697,7 @@
       "runtimeVersion": "1.5",
       "updates": {
         "enabled": true,
-        "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
+        "url": "https://kaitet-group.upande.com/api/method/upande_quality.mobile.ota.manifest",
         "checkAutomatically": "ON_LOAD",
         "fallbackToCacheTimeout": 0
       },
@@ -706,7 +706,7 @@
         "backgroundColor": "#FFFFFF"
       }
     },
-    "appVersion": "1.5.5",
-    "publishedAt": "2026-10-02T07:00:27.924Z"
+    "appVersion": "1.5.6",
+    "publishedAt": "2026-10-03T01:34:13.274Z"
   }
 }
