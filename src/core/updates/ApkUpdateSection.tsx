@@ -37,7 +37,7 @@ export function ApkUpdateSection() {
   }, [downloading, progress, checking, otaChecking, available, apk]);
 
   /** A JS patch for the runtime this APK already has, through `updates.url`. */
-  const checkOta = useCallback(async () => {
+  const checkOta = useCallback(async (apkChecked: boolean) => {
     if (__DEV__) {
       showSuccess('This APK is up to date. OTA updates are off in development.');
       return;
@@ -47,7 +47,8 @@ export function ApkUpdateSection() {
       const result = await Updates.checkForUpdateAsync();
       const fetched = result.isAvailable ? await Updates.fetchUpdateAsync() : null;
       if (!fetched?.isNew) {
-        showSuccess("You're on the latest version.");
+        // Without the APK check there may still be a newer APK; don't claim otherwise.
+        showSuccess(apkChecked ? "You're on the latest version." : 'No JS update available.');
         return;
       }
       Alert.alert('Update ready', 'Reload now to apply it?', [
@@ -74,7 +75,7 @@ export function ApkUpdateSection() {
     const result = await refresh();
     // A newer APK turns this button into its download; the status line says so.
     if (result?.available) return;
-    await checkOta();
+    await checkOta(result !== null);
   }, [downloading, checking, otaChecking, available, install, refresh, checkOta]);
 
   const onInstallErrorHelp = useCallback(() => {

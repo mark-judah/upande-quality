@@ -92,7 +92,7 @@
     "runtimeVersion": "1.5",
     "updates": {
       "enabled": true,
-      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
+      "url": "https://kaitet-group.upande.com/api/method/upande_quality.mobile.ota.manifest",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     }
