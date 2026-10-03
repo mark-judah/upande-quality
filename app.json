@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.5.8",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -40,7 +40,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 5508
+      "versionCode": 105000
     },
     "web": {
       "output": "static",
@@ -89,7 +89,7 @@
       },
       "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota"
     },
-    "runtimeVersion": "1.5",
+    "runtimeVersion": "101.0",
     "updates": {
       "enabled": true,
       "url": "https://kaitet-group.upande.com/api/method/upande_quality.mobile.ota.manifest",
