@@ -2,7 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
-import { checkLatestVersion, type VersionCheck } from '@/src/core/version';
+import {
+  APK_VERSION,
+  APP_VERSION,
+  checkLatestVersion,
+  getServerVersions,
+  type VersionCheck,
+} from '@/src/core/version';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -10,6 +16,8 @@ import { useToast } from '@/src/core/ui/Toast';
 import { useAuthStore } from '@/src/core/auth/store';
 import * as Biometric from '@/src/core/biometric';
 import { ApkUpdateSection } from '@/src/core/updates/ApkUpdateSection';
+import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
+import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 
 export default function SettingsScreen() {
@@ -25,17 +33,21 @@ export default function SettingsScreen() {
   const [moduleReady, setModuleReady] = useState(false);
   const [hardwareReady, setHardwareReady] = useState(false);
   const [verCheck, setVerCheck] = useState<VersionCheck | null>(null);
+  const [siteApps, setSiteApps] = useState<{ label: string; version: string }[] | null>(null);
+  // The newest version known: the newest GitHub release of any kind, or this
+  // app once a JS update has put it past that -- so Latest bumps with every
+  // update and never trails Installed.
+  const newestRelease = useApkUpdate().check?.latestVersion ?? verCheck?.latest ?? null;
+  const latest =
+    newestRelease && compareVersions(newestRelease, APP_VERSION) > 0 ? newestRelease : APP_VERSION;
 
   useEffect(() => {
     setModuleReady(Biometric.isModuleAvailable());
     Biometric.isAvailable().then(setHardwareReady);
     checkLatestVersion().then(setVerCheck);
+    getServerVersions().then(setSiteApps);
   }, []);
 
-  // Hardcoded app version hidden — the GitHub Release is the source of truth.
-  // const appVersion = Constants.expoConfig?.version ?? '1.0.0';
-  // const runtimeVersion = (Updates.runtimeVersion as string | undefined) || appVersion;
-  // const buildNo = Application.nativeBuildVersion ?? '';
   const otaId = (Updates.updateId ?? '').slice(0, 8);
   const otaChannel = (Updates.channel as string | undefined) ?? '';
   const otaDate = Updates.createdAt ? Updates.createdAt.toISOString().slice(0, 10) : '';
@@ -137,25 +149,23 @@ export default function SettingsScreen() {
       </Card>
 
       <Card title="App">
-        <View style={s.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.rowLabel}>Version</Text>
-            {/* Hardcoded app version hidden — the GitHub Release is the source of truth.
-            <Text style={s.rowHint}>
-              v{appVersion}
-              {buildNo ? ` (${buildNo})` : ''}
-              {runtimeVersion && runtimeVersion !== appVersion ? `  ·  runtime ${runtimeVersion}` : ''}
-            </Text>
-            */}
-            {/* Latest version from the GitHub Release — read-only (not a link). */}
-            <Text style={s.rowHint}>
-              {verCheck && verCheck.latest ? `v${verCheck.latest}` : '—'}
-            </Text>
-            <Text style={s.rowHint}>{codeLine}</Text>
-          </View>
-        </View>
+        <InfoRow label="Installed" value={`v${APP_VERSION}`} />
+        <InfoRow label="Latest" value={`v${latest}`} />
+        {APK_VERSION !== APP_VERSION ? <InfoRow label="APK" value={`v${APK_VERSION}`} /> : null}
+        <InfoRow label="Code" value={codeLine} />
         <View style={{ height: spacing.md }} />
         <ApkUpdateSection />
+      </Card>
+
+      <Card title="Server">
+        <InfoRow label="Site" value={instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : '—'} />
+        {siteApps === null ? (
+          <InfoRow label="Apps" value="Loading…" />
+        ) : siteApps.length === 0 ? (
+          <InfoRow label="Apps" value="Not available" />
+        ) : (
+          siteApps.map((a) => <InfoRow key={a.label} label={a.label} value={`v${a.version}`} />)
+        )}
       </Card>
 
       <Card title="Session">
@@ -170,6 +180,17 @@ export default function SettingsScreen() {
         />
       </Card>
     </Screen>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={s.infoValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -197,6 +218,11 @@ const s = StyleSheet.create({
   userEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: 2 },
   userMeta: { fontFamily: fontFamily.bold, fontSize: fontSize.xs, color: COLORS.text, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: spacing.md, paddingVertical: 4,
+  },
+  infoValue: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   rowLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   rowHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   updateAvailable: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary, marginTop: 4 },
