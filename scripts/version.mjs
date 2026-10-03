@@ -248,6 +248,15 @@ if (hasFlag('apply')) {
   // expo-updates refuses a bundle whose runtime does not match the installed
   // build, so this is what keeps a 1.1.x update off a 1.0.x APK.
   appConfig.expo.runtimeVersion = runtimeVersionFor(version);
+  // The update URL is the published manifest itself (GitHub Pages), one folder
+  // per runtime, so it moves with the runtime.
+  const updates = appConfig.expo.updates;
+  if (updates?.url?.includes('/ota/android/')) {
+    updates.url = updates.url.replace(
+      /\/ota\/android\/[^/]+\/manifest\.json$/,
+      `/ota/android/${appConfig.expo.runtimeVersion}/manifest.json`,
+    );
+  }
   writeFileSync(APP_JSON, `${JSON.stringify(appConfig, null, 2)}\n`);
 
   pkg.version = version;
