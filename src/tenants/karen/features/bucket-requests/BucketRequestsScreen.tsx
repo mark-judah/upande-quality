@@ -1064,7 +1064,6 @@ function RequestsTab({
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
 }) {
-  const [query, setQuery] = useState('');
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
   if (!groups.length && !trips.length) {
@@ -1078,15 +1077,6 @@ function RequestsTab({
       </Card>
     );
   }
-
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? groups.filter((g) => {
-        const inName = g.orderName.toLowerCase().includes(q);
-        const inCustomer = g.opls.some((o) => (o.customer || '').toLowerCase().includes(q));
-        return inName || inCustomer;
-      })
-    : groups;
 
   // Shown in schedule order: team, then slot (Team A #1, #2 …, Team B #1 …);
   // orders only on a trip follow in trip order; unscheduled ones sink to the
@@ -1109,13 +1099,20 @@ function RequestsTab({
     }
     return best;
   };
-  const sorted = [...filtered].sort((a, b) => {
-    const byScheduled = Number(isScheduled(b)) - Number(isScheduled(a));
-    if (byScheduled) return byScheduled;
-    const [ta, sa] = rankOf(a);
-    const [tb, sb] = rankOf(b);
-    return ta === tb ? sa - sb : ta < tb ? -1 : 1;
-  });
+  const bySlot = (ra: [string, number], rb: [string, number]) =>
+    ra[0] === rb[0] ? ra[1] - rb[1] : ra[0] < rb[0] ? -1 : 1;
+  const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
+  const sorted = [...groups]
+    .sort((a, b) => {
+      const byScheduled = Number(isScheduled(b)) - Number(isScheduled(a));
+      if (byScheduled) return byScheduled;
+      return bySlot(rankOf(a), rankOf(b));
+    })
+    // An order's picklists in their own schedule order too.
+    .map((g) => ({
+      ...g,
+      opls: [...g.opls].sort((a, b) => bySlot(slot.get(a.oplName) ?? unslotted, slot.get(b.oplName) ?? unslotted)),
+    }));
   // Trips as steps in the order they collect: by day, the run the truck is loading
   // now first, then its later runs.
   const steps = [...trips].sort(
@@ -1198,24 +1195,6 @@ function RequestsTab({
 
   return (
     <>
-      <View style={s.searchRow}>
-        <Ionicons name="search" size={16} color={COLORS.textMuted} />
-        <TextInput
-          style={s.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search by order or customer"
-          placeholderTextColor={COLORS.textMuted}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-        {query ? (
-          <Pressable onPress={() => setQuery('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
-          </Pressable>
-        ) : null}
-      </View>
-
       {lineColor.lines.length > 1 ? (
         <View style={s.lineLegend}>
           {lineColor.lines.map((l) => (
@@ -1229,18 +1208,8 @@ function RequestsTab({
         </View>
       ) : null}
 
-      {q && sorted.length === 0 ? (
-        <Card>
-          <View style={s.empty}>
-            <Text style={s.emptyHint}>No orders match “{query}”.</Text>
-          </View>
-        </Card>
-      ) : null}
-
       {steps.map((t, i) => {
         const tripGroups = onTrip(t.tripId);
-        // Searching hides trips with nothing matching.
-        if (q && !tripGroups.length) return null;
         const last = i === steps.length - 1;
         return (
           <View key={t.tripId} style={s.step}>
@@ -2432,25 +2401,6 @@ const s = StyleSheet.create({
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceAlt,
-    marginBottom: spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-    color: COLORS.text,
-    padding: 0,
-  },
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
   loadChange: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary },
   loadOrder: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: COLORS.border },
