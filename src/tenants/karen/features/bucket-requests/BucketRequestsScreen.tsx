@@ -1316,8 +1316,9 @@ function OplCard({
   const [showScanned, setShowScanned] = useState(false);
   const toScan = opl.buckets.filter((b) => !b.scanned);
   const done = opl.buckets.filter((b) => b.scanned);
-  const bucketRow = (b: ReqBucket) => (
-    <View key={b.id} style={s.bRow}>
+  // A thin line between buckets (not above the first).
+  const bucketRow = (b: ReqBucket, i: number) => (
+    <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
       <Ionicons
         name={b.notFound ? 'close-circle' : b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
         size={18}
@@ -2275,6 +2276,7 @@ const s = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
+  bRowSep: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border, paddingTop: spacing.sm },
   bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
