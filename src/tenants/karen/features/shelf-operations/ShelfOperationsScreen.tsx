@@ -541,8 +541,12 @@ export function KarenShelfOperationsScreen({
                       >
                         <View style={s.flex}>
                           <Text style={s.pickTitle}>{c.bucket}</Text>
+                          {/* What is inside first: variety and stem length, in bold. */}
+                          <Text style={s.pickInside}>
+                            {[c.variety, c.stemLength].filter(Boolean).join(' · ') || '—'}
+                          </Text>
                           <Text style={s.pickDetail}>
-                            {[c.shelf ?? 'not on a shelf', c.stemLength, c.stems != null ? `${c.stems} stems` : '']
+                            {[c.stems != null ? `${c.stems} stems` : '', c.shelf ?? 'not on a shelf']
                               .filter(Boolean)
                               .join(' · ')}
                           </Text>
@@ -646,7 +650,7 @@ function OfflineOutcomeCard({
             <Row
               key={c.bucket}
               label={c.bucket}
-              value={[c.stemLength, c.stems != null ? `${c.stems} stems` : null, c.shelf].filter(Boolean).join(' · ')}
+              value={[c.variety, c.stemLength, c.stems != null ? `${c.stems} stems` : null, c.shelf].filter(Boolean).join(' · ')}
             />
           ))}
         </Card>
@@ -759,6 +763,7 @@ const s = StyleSheet.create({
   pickRowActive: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
   pickTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   pickDetail: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  pickInside: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginTop: 2 },
   pickMark: { fontSize: 16, color: COLORS.textMuted },
   pickMarkActive: { color: COLORS.text },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },

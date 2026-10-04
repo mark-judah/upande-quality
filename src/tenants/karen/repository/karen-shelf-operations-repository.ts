@@ -57,6 +57,7 @@ export type OfflineBucket = {
 
 export type ReplacementCandidate = {
   bucket: string;
+  variety: string | null;
   shelf: string | null;
   stemLength: string | null;
   stems: number | null;
@@ -228,6 +229,7 @@ export const karenShelfOperationsRepository = {
       message: pickMessage(raw, 'Issue failed.'),
       candidates: (raw.candidates ?? []).map((c) => ({
         bucket: c.new_bucket,
+        variety: c.variety ?? null,
         shelf: c.shelf ?? null,
         stemLength: c.stem_length ?? null,
         stems: typeof c.available_qty === 'number' ? c.available_qty : null,
@@ -240,6 +242,7 @@ export const karenShelfOperationsRepository = {
     return {
       candidates: (raw.candidates ?? []).map((c) => ({
         bucket: c.new_bucket,
+        variety: c.variety ?? null,
         shelf: c.shelf ?? null,
         stemLength: c.stem_length ?? null,
         stems: typeof c.available_qty === 'number' ? c.available_qty : null,
