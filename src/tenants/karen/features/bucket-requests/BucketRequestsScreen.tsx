@@ -1983,12 +1983,9 @@ function TripArrivalCard({
 
   return (
     <Card>
-      <Pressable
-        onPress={() => setOpen((v) => !v)}
-        style={s.tripHead}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-      >
+      {/* Tap anywhere on the truck's top part (name and check marks) to open or close it. */}
+      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }}>
+      <View style={s.tripHead}>
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText} numberOfLines={1}>
@@ -1996,7 +1993,7 @@ function TripArrivalCard({
           </Text>
         </View>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
-      </Pressable>
+      </View>
 
       {/* Where the truck is, as check marks: in transit, then arrived — arrival is
           confirmed by itself once shelving at the hub starts (no button). */}
@@ -2017,6 +2014,8 @@ function TripArrivalCard({
           </Text>
         </View>
       </View>
+
+      </Pressable>
 
       {open ? children : null}
 
@@ -2200,13 +2199,14 @@ function StageSummary({
   const canOpen = !!items?.length;
   return (
     <View style={s.summaryStage}>
+      {/* The whole stage (title, count and bar) opens and closes its list. */}
       <Pressable
         onPress={() => canOpen && setOpen((v) => !v)}
         disabled={!canOpen}
-        style={s.summaryRow}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
       >
+      <View style={s.summaryRow}>
         <Ionicons name={complete ? 'checkmark-circle' : icon} size={18} color={complete ? SHELVED_GREEN : COLORS.text} />
         <Text style={s.summaryLabel}>
           {label}
@@ -2215,8 +2215,9 @@ function StageSummary({
           {done}/{total}
         </Text>
         {canOpen ? <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} /> : null}
-      </Pressable>
+      </View>
       <ProgressBar value={total ? Math.min(1, done / total) : 0} />
+      </Pressable>
       {open
         ? items?.map((it, i) => (
             <View key={it.key} style={[s.bRow, i > 0 && s.bRowSep]}>
