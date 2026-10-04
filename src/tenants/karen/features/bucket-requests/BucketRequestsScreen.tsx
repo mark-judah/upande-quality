@@ -1781,6 +1781,16 @@ function ShelvedTab({
     );
   }
 
+  // A truck's buckets grouped by order (and its customer), in the order they come.
+  const byOrder = (rows: ShelvedTrip['buckets']) => {
+    const groups: { orderName: string; customer: string; buckets: ShelvedTrip['buckets'] }[] = [];
+    for (const b of rows) {
+      let g = groups.find((x) => x.orderName === b.orderName);
+      if (!g) groups.push((g = { orderName: b.orderName, customer: b.customer, buckets: [] }));
+      g.buckets.push(b);
+    }
+    return groups;
+  };
   const total = trips.reduce((n, t) => n + t.total, 0);
   const shelved = trips.reduce((n, t) => n + t.shelved, 0);
   const waiting = total - shelved;
@@ -1855,38 +1865,47 @@ function ShelvedTab({
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
-            <View style={s.divider} />
-            {rows.map((b) => (
-              <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
-                <Ionicons
-                  name={b.shelved ? 'checkmark-circle' : 'time-outline'}
-                  size={18}
-                  color={b.shelved ? COLORS.text : COLORS.warn}
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={s.bId} numberOfLines={1}>
-                    {b.bucketId}
+            {/* Per order (customer under it), then that order's buckets. */}
+            {byOrder(rows).map((g) => (
+              <View key={`${t.tripId}-${g.orderName}`} style={s.groupInTrip}>
+                <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
+                  {g.orderName}
+                </Text>
+                {g.customer ? (
+                  <Text style={s.groupCustomer} numberOfLines={1}>
+                    {g.customer}
                   </Text>
-                  <Text style={s.bMeta} numberOfLines={1}>
-                    {b.orderName}
-                  </Text>
-                </View>
-                <View style={s.shelvedWhere}>
-                  {b.shelved ? (
-                    // Shelved: its shelf in a green pill.
-                    <View style={s.shelvedPill}>
-                      <Ionicons name="checkmark" size={12} color={SHELVED_GREEN} />
-                      <Text style={s.shelvedPillText} numberOfLines={1}>
-                        {b.shelf || 'Shelved'}
+                ) : null}
+                {g.buckets.map((b) => (
+                  <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
+                    <Ionicons
+                      name={b.shelved ? 'checkmark-circle' : 'time-outline'}
+                      size={18}
+                      color={b.shelved ? COLORS.text : COLORS.warn}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={s.bId} numberOfLines={1}>
+                        {b.bucketId.toUpperCase()}
                       </Text>
                     </View>
-                  ) : (
-                    <Text style={[s.shelvedState, s.shelvedStateWaiting]} numberOfLines={1}>
-                      Not shelved
-                    </Text>
-                  )}
-                  {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{time(b.shelvedAt)}</Text> : null}
-                </View>
+                    <View style={s.shelvedWhere}>
+                      {b.shelved ? (
+                        // Shelved: its shelf in a green pill.
+                        <View style={s.shelvedPill}>
+                          <Ionicons name="checkmark" size={12} color={SHELVED_GREEN} />
+                          <Text style={s.shelvedPillText} numberOfLines={1}>
+                            {b.shelf || 'Shelved'}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[s.shelvedState, s.shelvedStateWaiting]} numberOfLines={1}>
+                          Not shelved
+                        </Text>
+                      )}
+                      {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{time(b.shelvedAt)}</Text> : null}
+                    </View>
+                  </View>
+                ))}
               </View>
             ))}
           </Card>

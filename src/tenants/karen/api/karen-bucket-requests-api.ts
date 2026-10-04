@@ -240,7 +240,15 @@ export type RawShelvedTrip = {
   received_at?: string;
   total?: number;
   shelved?: number;
-  buckets?: { bucket?: string; opl?: string; order_name?: string; shelved?: boolean; shelf?: string; shelved_at?: string }[];
+  buckets?: {
+    bucket?: string;
+    opl?: string;
+    order_name?: string;
+    customer?: string;
+    shelved?: boolean;
+    shelf?: string;
+    shelved_at?: string;
+  }[];
 };
 
 export type RawTripArrival = {

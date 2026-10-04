@@ -183,7 +183,15 @@ export type ShelvedTrip = {
   receivedAt: string;
   total: number;
   shelved: number;
-  buckets: { bucketId: string; opl: string; orderName: string; shelved: boolean; shelf: string; shelvedAt: string }[];
+  buckets: {
+    bucketId: string;
+    opl: string;
+    orderName: string;
+    customer: string;
+    shelved: boolean;
+    shelf: string;
+    shelvedAt: string;
+  }[];
 };
 
 export type FetchAllocationsOutcome =
@@ -638,6 +646,7 @@ export const karenBucketRequestsRepository = {
           bucketId: b.bucket ?? '',
           opl: b.opl ?? '',
           orderName: b.order_name ?? b.opl ?? '',
+          customer: b.customer ?? '',
           shelved: !!b.shelved,
           shelf: b.shelf ?? '',
           shelvedAt: b.shelved_at ?? '',
