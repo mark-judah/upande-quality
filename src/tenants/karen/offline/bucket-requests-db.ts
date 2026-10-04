@@ -129,7 +129,7 @@ function open(): Promise<SQLite.SQLiteDatabase> {
 /** A released native connection: reopen and retry once instead of failing the screen. */
 const isDeadConnection = (e: unknown) => /NullPointerException|has been rejected|database is closed/i.test(String((e as Error)?.message ?? e));
 
-function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
+function guarded(d: SQLite.SQLiteDatabase, conn: Promise<SQLite.SQLiteDatabase>): SQLite.SQLiteDatabase {
   return new Proxy(d, {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
@@ -140,8 +140,12 @@ function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
           return await v.apply(target, args);
         } catch (e) {
           if (!isDeadConnection(e)) throw e;
-          cache.conn = null;
-          _migrated = null;
+          // Several queries fail together on one dead connection: only the first
+          // drops it, the rest reuse the reopened one instead of racing new opens.
+          if (cache.conn === conn) {
+            cache.conn = null;
+            _migrated = null;
+          }
           const fresh = await db();
           return (fresh as unknown as Record<string, (...a: unknown[]) => unknown>)[prop](...args);
         }
@@ -154,7 +158,8 @@ function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
  *  only in initDb) means a hot reload that adds a column can't leave every query failing
  *  on the old table until the app is restarted. */
 async function db(): Promise<SQLite.SQLiteDatabase> {
-  const d = await open();
+  const conn = open();
+  const d = await conn;
   if (!_migrated) {
     // One migration at a time across module copies (each copy migrates once).
     const run = (cache.queue ?? Promise.resolve()).catch(() => {}).then(() => migrate(d));
@@ -165,7 +170,7 @@ async function db(): Promise<SQLite.SQLiteDatabase> {
     });
   }
   await _migrated;
-  return guarded(d);
+  return guarded(d, conn);
 }
 
 const DDL = `

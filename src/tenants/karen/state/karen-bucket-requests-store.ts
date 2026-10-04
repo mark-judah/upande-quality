@@ -205,16 +205,25 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = await Promise.all([
-      db.listRequests(),
-      db.listTrolley(),
-      db.listInTransit(),
-      db.listVehicles(),
-      db.listPlannedTrips(),
-      db.listSchedules(),
-      db.counts(),
-      db.listDeliveryDates(),
-    ]);
+    let lists;
+    try {
+      lists = await Promise.all([
+        db.listRequests(),
+        db.listTrolley(),
+        db.listInTransit(),
+        db.listVehicles(),
+        db.listPlannedTrips(),
+        db.listSchedules(),
+        db.counts(),
+        db.listDeliveryDates(),
+      ]);
+    } catch (e) {
+      // A local-database hiccup (e.g. the connection released by a reload) must
+      // not surface as an error: keep what is on screen; the next refresh retries.
+      if (__DEV__) console.warn('[bucket-requests] refresh failed:', e);
+      return;
+    }
+    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = lists;
     // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
     const dd = get().deliveryDate;
     const plannedTrips = dd
