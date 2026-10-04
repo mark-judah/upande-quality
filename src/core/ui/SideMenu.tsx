@@ -20,6 +20,7 @@ import { useDrawerItems } from './drawer-items-context';
 import { APP_VERSION } from '@/src/core/version';
 import * as Updates from 'expo-updates';
 import type { DrawerItem } from '@/src/core/tenant/types';
+import { displayName, needsRealName } from '@/src/core/auth/roles-api';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -65,32 +66,25 @@ export function SideMenu({
   const { tenant, instanceUrl } = useTenant();
   const logout = useAuthStore((s) => s.logout);
   const storeFullName = useAuthStore((s) => s.fullName);
-  const storeEmail = useAuthStore((s) => s.email);
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const drawerWidth = Math.min(Math.max(screenWidth * 0.8, 240), 320);
   const slide = useRef(new Animated.Value(-drawerWidth)).current;
 
   const [fullName, setFullName] = useState(storeFullName ?? '');
-  const [email, setEmail] = useState(storeEmail ?? '');
 
   useEffect(() => {
     if (!visible) return;
     // Fallback to AsyncStorage when auth store hasn't been populated yet
     // (legacy paths that mounted SideMenu before hydrate finished).
-    if (!storeFullName || !storeEmail) {
-      Promise.all([
-        storage.get(StorageKeys.fullName),
-        storage.get(StorageKeys.emailBackup),
-      ]).then(([n, e]) => {
+    if (!storeFullName) {
+      storage.get(StorageKeys.fullName).then((n) => {
         if (n) setFullName(n);
-        if (e) setEmail(e);
       });
     } else {
       setFullName(storeFullName);
-      setEmail(storeEmail);
     }
-  }, [visible, storeFullName, storeEmail]);
+  }, [visible, storeFullName]);
 
   useEffect(() => {
     if (visible) {
@@ -131,8 +125,11 @@ export function SideMenu({
     }, 220);
   };
 
+  // The sidebar shows the person by name only; their email is on Settings. A
+  // stored "name" that is really an email (older sessions) doesn't count.
+  const name = needsRealName(fullName) ? '' : displayName(fullName);
   const initials =
-    (fullName || email || '?')
+    (name || '?')
       .split(' ')
       .filter(Boolean)
       .map((n) => n[0])
@@ -169,9 +166,8 @@ export function SideMenu({
                   <Text style={s.avatarText}>{initials}</Text>
                 </View>
                 <Text style={s.name} numberOfLines={1}>
-                  {fullName || email || 'User'}
+                  {name || 'Signed in'}
                 </Text>
-                {email ? <Text style={s.email} numberOfLines={1}>{email}</Text> : null}
                 {(tenant || instanceUrl) ? (
                   <Text style={s.meta} numberOfLines={1}>
                     {tenant ?? ''}
@@ -274,7 +270,6 @@ const s = StyleSheet.create({
   },
   avatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   name: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  email: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   meta: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text, marginTop: 2 },
 
   nav: { paddingTop: spacing.xs, paddingBottom: spacing.sm },

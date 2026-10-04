@@ -20,10 +20,13 @@ import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { showDialog } from '@/src/core/ui/DialogHost';
 import { ChangePasswordDialog } from '@/src/core/auth/ChangePasswordDialog';
+import { displayName, needsRealName } from '@/src/core/auth/roles-api';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
   const email = useAuthStore((s) => s.email);
+  // Name on top, the email under it: Settings is where the email is shown.
+  const name = needsRealName(fullName) ? '' : displayName(fullName);
   const instanceUrl = useAuthStore((s) => s.instanceUrl);
   const biometricEnabled = useAuthStore((s) => s.biometricEnabled);
   const setBiometricEnabled = useAuthStore((s) => s.setBiometricEnabled);
@@ -128,11 +131,11 @@ export default function SettingsScreen() {
         <View style={s.avatarRow}>
           <View style={s.avatar}>
             <Text style={s.avatarInitials}>
-              {(fullName || email || '?').slice(0, 1).toUpperCase()}
+              {(name || '?').slice(0, 1).toUpperCase()}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.userName}>{fullName || email || 'Signed in'}</Text>
+            <Text style={s.userName}>{name || 'Signed in'}</Text>
             {email ? <Text style={s.userEmail}>{email}</Text> : null}
             {instanceUrl ? <Text style={s.userMeta}>{instanceUrl}</Text> : null}
           </View>
