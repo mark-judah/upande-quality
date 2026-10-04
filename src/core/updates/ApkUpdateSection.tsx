@@ -64,10 +64,10 @@ export function ApkUpdateSection() {
         { name: 'cloud-download-outline', tone: 'success' },
       );
     } catch (err) {
-      // expo-updates wraps the real reason as "Call to function … has been rejected. → Caused by: …".
-      const message = err instanceof Error ? err.message : '';
-      const cause = message.split('Caused by:').pop()?.trim();
-      showError(cause ? `Could not check for updates: ${cause}` : 'Could not check for updates.');
+      // expo-updates' own text ("Call to function … rejected → Caused by: …") is
+      // for the logs; the person gets a plain sentence.
+      if (__DEV__) console.warn('[update] JS update check failed:', err);
+      showError("Couldn't check for updates. Try again in a moment.");
     } finally {
       setOtaChecking(false);
     }

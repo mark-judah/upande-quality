@@ -129,13 +129,16 @@ async function fetchReleases(): Promise<GithubRelease[]> {
     );
   }
   if (res.status === 404) throw new UpdateCheckError('no_releases', 'No release has been published yet.');
-  if (!res.ok) throw new UpdateCheckError('failed', `GitHub returned ${res.status}.`);
+  if (!res.ok) {
+    if (__DEV__) console.warn(`[update] releases page answered ${res.status}`);
+    throw new UpdateCheckError('failed', "The update page isn't available right now. Try again later.");
+  }
 
   try {
     const json = await res.json();
     return Array.isArray(json) ? json : [];
   } catch {
-    throw new UpdateCheckError('failed', 'GitHub sent a response the app could not read.');
+    throw new UpdateCheckError('failed', "Couldn't read the update information. Try again later.");
   }
 }
 
