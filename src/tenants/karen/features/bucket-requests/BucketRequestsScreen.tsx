@@ -2278,7 +2278,6 @@ const s = StyleSheet.create({
   bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
-  bSide: { alignItems: 'flex-end', gap: 4 },
   replaceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
