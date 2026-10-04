@@ -29,7 +29,7 @@ const LOGO = require('@/assets/images/upande_logo.png');
  * Two steps, the same shape as Upande Sensors:
  *
  *   1. Instance — pick one this device has signed in to before, or type a new
- *      URL. Shown first on a fresh install, and again via the pencil.
+ *      URL. Shown first on a fresh install, and again by long-pressing the logo.
  *   2. Credentials — or, when biometric unlock is set up for the chosen
  *      instance, a single "Sign in with fingerprint" card.
  *
@@ -225,22 +225,25 @@ export default function Login() {
         extraScrollHeight={40}
       >
         <View style={s.brand}>
-          <Image source={LOGO} style={s.logo} resizeMode="contain" />
+          {/* Long-press the logo to change the server: kept out of the way of
+              people who only ever sign in to one. */}
+          <Pressable
+            onLongPress={openInstanceEditor}
+            delayLongPress={600}
+            accessibilityRole="button"
+            accessibilityLabel="Change server"
+            accessibilityHint="Long-press to change the server"
+          >
+            <Image source={LOGO} style={s.logo} resizeMode="contain" />
+          </Pressable>
           <Text style={s.appName}>{APP_NAME}</Text>
           {!instanceOpen && url ? (
-            <Pressable
-              onPress={openInstanceEditor}
-              hitSlop={8}
-              style={s.instancePill}
-              accessibilityRole="button"
-              accessibilityLabel="Change instance"
-            >
+            <View style={s.instancePill}>
               <Ionicons name="server-outline" size={14} color={COLORS.textSecondary} />
               <Text style={s.instancePillText} numberOfLines={1}>
                 {instanceLabel(url)}
               </Text>
-              <Ionicons name="pencil" size={14} color={COLORS.primary} style={s.instancePillAction} />
-            </Pressable>
+            </View>
           ) : null}
         </View>
 
@@ -431,7 +434,6 @@ const s = StyleSheet.create({
     maxWidth: '100%',
   },
   instancePillText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary, flexShrink: 1 },
-  instancePillAction: { marginLeft: spacing.xs },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: borderRadius.md,
