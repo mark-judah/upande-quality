@@ -1499,6 +1499,8 @@ function TrolleyTab({
   oplTeam,
   oplLine,
   onLoad,
+  scanned,
+  total,
 }: {
   items: TrolleyOpl[];
   /** Every requested bucket is on a trolley: one button loads them all. */
