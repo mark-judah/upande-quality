@@ -2299,7 +2299,7 @@ const s = StyleSheet.create({
   },
   // Room above the card for the farm badge on its top edge: the scroll view
   // clips anything above its content.
-  scanWrap: { position: 'relative', marginTop: spacing.lg },
+  scanWrap: { position: 'relative', marginTop: 12 },
   farmEdge: {
     position: 'absolute',
     top: -11,
