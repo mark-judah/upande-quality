@@ -1709,9 +1709,19 @@ function ShelvedTab({
                   </Text>
                 </View>
                 <View style={s.shelvedWhere}>
-                  <Text style={[s.shelvedState, !b.shelved && s.shelvedStateWaiting]} numberOfLines={1}>
-                    {b.shelved ? b.shelf || 'Shelved' : 'Not shelved'}
-                  </Text>
+                  {b.shelved ? (
+                    // Shelved: its shelf in a green pill.
+                    <View style={s.shelvedPill}>
+                      <Ionicons name="checkmark" size={12} color={SHELVED_GREEN} />
+                      <Text style={s.shelvedPillText} numberOfLines={1}>
+                        {b.shelf || 'Shelved'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[s.shelvedState, s.shelvedStateWaiting]} numberOfLines={1}>
+                      Not shelved
+                    </Text>
+                  )}
                   {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{time(b.shelvedAt)}</Text> : null}
                 </View>
               </View>
@@ -2156,6 +2166,9 @@ function TripCard({
   );
 }
 
+/** Text and border of the "shelved" pill: a darker green that reads on its pale fill. */
+const SHELVED_GREEN = '#067647';
+
 const s = StyleSheet.create({
   step: { flexDirection: 'row', gap: spacing.sm },
   stepRail: { width: 28, alignItems: 'center' },
@@ -2202,6 +2215,19 @@ const s = StyleSheet.create({
   shelvedWhere: { alignItems: 'flex-end', maxWidth: '45%' },
   shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   shelvedStateWaiting: { color: COLORS.warn },
+  shelvedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    maxWidth: '100%',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: SHELVED_GREEN,
+    backgroundColor: '#ECFDF3',
+  },
+  shelvedPillText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: SHELVED_GREEN, flexShrink: 1 },
   arrivalRow: {
     flexDirection: 'row',
     alignItems: 'center',
