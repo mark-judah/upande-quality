@@ -1418,7 +1418,7 @@ function OplCard({
               </Text>
             </View>
             <Text style={s.bMeta} numberOfLines={1}>
-              {[bucketMeta(b.variety, b.stemLength), b.farm].filter(Boolean).join(' · ')}
+              {bucketMeta(b.variety, b.stemLength)}
               {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
             </Text>
           </View>
@@ -1506,9 +1506,9 @@ function CompletedCard({
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
-            {!!(b.farm || b.shelf) && (
+            {!!b.shelf && (
               <Text style={s.bShelf} numberOfLines={1}>
-                {[b.farm, b.shelf].filter(Boolean).join(' · ')}
+                {b.shelf}
               </Text>
             )}
           </View>
