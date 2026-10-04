@@ -5,7 +5,6 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
-import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useTraceabilityStore } from './store';
@@ -91,18 +90,15 @@ export function TraceabilityScreen({ repository }: Props) {
 
   const onScan = (raw: string) => fetch(repository, parseScan(raw));
 
-  // Operator clicks this after reading the result to clear the snapshot and
-  // refocus the scan field for the next scan. We deliberately do NOT sticky-
-  // focus while the result is on screen — Android pops the soft keyboard back
-  // every time the field regains focus, which is jarring when the operator is
-  // trying to read the displayed details.
-  const handleNext = () => {
-    reset();
+  // No "Next scan": once a result (or error) is back the field clears and takes
+  // focus again, so the next bucket / bunch / box is simply scanned and replaces
+  // it. The field never shows the soft keyboard, so refocusing doesn't cover the
+  // result.
+  useEffect(() => {
+    if (loading) return;
     scanRef.current?.clear();
     focusWhenReady(scanRef);
-  };
-
-  const showNextButton = !loading && (snapshot !== null || error !== null);
+  }, [loading, snapshot, error]);
 
   return (
     <Screen title="Traceability">
@@ -114,8 +110,8 @@ export function TraceabilityScreen({ repository }: Props) {
         <ScanField
           ref={scanRef}
           onScan={onScan}
-          autoFocus={!snapshot && !error}
-          editable={!loading && !snapshot && !error}
+          autoFocus
+          editable={!loading}
           placeholder="Bucket / Bunch / Box ID"
         />
       </Card>
@@ -134,11 +130,6 @@ export function TraceabilityScreen({ repository }: Props) {
         <Card><Text style={s.muted}>No bucket, bunch or box scanned yet.</Text></Card>
       )}
 
-      {showNextButton ? (
-        <View style={s.nextBtnWrap}>
-          <Button label="Next scan" onPress={handleNext} />
-        </View>
-      ) : null}
     </Screen>
   );
 }
