@@ -12,6 +12,9 @@ import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/
 interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+  /** A count shown under the label (e.g. "12"): short labels with the number on
+   *  its own line fit four tabs on a small scanner without scrolling. */
+  count?: string | number;
 }
 
 interface SegmentedProps<T extends string> {
@@ -84,10 +87,15 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
               style={[s.label, active && s.labelActive]}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.8}
+              minimumFontScale={0.75}
             >
               {opt.label}
             </Text>
+            {opt.count != null ? (
+              <Text style={[s.count, active && s.labelActive]} numberOfLines={1}>
+                {opt.count}
+              </Text>
+            ) : null}
           </TouchableOpacity>
         );
       })}
@@ -132,4 +140,5 @@ const s = StyleSheet.create({
     alignSelf: 'stretch',
   },
   labelActive: { fontFamily: fontFamily.semiBold, color: COLORS.text },
+  count: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, textAlign: 'center' },
 });

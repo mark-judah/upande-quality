@@ -56,19 +56,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const { showSuccess, showError } = useToast();
   const [tab, setTab] = useState<Tab>('requests');
-  // On a narrow screen the tab bar scrolls: the active tab is scrolled to the
-  // middle so its label is never cut at either edge.
-  const tabsRef = useRef<ScrollView>(null);
-  const [tabsView, setTabsView] = useState(0);
-  const [tabsContent, setTabsContent] = useState(0);
-  useEffect(() => {
-    if (!tabsView || tabsContent <= tabsView) return;
-    const order: Tab[] = ['requests', 'trolley', 'transit', 'shelved'];
-    const seg = tabsContent / order.length;
-    const centre = seg * order.indexOf(tab) + seg / 2;
-    const x = Math.max(0, Math.min(tabsContent - tabsView, centre - tabsView / 2));
-    tabsRef.current?.scrollTo({ x, animated: true });
-  }, [tab, tabsView, tabsContent]);
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // Orders waiting for "Load to planned truck" to be confirmed (null = sheet closed).
@@ -501,6 +488,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         </View>
       ) : null}
       </View>
+      {/* Tabs, fixed under the scan card (only the list below scrolls). Short
+          names with the count underneath fit any width, a ~320dp scanner included. */}
+      <Segmented
+        radius={10}
+        value={tab}
+        onChange={(v) => setTab(v as Tab)}
+        options={[
+          { value: 'requests', label: 'Requests', count: reqCount },
+          { value: 'trolley', label: 'Trolley', count: trolleyCount },
+          { value: 'transit', label: 'Transit', count: inTransitCount },
+          {
+            value: 'shelved',
+            label: 'Shelved',
+            count: shelvedCount.total ? `${shelvedCount.done}/${shelvedCount.total}` : '—',
+          },
+        ]}
+      />
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
@@ -528,32 +532,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           </View>
         ) : null}
 
-        {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
-            bar scrolls sideways instead of squeezing the labels. */}
-        <ScrollView
-          ref={tabsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.tabsScroll}
-          onLayout={(e) => setTabsView(e.nativeEvent.layout.width)}
-        >
-          <View style={s.tabsInner} onLayout={(e) => setTabsContent(e.nativeEvent.layout.width)}>
-            <Segmented
-              radius={10}
-              value={tab}
-              onChange={(v) => setTab(v as Tab)}
-              options={[
-                { value: 'requests', label: `Requests (${reqCount})` },
-                { value: 'trolley', label: `Trolley (${trolleyCount})` },
-                { value: 'transit', label: `In Transit (${inTransitCount})` },
-                {
-                  value: 'shelved',
-                  label: shelvedCount.total ? `Shelved (${shelvedCount.done}/${shelvedCount.total})` : 'Shelved',
-                },
-              ]}
-            />
-          </View>
-        </ScrollView>
 
         {tab === 'requests' ? (
           <RequestsTab
@@ -2310,10 +2288,6 @@ const s = StyleSheet.create({
   reasonChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
-  tabsScroll: { flexGrow: 1 },
-  // Each of the four tabs gets ~110dp, enough for "Shelved (10/20)"; narrower
-  // screens scroll the bar (the active tab is centred).
-  tabsInner: { flex: 1, minWidth: 440 },
   farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text, flexShrink: 1 },
   truckRow: {
     flexDirection: 'row',
