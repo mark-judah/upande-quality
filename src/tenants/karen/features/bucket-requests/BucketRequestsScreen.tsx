@@ -488,6 +488,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           <Text style={s.offline}>Offline — you can still scan; downloads need internet.</Text>
         ) : null}
 
+        <View style={s.scanWrap}>
         <Card>
           {/* One field for both steps: scan the trolley first, then it
               switches to buckets for that trolley. Routing is by QR content
@@ -526,6 +527,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             placeholder={activeTrolleyId ? 'Scan bucket QR' : 'Scan trolley QR'}
           />
         </Card>
+        {/* The farm these requests are for (the list only ever holds this station's
+            farm), pinned on the scan card's top-right edge. */}
+        {userFarm ? (
+          <View style={s.farmEdge} pointerEvents="none">
+            <Ionicons name="location-outline" size={13} color={COLORS.textMuted} />
+            <Text style={s.farmText} numberOfLines={1}>
+              {userFarm}
+            </Text>
+          </View>
+        ) : null}
+        </View>
 
         {scanStatus ? (
           <View style={[s.statusBanner, scanStatus.ok ? s.statusOk : s.statusErr]}>
@@ -548,15 +560,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {dateChoices.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
-            {/* The farm these requests are for: the list only ever holds this station's farm. */}
-            {userFarm ? (
-              <View style={s.farmBadge}>
-                <Ionicons name="location-outline" size={14} color={COLORS.textMuted} />
-                <Text style={s.farmText} numberOfLines={1}>
-                  {userFarm}
-                </Text>
-              </View>
-            ) : null}
             {dateChoices.map((d) => (
               <Pressable
                 key={d}
@@ -2233,6 +2236,24 @@ const s = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: spacing.sm,
   },
+  scanWrap: { position: 'relative', marginTop: spacing.sm },
+  farmEdge: {
+    position: 'absolute',
+    top: -11,
+    right: spacing.md,
+    maxWidth: '55%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    zIndex: 2,
+    elevation: 4,
+  },
   scanHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2550,7 +2571,6 @@ const s = StyleSheet.create({
   dateChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   dateText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   dateTextOn: { color: '#fff' },
-  farmBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.surfaceAlt },
   farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   truckRow: {
     flexDirection: 'row',
