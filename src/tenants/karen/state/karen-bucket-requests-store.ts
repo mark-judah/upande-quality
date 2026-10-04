@@ -3,6 +3,7 @@ import * as Network from 'expo-network';
 import { isNoResponseError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { setTransferHub } from '@/src/core/tenant/transfer-hub';
+import { instanceKey } from '@/src/core/auth/known-instances';
 import {
   karenBucketRequestsRepository,
   type CompletedTrip,
@@ -156,6 +157,19 @@ function forDate(t: PlannedTrip, orders: PlannedTrip['orders']): PlannedTrip {
   return { ...t, orders, stops, farmBuckets: planned };
 }
 
+/** Wipe the offline store when it holds another server's data (see db.matchServer). */
+async function matchServer(): Promise<void> {
+  const url = await storage.get(StorageKeys.instanceUrl).catch(() => null);
+  await db.matchServer(instanceKey(url));
+}
+
+/** Keep only the orders the server still has for this farm: waiting ones (the
+ *  download) and any it reports a state for. Skipped when it reported no states. */
+async function prune(items: { oplName: string }[], known: string[] | null): Promise<void> {
+  if (!known) return;
+  await db.pruneOpls(new Set([...items.map((i) => i.oplName), ...known]));
+}
+
 export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   ready: false,
   error: null,
@@ -186,6 +200,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   init: async () => {
     try {
       await db.initDb();
+      await matchServer();
       const downloaded = await storage.get(StorageKeys.bucketRequestsDownloaded).catch(() => null);
       set({ ready: true, error: null, manualDownloaded: downloaded === '1' });
       await get().refresh();
@@ -226,7 +241,6 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         db.listVehicles(),
         db.listPlannedTrips(),
         db.listSchedules(),
-        db.counts(),
         db.listDeliveryDates(),
       ]);
     } catch (e) {
@@ -235,7 +249,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (__DEV__) console.warn('[bucket-requests] refresh failed:', e);
       return;
     }
-    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = lists;
+    const [requests, trolley, inTransit, vehicles, allTrips, schedules, deliveryDates] = lists;
     // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
     const dd = get().deliveryDate;
     const plannedTrips = dd
@@ -243,6 +257,16 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
           .map((t) => forDate(t, (t.orders ?? []).filter((o) => !o.deliveryDate || o.deliveryDate === dd)))
           .filter((t) => t.orders.length > 0)
       : allTrips;
+    // Counts cover the same picklists the Requests tab lists: the ones on an open trip.
+    let c: Awaited<ReturnType<typeof db.counts>>;
+    try {
+      c = await db.counts(
+        new Set(plannedTrips.filter((t) => !t.yourStopClosed).flatMap((t) => (t.orders ?? []).map((o) => o.opl))),
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('[bucket-requests] counts failed:', e);
+      return;
+    }
     // Dates to filter by: the orders on the device, plus the ones on planned trips.
     const dates = [
       ...new Set([
@@ -316,6 +340,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
           await db.replacePlannedTrips(trips.trips);
           await db.replaceSchedules(trips.schedules);
           await db.applyServerStates(trips.oplStates);
+          await prune(items, trips.known);
         }
       } catch {
         /* keep the cached plan */
@@ -371,6 +396,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       const alloc = date
         ? await karenBucketRequestsRepository.fetchAllocations(farm, date, date)
         : await karenBucketRequestsRepository.fetchAllocations(farm);
+      await matchServer();
       if (alloc.kind === 'ok') await db.downloadOpls(alloc.items, farm);
       // Trucks too, so "Load to truck" has a current list without a manual download.
       try {
@@ -384,6 +410,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         await db.replacePlannedTrips(trips.trips);
         await db.replaceSchedules(trips.schedules);
         await db.applyServerStates(trips.oplStates);
+        if (alloc.kind === 'ok') await prune(alloc.items, trips.known);
       }
       await get().refresh();
     } catch {
