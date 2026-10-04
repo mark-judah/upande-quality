@@ -1122,8 +1122,37 @@ function RequestsTab({
   const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
+    if (inTrip) {
+      // Order name with its team and schedule number inline; the trip itself is
+      // the card around it.
+      const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
+      const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
+      return (
+        <View key={g.orderName} style={s.groupInTrip}>
+          <View style={s.groupLine}>
+            {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
+            <Text style={[s.groupHdr, { flexShrink: 1 }]} numberOfLines={1}>
+              {g.orderName}
+            </Text>
+            {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
+          </View>
+          {g.opls.map((o) => (
+            <OplCard
+              key={o.oplName}
+              opl={o}
+              trip={oplTrip[o.oplName]}
+              team={oplTeam[o.oplName]}
+              line={lineColor.byOpl[o.oplName]}
+              replacingId={replacingId}
+              onReplace={onReplace}
+              inTrip
+            />
+          ))}
+        </View>
+      );
+    }
     return (
-      <View key={g.orderName} style={inTrip ? s.groupInTrip : undefined}>
+      <View key={g.orderName}>
         <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]}>{g.orderName}</Text>
         {customer ? <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>{customer}</Text> : null}
         {g.opls.map((o) => (
@@ -1135,7 +1164,6 @@ function RequestsTab({
             line={lineColor.byOpl[o.oplName]}
             replacingId={replacingId}
             onReplace={onReplace}
-            inTrip={inTrip}
           />
         ))}
       </View>
@@ -1201,12 +1229,10 @@ function RequestsTab({
               {/* One card per trip: the trip, then its picklists still to scan. */}
               <TripCard
                 trip={t}
-                oplTeam={oplTeam}
-                oplLine={oplLine}
                 online={online}
                 onCloseStop={onCloseStop}
-                compact
-                heading={t.current ? 'Current trip' : 'Next trip'}
+                scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
+                scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
               >
                 {tripGroups.length ? (
                   tripGroups.map((g) => renderGroup(g, false, true))
@@ -1277,88 +1303,111 @@ function OplCard({
   const pct = opl.total > 0 ? Math.round((opl.scanned / opl.total) * 100) : 0;
   const dimmed = !trip;
   const Wrap = inTrip ? View : Card;
+  // Scanned buckets fold away under one green "N scanned" line (tap to see them,
+  // struck through): what is left to find stays on top.
+  const [showScanned, setShowScanned] = useState(false);
+  const toScan = opl.buckets.filter((b) => !b.scanned);
+  const done = opl.buckets.filter((b) => b.scanned);
+  const bucketRow = (b: ReqBucket) => (
+    <View key={b.id} style={s.bRow}>
+      <Ionicons
+        name={b.notFound ? 'close-circle' : b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
+        size={18}
+        color={b.notFound ? COLORS.danger : b.scanned ? SHELVED_GREEN : COLORS.textMuted}
+      />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {/* Shelf (left, big and bold: what they look for in the cold room)
+            and the bucket on it (right) on one line. */}
+        <View style={s.shelfBucketRow}>
+          <Text style={[s.bShelfLead, b.scanned && s.bDone]} numberOfLines={1}>
+            {b.shelf || 'No shelf'}
+          </Text>
+          <Text style={[s.bIdRight, b.scanned && s.bDone]} numberOfLines={1}>
+            {b.bucketId} ({Math.round(b.qty)})
+          </Text>
+        </View>
+        <Text style={[s.bMeta, b.scanned && s.bDone]} numberOfLines={1}>
+          {bucketMeta(b.variety, b.stemLength)}
+          {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
+        </Text>
+      </View>
+      <View style={s.bSide}>
+        {!b.scanned ? (
+          <Pressable
+            onPress={() => onReplace(b)}
+            disabled={replacingId !== null}
+            hitSlop={8}
+            style={s.replaceBtn}
+          >
+            {replacingId === b.id ? (
+              <ActivityIndicator size="small" color={COLORS.text} />
+            ) : (
+              <>
+                <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
+                <Text style={s.changeLink}>Replace</Text>
+              </>
+            )}
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
   return (
     <View style={dimmed ? s.dimmed : undefined}>
     <Wrap style={inTrip ? s.oplFlat : undefined}>
-      <View style={s.oplTagRow}>
-        {inTrip ? (
-          line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null
-        ) : trip ? (
-          <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
-            {line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null}
-            <Ionicons
-              name={trip.onTrip ? 'car' : 'calendar-outline'}
-              size={12}
-              color={trip.confirmed ? (COLORS.textOnPrimary ?? '#fff') : COLORS.text}
-            />
-            <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]} numberOfLines={1}>
-              {trip.label} · {trip.onTrip ? (trip.confirmed ? 'Confirmed' : 'Planned') : 'Scheduled'}
-            </Text>
+      {/* In its trip's card the order line carries the team and the trip shows the
+          progress (at "Your stop"); a picklist card on its own keeps both. */}
+      {!inTrip ? (
+        <>
+          <View style={s.oplTagRow}>
+            {trip ? (
+              <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
+                {line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null}
+                <Ionicons
+                  name={trip.onTrip ? 'car' : 'calendar-outline'}
+                  size={12}
+                  color={trip.confirmed ? (COLORS.textOnPrimary ?? '#fff') : COLORS.text}
+                />
+                <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]} numberOfLines={1}>
+                  {trip.label} · {trip.onTrip ? (trip.confirmed ? 'Confirmed' : 'Planned') : 'Scheduled'}
+                </Text>
+              </View>
+            ) : (
+              <View style={s.oplTagUnsched}>
+                <Ionicons name="ellipse-outline" size={11} color={COLORS.textMuted} />
+                <Text style={s.oplTagUnschedText}>Unscheduled</Text>
+              </View>
+            )}
+            {!trip || trip.onTrip ? <TeamChip team={team} color={trip ? undefined : line?.color} /> : null}
           </View>
-        ) : (
-          <View style={s.oplTagUnsched}>
-            <Ionicons name="ellipse-outline" size={11} color={COLORS.textMuted} />
-            <Text style={s.oplTagUnschedText}>Unscheduled</Text>
-          </View>
-        )}
-        {!trip || trip.onTrip ? <TeamChip team={team} color={trip ? undefined : line?.color} /> : null}
-      </View>
-      <View style={s.oplHead}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={s.oplMeta}>
-            {opl.scanned}/{opl.total} scanned
-          </Text>
-        </View>
-        <Text style={s.pct}>{pct}%</Text>
-      </View>
-      <View style={s.track}>
-        <View style={[s.fill, { width: `${pct}%` }]} />
-      </View>
-      <View style={s.divider} />
-      {opl.buckets.map((b) => (
-        <View key={b.id} style={s.bRow}>
-          <Ionicons
-            name={b.notFound ? 'close-circle' : b.scanned ? 'checkmark-circle' : 'ellipse-outline'}
-            size={18}
-            color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
-          />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            {/* Shelf (left, big and bold: what they look for in the cold room)
-                and the bucket on it (right) on one line. */}
-            <View style={s.shelfBucketRow}>
-              <Text style={s.bShelfLead} numberOfLines={1}>
-                {b.shelf || 'No shelf'}
-              </Text>
-              <Text style={s.bIdRight} numberOfLines={1}>
-                {b.bucketId} ({Math.round(b.qty)})
+          <View style={s.oplHead}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.oplMeta}>
+                {opl.scanned}/{opl.total} scanned
               </Text>
             </View>
-            <Text style={s.bMeta} numberOfLines={1}>
-              {bucketMeta(b.variety, b.stemLength)}
-              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
-            </Text>
+            <Text style={s.pct}>{pct}%</Text>
           </View>
-          <View style={s.bSide}>
-            {!b.scanned ? (
-              <Pressable
-                onPress={() => onReplace(b)}
-                disabled={replacingId !== null}
-                hitSlop={8}
-                style={s.replaceBtn}
-              >
-                {replacingId === b.id ? (
-                  <ActivityIndicator size="small" color={COLORS.text} />
-                ) : (
-                  <>
-                    <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
-                    <Text style={s.changeLink}>Replace</Text>
-                  </>
-                )}
-              </Pressable>
-            ) : null}
+          <View style={s.track}>
+            <View style={[s.fill, { width: `${pct}%` }]} />
           </View>
-        </View>
-      ))}
+          <View style={s.divider} />
+        </>
+      ) : null}
+      {toScan.map(bucketRow)}
+      {done.length ? (
+        <Pressable
+          onPress={() => setShowScanned((v) => !v)}
+          style={s.doneToggle}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showScanned }}
+        >
+          <Ionicons name="checkmark-done" size={16} color={SHELVED_GREEN} />
+          <Text style={s.doneToggleText}>{done.length} scanned</Text>
+          <Ionicons name={showScanned ? 'chevron-up' : 'chevron-down'} size={14} color={SHELVED_GREEN} />
+        </Pressable>
+      ) : null}
+      {showScanned ? done.map(bucketRow) : null}
     </Wrap>
     </View>
   );
@@ -1906,27 +1955,6 @@ const STOP_UI: Record<
   done: { label: 'Delivered', color: COLORS.textMuted, icon: 'checkmark-done-circle' },
 };
 
-function StopRow({ stop }: { stop: PlannedTripStop }) {
-  const ui = STOP_UI[stop.status] ?? STOP_UI.waiting;
-  const progress = stop.total > 0 ? `${stop.doneCount}/${stop.total}` : `${stop.planned}`;
-  return (
-    <View style={[s.stopRow, stop.isYou ? s.stopRowYou : null]}>
-      <Text style={[s.stopNum, stop.isYou ? s.stopNumYou : null]}>{stop.stop}</Text>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.stopFarm} numberOfLines={1}>
-          {stop.farm}
-          {stop.isYou ? '  · you' : ''}
-          {stop.delaying ? '  ⚠︎' : ''}
-        </Text>
-        <Text style={[s.stopStatus, { color: ui.color }]} numberOfLines={1}>
-          {ui.label} · {progress}
-          {stop.delaying ? ' · holding up the trip' : ''}
-        </Text>
-      </View>
-      <Ionicons name={ui.icon} size={16} color={ui.color} />
-    </View>
-  );
-}
 
 /** Why a farm's stop leaves with fewer buckets than planned (saved on the trip). */
 const SHORT_REASONS = ['Bucket not found', 'Not ready yet', 'Quality reject', 'Truck full', 'Other'] as const;
@@ -1934,25 +1962,20 @@ type ShortReason = (typeof SHORT_REASONS)[number];
 
 function TripCard({
   trip,
-  oplTeam,
-  oplLine,
   online,
   onCloseStop,
-  compact,
-  heading,
+  scanned = 0,
+  scanTotal = 0,
   children,
 }: {
   trip: PlannedTrip;
-  oplTeam: Record<string, string>;
-  oplLine: Record<string, LineColor>;
   online: boolean;
   onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
-  /** Trip in the Requests list: its picklists (`children`) sit inside the card,
-   *  so the "Your orders" summary is left out. */
-  compact?: boolean;
-  /** "Current trip" / "Next trip", above the truck. */
-  heading?: string;
-  /** The trip's picklists, shown in the card under the trip details. */
+  /** This farm's buckets on the trip scanned so far, of `scanTotal`: the
+   *  progress shown at "Your stop". */
+  scanned?: number;
+  scanTotal?: number;
+  /** The trip's orders, shown in the card between the route and "Your stop". */
   children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
@@ -1977,106 +2000,60 @@ function TripCard({
   // on the truck's next run).
   const canClose =
     !!yourStop && !trip.yourStopClosed && trip.current && yourStop.loaded + yourStop.transit + yourStop.shelved > 0;
+  // The route: every stop in the order the truck drives them.
+  const route = [...(trip.stops ?? [])].sort((x, y) => x.stop - y.stop);
+  const ui = yourStop ? (STOP_UI[yourStop.status] ?? STOP_UI.waiting) : null;
+  const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
   return (
     <Card>
-      {heading ? (
-        <Text style={[s.stepLabel, trip.current ? s.stepLabelCurrent : null, s.tripHeading]}>{heading}</Text>
-      ) : null}
+      {/* Truck and trip number first; nothing the farm doesn't act on. */}
       <View style={s.tripHead}>
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText} numberOfLines={1}>
             {trip.vehicle || 'No truck yet'}
+            {trip.run ? `  ·  Trip ${trip.run}${trip.runs > 1 ? ` of ${trip.runs}` : ''}` : ''}
           </Text>
         </View>
-        {/* This farm's own stop, not the whole trip: another farm's buckets on the
-            truck must not make an unstaged farm read "loading". */}
-        {yourStop ? (
-          <View style={[s.tripPill, { borderColor: STOP_UI[yourStop.status]?.color, borderWidth: 1 }]}>
-            <Text style={[s.tripPillText, { color: STOP_UI[yourStop.status]?.color }]}>
-              {(STOP_UI[yourStop.status] ?? STOP_UI.waiting).label}
-            </Text>
-          </View>
-        ) : null}
-        <View style={[s.tripPill, trip.confirmed ? s.tripPillConfirmed : s.tripPillDraft]}>
-          <Text
-            style={[s.tripPillText, trip.confirmed ? s.tripPillTextConfirmed : s.tripPillTextDraft]}
-          >
-            {trip.confirmed ? 'Confirmed' : 'Planned'}
+        <View style={[s.tripPill, trip.current ? s.tripPillConfirmed : s.tripPillDraft]}>
+          <Text style={[s.tripPillText, trip.current ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
+            {trip.current ? 'Current' : 'Next'}
           </Text>
         </View>
       </View>
 
-      {trip.run ? (
-        <View style={s.tripRunRow}>
-          <Text style={s.tripRun}>
-            Trip {trip.run}
-            {trip.runs > 1 ? ` of ${trip.runs}` : ''}
-            {trip.window ? ` · ${trip.window}` : ''}
-          </Text>
-          {trip.runChain ? (
-            <Text style={s.tripChain} numberOfLines={2}>
-              {trip.runChain}
+      {route.length ? (
+        <Text style={s.tripRoute} numberOfLines={2}>
+          {route.map((st, i) => (
+            <Text key={`${st.stop}-${st.farm}`} style={st.isYou ? s.tripRouteYou : undefined}>
+              {i ? '  →  ' : ''}
+              {st.farm}
             </Text>
-          ) : null}
-          {!trip.current ? (
-            <Text style={s.tripLater}>
-              Next trip — the truck comes after trip {trip.afterRun || trip.run - 1} is back
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-
-      <View style={s.tripMetaRow}>
-        <Text style={s.tripMeta} numberOfLines={1}>
-          {trip.tripId}
-        </Text>
-        {trip.yourStop > 0 && trip.totalStops > 1 ? (
-          <Text style={s.tripStop} numberOfLines={1}>
-            You’re stop {trip.yourStop} of {trip.totalStops} · {trip.farmBuckets} bkt
-          </Text>
-        ) : (
-          <Text style={s.tripStop} numberOfLines={1}>
-            {trip.farmBuckets} bkt for you
-          </Text>
-        )}
-      </View>
-
-      {!compact && (trip.orders ?? []).length ? (
-        <>
-          <View style={s.divider} />
-          <Text style={s.routeLabel}>Your orders</Text>
-          {(trip.orders ?? []).map((o) => (
-            <View
-              key={`${trip.tripId}-${o.opl}`}
-              style={s.tripOrderRow}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.bId} numberOfLines={1}>
-                  {o.orderName || o.opl}
-                </Text>
-                <Text style={s.bMeta} numberOfLines={1}>
-                  {[o.varieties, `${o.buckets} bkt`].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-              <TeamChip team={oplTeam[o.opl]} color={oplLine[o.opl]?.color} />
-            </View>
           ))}
-        </>
+        </Text>
       ) : null}
 
       {children}
 
       <View style={s.divider} />
       {/* Only this farm's stop: other farms' transfers on the same truck stay with them. */}
-      <Text style={s.routeLabel}>
-        Your stop · stop {trip.yourStop} of {trip.totalStops}
-      </Text>
-      {(trip.stops ?? [])
-        .filter((st) => st.isYou)
-        .map((st) => (
-          <StopRow key={`${trip.tripId}-${st.stop}-${st.farm}`} stop={st} />
-        ))}
+      <View style={s.yourStopHead}>
+        <Text style={s.routeLabel}>Your stop</Text>
+        {ui ? <Text style={[s.yourStopStatus, { color: ui.color }]}>{ui.label}</Text> : null}
+      </View>
+      {scanTotal > 0 ? (
+        <>
+          <View style={s.yourStopScan}>
+            <Text style={s.oplMeta}>
+              {scanned}/{scanTotal} scanned
+            </Text>
+            <Text style={s.pct}>{pct}%</Text>
+          </View>
+          <View style={s.track}>
+            <View style={[s.fill, { width: `${pct}%` }]} />
+          </View>
+        </>
+      ) : null}
       {trip.yourStopClosed ? (
         <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
       ) : canClose ? (
@@ -2188,7 +2165,6 @@ const s = StyleSheet.create({
   stepLine: { flex: 1, width: 2, backgroundColor: COLORS.border, marginVertical: spacing.xs },
   stepBody: { flex: 1, minWidth: 0, paddingBottom: spacing.lg },
   stepBodyLater: { opacity: 0.75 },
-  tripHeading: { marginBottom: spacing.xs },
   // An order inside its trip's card: a section under a thin rule, its picklists
   // flat rather than cards of their own.
   groupInTrip: {
@@ -2198,8 +2174,6 @@ const s = StyleSheet.create({
     borderTopColor: COLORS.border,
   },
   oplFlat: { paddingTop: spacing.xs, marginBottom: spacing.sm },
-  stepLabel: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textMuted },
-  stepLabelCurrent: { color: COLORS.text },
   tripAllScanned: {
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
@@ -2207,14 +2181,21 @@ const s = StyleSheet.create({
     marginTop: spacing.xs,
     marginLeft: spacing.xs,
   },
-  tripRunRow: { marginTop: spacing.xs, gap: 2 },
-  tripRun: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  tripChain: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
-  tripLater: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.warn },
   shelvedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   shelvedWhere: { alignItems: 'flex-end', maxWidth: '45%' },
   shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   shelvedStateWaiting: { color: COLORS.warn },
+  // Requests trip card
+  tripRoute: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: spacing.xs },
+  tripRouteYou: { fontFamily: fontFamily.bold, color: COLORS.text },
+  yourStopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  yourStopStatus: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm },
+  yourStopScan: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xs },
+  groupLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Scanned buckets: folded under one green line, struck through when shown.
+  bDone: { color: SHELVED_GREEN, textDecorationLine: 'line-through' },
+  doneToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.sm },
+  doneToggleText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: SHELVED_GREEN },
   shelvedPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2417,7 +2398,6 @@ const s = StyleSheet.create({
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
   bSide: { alignItems: 'flex-end', gap: 4 },
-  tripOrderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
   replaceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2454,41 +2434,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
     marginBottom: 4,
   },
-  stopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 7,
-    paddingHorizontal: 8,
-    borderRadius: borderRadius.sm,
-  },
-  stopRowYou: { backgroundColor: COLORS.surfaceAlt },
-  stopNum: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    textAlign: 'center',
-    lineHeight: scaleFont(20),
-    fontFamily: fontFamily.bold,
-    fontSize: scaleFont(11),
-    color: COLORS.textMuted,
-    backgroundColor: COLORS.surfaceAlt,
-    overflow: 'hidden',
-  },
-  stopNumYou: { color: COLORS.textOnPrimary ?? '#fff', backgroundColor: COLORS.text },
-  stopFarm: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  stopStatus: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, marginTop: 1 },
-  tripMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginTop: 4,
-  },
   tripMeta: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
-  tripStop: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
-  tripBucketsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  tripBucketsText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   empty: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },
   emptyTitle: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   emptyHint: {
