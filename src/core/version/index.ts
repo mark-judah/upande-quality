@@ -45,9 +45,10 @@ export async function getServerVersions(): Promise<{ label: string; version: str
   }
 }
 
-// The mobile app is versioned via semantic-release (see .releaserc.json): every
-// merge to main publishes a GitHub Release tagged v<version>. The "latest
-// version" the app compares against is therefore the newest GitHub Release.
+// The mobile app is versioned by scripts/version.mjs (an odometer bump on every
+// merge to the release branch, see .github/workflows/release.yml), which tags it
+// and publishes a GitHub Release v<version>. The "latest version" the app
+// compares against is therefore the newest GitHub Release.
 export const GITHUB_OWNER = 'mark-judah';
 export const GITHUB_REPO = 'upande-quality';
 export const RELEASES_PAGE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
