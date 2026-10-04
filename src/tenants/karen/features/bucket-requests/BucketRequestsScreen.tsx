@@ -56,6 +56,19 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const { showSuccess, showError } = useToast();
   const [tab, setTab] = useState<Tab>('requests');
+  // On a narrow screen the tab bar scrolls: the active tab is scrolled to the
+  // middle so its label is never cut at either edge.
+  const tabsRef = useRef<ScrollView>(null);
+  const [tabsView, setTabsView] = useState(0);
+  const [tabsContent, setTabsContent] = useState(0);
+  useEffect(() => {
+    if (!tabsView || tabsContent <= tabsView) return;
+    const order: Tab[] = ['requests', 'trolley', 'transit', 'shelved'];
+    const seg = tabsContent / order.length;
+    const centre = seg * order.indexOf(tab) + seg / 2;
+    const x = Math.max(0, Math.min(tabsContent - tabsView, centre - tabsView / 2));
+    tabsRef.current?.scrollTo({ x, animated: true });
+  }, [tab, tabsView, tabsContent]);
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // Orders waiting for "Load to planned truck" to be confirmed (null = sheet closed).
@@ -517,8 +530,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
             bar scrolls sideways instead of squeezing the labels. */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabsScroll}>
-          <View style={s.tabsInner}>
+        <ScrollView
+          ref={tabsRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.tabsScroll}
+          onLayout={(e) => setTabsView(e.nativeEvent.layout.width)}
+        >
+          <View style={s.tabsInner} onLayout={(e) => setTabsContent(e.nativeEvent.layout.width)}>
             <Segmented
               radius={10}
               value={tab}
