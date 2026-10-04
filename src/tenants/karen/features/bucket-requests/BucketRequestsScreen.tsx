@@ -167,6 +167,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return r.ok;
   };
 
+  // Every bucket already on a trolley (or beyond), for "Added to trolley": the
+  // requests' scanned ones plus every bucket of the orders on trolleys / trucks.
+  const addedList = useMemo(() => {
+    const out: { key: string; label: string; meta: string }[] = [];
+    const add = (b: ReqBucket, order: string) => {
+      if (!b.scanned || b.notFound) return;
+      out.push({
+        key: `${order}-${b.id}`,
+        label: `${b.bucketId.toUpperCase()} (${Math.round(b.qty)})`,
+        meta: [b.shelf ? b.shelf.toUpperCase() : '', bucketMeta(b.variety, b.stemLength), order].filter(Boolean).join(' · '),
+      });
+    };
+    for (const g of requests) for (const o of g.opls) for (const b of o.buckets) add(b, g.orderName);
+    for (const o of [...trolley, ...inTransit]) for (const b of o.buckets) add(b, o.orderName);
+    return out;
+  }, [requests, trolley, inTransit]);
+
   // A trip the truck has left this farm on is done here until its next run.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
 
@@ -641,7 +658,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {/* What this stage has finished, at the end of each tab. */}
         {tab === 'requests' ? (
-          <StageSummary icon="cart-outline" label="Added to trolley" done={addedBuckets} total={allBuckets} />
+          <StageSummary
+            icon="cart-outline"
+            label="Added to trolley"
+            done={addedBuckets}
+            total={allBuckets}
+            items={addedList}
+          />
         ) : tab === 'trolley' ? (
           <StageSummary icon="car-outline" label="Loaded and in transit" done={transitBuckets} total={allBuckets} />
         ) : tab === 'transit' ? (
@@ -2124,17 +2147,28 @@ function StageSummary({
   label,
   done,
   total,
+  items,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   done: number;
   total: number;
+  /** The buckets that finished this stage: tap the summary to list them, checked. */
+  items?: { key: string; label: string; meta: string }[];
 }) {
+  const [open, setOpen] = useState(false);
   if (!total) return null;
   const complete = done >= total;
+  const canOpen = !!items?.length;
   return (
     <Card>
-      <View style={s.summaryRow}>
+      <Pressable
+        onPress={() => canOpen && setOpen((v) => !v)}
+        disabled={!canOpen}
+        style={s.summaryRow}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
         <Ionicons name={complete ? 'checkmark-circle' : icon} size={18} color={complete ? SHELVED_GREEN : COLORS.text} />
         <Text style={s.summaryLabel} numberOfLines={1}>
           {label}
@@ -2142,8 +2176,24 @@ function StageSummary({
         <Text style={[s.summaryCount, complete && { color: SHELVED_GREEN }]}>
           {done}/{total}
         </Text>
-      </View>
+        {canOpen ? <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} /> : null}
+      </Pressable>
       <ProgressBar value={total ? Math.min(1, done / total) : 0} />
+      {open
+        ? items?.map((it, i) => (
+            <View key={it.key} style={[s.bRow, i > 0 && s.bRowSep]}>
+              <Ionicons name="checkmark-circle" size={18} color={SHELVED_GREEN} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.bIdRight} numberOfLines={1}>
+                  {it.label}
+                </Text>
+                <Text style={s.bMeta} numberOfLines={1}>
+                  {it.meta}
+                </Text>
+              </View>
+            </View>
+          ))
+        : null}
     </Card>
   );
 }
