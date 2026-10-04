@@ -2161,6 +2161,7 @@ function TripCard({
       ) : canClose ? (
         <Button
           label={closing ? 'Closing…' : 'Truck leaving — close my stop'}
+          singleLine
           iconLeft="exit-outline"
           disabled={closing || !online}
           onPress={openLeave}

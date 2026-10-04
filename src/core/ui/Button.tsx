@@ -21,6 +21,8 @@ type Props = {
   style?: ViewStyle;
   /** 'sm': a compact pill for secondary actions inside a card. */
   size?: 'md' | 'sm';
+  /** Keep the label on one line, shrinking it a little to fit, instead of wrapping. */
+  singleLine?: boolean;
 };
 
 export function Button({
@@ -33,6 +35,7 @@ export function Button({
   iconLeft,
   style,
   size = 'md',
+  singleLine,
 }: Props) {
   const sm = size === 'sm';
   const isDisabled = !!disabled || !!loading;
@@ -61,7 +64,14 @@ export function Button({
       ) : (
         <View style={s.inner}>
           {iconLeft ? <Ionicons name={iconLeft} size={sm ? 14 : 18} color={fg} /> : null}
-          <Text style={[s.label, sm ? s.labelSm : null, { color: fg }]}>{label}</Text>
+          <Text
+            style={[s.label, sm ? s.labelSm : null, { color: fg }]}
+            numberOfLines={singleLine ? 1 : undefined}
+            adjustsFontSizeToFit={singleLine}
+            minimumFontScale={0.75}
+          >
+            {label}
+          </Text>
         </View>
       )}
     </Pressable>
