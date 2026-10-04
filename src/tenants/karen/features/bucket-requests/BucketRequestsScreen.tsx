@@ -523,6 +523,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       </View>
       <ScrollView
         contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.text} />
@@ -2020,7 +2021,7 @@ const SHELVED_GREEN = '#067647';
 
 const s = StyleSheet.create({
   // Room above and left of each trip card for its floating number.
-  step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.xs },
+  step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.md },
   stepDot: {
     width: 28,
     height: 28,
@@ -2031,7 +2032,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepDotFloat: { position: 'absolute', top: -10, left: -6, zIndex: 2, elevation: 3 },
+  stepDotFloat: { position: 'absolute', top: -10, left: -10, zIndex: 2, elevation: 3 },
   stepDotCurrent: { borderColor: COLORS.text, backgroundColor: COLORS.text },
   stepNum: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.textMuted },
   stepNumCurrent: { color: COLORS.surface },
