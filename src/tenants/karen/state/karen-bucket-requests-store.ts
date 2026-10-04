@@ -113,12 +113,6 @@ type State = {
 // One background sync at a time (the poll timer and app-foreground can overlap).
 let syncing = false;
 
-/** "Sat 4 Oct" for a YYYY-MM-DD delivery date. */
-function dayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -126,10 +120,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 function downloadMessage(res: { insertedOpls: string[]; refreshedOpls: string[] }, date: string): string {
   // One total — new and refreshed alike are on the phone now. "0 new, 5 refreshed"
   // read as "no picklists" to the people using it.
+  // No date in the message: the page only ever works on tomorrow's delivery.
   const total = res.insertedOpls.length + res.refreshedOpls.length;
-  const day = date ? dayLabel(date) : '';
-  if (total === 0) return day ? `No picklists for ${day} yet.` : 'No picklists to download.';
-  return `${plural(total, 'picklist')} downloaded.`;
+  if (total === 0) return 'No new OPLs.';
+  return `${plural(total, 'OPL')} downloaded.`;
 }
 
 /** A trip seen for one delivery date: its orders for that date, and this farm's stop
