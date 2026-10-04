@@ -201,7 +201,7 @@ export function VaselifeScreen() {
             onPress={() => setSection('sample')}
             style={[s.toggleBtn, section === 'sample' && s.toggleBtnActive]}
           >
-            <Text style={[s.toggleLabel, section === 'sample' && s.toggleLabelActive]}>
+            <Text style={[s.toggleLabel, section === 'sample' && s.toggleLabelActive]} numberOfLines={1}>
               NEW SAMPLE
             </Text>
           </Pressable>
@@ -209,7 +209,7 @@ export function VaselifeScreen() {
             onPress={() => setSection('observation')}
             style={[s.toggleBtn, section === 'observation' && s.toggleBtnActive]}
           >
-            <Text style={[s.toggleLabel, section === 'observation' && s.toggleLabelActive]}>
+            <Text style={[s.toggleLabel, section === 'observation' && s.toggleLabelActive]} numberOfLines={1}>
               OBSERVATION
             </Text>
           </Pressable>
@@ -681,6 +681,7 @@ const s = StyleSheet.create({
   toggleBtn: {
     flex: 1,
     paddingVertical: 12,
+    paddingHorizontal: 6,
     alignItems: 'center',
     backgroundColor: COLORS.bgMuted,
   },
@@ -692,9 +693,10 @@ const s = StyleSheet.create({
   bannerLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, letterSpacing: 0.3 },
   bannerCode: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text, marginTop: 2 },
 
-  twoCol: { flexDirection: 'row', gap: 12 },
-  colLeft: { flex: 1 },
-  colRight: { flex: 1 },
+  // Stacks the pair on screens too narrow for two labelled inputs side by side.
+  twoCol: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12 },
+  colLeft: { flexGrow: 1, flexBasis: 120 },
+  colRight: { flexGrow: 1, flexBasis: 120 },
 
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -722,7 +724,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     borderStyle: 'dashed',
   },
-  addLabel: { fontFamily: fontFamily.bold, color: COLORS.text, fontSize: scaleFont(13.5) },
+  addLabel: { flexShrink: 1, fontFamily: fontFamily.bold, color: COLORS.text, fontSize: scaleFont(13.5) },
 
   notesInput: {
     fontFamily: fontFamily.regular,
@@ -760,6 +762,7 @@ const s = StyleSheet.create({
   },
   failureReason: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: scaleFont(14), color: COLORS.text, marginRight: 8 },
   failureStemsInput: {
+    flexShrink: 0,
     fontFamily: fontFamily.bold,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -793,6 +796,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   totalIconWrap: {
+    flexShrink: 0,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -802,7 +806,7 @@ const s = StyleSheet.create({
     marginRight: 12,
   },
   totalLabel: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: scaleFont(13), color: COLORS.bg, opacity: 0.85, letterSpacing: 0.3 },
-  totalValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(30), color: COLORS.bg },
+  totalValue: { flexShrink: 0, marginLeft: 8, fontFamily: fontFamily.bold, fontSize: scaleFont(30), color: COLORS.bg },
 
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
   modalSearch: {

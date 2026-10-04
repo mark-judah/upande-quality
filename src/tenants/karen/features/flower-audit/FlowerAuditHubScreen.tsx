@@ -39,7 +39,9 @@ const s = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: spacing.md,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  // Column spacing comes from space-between, not `gap`: 48% + 48% + a fixed
+  // gap overflows narrow screens and drops the grid to one column.
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
   tile: {
     flexBasis: '48%',
     flexGrow: 0,

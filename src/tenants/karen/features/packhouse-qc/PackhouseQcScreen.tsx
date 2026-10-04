@@ -1723,7 +1723,7 @@ function SpecCheckRow({
   return (
     <View style={s.specCheckRow}>
       <View style={s.specCheckHead}>
-        <Text style={s.muted}>
+        <Text style={[s.muted, s.shrink]}>
           {label}: {expected || '—'}
         </Text>
         <Pressable
@@ -2235,8 +2235,10 @@ function PickerModal({
 }
 
 const s = StyleSheet.create({
-  replaceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  replaceBtn: { flex: 1 },
+  replaceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  // Two buttons per line where they fit; stacked on narrow screens.
+  replaceBtn: { flexGrow: 1, flexBasis: 130 },
+  shrink: { flexShrink: 1 },
   donorCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -2245,8 +2247,8 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   donorCardSelected: { borderColor: COLORS.text, backgroundColor: '#F5F3FF' },
-  donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  donorId: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
+  donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  donorId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
   label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   landingHeader: { marginBottom: spacing.lg },
   landingTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.xl, color: COLORS.text },
@@ -2264,6 +2266,7 @@ const s = StyleSheet.create({
   },
   workflowTilePressed: { opacity: 0.7 },
   workflowIconWrap: {
+    flexShrink: 0,
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
@@ -2299,6 +2302,7 @@ const s = StyleSheet.create({
   sectionLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.md },
   sectionLabelRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   sectionLabelText: {
+    flexShrink: 1,
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.xs,
     color: COLORS.textMuted,
@@ -2331,6 +2335,7 @@ const s = StyleSheet.create({
   pickerText: { fontFamily: fontFamily.semiBold, flex: 1, color: COLORS.text },
   chipRow: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' },
   chip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -2343,7 +2348,7 @@ const s = StyleSheet.create({
   },
   chipWarn: { backgroundColor: '#FFFBEB', borderColor: '#B45309' },
   chipDanger: { backgroundColor: '#FEF2F2', borderColor: COLORS.danger },
-  chipText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  chipText: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   empty: {
     fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
@@ -2360,8 +2365,8 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: COLORS.bg,
   },
-  issueHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  issueTitle: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
+  issueHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  issueTitle: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   specCheckRow: { paddingVertical: 4 },
   specCheckHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   chipAccepted: { backgroundColor: '#F0FDF4', borderColor: COLORS.success },

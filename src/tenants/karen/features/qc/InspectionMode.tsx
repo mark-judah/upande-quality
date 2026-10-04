@@ -370,7 +370,7 @@ function ConcernRow({
   return (
     <View style={s.concernCard}>
       <View style={s.concernHead}>
-        <Text style={s.concernTitle}>{displayName}</Text>
+        <Text style={s.concernTitle} numberOfLines={2}>{displayName}</Text>
         <Pressable onPress={onRemove} hitSlop={8}>
           <MaterialCommunityIcons name="close" size={18} color={COLORS.textMuted} />
         </Pressable>
@@ -525,6 +525,7 @@ const s = StyleSheet.create({
   pillRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   varietyPill: {
     minWidth: 140,
+    maxWidth: 240,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
@@ -559,7 +560,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  addLabel: { fontFamily: fontFamily.semiBold, color: COLORS.text },
+  addLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, color: COLORS.text },
   concernCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -568,8 +569,8 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: COLORS.bg,
   },
-  concernHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  concernTitle: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
+  concernHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  concernTitle: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   affectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   affectedLabel: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: scaleFont(13) },
   affectedInput: {
@@ -583,8 +584,8 @@ const s = StyleSheet.create({
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  tolRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  tolLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  tolRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  tolLabel: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
   tolValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   tolExceeded: { color: COLORS.danger },
   actionRow: { flexDirection: 'row', gap: 12 },
@@ -618,7 +619,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  checkLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
+  checkLabel: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
   modalSearch: {
     fontFamily: fontFamily.regular,

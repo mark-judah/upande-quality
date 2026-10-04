@@ -173,7 +173,7 @@ export function KarenSolutionMixingScreen({
           ) : null}
           <View style={{ height: 12 }} />
           <View style={s.dateTimeRow}>
-            <View style={{ flex: 1 }}>
+            <View style={s.dateTimeCell}>
               <LabeledInput
                 label="Date"
                 iconName="calendar-outline"
@@ -183,7 +183,7 @@ export function KarenSolutionMixingScreen({
                 autoCapitalize="none"
               />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={s.dateTimeCell}>
               <LabeledInput
                 label="Time"
                 iconName="clock-outline"
@@ -313,7 +313,7 @@ function ChemicalRowCard({
   return (
     <View style={s.chemCard}>
       <View style={s.chemHead}>
-        <Text style={s.chemTitle}>
+        <Text style={s.chemTitle} numberOfLines={2}>
           {chemicalOptions.find((c) => c.value === row.chemical)?.label ?? 'New chemical'}
         </Text>
         <Pressable onPress={onRemove} hitSlop={8}>
@@ -379,7 +379,9 @@ function ChemicalRowCard({
             ) : null}
             {row.uploadError ? (
               <View style={[s.thumbOverlay, { backgroundColor: 'rgba(220,38,38,0.85)' }]}>
-                <Text style={s.thumbErrorText}>{row.uploadError}</Text>
+                <Text style={s.thumbErrorText} numberOfLines={3}>
+                  {row.uploadError}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -420,7 +422,9 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     fontSize: scaleFont(13),
   },
-  dateTimeRow: { flexDirection: 'row', gap: spacing.sm },
+  dateTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  // Below ~140dp a date input clips its value, so narrow screens stack them.
+  dateTimeCell: { flexGrow: 1, flexBasis: 140 },
   sliderLabel: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,
@@ -439,6 +443,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
   },
   addLabel: {
+    flexShrink: 1,
     color: COLORS.text,
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,
@@ -504,6 +509,7 @@ const s = StyleSheet.create({
 
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumbWrap: {
+    flexShrink: 0,
     width: 64, height: 64,
     borderRadius: borderRadius.sm,
     overflow: 'hidden',

@@ -57,8 +57,8 @@ export function QuarantineMode() {
           <Card key={b.bucketId}>
             <View style={s.rowHead}>
               <View style={{ flex: 1 }}>
-                <Text style={s.bucketTitle}>{b.bucketId}</Text>
-                <Text style={s.bucketSubtitle}>{b.itemName || b.itemCode}</Text>
+                <Text style={s.bucketTitle} numberOfLines={1}>{b.bucketId}</Text>
+                <Text style={s.bucketSubtitle} numberOfLines={1}>{b.itemName || b.itemCode}</Text>
               </View>
               <View style={s.tag}>
                 <MaterialCommunityIcons name="alert-outline" size={12} color={COLORS.text} />
@@ -156,6 +156,7 @@ const s = StyleSheet.create({
   bucketTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
   bucketSubtitle: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   tag: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -168,10 +169,12 @@ const s = StyleSheet.create({
   },
   tagLabel: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.text },
   stemsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stemsLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
+  stemsLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   stemsInput: {
     fontFamily: fontFamily.regular,
     width: 100,
+    minWidth: 64,
+    flexShrink: 1,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,

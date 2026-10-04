@@ -180,7 +180,7 @@ export function KarenFreightDispatchScreen() {
       {trip ? (
         <>
           <Card>
-            <Text style={s.section}>{trip.name}</Text>
+            <Text style={s.section} numberOfLines={1}>{trip.name}</Text>
             <Text style={s.statusLine}>{trip.status}</Text>
             <View style={{ height: 8 }} />
             <Fact label="Vehicle" value={trip.vehicle ?? '—'} />
@@ -357,10 +357,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
     paddingVertical: 5,
   },
   factLabel: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
-  factValue: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
+  factValue: { flexShrink: 1, textAlign: 'right', fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
   docketRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,6 +370,7 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   docketBtn: {
+    flexShrink: 0,
     width: 56,
     height: 56,
     borderRadius: borderRadius.sm,

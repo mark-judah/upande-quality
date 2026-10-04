@@ -125,7 +125,7 @@ export function KarenCleaningRecordScreen({ userFarm }: { userFarm: string }) {
           <View style={s.segmented}>
             {MODES.map((m) => (
               <Pressable key={m} onPress={() => setMode(m)} style={[s.segment, mode === m && s.segmentActive]}>
-                <Text style={[s.segmentLabel, mode === m && s.segmentLabelActive]}>{m}</Text>
+                <Text style={[s.segmentLabel, mode === m && s.segmentLabelActive]} numberOfLines={1}>{m}</Text>
               </Pressable>
             ))}
           </View>
@@ -152,7 +152,7 @@ export function KarenCleaningRecordScreen({ userFarm }: { userFarm: string }) {
                 {(['ml/L', 'g/L'] as const).map((u) => (
                   <Pressable key={u} onPress={() => setDetergentUnit(u)}
                              style={[s.segment, detergentUnit === u && s.segmentActive]}>
-                    <Text style={[s.segmentLabel, detergentUnit === u && s.segmentLabelActive]}>{u}</Text>
+                    <Text style={[s.segmentLabel, detergentUnit === u && s.segmentLabelActive]} numberOfLines={1}>{u}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -186,7 +186,7 @@ export function KarenCleaningRecordScreen({ userFarm }: { userFarm: string }) {
                 {(['ml/L', 'g/L'] as const).map((u) => (
                   <Pressable key={u} onPress={() => setDisinfectantUnit(u)}
                              style={[s.segment, disinfectantUnit === u && s.segmentActive]}>
-                    <Text style={[s.segmentLabel, disinfectantUnit === u && s.segmentLabelActive]}>{u}</Text>
+                    <Text style={[s.segmentLabel, disinfectantUnit === u && s.segmentLabelActive]} numberOfLines={1}>{u}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -255,7 +255,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     overflow: 'hidden',
   },
-  segment: { flex: 1, paddingVertical: 11, alignItems: 'center' },
+  segment: { flex: 1, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center' },
   segmentActive: { backgroundColor: COLORS.text },
   segmentLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.textMuted },
   segmentLabelActive: { color: '#FFFFFF' },

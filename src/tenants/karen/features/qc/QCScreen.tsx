@@ -105,7 +105,7 @@ function ScanAndBatchSection({
 
       {batch ? (
         <Card>
-          <Text style={s.batchTitle}>BATCH {batch.batchNo || '—'}</Text>
+          <Text style={s.batchTitle} numberOfLines={1}>BATCH {batch.batchNo || '—'}</Text>
           <Text style={s.muted}>
             Farm: {batch.farm || '—'} • {batch.company || '—'}
           </Text>
@@ -137,7 +137,7 @@ const s = StyleSheet.create({
   muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   loadingText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
   batchTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
-  chipRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'space-between' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12, justifyContent: 'space-between' },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,

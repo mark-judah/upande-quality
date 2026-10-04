@@ -119,7 +119,9 @@ export function KarenColdroomQcScreen() {
             {/* BUCKET DETAILS */}
             <Card>
               <View style={s.rowBetween}>
-                <Text style={s.section}>BUCKET · {bucket.bucketId}</Text>
+                <Text style={[s.section, s.shrink]} numberOfLines={1}>
+                  BUCKET · {bucket.bucketId}
+                </Text>
                 {bucket.isShelved ? (
                   <Text style={s.shelvedBadge}>shelved</Text>
                 ) : (
@@ -303,18 +305,20 @@ const s = StyleSheet.create({
   section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: scaleFont(12), letterSpacing: 0.4 },
   hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   errorText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: 'red', marginTop: 6 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  shrink: { flexShrink: 1 },
   shelvedBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.primary },
   coldBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
   detailLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
-  detailValue: { fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.text },
+  detailValue: { flexShrink: 1, textAlign: 'right', fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.text },
   detailValueStrong: { fontFamily: fontFamily.bold, fontSize: scaleFont(15) },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
   headerText: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted, letterSpacing: 0.3 },
@@ -347,12 +351,12 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  totalLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  totalLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   totalValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
   emptyBox: { alignItems: 'center', paddingVertical: 18, gap: 6 },
   emptyText: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  addText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.primary },
+  addText: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.primary },
   modalRoot: { flex: 1, backgroundColor: COLORS.surface },
   modalSearch: {
     fontFamily: fontFamily.regular,
