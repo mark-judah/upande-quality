@@ -1194,7 +1194,7 @@ function RequestsTab({
 }) {
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
-  if (!groups.length && !trips.length) {
+  if (!trips.length) {
     if (loading) return <SkeletonCards />;
     return (
       <Card>
@@ -1258,10 +1258,7 @@ function RequestsTab({
     sorted
       .map((g) => ({ ...g, opls: g.opls.filter((o) => tripOf.get(o.oplName) === tripId) }))
       .filter((g) => g.opls.length);
-  const rest = sorted
-    .map((g) => ({ ...g, opls: g.opls.filter((o) => !tripOf.has(o.oplName)) }))
-    .filter((g) => g.opls.length);
-  const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
+  // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
@@ -1350,15 +1347,6 @@ function RequestsTab({
         );
       })}
 
-      {rest.length && trips.length ? (
-        <Text style={s.sectionHdr}>{firstUnschedIdx === 0 ? 'Not on a trip yet' : 'Scheduled — not on a trip yet'}</Text>
-      ) : null}
-      {rest.map((g, idx) => (
-        <View key={g.orderName}>
-          {firstUnschedIdx > 0 && idx === firstUnschedIdx ? <Text style={s.sectionHdr}>Not on a trip yet</Text> : null}
-          {renderGroup(g, !isScheduled(g))}
-        </View>
-      ))}
     </>
   );
 }
