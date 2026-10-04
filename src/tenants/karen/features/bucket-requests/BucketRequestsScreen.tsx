@@ -1230,13 +1230,13 @@ function RequestsTab({
       <View>
         {/* Row 1: order name left, team right; the customer under it. */}
         <View style={s.groupLine}>
-          <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+          <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]}>
             {g.orderName}
           </Text>
           {teams.length ? <TeamChip team={teams.join(', ')} color={dot?.color} fill /> : null}
         </View>
         {customer ? (
-          <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+          <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>
             {customer}
           </Text>
         ) : null}
@@ -1386,13 +1386,13 @@ function OplCard({
         <View style={s.shelfBucketRow}>
           {/* Each id with its small word label under it. */}
           <View style={s.idCol}>
-            <Text style={[s.bShelfLead, b.scanned && s.bDone]} numberOfLines={1}>
+            <Text style={[s.bShelfLead, b.scanned && s.bDone]}>
               {(b.shelf || 'none').toUpperCase()}
             </Text>
             <Text style={s.idWord}>SHELF</Text>
           </View>
           <View style={[s.idCol, s.idColRight]}>
-            <Text style={[s.bIdRight, b.scanned && s.bDone]} numberOfLines={1}>
+            <Text style={[s.bIdRight, b.scanned && s.bDone]}>
               {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
             </Text>
             <Text style={s.idWord}>BUCKET</Text>
@@ -1401,7 +1401,7 @@ function OplCard({
         {/* Variety and stem length, with Info (replace / not found) on the same line (not beside the
             shelf and bucket). */}
         <View style={s.metaReplaceRow}>
-          <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]} numberOfLines={1}>
+          <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]}>
             {bucketMeta(b.variety, b.stemLength)}
             {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
           </Text>
@@ -1442,7 +1442,7 @@ function OplCard({
                   size={12}
                   color={trip.confirmed ? (COLORS.textOnPrimary ?? '#fff') : COLORS.text}
                 />
-                <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]} numberOfLines={1}>
+                <Text style={[s.oplTagText, trip.confirmed ? s.oplTagTextConfirmed : null]}>
                   {trip.label} · {trip.onTrip ? (trip.confirmed ? 'Confirmed' : 'Planned') : 'Scheduled'}
                 </Text>
               </View>
@@ -2146,7 +2146,7 @@ function TripCard({
       <View style={s.tripHead}>
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
-          <Text style={s.tripTruckText} numberOfLines={1}>
+          <Text style={s.tripTruckText}>
             {trip.vehicle || 'No truck yet'}
             {trip.run ? `  ·  Trip ${trip.run}${trip.runs > 1 ? ` of ${trip.runs}` : ''}` : ''}
           </Text>
@@ -2163,7 +2163,7 @@ function TripCard({
       <View style={s.divider} />
       {/* Only this farm's stop: other farms' transfers on the same truck stay with them. */}
       <View style={s.yourStopHead}>
-        <Text style={[s.routeLabel, s.stopRoute]} numberOfLines={1}>
+        <Text style={[s.routeLabel, s.stopRoute]}>
           {route || 'Your stop'}
         </Text>
         {ui ? <Text style={[s.yourStopStatus, { color: ui.color }]}>{ui.label}</Text> : null}
@@ -2218,7 +2218,7 @@ function StageSummary({
         accessibilityState={{ expanded: open }}
       >
         <Ionicons name={complete ? 'checkmark-circle' : icon} size={18} color={complete ? SHELVED_GREEN : COLORS.text} />
-        <Text style={s.summaryLabel} numberOfLines={1}>
+        <Text style={s.summaryLabel}>
           {label}
         </Text>
         <Text style={[s.summaryCount, complete && { color: SHELVED_GREEN }]}>
@@ -2232,14 +2232,14 @@ function StageSummary({
             <View key={it.key} style={[s.bRow, i > 0 && s.bRowSep]}>
               <Ionicons name="checkmark-circle" size={18} color={SHELVED_GREEN} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.bIdRight} numberOfLines={1}>
+                <Text style={s.bIdRight}>
                   {it.label}
                 </Text>
-                <Text style={s.bMeta} numberOfLines={1}>
+                <Text style={s.bMeta}>
                   {it.meta}
                 </Text>
                 {it.sub ? (
-                  <Text style={s.bMetaSub} numberOfLines={1}>
+                  <Text style={s.bMetaSub}>
                     {it.sub}
                   </Text>
                 ) : null}
