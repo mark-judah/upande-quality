@@ -117,7 +117,10 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
       initStockTake();
       loadColdStores(userFarm);
     } else if (mode === 'issue-offline') {
-      loadOpls();
+      // Issuing works on tomorrow's deliveries only: a date left from yesterday
+      // moves on to the new tomorrow (which loads its OPLs).
+      if (oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
+      else loadOpls();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -331,11 +334,6 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
             <Text style={s.filterLabel}>Delivery date</Text>
             <View style={s.modeRow}>
               <ModeButton
-                label="Today"
-                active={oplDeliveryDate === localDay(0)}
-                onPress={() => setOplDeliveryDate(localDay(0))}
-              />
-              <ModeButton
                 label="Tomorrow"
                 active={oplDeliveryDate === localDay(1)}
                 onPress={() => setOplDeliveryDate(localDay(1))}
@@ -355,7 +353,7 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
                   ? 'Loading…'
                   : shownOpls.length
                     ? 'Pick the OPL'
-                    : `No OPL delivering ${oplDeliveryDate === localDay(1) ? 'tomorrow' : 'today'} has buckets left to issue`
+                    : 'No OPL delivering tomorrow has buckets left to issue'
               }
               disabled={oplsLoading || loading}
               onChange={(v) => selectOpl(v)}
