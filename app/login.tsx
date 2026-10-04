@@ -129,27 +129,20 @@ export default function Login() {
   };
 
   const openInstanceEditor = () => {
-    setDraftUrl('');
+    setDraftUrl(url ? instanceLabel(url) : '');
     setErr(null);
     setInstanceOpen(true);
   };
 
-  const continueWithDraft = () => {
-    const typed = draftUrl.trim();
+  // Changes the server: the old one is forgotten, not kept beside the new one.
+  const continueWithDraft = async () => {
+    const typed = draftUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     if (!typed) return;
     const known = instances.find((i) => instanceKey(i.url) === instanceKey(typed));
+    if (url && instanceKey(url) !== instanceKey(typed)) {
+      setInstances(await knownInstances.forget(url));
+    }
     selectInstance(known ?? { url: typed });
-  };
-
-  const removeInstance = (inst: KnownInstance) => {
-    showDialog('Remove instance?', `${instanceLabel(inst.url)} will no longer be suggested here.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => setInstances(await knownInstances.forget(inst.url)),
-      },
-    ]);
   };
 
   // Forgot password: the server emails a link to set a new one, for the email
@@ -249,48 +242,9 @@ export default function Login() {
 
         {instanceOpen ? (
           <View style={s.card}>
-            {instances.length > 0 ? (
-              <>
-                <Text style={s.label}>Previously used</Text>
-                {instances.map((inst) => {
-                  const selected = instanceKey(inst.url) === instanceKey(url);
-                  return (
-                    <Pressable
-                      key={inst.url}
-                      onPress={() => selectInstance(inst)}
-                      onLongPress={() => removeInstance(inst)}
-                      style={({ pressed }) => [
-                        s.instanceRow,
-                        selected && s.instanceRowSelected,
-                        pressed && { opacity: 0.8 },
-                      ]}
-                    >
-                      <Ionicons
-                        name={selected ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={selected ? COLORS.primary : COLORS.textMuted}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.instanceHost} numberOfLines={1}>
-                          {instanceLabel(inst.url)}
-                        </Text>
-                        {inst.fullName || inst.email ? (
-                          <Text style={s.instanceEmail} numberOfLines={1}>
-                            {inst.fullName || inst.email}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Pressable onPress={() => removeInstance(inst)} hitSlop={10}>
-                        <Ionicons name="close" size={18} color={COLORS.textMuted} />
-                      </Pressable>
-                    </Pressable>
-                  );
-                })}
-                <Text style={[s.label, { marginTop: spacing.lg }]}>Or add another</Text>
-              </>
-            ) : (
-              <Text style={s.label}>Instance URL</Text>
-            )}
+            {/* One server per device: this changes it, it does not add another.
+                http or https is worked out when signing in. */}
+            <Text style={s.label}>Server</Text>
             <TextInput
               value={draftUrl}
               onChangeText={setDraftUrl}
@@ -314,7 +268,7 @@ export default function Login() {
                 />
               ) : null}
               <Button
-                label="Continue"
+                label={url ? 'Change' : 'Continue'}
                 style={{ flex: 1 }}
                 onPress={continueWithDraft}
                 disabled={!draftUrl.trim()}
@@ -460,20 +414,6 @@ const s = StyleSheet.create({
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  instanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: spacing.sm,
-  },
-  instanceRowSelected: { borderColor: COLORS.primary },
-  instanceHost: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  instanceEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   pwRow: {
     flexDirection: 'row',

@@ -1,8 +1,5 @@
 import axios from 'axios';
-import { api, mapAxiosError } from '@/src/core/api/client';
-import { secureStorage, storage, StorageKeys } from '@/src/core/storage';
 import { probeBaseUrl } from './api';
-import { authRepository } from './repository';
 
 export type PasswordResult = { ok: true; message: string } | { ok: false; message: string };
 
@@ -49,29 +46,4 @@ export async function requestPasswordReset(bareUrl: string, email: string): Prom
   } catch {
     return { ok: false, message: "Couldn't reach the server. Check the instance and your connection." };
   }
-}
-
-/**
- * Change the signed-in user's password. On success the saved password (used for
- * biometric sign-in and silent re-login) is replaced and the session renewed with
- * the new password, since the server may end the old sessions.
- */
-export async function changePassword(oldPassword: string, newPassword: string): Promise<PasswordResult> {
-  try {
-    await api({
-      method: 'POST',
-      url: '/api/method/frappe.core.doctype.user.user.update_password',
-      data: { old_password: oldPassword, new_password: newPassword, logout_all_sessions: 0 },
-    });
-  } catch (err) {
-    const e = mapAxiosError(err);
-    return { ok: false, message: e.message || "Couldn't change the password." };
-  }
-  await secureStorage.set(StorageKeys.passwordBackup, newPassword).catch(() => {});
-  const [email, url] = await Promise.all([
-    storage.get(StorageKeys.emailBackup),
-    storage.get(StorageKeys.instanceUrl),
-  ]);
-  if (email && url) await authRepository.login(email, newPassword, url).catch(() => null);
-  return { ok: true, message: 'Password changed.' };
 }

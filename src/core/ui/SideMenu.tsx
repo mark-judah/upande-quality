@@ -63,7 +63,7 @@ export function SideMenu({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { tenant, instanceUrl } = useTenant();
+  const { instanceUrl } = useTenant();
   const logout = useAuthStore((s) => s.logout);
   const storeFullName = useAuthStore((s) => s.fullName);
   const insets = useSafeAreaInsets();
@@ -170,11 +170,11 @@ export function SideMenu({
                   <Text style={s.name} numberOfLines={1}>
                     {name || 'Signed in'}
                   </Text>
-                  {(tenant || instanceUrl) ? (
+                  {/* The site only: the tenant ("Karen") is the app's internal
+                      code name for the client, not something users know it by. */}
+                  {instanceUrl ? (
                     <Text style={s.meta} numberOfLines={1}>
-                      {tenant ?? ''}
-                      {tenant && instanceUrl ? ' · ' : ''}
-                      {instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : ''}
+                      {instanceUrl.replace(/^https?:\/\//, '')}
                     </Text>
                   ) : null}
                 </View>
