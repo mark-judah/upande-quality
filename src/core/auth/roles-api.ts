@@ -18,7 +18,7 @@ export type RawUserRolesResponse = {
 /** The signed-in user's roles and full name. The name comes from this call
  *  because most users cannot read their own User record (only System Managers
  *  can), so reading it directly leaves the app showing their email. */
-export async function fetchCurrentUser(): Promise<{ roles: string[]; fullName: string | null }> {
+export async function fetchCurrentUser(): Promise<{ user: string | null; roles: string[]; fullName: string | null }> {
   const res = await api<RawUserRolesResponse>({
     method: 'POST',
     url: '/api/method/upande_packhouse.mobile.api.getCurrentUserRoles',
@@ -26,6 +26,8 @@ export async function fetchCurrentUser(): Promise<{ roles: string[]; fullName: s
   const payload = res.data ?? res.message ?? {};
   const name = (payload.full_name || '').trim();
   return {
+    // The account's id (its email), whatever was typed to sign in.
+    user: payload.user || null,
     roles: Array.isArray(payload.roles) ? payload.roles : [],
     // Frappe falls back to the email when a user has no name: that is no name.
     fullName: name && !name.includes('@') ? capitalizeName(name) : null,

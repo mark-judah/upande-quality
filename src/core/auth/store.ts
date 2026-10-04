@@ -96,7 +96,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         status: 'success',
         fullName: displayName(result.fullName),
-        email,
+        email: result.email,
         instanceUrl: result.instanceUrl,
         hasSession: true,
         roles: result.roles,

@@ -194,7 +194,7 @@ export default function Login() {
       return;
     }
     if (!email.trim() || !password) {
-      setErr('Email and password are required.');
+      setErr('Email or username and password are required.');
       return;
     }
     setSubmitting(true);
@@ -350,7 +350,7 @@ export default function Login() {
         ) : (
           <>
             <View style={s.card}>
-              <Text style={s.label}>Email</Text>
+              <Text style={s.label}>Email or username</Text>
               <TextInput
                 value={email}
                 onChangeText={(v) => {
@@ -361,7 +361,7 @@ export default function Login() {
                 autoCorrect={false}
                 keyboardType="email-address"
                 textContentType="username"
-                placeholder="you@upande.com"
+                placeholder="you@upande.com or username"
                 placeholderTextColor={COLORS.textMuted}
                 returnKeyType="next"
                 style={[s.input, { marginBottom: spacing.md }]}

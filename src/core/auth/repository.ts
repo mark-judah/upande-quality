@@ -23,7 +23,7 @@ async function fetchRealFullName(email: string): Promise<string | null> {
 }
 
 export type LoginOutcome =
-  | { ok: true; fullName: string; instanceUrl: string; roles: string[] }
+  | { ok: true; fullName: string; email: string; instanceUrl: string; roles: string[] }
   | { ok: false; error: string };
 
 function extractSidCookie(setCookie: string | null): string | null {
@@ -35,7 +35,10 @@ function extractSidCookie(setCookie: string | null): string | null {
 }
 
 export const authRepository = {
-  async login(email: string, password: string, bareUrl: string): Promise<LoginOutcome> {
+  /** `login` is the email or the username: Frappe signs in with either (the
+   *  username when System Settings allows it). The account's email is stored. */
+  async login(login: string, password: string, bareUrl: string): Promise<LoginOutcome> {
+    let email = login.trim();
     const cleanUrl = bareUrl.trim().toLowerCase();
     if (!cleanUrl) return { ok: false, error: 'URL required' };
 
@@ -72,6 +75,12 @@ export const authRepository = {
       try {
         const me = await fetchCurrentUser();
         roles = me.roles;
+        // Signed in with a username: keep the account's email from here on.
+        if (me.user && me.user !== email && me.user !== 'Guest') {
+          email = me.user;
+          await storage.set(StorageKeys.emailBackup, email);
+          if (needsRealName(fullName)) fullName = email;
+        }
         await storage.set(StorageKeys.userRoles, JSON.stringify(roles));
         if (me.fullName && needsRealName(fullName)) {
           fullName = me.fullName;
@@ -85,7 +94,7 @@ export const authRepository = {
       await knownInstances
         .remember(fullUrl, email, fullName && !needsRealName(fullName) ? fullName : null)
         .catch(() => {});
-      return { ok: true, fullName, instanceUrl: fullUrl, roles };
+      return { ok: true, fullName, email, instanceUrl: fullUrl, roles };
     }
 
     if (res.status === 401) {
