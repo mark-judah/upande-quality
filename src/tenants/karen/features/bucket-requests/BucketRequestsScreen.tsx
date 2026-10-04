@@ -937,6 +937,12 @@ function ReplacePicker({
                     <Text style={s.repBestText}>Best match</Text>
                   </View>
                 ) : null}
+                {/* Its shelf, bold, on the right: where to go and get it. */}
+                {c.shelf ? (
+                  <Text style={s.repShelfRight} numberOfLines={1}>
+                    {c.shelf}
+                  </Text>
+                ) : null}
               </View>
               <Text style={s.repMeta} numberOfLines={1}>
                 {[
@@ -947,14 +953,6 @@ function ReplacePicker({
                   .filter(Boolean)
                   .join(' · ')}
               </Text>
-              {c.shelf ? (
-                <View style={s.repShelf}>
-                  <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
-                  <Text style={s.repShelfText} numberOfLines={1}>
-                    {c.shelf}
-                  </Text>
-                </View>
-              ) : null}
             </View>
           </Pressable>
         );
@@ -2558,8 +2556,7 @@ const s = StyleSheet.create({
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
   repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
-  repShelf: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
-  repShelfText: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, flexShrink: 1 },
+  repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   searchRow: {
     flexDirection: 'row',
