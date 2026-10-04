@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.0.3",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -38,7 +38,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 105003
+      "versionCode": 105100
     },
     "web": {
       "output": "static",
@@ -97,12 +97,12 @@
         "projectId": "df6f9c7d-18cd-4233-901e-a89544cabcbf"
       },
       "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota",
-      "runtimeSdk": 54
+      "runtimeSdk": 57
     },
-    "runtimeVersion": "101.0",
+    "runtimeVersion": "101.1",
     "updates": {
       "enabled": true,
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/manifest.json",
+      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.1/manifest.json",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
