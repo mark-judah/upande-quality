@@ -348,13 +348,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return r.ok;
   };
 
-  const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason) => {
+  const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
     setReplacePick(null);
     setReplacingId(pick.bucket.id);
-    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason);
+    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes);
     setReplacingId(null);
     replaceBusy.current = false;
     if (r.ok) showSuccess(r.message);
@@ -889,19 +889,23 @@ function ReplacePicker({
     candidates: ReplacementCandidate[];
   } | null;
   onClose: () => void;
-  onPick: (c: ReplacementCandidate, reason: ReplaceReason) => void;
+  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => void;
   /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
   onNotFound: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
   const [reason, setReason] = useState<ReplaceReason>('Missing');
+  // "Other" says why in a note (required); the others may add one.
+  const [note, setNote] = useState('');
+  const noteReady = reason !== 'Other' || !!note.trim();
   const candidates = pick?.candidates ?? [];
   // Default to the best match each time the sheet opens for a bucket.
   const firstId = candidates[0]?.bucketId ?? null;
   useEffect(() => {
     setSelected(firstId);
     setReason('Missing');
+    setNote('');
   }, [pick, firstId]);
 
   const chosen = candidates.find((c) => c.bucketId === selected) ?? null;
@@ -938,6 +942,17 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
+          {reason === 'Other' ? (
+            <TextInput
+              value={note}
+              onChangeText={setNote}
+              placeholder="Say why it is replaced (required)"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              maxLength={300}
+              style={s.leaveInput}
+            />
+          ) : null}
           <Text style={s.repCount}>
             {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
           </Text>
@@ -958,8 +973,8 @@ function ReplacePicker({
                 size="sm"
                 label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                 iconLeft="swap-horizontal"
-                onPress={() => chosen && onPick(chosen, reason)}
-                disabled={!chosen}
+                onPress={() => chosen && noteReady && onPick(chosen, reason, note.trim() || undefined)}
+                disabled={!chosen || !noteReady}
                 style={{ flex: 2 }}
               />
             </View>
