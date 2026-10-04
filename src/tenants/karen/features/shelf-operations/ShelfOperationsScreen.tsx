@@ -21,7 +21,15 @@ import { COLORS } from '@/src/core/theme';
 /** Group / filter label for an OPL allocated without a packing team. */
 const NO_TEAM = 'No team';
 
-export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
+/** `initialMode` opens the screen on that tab (the sidebar's Issue Offline link);
+ *  the other tabs stay one tap away. */
+export function KarenShelfOperationsScreen({
+  userFarm,
+  initialMode,
+}: {
+  userFarm: string;
+  initialMode?: ShelfOperationsMode;
+}) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
   const {
@@ -89,6 +97,14 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   );
 
   useEffect(() => () => reset(), [reset]);
+
+  // On every visit, not just the first: the tab screens stay mounted and share
+  // one store, so the link would otherwise reopen on whichever tab was used last.
+  useFocusEffect(
+    useCallback(() => {
+      if (initialMode) setMode(initialMode);
+    }, [initialMode, setMode]),
+  );
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
   // Issue Offline mode: OPL, allocated bucket and reason first, then the scan.
