@@ -112,13 +112,12 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** Download result for the delivery date on screen (everything fetched is for it). */
 function downloadMessage(res: { insertedOpls: string[]; refreshedOpls: string[] }, date: string): string {
-  const fresh = res.insertedOpls.length;
-  const refreshed = res.refreshedOpls.length;
+  // One total — new and refreshed alike are on the phone now. "0 new, 5 refreshed"
+  // read as "no picklists" to the people using it.
+  const total = res.insertedOpls.length + res.refreshedOpls.length;
   const day = date ? dayLabel(date) : '';
-  if (fresh + refreshed === 0) return day ? `No picklists for ${day} yet.` : 'No picklists to download.';
-  const parts = [`${day ? `${day}: ` : 'Downloaded '}${plural(fresh, 'new picklist')}`];
-  if (refreshed) parts.push(`${refreshed} refreshed`);
-  return `${parts.join(', ')}.`;
+  if (total === 0) return day ? `No picklists for ${day} yet.` : 'No picklists to download.';
+  return `${plural(total, 'picklist')} downloaded.`;
 }
 
 /** A trip seen for one delivery date: its orders for that date, and this farm's stop
