@@ -597,20 +597,26 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           />
         ) : (
           <>
-        <Segmented
-          radius={10}
-          value={tab}
-          onChange={(v) => setTab(v as Tab)}
-          options={[
-            { value: 'requests', label: `Requests (${reqCount})` },
-            { value: 'trolley', label: `Trolley (${trolleyCount})` },
-            { value: 'transit', label: `In Transit (${inTransitCount})` },
-            {
-              value: 'shelved',
-              label: shelvedCount.total ? `Shelved (${shelvedCount.done}/${shelvedCount.total})` : 'Shelved',
-            },
-          ]}
-        />
+        {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
+            bar scrolls sideways instead of squeezing the labels. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabsScroll}>
+          <View style={s.tabsInner}>
+            <Segmented
+              radius={10}
+              value={tab}
+              onChange={(v) => setTab(v as Tab)}
+              options={[
+                { value: 'requests', label: `Requests (${reqCount})` },
+                { value: 'trolley', label: `Trolley (${trolleyCount})` },
+                { value: 'transit', label: `In Transit (${inTransitCount})` },
+                {
+                  value: 'shelved',
+                  label: shelvedCount.total ? `Shelved (${shelvedCount.done}/${shelvedCount.total})` : 'Shelved',
+                },
+              ]}
+            />
+          </View>
+        </ScrollView>
 
         {tab === 'requests' ? (
           <RequestsTab
@@ -799,8 +805,10 @@ function LoadConfirm({
         <View key={g.tripId} style={s.loadGroup}>
           <View style={s.truckRow}>
             <Ionicons name="car-outline" size={18} color={COLORS.text} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.truckName}>{g.vehicle ? plate(g.vehicle) : 'Pick the truck'}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.truckName} numberOfLines={1}>
+                {g.vehicle ? plate(g.vehicle) : 'Pick the truck'}
+              </Text>
               <Text style={s.sheetHintText} numberOfLines={1}>
                 {g.tripId === UNPLANNED ? 'No trip planned' : g.tripId}
                 {g.tripId !== UNPLANNED && g.vehicle !== g.plannedVehicle ? ` · planned ${plate(g.plannedVehicle)}` : ''}
@@ -846,7 +854,7 @@ function LoadConfirm({
           ) : null}
           {g.opls.map((o) => (
             <View key={o.oplName} style={s.loadOrder}>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.loadOrderName} numberOfLines={1}>
                   {o.orderName || o.oplName}
                 </Text>
@@ -982,9 +990,11 @@ function ReplacePicker({
               size={20}
               color={on ? COLORS.text : COLORS.textMuted}
             />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <View style={s.repTop}>
-                <Text style={s.repId}>{c.bucketId}</Text>
+                <Text style={s.repId} numberOfLines={1}>
+                  {c.bucketId}
+                </Text>
                 {i === 0 ? (
                   <View style={s.repBest}>
                     <Text style={s.repBestText}>Best match</Text>
@@ -1355,7 +1365,7 @@ function OplCard({
         {!trip || trip.onTrip ? <TeamChip team={team} color={trip ? undefined : line?.color} /> : null}
       </View>
       <View style={s.oplHead}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.oplDate}>{opl.createdOn || '—'}</Text>
           <Text style={s.oplMeta}>
             {opl.scanned}/{opl.total} scanned
@@ -1374,7 +1384,7 @@ function OplCard({
             size={18}
             color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
           />
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.bId}>
               {b.bucketId}
               {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
@@ -1449,9 +1459,11 @@ function CompletedCard({
         </View>
       ) : null}
       <View style={s.oplHead}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.bId}>{o.orderName}</Text>
-          <Text style={s.oplMeta}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.bId} numberOfLines={1}>
+            {o.orderName}
+          </Text>
+          <Text style={s.oplMeta} numberOfLines={1}>
             {o.createdOn} · trolley {o.trolleys.join(', ') || '—'}
           </Text>
         </View>
@@ -1463,8 +1475,10 @@ function CompletedCard({
       {o.buckets.map((b: ReqBucket) => (
         <View key={b.id} style={s.bRow}>
           <Ionicons name="checkmark-circle" size={16} color={COLORS.success ?? '#12B76A'} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.bId}>{b.bucketId}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.bId} numberOfLines={1}>
+              {b.bucketId}
+            </Text>
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
@@ -1474,7 +1488,9 @@ function CompletedCard({
               </Text>
             )}
           </View>
-          <Text style={s.bQty}>{b.trolleyId || ''}</Text>
+          <Text style={[s.bQty, s.bTrolley]} numberOfLines={1}>
+            {b.trolleyId || ''}
+          </Text>
         </View>
       ))}
       <View style={s.divider} />
@@ -1675,7 +1691,7 @@ function ShelvedTab({
     <>
       <Card>
         <View style={s.arrivalRow}>
-          <Text style={s.routeLabel}>
+          <Text style={[s.routeLabel, s.arrivalLabel]} numberOfLines={1}>
             Shelved at {where}
             {day ? ` · ${day}` : ''}
           </Text>
@@ -1842,7 +1858,9 @@ function TripArrivalCard({
         <>
           <View style={s.divider} />
           <View style={s.arrivalRow}>
-            <Text style={s.routeLabel}>Shelved at {hub}</Text>
+            <Text style={[s.routeLabel, s.arrivalLabel]} numberOfLines={1}>
+              Shelved at {hub}
+            </Text>
             <Text style={s.arrivalCount}>
               {shelved} / {total}
             </Text>
@@ -1948,7 +1966,7 @@ function StopRow({ stop }: { stop: PlannedTripStop }) {
   return (
     <View style={[s.stopRow, stop.isYou ? s.stopRowYou : null]}>
       <Text style={[s.stopNum, stop.isYou ? s.stopNumYou : null]}>{stop.stop}</Text>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.stopFarm} numberOfLines={1}>
           {stop.farm}
           {stop.isYou ? '  · you' : ''}
@@ -2060,11 +2078,13 @@ function TripCard({
           {trip.tripDate ? ` · ${trip.tripDate}` : ''}
         </Text>
         {trip.yourStop > 0 && trip.totalStops > 1 ? (
-          <Text style={s.tripStop}>
+          <Text style={s.tripStop} numberOfLines={1}>
             You’re stop {trip.yourStop} of {trip.totalStops} · {trip.farmBuckets} bkt
           </Text>
         ) : (
-          <Text style={s.tripStop}>{trip.farmBuckets} bkt for you</Text>
+          <Text style={s.tripStop} numberOfLines={1}>
+            {trip.farmBuckets} bkt for you
+          </Text>
         )}
       </View>
 
@@ -2227,7 +2247,14 @@ const s = StyleSheet.create({
   shelvedWhere: { alignItems: 'flex-end', maxWidth: '45%' },
   shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   shelvedStateWaiting: { color: COLORS.warn },
-  arrivalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
+  arrivalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  arrivalLabel: { flexShrink: 1, marginBottom: 0 },
   arrivalCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   arrivalHint: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
   leaveNote: {
@@ -2347,13 +2374,14 @@ const s = StyleSheet.create({
   },
   dimmed: { opacity: 0.5 },
   lineLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.sm },
-  lineLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  lineLegendText: { fontFamily: fontFamily.medium, fontSize: scaleFont(12), color: COLORS.text },
+  lineLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+  lineLegendText: { fontFamily: fontFamily.medium, fontSize: scaleFont(12), color: COLORS.text, flexShrink: 1 },
   lineDot: { width: 10, height: 10, borderRadius: 5 },
   oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -2361,7 +2389,7 @@ const s = StyleSheet.create({
   },
   oplTagConfirmed: { backgroundColor: COLORS.text },
   oplTagPlanned: { backgroundColor: COLORS.surfaceAlt },
-  oplTagText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11), color: COLORS.text },
+  oplTagText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11), color: COLORS.text, flexShrink: 1 },
   oplTagTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
   oplTagUnsched: {
     flexDirection: 'row',
@@ -2403,6 +2431,7 @@ const s = StyleSheet.create({
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
+  bTrolley: { maxWidth: '35%' },
   bSide: { alignItems: 'flex-end', gap: 4 },
   tripOrderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
   replaceBtn: {
@@ -2425,8 +2454,8 @@ const s = StyleSheet.create({
   badgeTxt: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textOnPrimary ?? '#fff' },
   // Trips tab
   tripHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  tripTruckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
+  tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 },
+  tripTruckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, flexShrink: 1 },
   tripPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
   tripPillConfirmed: { backgroundColor: COLORS.text },
   tripPillDraft: { backgroundColor: COLORS.surfaceAlt },
@@ -2473,7 +2502,7 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   tripMeta: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
-  tripStop: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
+  tripStop: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   tripBucketsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   tripBucketsText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   empty: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },
@@ -2506,7 +2535,7 @@ const s = StyleSheet.create({
     borderRadius: borderRadius.md,
     backgroundColor: COLORS.surfaceAlt,
   },
-  loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, flexShrink: 1 },
   dialogList: {
     alignSelf: 'stretch',
     marginTop: spacing.lg,
@@ -2565,7 +2594,7 @@ const s = StyleSheet.create({
   },
   repRowOn: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
   repTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  repId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
+  repId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, flexShrink: 1 },
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
   repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
@@ -2602,11 +2631,13 @@ const s = StyleSheet.create({
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
   dateRow: { gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: 2 },
+  tabsScroll: { flexGrow: 1 },
+  tabsInner: { flex: 1, minWidth: 340 },
   dateChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
   dateChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   dateText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   dateTextOn: { color: '#fff' },
-  farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
+  farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text, flexShrink: 1 },
   truckRow: {
     flexDirection: 'row',
     alignItems: 'center',

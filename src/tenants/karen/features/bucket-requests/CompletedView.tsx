@@ -67,7 +67,9 @@ export function CompletedView({
           <View key={t.label} style={s.tile}>
             <Ionicons name={t.icon} size={16} color={COLORS.textMuted} />
             <Text style={s.tileCount}>{t.count}</Text>
-            <Text style={s.tileLabel}>{t.label}</Text>
+            <Text style={s.tileLabel} numberOfLines={1}>
+              {t.label}
+            </Text>
           </View>
         ))}
       </View>
@@ -262,8 +264,8 @@ const s = StyleSheet.create({
   },
   empty: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  truck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  truckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
+  truck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 },
+  truckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, flexShrink: 1 },
   pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
   pillDone: { backgroundColor: COLORS.surfaceAlt },
   pillShort: { backgroundColor: '#FEF3F2' },

@@ -136,8 +136,10 @@ function BucketRow({
     .join(' · ');
   return (
     <View style={[s.row, !first && s.rowBorder]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[s.bId, discarded && s.bIdDone]}>{b.bucketId}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[s.bId, discarded && s.bIdDone]} numberOfLines={1}>
+          {b.bucketId}
+        </Text>
         {meta ? (
           <Text style={s.bMeta} numberOfLines={1}>
             {meta}

@@ -108,7 +108,7 @@ export function KarenReceivingScreen() {
     <Screen title="Receiving">
       <Card title="Batch mode">
         <View style={s.row}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.bodyText}>
               {batchMode ? `Active · ${batchId}` : 'Each scan submits independently'}
             </Text>
@@ -338,7 +338,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.border,
     marginVertical: 10,
   },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
     fontFamily: fontFamily.regular,
     fontSize: scaleFont(12),

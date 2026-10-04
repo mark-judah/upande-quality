@@ -79,7 +79,9 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
     <Screen title="Shelving">
       <View style={s.farmBanner}>
         <Text style={s.farmBannerLabel}>Farm</Text>
-        <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
+        <Text style={s.farmBannerValue} numberOfLines={1}>
+          {userFarm || 'All farms'}
+        </Text>
       </View>
 
       <Card title="Shelf">
@@ -190,6 +192,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     backgroundColor: COLORS.surfaceAlt,
     borderRadius: 8,
     paddingHorizontal: 12,
@@ -204,14 +207,16 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
     
   },
-  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
+  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginTop: 8,
   },
   shelfStatusLabel: {
+    flexShrink: 1,
     fontFamily: fontFamily.regular,
     fontSize: scaleFont(12),
     color: COLORS.textMuted,
@@ -220,7 +225,7 @@ const s = StyleSheet.create({
   },
   changeLink: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
     fontFamily: fontFamily.regular,
     fontSize: scaleFont(12),

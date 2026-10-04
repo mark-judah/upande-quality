@@ -349,7 +349,9 @@ export function KarenShelfOperationsScreen({
             />
             {shelfId ? (
               <View style={s.shelfStatusRow}>
-                <Text style={s.shelfStatusLabel}>Moving bucket(s) to {shelfId}</Text>
+                <Text style={s.shelfStatusLabel} numberOfLines={2}>
+                  Moving bucket(s) to {shelfId}
+                </Text>
                 <Pressable onPress={clearShelf} hitSlop={8}>
                   <Text style={s.changeLink}>Change shelf</Text>
                 </Pressable>
@@ -433,8 +435,10 @@ export function KarenShelfOperationsScreen({
                       onPress={() => selectAllocatedBucket(picked ? null : b.bucket)}
                       disabled={loading}
                     >
-                      <View style={s.flex}>
-                        <Text style={s.pickTitle}>{b.bucket}</Text>
+                      <View style={s.pickBody}>
+                        <Text style={s.pickTitle} numberOfLines={1}>
+                          {b.bucket}
+                        </Text>
                         <Text style={s.pickDetail}>
                           {[b.variety, b.stemLength, `${b.stems} stems`, b.inTransit ? 'on the way from the farm' : (b.shelf ?? 'not on a shelf')]
                             .filter(Boolean)
@@ -539,8 +543,10 @@ export function KarenShelfOperationsScreen({
                         }}
                         disabled={loading}
                       >
-                        <View style={s.flex}>
-                          <Text style={s.pickTitle}>{c.bucket}</Text>
+                        <View style={s.pickBody}>
+                          <Text style={s.pickTitle} numberOfLines={1}>
+                            {c.bucket}
+                          </Text>
                           {/* What is inside first: variety and stem length, in bold. */}
                           <Text style={s.pickInside}>
                             {[c.variety, c.stemLength].filter(Boolean).join(' · ') || '—'}
@@ -718,7 +724,7 @@ const s = StyleSheet.create({
   },
   farmBannerFarm: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
-  teamSelect: { width: 170, marginLeft: 12 },
+  teamSelect: { width: 170, maxWidth: '55%', marginLeft: 12 },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   noMargin: { marginBottom: 0 },
   noTopMargin: { marginTop: 0 },
@@ -726,22 +732,26 @@ const s = StyleSheet.create({
   filterLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
     flex: 1,
+    justifyContent: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
   },
   modeButtonActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, textAlign: 'center' },
   modeButtonLabelActive: { color: COLORS.surface },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginTop: 8,
   },
   shelfStatusLabel: {
+    flexShrink: 1,
     fontFamily: fontFamily.regular,
     fontSize: scaleFont(12),
     color: COLORS.textMuted,
@@ -762,12 +772,13 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   pickRowActive: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
+  pickBody: { flex: 1, minWidth: 0 },
   pickTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
   pickDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   pickInside: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, marginTop: 2 },
   pickMark: { fontFamily: fontFamily.regular, fontSize: scaleFont(16), color: COLORS.textMuted },
   pickMarkActive: { color: COLORS.text },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
     fontFamily: fontFamily.regular,
     fontSize: scaleFont(12),
@@ -785,10 +796,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   stockTakeBucketId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
   stockTakeStatus: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), flexShrink: 1, textAlign: 'right' },
-  stockTakeDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
+  stockTakeDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2, flexShrink: 1 },
   syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   syncCount: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, flexShrink: 1 },
   logHeader: {
