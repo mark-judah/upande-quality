@@ -2011,18 +2011,10 @@ function TripCard({
             {trip.run ? `  ·  Trip ${trip.run}${trip.runs > 1 ? ` of ${trip.runs}` : ''}` : ''}
           </Text>
         </View>
-        {/* Current / Next, with this farm (the stop) under it. */}
-        <View style={s.tripState}>
-          <View style={[s.tripPill, trip.current ? s.tripPillConfirmed : s.tripPillDraft]}>
-            <Text style={[s.tripPillText, trip.current ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
-              {trip.current ? 'Current' : 'Next'}
-            </Text>
-          </View>
-          {yourStop?.farm ? (
-            <Text style={s.tripStateFarm} numberOfLines={1}>
-              {yourStop.farm}
-            </Text>
-          ) : null}
+        <View style={[s.tripPill, trip.current ? s.tripPillConfirmed : s.tripPillDraft]}>
+          <Text style={[s.tripPillText, trip.current ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
+            {trip.current ? 'Current' : 'Next'}
+          </Text>
         </View>
       </View>
 
@@ -2109,8 +2101,6 @@ const s = StyleSheet.create({
   shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   shelvedStateWaiting: { color: COLORS.warn },
   // Requests trip card
-  tripState: { alignItems: 'flex-end', gap: 2, flexShrink: 0, maxWidth: '45%' },
-  tripStateFarm: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   tripRoute: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: spacing.xs },
   tripRouteYou: { fontFamily: fontFamily.bold, color: COLORS.text },
   yourStopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
