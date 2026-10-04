@@ -1896,8 +1896,8 @@ function TripArrivalCard({
   onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
 }) {
   const [ask, setAsk] = useState<'complete' | null>(null);
-  // Each truck folds away: tap its header to hide or show its orders.
-  const [open, setOpen] = useState(true);
+  // Each truck starts folded: tap its header to show (or hide again) its orders.
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // The hub by name (Kapkolia), never a generic "the packhouse".
   const hub = arrival?.hub || hubName || 'Kapkolia';
