@@ -169,11 +169,12 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // from Trips to Completed.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
 
-  // Delivery date to work on: today, tomorrow (opens on tomorrow) and every other date
-  // the downloaded orders carry — else an order for another day sits on the device
-  // ("already on device") with no chip to reach it.
+  // Delivery date to work on: tomorrow (opens on it) and every other date the
+  // downloaded orders carry — else an order for another day sits on the device
+  // ("already on device") with no chip to reach it. No Today chip: the farms
+  // work on tomorrow's deliveries.
   const dateChoices = useMemo(
-    () => [...new Set([isoDay(0), isoDay(1), ...deliveryDates])].sort(),
+    () => [...new Set([isoDay(1), ...deliveryDates])].filter((d) => d !== isoDay(0)).sort(),
     [deliveryDates],
   );
 
@@ -387,7 +388,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   };
 
   // "Completed" is a toggle beside the date chips: the date stays selected and the
-  // Completed page follows it (Today / Tomorrow are the filters in use).
+  // Completed page follows it.
   const openCompleted = async () => {
     if (completedView) {
       setCompletedView(false);
