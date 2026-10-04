@@ -3,7 +3,7 @@ import { RequireStation } from '@/src/core/tenant/RequireStation';
 import { PendingScreen } from '@/src/core/ui/PendingScreen';
 import { KarenShelfOperationsScreen } from '@/src/tenants/karen/features/shelf-operations/ShelfOperationsScreen';
 
-/** Sidebar shortcut: Shelf Operations opened on its Issue Offline tab. */
+/** Issue Offline as its own page (sidebar); Shelf Operations keeps the tab too. */
 export default function IssueOfflineRoute() {
   const { tenant } = useTenant();
 
@@ -13,7 +13,7 @@ export default function IssueOfflineRoute() {
 
   return (
     <RequireStation next="/issue-offline">
-      {(station) => <KarenShelfOperationsScreen userFarm={station.userFarm} initialMode="issue-offline" />}
+      {(station) => <KarenShelfOperationsScreen userFarm={station.userFarm} only="issue-offline" />}
     </RequireStation>
   );
 }

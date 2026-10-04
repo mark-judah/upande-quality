@@ -21,14 +21,15 @@ import { COLORS } from '@/src/core/theme';
 /** Group / filter label for an OPL allocated without a packing team. */
 const NO_TEAM = 'No team';
 
-/** `initialMode` opens the screen on that tab (the sidebar's Issue Offline link);
- *  the other tabs stay one tap away. */
+/** `only` turns one tab into a page of its own (the sidebar's Issue Offline):
+ *  its title, no tab switcher. Without it, the Shelf Operations page with all
+ *  three tabs. */
 export function KarenShelfOperationsScreen({
   userFarm,
-  initialMode,
+  only,
 }: {
   userFarm: string;
-  initialMode?: ShelfOperationsMode;
+  only?: ShelfOperationsMode;
 }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
@@ -98,12 +99,15 @@ export function KarenShelfOperationsScreen({
 
   useEffect(() => () => reset(), [reset]);
 
-  // On every visit, not just the first: the tab screens stay mounted and share
-  // one store, so the link would otherwise reopen on whichever tab was used last.
+  // The two pages stay mounted and share one store: the single-tab page takes
+  // the store over while it is on screen and hands it back on Transfer when
+  // left, so Shelf Operations never opens on a tab it has no button for.
   useFocusEffect(
     useCallback(() => {
-      if (initialMode) setMode(initialMode);
-    }, [initialMode, setMode]),
+      if (!only) return;
+      setMode(only);
+      return () => setMode('transfer');
+    }, [only, setMode]),
   );
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
@@ -199,7 +203,7 @@ export function KarenShelfOperationsScreen({
   };
 
   return (
-    <Screen title="Shelf Operations" scroll={mode !== 'stock-take'}>
+    <Screen title={only === 'issue-offline' ? 'Issue Offline' : 'Shelf Operations'} scroll={mode !== 'stock-take'}>
       <View style={s.farmBanner}>
         <View style={s.farmBannerFarm}>
           <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.textMuted} />
@@ -229,15 +233,17 @@ export function KarenShelfOperationsScreen({
         ) : null}
       </View>
 
-      <View style={s.modeRow}>
-        <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
-        <ModeButton
-          label="Issue Offline"
-          active={mode === 'issue-offline'}
-          onPress={() => switchMode('issue-offline')}
-        />
-        <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
-      </View>
+      {only ? null : (
+        <View style={s.modeRow}>
+          <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
+          <ModeButton
+            label="Issue Offline"
+            active={mode === 'issue-offline'}
+            onPress={() => switchMode('issue-offline')}
+          />
+          <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
+        </View>
+      )}
 
       {mode === 'stock-take' ? (
         <View style={s.flexCol}>
