@@ -8,7 +8,7 @@ import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenShelvingStore } from '@/src/tenants/karen/state/karen-shelving-store';
 import { ShelvingDemandCard } from '@/src/tenants/karen/features/shelving/ShelvingDemandCard';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily } from '@/src/core/theme';
 
 export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
@@ -197,13 +197,14 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   farmBannerLabel: {
+    fontFamily: fontFamily.semiBold,
     fontSize: 12,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    fontWeight: '600',
+    
   },
-  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700' },
+  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: 15, color: COLORS.text },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -211,19 +212,21 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   shelfStatusLabel: {
+    fontFamily: fontFamily.regular,
     fontSize: 12,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  changeLink: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
+  changeLink: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   detailLabel: {
+    fontFamily: fontFamily.regular,
     fontSize: 12,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
 });

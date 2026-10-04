@@ -405,6 +405,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   input: {
+    fontFamily: fontFamily.regular,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: borderRadius.sm,
@@ -424,8 +425,8 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bg,
     paddingHorizontal: 10,
   },
-  pwInput: { flex: 1, fontSize: fontSize.md, color: COLORS.text, paddingVertical: 10 },
-  pwToggle: { color: COLORS.text, fontSize: fontSize.sm, fontWeight: '600', padding: 6 },
+  pwInput: { fontFamily: fontFamily.regular, flex: 1, fontSize: fontSize.md, color: COLORS.text, paddingVertical: 10 },
+  pwToggle: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: fontSize.sm, padding: 6 },
   errBox: {
     flexDirection: 'row',
     gap: spacing.sm,

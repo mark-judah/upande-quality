@@ -412,9 +412,10 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 6 },
-  helperText: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 6 },
+  helperText: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   empty: {
+    fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 12,
@@ -524,5 +525,5 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.semiBold,
     textAlign: 'center',
   },
-  errText: { color: COLORS.danger ?? '#EF4444', fontSize: 11, marginTop: 4 },
+  errText: { fontFamily: fontFamily.regular, color: COLORS.danger ?? '#EF4444', fontSize: 11, marginTop: 4 },
 });

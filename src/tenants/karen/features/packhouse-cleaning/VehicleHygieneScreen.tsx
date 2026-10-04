@@ -140,7 +140,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   empty: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,

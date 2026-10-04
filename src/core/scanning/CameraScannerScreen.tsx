@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '@/src/core/theme';
+import { colors, radius, spacing, fontFamily } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
 import { consumeCameraResult } from './ScanField';
 
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  permissionText: { color: colors.white, fontSize: 16, textAlign: 'center', marginBottom: spacing.md },
+  permissionText: { fontFamily: fontFamily.regular, color: colors.white, fontSize: 16, textAlign: 'center', marginBottom: spacing.md },
   linkBtn: { padding: spacing.sm },
-  link: { color: colors.white, fontSize: 14, textDecorationLine: 'underline' },
+  link: { fontFamily: fontFamily.regular, color: colors.white, fontSize: 14, textDecorationLine: 'underline' },
 });

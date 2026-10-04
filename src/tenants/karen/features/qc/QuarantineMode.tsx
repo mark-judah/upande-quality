@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily } from '@/src/core/theme';
 import {
   useKarenQcStore,
   type QuarantineAction,
@@ -142,18 +142,19 @@ function ActionButton({
 const s = StyleSheet.create({
   alertCard: { backgroundColor: COLORS.bgMuted },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  alertTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  alertBody: { fontSize: 13, color: COLORS.text, marginTop: 4 },
+  alertTitle: { fontFamily: fontFamily.bold, fontSize: 16, color: COLORS.text },
+  alertBody: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text, marginTop: 4 },
   sectionLabel: {
+    fontFamily: fontFamily.bold,
     fontSize: 12,
-    fontWeight: '700',
+    
     color: COLORS.textMuted,
     letterSpacing: 0.4,
     marginBottom: 12,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bucketTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  bucketSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bucketTitle: { fontFamily: fontFamily.bold, fontSize: 18, color: COLORS.text },
+  bucketSubtitle: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -165,10 +166,11 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  tagLabel: { fontSize: 11, fontWeight: '700', color: COLORS.text },
+  tagLabel: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text },
   stemsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stemsLabel: { fontWeight: '600', fontSize: 14, color: COLORS.text },
+  stemsLabel: { fontFamily: fontFamily.semiBold, fontSize: 14, color: COLORS.text },
   stemsInput: {
+    fontFamily: fontFamily.regular,
     width: 100,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -178,10 +180,11 @@ const s = StyleSheet.create({
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  stemsOf: { fontSize: 12, color: COLORS.textMuted },
+  stemsOf: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted },
   actionLabel: {
+    fontFamily: fontFamily.bold,
     fontSize: 12,
-    fontWeight: '700',
+    
     color: COLORS.textMuted,
     letterSpacing: 0.4,
   },
@@ -199,6 +202,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bgMuted,
   },
   actionButtonSelected: { borderColor: COLORS.text, backgroundColor: COLORS.bg },
-  actionButtonLabel: { color: COLORS.textMuted, fontWeight: '500' },
-  actionButtonLabelSelected: { color: COLORS.text, fontWeight: '700' },
+  actionButtonLabel: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  actionButtonLabelSelected: { fontFamily: fontFamily.bold, color: COLORS.text },
 });

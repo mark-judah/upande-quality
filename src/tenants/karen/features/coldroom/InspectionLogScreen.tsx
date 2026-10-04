@@ -165,9 +165,9 @@ export function KarenInspectionLogScreen({ userFarm }: { userFarm: string }) {
 
 const s = StyleSheet.create({
   section: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   areaLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, marginBottom: 6 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: 12, overflow: 'hidden' },
+  chip: { fontFamily: fontFamily.regular, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: 12, overflow: 'hidden' },
   chipActive: { backgroundColor: COLORS.text, color: '#FFFFFF', borderColor: COLORS.text },
 });

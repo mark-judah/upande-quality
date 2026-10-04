@@ -81,5 +81,5 @@ const s = StyleSheet.create({
   btnSm: { paddingVertical: 6, paddingHorizontal: spacing.md, minHeight: 32 },
   inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   label: { fontFamily: fontFamily.bold, fontSize: fontSize.md },
-  labelSm: { fontSize: fontSize.sm },
+  labelSm: { fontFamily: fontFamily.regular, fontSize: fontSize.sm },
 });

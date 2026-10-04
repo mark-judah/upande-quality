@@ -168,7 +168,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   itemRow: { paddingVertical: spacing.sm },
   itemDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
   itemLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, marginBottom: 8 },

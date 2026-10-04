@@ -9,7 +9,7 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { useUserStation } from '@/src/core/tenant/user-station';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily } from '@/src/core/theme';
 import { useStationStore } from './store';
 import { stationRepository } from './repository';
 
@@ -168,5 +168,5 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
-  suggestionText: { color: COLORS.text, fontSize: 14 },
+  suggestionText: { fontFamily: fontFamily.regular, color: COLORS.text, fontSize: 14 },
 });

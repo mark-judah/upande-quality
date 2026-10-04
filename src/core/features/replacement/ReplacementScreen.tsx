@@ -23,7 +23,7 @@ import type {
   TraceabilityRepository,
   TraceabilitySnapshot,
 } from '@/src/core/features/traceability/types';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily } from '@/src/core/theme';
 
 type Props = {
   replacementRepo: ReplacementRepository;
@@ -1143,13 +1143,13 @@ function Typeahead({
 }
 
 const s = StyleSheet.create({
-  helper: { fontSize: 13, color: COLORS.textMuted },
-  muted: { fontSize: 13, color: COLORS.textMuted },
-  strong: { color: COLORS.text, fontWeight: '600' },
+  helper: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
+  muted: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
+  strong: { fontFamily: fontFamily.semiBold, color: COLORS.text },
 
-  label: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bigId: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginTop: 2, letterSpacing: 1 },
-  subId: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  label: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bigId: { fontFamily: fontFamily.bold, fontSize: 20, color: COLORS.text, marginTop: 2, letterSpacing: 1 },
+  subId: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
 
   candidateRow: {
     paddingVertical: 12,
@@ -1170,15 +1170,16 @@ const s = StyleSheet.create({
     backgroundColor: '#f4f5f6',
   },
   insufficientText: {
+    fontFamily: fontFamily.semiBold,
     marginTop: 6,
     fontSize: 11,
     color: '#9a1f33',
-    fontWeight: '600',
+    
   },
   candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  candidateId: { fontSize: 14, fontWeight: '700', color: COLORS.text, letterSpacing: 0.5 },
+  candidateId: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text, letterSpacing: 0.5 },
   candidateMeta: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  candidateFooter: { marginTop: 6, fontSize: 11, color: COLORS.textMuted },
+  candidateFooter: { fontFamily: fontFamily.regular, marginTop: 6, fontSize: 11, color: COLORS.textMuted },
 
   pill: {
     paddingHorizontal: 8,
@@ -1190,9 +1191,9 @@ const s = StyleSheet.create({
     alignItems: 'baseline',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
-  pillLabel: { fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel: { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  pillValue: { fontFamily: fontFamily.semiBold, fontSize: 12, color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 
   suggestions: {
@@ -1210,9 +1211,9 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  suggestionText: { fontSize: 14, color: COLORS.text },
+  suggestionText: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text },
   invalidInput: { borderColor: '#9a1f33' },
-  invalidText: { marginTop: 4, fontSize: 11, color: '#9a1f33' },
+  invalidText: { fontFamily: fontFamily.regular, marginTop: 4, fontSize: 11, color: '#9a1f33' },
 
   scopeRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   scopeButton: {
@@ -1229,6 +1230,6 @@ const s = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: '#f0f7ff',
   },
-  scopeLabel: { fontSize: 13, color: COLORS.text },
-  scopeLabelActive: { color: COLORS.info, fontWeight: '600' },
+  scopeLabel: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text },
+  scopeLabelActive: { fontFamily: fontFamily.semiBold, color: COLORS.info },
 });

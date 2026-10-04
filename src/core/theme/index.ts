@@ -68,9 +68,10 @@ export const borderRadius = {
   full: radius.pill,
 };
 
+/** Poppins at every weight: the one typeface across the app. */
 export const fontFamily = {
-  regular: 'DMSans_400Regular',
-  medium: 'DMSans_500Medium',
+  regular: 'Poppins_400Regular',
+  medium: 'Poppins_500Medium',
   semiBold: 'Poppins_600SemiBold',
   bold: 'Poppins_700Bold',
 } as const;
@@ -85,7 +86,7 @@ export const fontSize = {
 } as const;
 
 export const typography = {
-  // Original keys (kept so existing imports compile, but now mapped to Poppins/DM Sans)
+  // Original keys (kept so existing imports compile, all Poppins now)
   display: { fontFamily: fontFamily.bold, fontSize: 28, color: COLORS.text },
   title: { fontFamily: fontFamily.bold, fontSize: 22, color: COLORS.text },
   heading: { fontFamily: fontFamily.semiBold, fontSize: 18, color: COLORS.text },
@@ -104,7 +105,7 @@ export const typography = {
   h2: { fontFamily: fontFamily.bold, fontSize: fontSize.xl, color: COLORS.text },
   h3: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },
   bodySmall: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
-  mono: { fontFamily: 'monospace', fontSize: fontSize.md, color: COLORS.text },
+  mono: { fontFamily: fontFamily.medium, fontSize: fontSize.md, color: COLORS.text },
 };
 
 export const shadow = {

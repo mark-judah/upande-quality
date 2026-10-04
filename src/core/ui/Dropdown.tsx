@@ -188,7 +188,7 @@ const s = StyleSheet.create({
   wrap: { marginBottom: spacing.md },
   wrapCompact: { marginBottom: 0 },
   fieldCompact: { minHeight: 30 },
-  valueCompact: { fontSize: fontSize.sm, paddingHorizontal: spacing.xs, paddingVertical: spacing.xs },
+  valueCompact: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, paddingHorizontal: spacing.xs, paddingVertical: spacing.xs },
   label: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,

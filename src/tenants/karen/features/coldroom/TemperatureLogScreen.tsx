@@ -161,7 +161,7 @@ export function KarenTemperatureLogScreen({ userFarm }: { userFarm: string }) {
 
 const s = StyleSheet.create({
   section: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   gridCell: { flexBasis: '48%' },
 });

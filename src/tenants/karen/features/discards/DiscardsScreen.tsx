@@ -171,7 +171,7 @@ function BucketRow({
 }
 
 const s = StyleSheet.create({
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
+  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
   shelfBlock: { marginTop: spacing.md },
   shelfHdr: {
     fontFamily: fontFamily.bold,
@@ -182,7 +182,7 @@ const s = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
-  bId: { fontFamily: 'monospace', fontSize: fontSize.sm, color: COLORS.text, fontWeight: '700' },
+  bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bIdDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   discardBtn: {

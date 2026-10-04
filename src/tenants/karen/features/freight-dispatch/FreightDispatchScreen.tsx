@@ -321,7 +321,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   statusLine: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   denied: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
