@@ -1334,29 +1334,31 @@ function OplCard({
             {b.bucketId} ({Math.round(b.qty)})
           </Text>
         </View>
-        <Text style={[s.bMeta, b.scanned && s.bDone]} numberOfLines={1}>
-          {bucketMeta(b.variety, b.stemLength)}
-          {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
-        </Text>
-      </View>
-      <View style={s.bSide}>
-        {!b.scanned ? (
-          <Pressable
-            onPress={() => onReplace(b)}
-            disabled={replacingId !== null}
-            hitSlop={8}
-            style={s.replaceBtn}
-          >
-            {replacingId === b.id ? (
-              <ActivityIndicator size="small" color={COLORS.text} />
-            ) : (
-              <>
-                <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
-                <Text style={s.changeLink}>Replace</Text>
-              </>
-            )}
-          </Pressable>
-        ) : null}
+        {/* Variety and stem length, with Replace on the same line (not beside the
+            shelf and bucket). */}
+        <View style={s.metaReplaceRow}>
+          <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]} numberOfLines={1}>
+            {bucketMeta(b.variety, b.stemLength)}
+            {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
+          </Text>
+          {!b.scanned ? (
+            <Pressable
+              onPress={() => onReplace(b)}
+              disabled={replacingId !== null}
+              hitSlop={8}
+              style={s.replaceBtn}
+            >
+              {replacingId === b.id ? (
+                <ActivityIndicator size="small" color={COLORS.text} />
+              ) : (
+                <>
+                  <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
+                  <Text style={s.changeLink}>Replace</Text>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -2270,6 +2272,8 @@ const s = StyleSheet.create({
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
+  metaReplaceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  metaGrow: { flex: 1, minWidth: 0 },
   shelfBucketRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
