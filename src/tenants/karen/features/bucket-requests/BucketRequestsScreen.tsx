@@ -1188,10 +1188,10 @@ function RequestsTab({
     .map((g) => ({ ...g, opls: g.opls.filter((o) => !tripOf.has(o.oplName)) }))
     .filter((g) => g.opls.length);
   const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
-  const renderGroup = (g: OrderGroup, dim: boolean) => {
+  const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
     return (
-      <View key={g.orderName}>
+      <View key={g.orderName} style={inTrip ? s.groupInTrip : undefined}>
         <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]}>{g.orderName}</Text>
         {customer ? <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>{customer}</Text> : null}
         {g.opls.map((o) => (
@@ -1203,6 +1203,7 @@ function RequestsTab({
             line={lineColor.byOpl[o.oplName]}
             replacingId={replacingId}
             onReplace={onReplace}
+            inTrip={inTrip}
           />
         ))}
       </View>
@@ -1265,26 +1266,22 @@ function RequestsTab({
               {!last ? <View style={s.stepLine} /> : null}
             </View>
             <View style={[s.stepBody, !t.current ? s.stepBodyLater : null]}>
-              <View style={s.stepHead}>
-                <Text style={[s.stepLabel, t.current ? s.stepLabelCurrent : null]}>
-                  {t.current ? 'Current trip' : 'Next trip'}
-                </Text>
-                <Text style={s.stepMeta} numberOfLines={1}>
-                  {[
-                    t.vehicle,
-                    t.run ? `trip ${t.run}${t.runs > 1 ? ` of ${t.runs}` : ''}` : '',
-                    `${t.farmBuckets} bkt`,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-              </View>
-              <TripCard trip={t} oplTeam={oplTeam} oplLine={oplLine} online={online} onCloseStop={onCloseStop} compact />
-              {tripGroups.length ? (
-                tripGroups.map((g) => renderGroup(g, false))
-              ) : (
-                <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
-              )}
+              {/* One card per trip: the trip, then its picklists still to scan. */}
+              <TripCard
+                trip={t}
+                oplTeam={oplTeam}
+                oplLine={oplLine}
+                online={online}
+                onCloseStop={onCloseStop}
+                compact
+                heading={t.current ? 'Current trip' : 'Next trip'}
+              >
+                {tripGroups.length ? (
+                  tripGroups.map((g) => renderGroup(g, false, true))
+                ) : (
+                  <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
+                )}
+              </TripCard>
             </View>
           </View>
         );
@@ -1332,6 +1329,7 @@ function OplCard({
   line,
   replacingId,
   onReplace,
+  inTrip,
 }: {
   opl: ReqOpl;
   trip?: OplTripInfo;
@@ -1340,14 +1338,20 @@ function OplCard({
   line?: LineColor;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
+  /** Inside its trip's card: drawn flat (no card of its own), and the trip tag,
+   *  which only repeats the card's trip, is left out. */
+  inTrip?: boolean;
 }) {
   const pct = opl.total > 0 ? Math.round((opl.scanned / opl.total) * 100) : 0;
   const dimmed = !trip;
+  const Wrap = inTrip ? View : Card;
   return (
     <View style={dimmed ? s.dimmed : undefined}>
-    <Card>
+    <Wrap style={inTrip ? s.oplFlat : undefined}>
       <View style={s.oplTagRow}>
-        {trip ? (
+        {inTrip ? (
+          line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null
+        ) : trip ? (
           <View style={[s.oplTag, trip.confirmed ? s.oplTagConfirmed : s.oplTagPlanned]}>
             {line ? <View style={[s.lineDot, { backgroundColor: line.color }]} /> : null}
             <Ionicons
@@ -1425,7 +1429,7 @@ function OplCard({
           </View>
         </View>
       ))}
-    </Card>
+    </Wrap>
     </View>
   );
 }
@@ -1996,15 +2000,21 @@ function TripCard({
   online,
   onCloseStop,
   compact,
+  heading,
+  children,
 }: {
   trip: PlannedTrip;
   oplTeam: Record<string, string>;
   oplLine: Record<string, LineColor>;
   online: boolean;
   onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
-  /** Trip header in the Requests list: its picklists are listed right below, so
-   *  the "Your orders" summary is left out. */
+  /** Trip in the Requests list: its picklists (`children`) sit inside the card,
+   *  so the "Your orders" summary is left out. */
   compact?: boolean;
+  /** "Current trip" / "Next trip", above the truck. */
+  heading?: string;
+  /** The trip's picklists, shown in the card under the trip details. */
+  children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
   const [closing, setClosing] = useState(false);
@@ -2030,6 +2040,9 @@ function TripCard({
     !!yourStop && !trip.yourStopClosed && trip.current && yourStop.loaded + yourStop.transit + yourStop.shelved > 0;
   return (
     <Card>
+      {heading ? (
+        <Text style={[s.stepLabel, trip.current ? s.stepLabelCurrent : null, s.tripHeading]}>{heading}</Text>
+      ) : null}
       <View style={s.tripHead}>
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
@@ -2113,6 +2126,8 @@ function TripCard({
           ))}
         </>
       ) : null}
+
+      {children}
 
       <View style={s.divider} />
       {/* Only this farm's stop: other farms' transfers on the same truck stay with them. */}
@@ -2231,10 +2246,18 @@ const s = StyleSheet.create({
   stepLine: { flex: 1, width: 2, backgroundColor: COLORS.border, marginVertical: spacing.xs },
   stepBody: { flex: 1, minWidth: 0, paddingBottom: spacing.lg },
   stepBodyLater: { opacity: 0.75 },
-  stepHead: { minHeight: 28, justifyContent: 'center', marginBottom: spacing.xs },
+  tripHeading: { marginBottom: spacing.xs },
+  // An order inside its trip's card: a section under a thin rule, its picklists
+  // flat rather than cards of their own.
+  groupInTrip: {
+    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+  },
+  oplFlat: { paddingTop: spacing.xs, marginBottom: spacing.sm },
   stepLabel: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textMuted },
   stepLabelCurrent: { color: COLORS.text },
-  stepMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   tripAllScanned: {
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
