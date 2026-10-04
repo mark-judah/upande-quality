@@ -79,7 +79,8 @@ type State = {
   selectOpl: (opl: string) => Promise<void>;
   selectAllocatedBucket: (bucket: string | null) => void;
   chooseSubstitute: (bucket: string | null) => void;
-  setReason: (reason: IssueOfflineReason) => void;
+  /** null: back to scanning the allocated bucket itself. */
+  setReason: (reason: IssueOfflineReason | null) => void;
   setCorrectVariety: (variety: string) => void;
   setCorrectStemLength: (length: string) => void;
   submitIssueOffline: (rawBucket: string) => Promise<IssueOfflineOutcome>;
@@ -260,7 +261,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   chooseSubstitute: (chosenSubstitute) => set({ chosenSubstitute, lastOfflineOutcome: null }),
 
   setReason: (reason) => {
-    set({ reason, lastOfflineOutcome: null });
+    // Back to scanning the bucket itself: no substitute is picked any more.
+    set({ reason, lastOfflineOutcome: null, ...(reason ? {} : { chosenSubstitute: null }) });
     if (reason === 'wrong_variety' && !get().varieties.length) {
       karenShelfOperationsRepository
         .fetchVarieties()
@@ -287,7 +289,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     };
     if (!state.opl) return fail('Pick the OPL first.');
     if (!state.allocatedBucket) return fail('Pick the allocated bucket first.');
-    if (!state.reason) return fail('Say why it was not issued: not found or wrong variety.');
+    // No reason picked: the scan is the allocated bucket itself, found after all —
+    // it goes straight onto its line. Anything else needs Not found / Wrong variety.
     if (state.reason === 'wrong_variety' && !state.correctVariety && !state.correctStemLength.trim()) {
       return fail("Enter the allocated bucket's real variety or stem length.");
     }
@@ -295,6 +298,12 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     if (!scannedBucket) return fail('Please scan a valid bucket QR code.');
     const chosen = state.chosenSubstitute;
     const same = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
+    if (!state.reason && !same(scannedBucket, state.allocatedBucket)) {
+      return fail(
+        `That's ${scannedBucket}, not ${state.allocatedBucket}. If ${state.allocatedBucket} can't be issued, ` +
+          'report it Not found or Wrong variety / stem length and scan the substitute.',
+      );
+    }
     if (chosen && !same(scannedBucket, chosen) && !same(scannedBucket, state.allocatedBucket)) {
       return fail(`You picked ${chosen}: scan ${chosen}, or pick ${scannedBucket} from the list first.`);
     }
@@ -305,7 +314,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
         oplName: state.opl,
         allocatedBucket: state.allocatedBucket,
         scannedBucket,
-        reason: state.reason,
+        reason: state.reason ?? 'found',
         variety: state.reason === 'wrong_variety' ? state.correctVariety : undefined,
         stemLength: state.reason === 'wrong_variety' ? state.correctStemLength.trim() : undefined,
         farm: state.oplFarm || undefined,

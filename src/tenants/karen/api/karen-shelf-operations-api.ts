@@ -17,6 +17,7 @@ export type RawStockTakeBucketResult = {
     shelf?: string | null;
     variety?: string | null;
     stem_length?: string | null;
+    qty?: number | null;
     age_days?: number | null;
   };
 };
@@ -66,6 +67,8 @@ export type RawTransferResponse = {
 };
 
 export type IssueOfflineReason = 'not_found' | 'wrong_variety';
+/** What the scan says about the line: the allocated bucket itself was found, or why not. */
+export type IssueOfflineScanReason = IssueOfflineReason | 'found';
 
 export type RawOfflineOpl = {
   opl_name: string;
@@ -173,7 +176,7 @@ export const karenShelfOperationsApi = {
     oplName: string;
     allocatedBucket: string;
     scannedBucket: string;
-    reason: IssueOfflineReason;
+    reason: IssueOfflineScanReason;
     variety?: string;
     stemLength?: string;
     notes?: string;

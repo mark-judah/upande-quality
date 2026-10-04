@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
+import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
@@ -119,6 +120,8 @@ export function TraceabilityScreen({ repository }: Props) {
         />
       </Card>
 
+      {/* Stamped the moment it is scanned, while its journey loads. */}
+      {loading && scannedId ? <ScannedStamp kind={scannedKind ?? 'bucket'} id={scannedId} loading /> : null}
       {loading ? (
         <SkeletonCards cards={2} rows={4} />
       ) : error ? (

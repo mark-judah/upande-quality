@@ -6,6 +6,7 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Skeleton } from '@/src/core/ui/Skeleton';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
+import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { Button } from '@/src/core/ui/Button';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -104,6 +105,8 @@ export function ReplacementScreen({ replacementRepo, traceabilityRepo }: Props) 
         <ScanField ref={scanRef} onScan={onScan} autoFocus placeholder="Bucket / Bunch ID" />
       </Card>
 
+      {/* Stamped the moment it is scanned, before its details load. */}
+      {scan ? <ScannedStamp kind={scan.kind} id={scan.id} loading={loadingSnapshot} /> : null}
       {loadingSnapshot ? (
         <SkeletonCards cards={2} rows={3} />
       ) : snapshotError ? (

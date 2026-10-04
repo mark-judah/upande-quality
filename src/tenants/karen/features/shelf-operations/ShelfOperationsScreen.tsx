@@ -332,7 +332,11 @@ export function KarenShelfOperationsScreen({
             removeClippedSubviews
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
-              stockTakeScans.length ? <Text style={s.logHeader}>Scanned ({stockTakeScans.length})</Text> : null
+              stockTakeScans.length ? (
+                <Text style={s.logHeader}>
+                  Scanned ({stockTakeScans.length}) · {stockTakeStems(stockTakeScans)} stems
+                </Text>
+              ) : null
             }
           />
         </View>
@@ -462,7 +466,7 @@ export function KarenShelfOperationsScreen({
             visible={!!allocatedBucket}
             onClose={() => selectAllocatedBucket(null)}
             busy={loading}
-            title="Why was it not issued?"
+            title="Issue this bucket"
             subtitle={pickedBucket ? [pickedBucket.bucket, pickedBucket.variety, pickedBucket.stemLength, `${pickedBucket.stems} stems`].filter(Boolean).join(' · ') : undefined}
           >
             {/* Checked as soon as the bucket is picked: did it already go through
@@ -472,7 +476,7 @@ export function KarenShelfOperationsScreen({
                 {substitutes.history
                   .map((h) =>
                     [
-                      `Already reported ${h.reason === 'not_found' ? 'not found' : 'wrong variety'}`,
+                      `Already reported ${h.reason === 'not_found' ? 'not found' : 'wrong variety / stem length'}`,
                       h.orderName || h.oplName,
                       h.newBucket ? `replaced by ${h.newBucket}` : '',
                       h.reportedBy,
@@ -485,12 +489,32 @@ export function KarenShelfOperationsScreen({
                   .join('\n')}
               </Alert>
             ) : null}
+            {/* The bucket is there: scan it and it goes onto its line. Only when it
+                can't be issued does a reason (and a substitute) come into it. */}
+            {!reason ? (
+              <View>
+                <Text style={s.sheetLabel}>Scan the bucket</Text>
+                <ScanField
+                  ref={bucketRef}
+                  onScan={onBucketScanIssueOffline}
+                  autoFocus
+                  placeholder={`Scan ${allocatedBucket} to issue it to this line`}
+                  editable={!loading}
+                />
+                {loading ? <Text style={s.muted}>Issuing…</Text> : null}
+              </View>
+            ) : null}
+            <Text style={s.sheetLabel}>{reason ? 'Not issued because' : "Can't issue it?"}</Text>
             <View style={[s.modeRow, s.noMargin]}>
-              <ModeButton label="Not found" active={reason === 'not_found'} onPress={() => setReason('not_found')} />
               <ModeButton
-                label="Wrong variety"
+                label="Not found"
+                active={reason === 'not_found'}
+                onPress={() => setReason(reason === 'not_found' ? null : 'not_found')}
+              />
+              <ModeButton
+                label="Wrong variety / stem length"
                 active={reason === 'wrong_variety'}
-                onPress={() => setReason('wrong_variety')}
+                onPress={() => setReason(reason === 'wrong_variety' ? null : 'wrong_variety')}
               />
             </View>
             {reason === 'wrong_variety' ? (
@@ -582,9 +606,7 @@ export function KarenShelfOperationsScreen({
                 />
                 {loading ? <Text style={s.muted}>Issuing…</Text> : null}
               </View>
-            ) : (
-              <Text style={[s.muted, s.noTopMargin]}>Pick a reason, then scan the substitute.</Text>
-            )}
+            ) : null}
             {lastOfflineOutcome?.kind === 'failure' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
           </BottomSheet>
         </>
@@ -665,6 +687,11 @@ function OfflineOutcomeCard({
   );
 }
 
+/** Stems across the scanned buckets the server has resolved so far. */
+function stockTakeStems(rows: StockTakeScanRow[]): number {
+  return rows.reduce((sum, r) => sum + (r.serverQty ?? 0), 0);
+}
+
 function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
   if (!row.synced) {
     return (
@@ -683,7 +710,9 @@ function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
     );
   }
   const statusColor = row.serverStatus === 'Shelved' ? COLORS.success : COLORS.warn;
-  const detail = [row.serverVariety, row.serverStemLength].filter(Boolean).join(' · ');
+  const detail = [row.serverVariety, row.serverStemLength, row.serverQty != null ? `${row.serverQty} stems` : null]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <View style={s.stockTakeRow}>
       <View style={s.stockTakeHeaderRow}>

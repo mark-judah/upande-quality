@@ -2,7 +2,7 @@ import {
   karenShelfOperationsApi,
   type RawTransferPayload,
   type RawTransferResponse,
-  type IssueOfflineReason,
+  type IssueOfflineScanReason,
   type RawOfflineBucket,
   type RawOfflineOpl,
   type RawStockTakeSyncResponse,
@@ -207,7 +207,7 @@ export const karenShelfOperationsRepository = {
     oplName: string;
     allocatedBucket: string;
     scannedBucket: string;
-    reason: IssueOfflineReason;
+    reason: IssueOfflineScanReason;
     variety?: string;
     stemLength?: string;
     farm?: string;
@@ -285,6 +285,7 @@ export const karenShelfOperationsRepository = {
             shelf: r.payload.shelf ?? null,
             variety: r.payload.variety ?? null,
             stemLength: r.payload.stem_length ?? null,
+            qty: typeof r.payload.qty === 'number' ? r.payload.qty : null,
             ageDays: typeof r.payload.age_days === 'number' ? r.payload.age_days : null,
           };
         }
