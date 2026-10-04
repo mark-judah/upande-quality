@@ -621,6 +621,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           />
         ) : (
           <InTransitTab
+            hub={shelvedHub}
             items={inTransit}
             oplTeam={oplTeam}
             oplLine={oplLine}
@@ -1566,6 +1567,7 @@ function TrolleyTab({
 }
 
 function InTransitTab({
+  hub,
   items,
   oplTeam,
   oplLine,
@@ -1576,6 +1578,8 @@ function InTransitTab({
   loading,
   onArrival,
 }: {
+  /** The transfer hub (Kapkolia). */
+  hub: string;
   items: TrolleyOpl[];
   oplTeam: Record<string, string>;
   oplLine: Record<string, LineColor>;
@@ -1637,6 +1641,7 @@ function InTransitTab({
         deliveryDate={deliveryDate}
         online={online}
         onArrival={onArrival}
+        hubName={hub}
       >
         {orderRows(mine)}
       </TripArrivalCard>
@@ -1692,7 +1697,7 @@ function ShelvedTab({
 }) {
   // Two tabs: Shelved / Not shelved. Opens on Not shelved while anything waits.
   const [view, setView] = useState<'shelved' | 'waiting' | null>(null);
-  const where = hub || 'the packhouse';
+  const where = hub || 'Kapkolia';
   const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
 
   if (!trips.length) {
@@ -1838,9 +1843,12 @@ function TripArrivalCard({
   deliveryDate,
   online,
   onArrival,
+  hubName,
   children,
 }: {
   trip: CompletedTrip;
+  /** The transfer hub's name, until this trip's own arrival details load. */
+  hubName?: string;
   arrival?: TripArrival;
   /** This truck's orders and buckets, shown above its arrival button. */
   children?: ReactNode;
@@ -1853,7 +1861,8 @@ function TripArrivalCard({
   // Each truck folds away: tap its header to hide or show its orders.
   const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
-  const hub = arrival?.hub || 'the packhouse';
+  // The hub by name (Kapkolia), never a generic "the packhouse".
+  const hub = arrival?.hub || hubName || 'Kapkolia';
   const arrived = !!arrival?.arrivedAt;
   // The buckets for the delivery date on screen; Complete still needs the whole trip
   // shelved (the server checks every bucket on the truck).
