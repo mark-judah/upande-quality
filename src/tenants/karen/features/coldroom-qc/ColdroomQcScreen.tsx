@@ -4,6 +4,7 @@ import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
 import { Screen } from '@/src/core/ui/Screen';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenColdroomQcStore } from '@/src/tenants/karen/state/karen-coldroom-qc-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -94,9 +95,24 @@ export function KarenColdroomQcScreen() {
             placeholder="Scan or type bucket ID"
             editable={!scanning}
           />
-          {scanning ? <Text style={s.hint}>Loading bucket…</Text> : null}
           {scanError ? <Text style={s.errorText}>{scanError}</Text> : null}
         </Card>
+
+        {scanning && !bucket ? (
+          <Card>
+            <View style={s.rowBetween}>
+              <Skeleton width="45%" height={14} />
+              <Skeleton width={78} height={20} radius={10} />
+            </View>
+            <View style={{ height: 10 }} />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View key={i} style={[s.rowBetween, { paddingVertical: 5 }]}>
+                <Skeleton width="35%" height={12} />
+                <Skeleton width="30%" height={12} />
+              </View>
+            ))}
+          </Card>
+        ) : null}
 
         {bucket ? (
           <>

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
 import { useAuthStore } from '@/src/core/auth/store';
@@ -61,7 +62,11 @@ export function PendingReshelvingScreen({ repository }: Props) {
         <View style={s.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>BUNCHES WAITING</Text>
-            <Text style={s.bigNum}>{pending.length}</Text>
+            {pendingLoading && pending.length === 0 ? (
+              <Skeleton width={48} height={30} style={{ marginTop: 4, marginBottom: 2 }} />
+            ) : (
+              <Text style={s.bigNum}>{pending.length}</Text>
+            )}
             <Text style={s.muted}>
               Each bunch is on the packhouse floor until a matching bucket appears.
             </Text>
@@ -77,7 +82,18 @@ export function PendingReshelvingScreen({ repository }: Props) {
       </Card>
 
       {pendingLoading ? (
-        <Card><Text style={s.muted}>Loading…</Text></Card>
+        Array.from({ length: 3 }, (_, i) => (
+          <Card key={i}>
+            <View style={s.row}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width="45%" height={14} />
+                <Skeleton width="65%" height={12} />
+                <Skeleton width="55%" height={10} />
+              </View>
+              <Skeleton width={22} height={22} radius={11} />
+            </View>
+          </Card>
+        ))
       ) : pendingError ? (
         <Alert tone="danger">{pendingError}</Alert>
       ) : pending.length === 0 ? (
@@ -196,7 +212,24 @@ function ReshelveSection({
   };
 
   if (bunchDestinationsLoading) {
-    return <Text style={s.muted}>Searching for matching buckets…</Text>;
+    return (
+      <View>
+        {Array.from({ length: 2 }, (_, i) => (
+          <View key={i} style={s.candidateRow}>
+            <View style={s.candidateHeader}>
+              <Skeleton width="40%" height={14} />
+              <Skeleton width={20} height={20} radius={10} />
+            </View>
+            <View style={s.candidateMeta}>
+              <Skeleton width={70} height={20} radius={6} />
+              <Skeleton width={60} height={20} radius={6} />
+              <Skeleton width={70} height={20} radius={6} />
+            </View>
+            <Skeleton width="50%" height={10} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+    );
   }
   if (bunchDestinationsError) {
     return <Alert tone="danger">{bunchDestinationsError}</Alert>;

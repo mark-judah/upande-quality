@@ -6,6 +6,7 @@ import { Card } from '@/src/core/ui/Card';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Screen } from '@/src/core/ui/Screen';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenVaselifeStore } from '@/src/tenants/karen/state/karen-vaselife-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -332,7 +333,7 @@ export function VaselifeScreen() {
                 placeholder="Scan or type bucket ID"
                 editable={!scanning}
               />
-              {scanning ? <Text style={s.hint}>Loading bucket…</Text> : null}
+              {scanning ? <Skeleton width="40%" height={12} style={{ marginTop: 8 }} /> : null}
               {scanError ? <Text style={s.errorText}>{scanError}</Text> : null}
               {scannedBucketId ? (
                 <Text style={s.scannedBadge}>Bucket · {scannedBucketId}</Text>

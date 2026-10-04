@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
@@ -100,13 +101,6 @@ export function TraceabilityScreen({ repository }: Props) {
     focusWhenReady(scanRef);
   };
 
-  const headerLabel =
-    scannedKind === 'box'
-      ? `Box ${scannedId ?? ''}`
-      : scannedKind === 'bunch'
-        ? `Bunch ${scannedId ?? ''}`
-        : `Bucket ${scannedId ?? ''}`;
-
   const showNextButton = !loading && (snapshot !== null || error !== null);
 
   return (
@@ -126,7 +120,7 @@ export function TraceabilityScreen({ repository }: Props) {
       </Card>
 
       {loading ? (
-        <Card><Text style={s.muted}>Looking up {headerLabel}…</Text></Card>
+        <SkeletonCards cards={2} rows={4} />
       ) : error ? (
         <Alert tone="danger">{error}</Alert>
       ) : snapshot && snapshot.kind === 'box' && snapshot.box ? (

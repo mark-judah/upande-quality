@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { Button } from '@/src/core/ui/Button';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -102,11 +103,7 @@ export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) 
       </Card>
 
       {loading ? (
-        <Card>
-          <Text style={s.muted}>
-            Loading {scan?.kind ?? ''} {scan?.id ?? ''}…
-          </Text>
-        </Card>
+        <SkeletonCards cards={2} rows={3} />
       ) : loadError ? (
         <Alert tone="danger">{loadError}</Alert>
       ) : scan && snapshot ? (

@@ -4,6 +4,7 @@ import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/
 import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Alert, Card } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
@@ -32,7 +33,7 @@ import {
 } from '@/src/tenants/karen/state/karen-packhouse-qc-store';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 /** Grading / Reject teams — mirrors the Order Pick List `custom_team` options.
  *  The team filter uses these to reach orders that have no specification linked
@@ -490,9 +491,15 @@ export function PackhouseQcScreen() {
               disabled={loadingInitial || customerOptions.length === 0}
             >
               <MaterialCommunityIcons name="domain" size={18} color={COLORS.textMuted} />
-              <Text style={s.pickerText} numberOfLines={1}>
-                {loadingInitial ? 'Loading…' : selectedCustomer ?? 'Select customer'}
-              </Text>
+              {loadingInitial ? (
+                <View style={{ flex: 1 }}>
+                  <Skeleton width="55%" height={14} />
+                </View>
+              ) : (
+                <Text style={s.pickerText} numberOfLines={1}>
+                  {selectedCustomer ?? 'Select customer'}
+                </Text>
+              )}
               <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
             </Pressable>
           </Card>
@@ -554,17 +561,21 @@ export function PackhouseQcScreen() {
                 disabled={orderPickListsLoading}
               >
                 <MaterialCommunityIcons name="clipboard-text-outline" size={18} color={COLORS.textMuted} />
-                <Text style={s.pickerText} numberOfLines={1}>
-                  {orderPickListsLoading
-                    ? 'Loading…'
-                    : selectedOrderPickList
+                {orderPickListsLoading ? (
+                  <View style={{ flex: 1 }}>
+                    <Skeleton width="60%" height={14} />
+                  </View>
+                ) : (
+                  <Text style={s.pickerText} numberOfLines={1}>
+                    {selectedOrderPickList
                       ? selectedOrderPickList.orderName || selectedOrderPickList.name
                       : orderPickLists.length === 0
                         ? selectedTeamFilter
                           ? 'No spec-less orders for this team'
                           : 'No orders found for this spec'
                         : 'Select order pick list'}
-                </Text>
+                  </Text>
+                )}
                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
               </Pressable>
             )}
@@ -599,7 +610,10 @@ export function PackhouseQcScreen() {
             <Text style={s.muted}>Consignment No: {selectedOrderPickList.scheduleNumber}</Text>
           ) : null}
           {orderDetailLoading ? (
-            <Text style={s.muted}>Loading order detail…</Text>
+            <View style={{ gap: 6, marginTop: 6 }}>
+              <Skeleton width="40%" height={12} />
+              <Skeleton width="65%" height={12} />
+            </View>
           ) : (
             <>
               {itemLocations.length > 0 ? <Text style={s.muted}>Total Bunches: {orderTotalBunches}</Text> : null}
@@ -620,14 +634,14 @@ export function PackhouseQcScreen() {
           {/* All varieties on the order (a mix group carries several) read like
               the other order facts above — every one is listed so none is
               left out. */}
-          <Text style={s.muted}>
-            {orderVarieties.length > 1 ? 'Varieties' : 'Variety'}:{' '}
-            {orderDetailLoading
-              ? 'Loading…'
-              : orderVarieties.length > 0
-                ? orderVarieties.join(', ')
-                : selectedVariety || 'Not found'}
-          </Text>
+          {orderDetailLoading ? (
+            <Skeleton width="50%" height={12} style={{ marginTop: 6 }} />
+          ) : (
+            <Text style={s.muted}>
+              {orderVarieties.length > 1 ? 'Varieties' : 'Variety'}:{' '}
+              {orderVarieties.length > 0 ? orderVarieties.join(', ') : selectedVariety || 'Not found'}
+            </Text>
+          )}
         </Card>
       ) : null}
 
@@ -664,7 +678,11 @@ export function PackhouseQcScreen() {
         </Card>
       ) : null}
 
-      {qcType === 'Final QC' && selectedOrderPickList && !specification ? (
+      {qcType === 'Final QC' && selectedOrderPickList && !specification && orderDetailLoading ? (
+        <SkeletonCards cards={1} rows={3} />
+      ) : null}
+
+      {qcType === 'Final QC' && selectedOrderPickList && !specification && !orderDetailLoading ? (
         <Card title="Specification">
           <Text style={s.muted}>No specification found for this order.</Text>
         </Card>
@@ -1558,10 +1576,13 @@ function GradingReplaceModal({
             <View style={{ height: 12 }} />
             <ScanField onScan={onScan} autoFocus placeholder="Scan bunch sticker" editable={!state.scanning} />
             {state.scanning ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <ActivityIndicator color={COLORS.text} />
-                <Text style={[s.muted, { marginTop: 10 }]}>Finding the bucket…</Text>
-              </View>
+              <>
+                <View style={{ height: 12 }} />
+                <View style={[s.donorCard, { gap: 8 }]}>
+                  <Skeleton width="45%" height={18} />
+                  <Skeleton width="65%" height={12} />
+                </View>
+              </>
             ) : null}
             {state.scanError ? (
               <>

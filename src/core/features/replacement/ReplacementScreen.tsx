@@ -4,6 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { Button } from '@/src/core/ui/Button';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -119,9 +121,7 @@ export function ReplacementScreen({ replacementRepo, traceabilityRepo }: Props) 
       </Card>
 
       {loadingSnapshot ? (
-        <Card>
-          <Text style={s.muted}>Loading {scan?.kind ?? ''} {scan?.id ?? ''}…</Text>
-        </Card>
+        <SkeletonCards cards={2} rows={3} />
       ) : snapshotError ? (
         <Alert tone="danger">{snapshotError}</Alert>
       ) : scan && snapshot ? (
@@ -236,7 +236,7 @@ function BucketReplaceFlow({
         </Text>
 
         {bucketOplsLoading ? (
-          <Text style={[s.muted, { marginTop: 12 }]}>Loading allocations…</Text>
+          <SkeletonRows />
         ) : bucketOplsError ? (
           <Alert tone="danger">{bucketOplsError}</Alert>
         ) : bucketOpls.length === 0 ? (
@@ -296,7 +296,7 @@ function BucketReplaceFlow({
             </Text>
 
             {bucketCandidatesLoading ? (
-              <Text style={[s.muted, { marginTop: 12 }]}>Searching for replacements…</Text>
+              <SkeletonRows />
             ) : bucketCandidatesError ? (
               <Alert tone="danger">{bucketCandidatesError}</Alert>
             ) : bucketCandidates && bucketCandidates.candidates.length === 0 ? (
@@ -433,7 +433,7 @@ function StemReplaceFlow({
         </Text>
 
         {bucketCandidatesLoading ? (
-          <Text style={[s.muted, { marginTop: 12 }]}>Searching…</Text>
+          <SkeletonRows />
         ) : bucketCandidatesError ? (
           <Alert tone="danger">{bucketCandidatesError}</Alert>
         ) : bucketCandidates && bucketCandidates.candidates.length === 0 ? (
@@ -756,7 +756,7 @@ function BunchMoveEditor({
             </Text>
 
             {bunchDestinationsLoading ? (
-              <Text style={[s.muted, { marginTop: 12 }]}>Searching donors…</Text>
+              <SkeletonRows />
             ) : bunchDestinationsError ? (
               <Alert tone="danger">{bunchDestinationsError}</Alert>
             ) : bunchDestinations && bunchDestinations.candidates.length === 0 ? (
@@ -861,7 +861,7 @@ function BunchMoveEditor({
         </Text>
 
         {bunchDestinationsLoading ? (
-          <Text style={[s.muted, { marginTop: 12 }]}>Searching…</Text>
+          <SkeletonRows />
         ) : bunchDestinationsError ? (
           <Alert tone="danger">{bunchDestinationsError}</Alert>
         ) : bunchDestinations && bunchDestinations.candidates.length === 0 ? (
@@ -941,6 +941,26 @@ function OplRow({
         />
       </View>
     </Pressable>
+  );
+}
+
+function SkeletonRows({ count = 3 }: { count?: number }) {
+  return (
+    <View style={{ marginTop: 8 }}>
+      {Array.from({ length: count }, (_, i) => (
+        <View key={i} style={s.candidateRow}>
+          <View style={s.candidateHeader}>
+            <Skeleton width="40%" height={14} />
+            <Skeleton width={20} height={20} radius={10} />
+          </View>
+          <View style={s.candidateMeta}>
+            <Skeleton width={70} height={20} radius={6} />
+            <Skeleton width={60} height={20} radius={6} />
+            <Skeleton width={80} height={20} radius={6} />
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
