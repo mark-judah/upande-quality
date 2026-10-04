@@ -824,15 +824,20 @@ function LoadConfirm({
   onClose: () => void;
   onConfirm: (loads: PlannedLoad[]) => void;
 }) {
-  const [draft, setDraft] = useState<PlannedLoad[]>([]);
-  const [changing, setChanging] = useState<string | null>(null); // tripId whose truck is being changed
+  // No planned trip: open the truck list straight away.
+  const startChanging = (l: PlannedLoad[] | null) =>
+    (l ?? []).some((g) => g.tripId === UNPLANNED && !g.vehicle) ? UNPLANNED : null;
+  const [draft, setDraft] = useState<PlannedLoad[]>(loads ?? []);
+  const [changing, setChanging] = useState<string | null>(() => startChanging(loads)); // tripId whose truck is being changed
   const [query, setQuery] = useState('');
-  useEffect(() => {
+  // A new set of loads starts the dialog afresh.
+  const [loadsFor, setLoadsFor] = useState(loads);
+  if (loadsFor !== loads) {
+    setLoadsFor(loads);
     setDraft(loads ?? []);
-    // No planned trip: open the truck list straight away.
-    setChanging((loads ?? []).some((g) => g.tripId === UNPLANNED && !g.vehicle) ? UNPLANNED : null);
+    setChanging(startChanging(loads));
     setQuery('');
-  }, [loads]);
+  }
 
   const plate = (name: string) => vehicles.find((v) => v.name === name)?.licensePlate || name;
   const total = draft.reduce((n, g) => n + g.opls.reduce((m, o) => m + bucketCount(o), 0), 0);
@@ -978,16 +983,18 @@ function ReplacePicker({
   /** Issued to this order's own line: mark it issued instead of replacing it. */
   onMarkIssued: (line: string) => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  // Why the bucket is being replaced — goes on the Bucket Replacement record.
-  const [reason, setReason] = useState<ReplaceReason>('Missing');
   const candidates = pick?.candidates ?? [];
   // Default to the best match each time the sheet opens for a bucket.
   const firstId = candidates[0]?.bucketId ?? null;
-  useEffect(() => {
+  const [selected, setSelected] = useState<string | null>(firstId);
+  // Why the bucket is being replaced — goes on the Bucket Replacement record.
+  const [reason, setReason] = useState<ReplaceReason>('Missing');
+  const [pickFor, setPickFor] = useState<{ pick: typeof pick; firstId: string | null }>({ pick, firstId });
+  if (pickFor.pick !== pick || pickFor.firstId !== firstId) {
+    setPickFor({ pick, firstId });
     setSelected(firstId);
     setReason('Missing');
-  }, [pick, firstId]);
+  }
   // "Issued offline": look up which line it went to. Same line — mark it issued,
   // nothing to replace; another line — replace it as usual.
   type IssueResult = BucketIssueInfo | { kind: 'error'; message: string } | null;
@@ -1453,6 +1460,12 @@ function OplCard({
             {bucketMeta(b.variety, b.stemLength)}
             {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
           </Text>
+          {b.asap && !b.scanned ? (
+            // A quality-issue replacement the packhouse is waiting on: load it first.
+            <View style={s.asapPill}>
+              <Text style={s.asapPillText}>ASAP</Text>
+            </View>
+          ) : null}
           {!b.scanned ? (
             <Pressable
               onPress={() => onReplace(b)}
@@ -1506,6 +1519,11 @@ function OplCard({
               <Text style={s.oplMeta}>
                 {opl.scanned}/{opl.total} scanned
               </Text>
+              {opl.asap ? (
+                <Text style={s.asapNote}>
+                  {opl.asap} ASAP replacement{opl.asap === 1 ? '' : 's'} — packing is waiting, load first
+                </Text>
+              ) : null}
             </View>
             <Text style={s.pct}>{pct}%</Text>
           </View>
@@ -2367,6 +2385,15 @@ const s = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bNotFound: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.danger },
+  asapPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    backgroundColor: '#B42318',
+    marginRight: spacing.xs,
+  },
+  asapPillText: { fontFamily: fontFamily.bold, fontSize: 10, color: '#fff', letterSpacing: 0.4 },
+  asapNote: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: '#B42318', marginTop: 2 },
   scroll: { paddingBottom: 40 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

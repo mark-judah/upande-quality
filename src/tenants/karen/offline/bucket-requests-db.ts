@@ -23,6 +23,8 @@ export type ReqBucket = {
   notFound: boolean;
   trolleyId: string | null;
   pliId: string | null;
+  /** A quality-issue replacement the packhouse needs on the next truck. */
+  asap: boolean;
 };
 
 /** An OPL with its buckets + scan progress. */
@@ -33,6 +35,8 @@ export type ReqOpl = {
   customer: string;
   total: number;
   scanned: number;
+  /** Unscanned ASAP buckets: the order goes to the top of the list. */
+  asap: number;
   buckets: ReqBucket[];
 };
 
@@ -241,6 +245,9 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   if (!bcols.some((c) => c.name === 'farm')) {
     await addColumn(d, 'ALTER TABLE bucket ADD COLUMN farm TEXT');
   }
+  if (!bcols.some((c) => c.name === 'priority')) {
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN priority TEXT');
+  }
   if (!bcols.some((c) => c.name === 'not_found')) {
     await addColumn(d, 'ALTER TABLE bucket ADD COLUMN not_found INTEGER NOT NULL DEFAULT 0');
   }
@@ -285,10 +292,11 @@ function mergeBucketRows(rows: AllocationItem[]): AllocationItem[] {
     const part = [label, r.stemLength || ''].filter(Boolean).join(' ');
     const m = byBucket.get(key);
     if (!m) {
-      byBucket.set(key, { head: r, qty: r.qty || 0, parts: [part] });
+      byBucket.set(key, { head: { ...r }, qty: r.qty || 0, parts: [part] });
       continue;
     }
     m.qty += r.qty || 0;
+    if (r.asap) m.head.asap = true;
     if (!m.parts.includes(part)) m.parts.push(part);
   }
   return [...byBucket.values()].map(({ head, qty, parts }) =>
@@ -350,7 +358,8 @@ export async function downloadOpls(
         await d.runAsync(
           `UPDATE bucket SET qty = ?, variety = ?, stem_length = ?,
              shelf = CASE WHEN scanned = 0 AND ? <> '' THEN ? ELSE shelf END,
-             pick_list_item_id = COALESCE(NULLIF(?, ''), pick_list_item_id)
+             pick_list_item_id = COALESCE(NULLIF(?, ''), pick_list_item_id),
+             priority = ?
            WHERE opl_name = ? AND UPPER(bucket_id) = ?`,
           [
             r.qty || 0,
@@ -359,12 +368,13 @@ export async function downloadOpls(
             r.shelfLocation || '',
             r.shelfLocation || '',
             r.pickListItemId || '',
+            r.asap ? 'ASAP' : null,
             oplName,
             r.bucketId.toUpperCase(),
           ],
         );
         await d.runAsync(
-          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, scanned) VALUES (?,?,?,?,?,?,?,?,?,0)',
+          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,0)',
           [
             oplName,
             r.bucketId,
@@ -375,6 +385,7 @@ export async function downloadOpls(
             r.qty || 0,
             r.uom || '',
             r.pickListItemId || '',
+            r.asap ? 'ASAP' : null,
           ],
         );
       }
@@ -416,7 +427,7 @@ export async function downloadOpls(
       );
       for (const r of mergeBucketRows(rows)) {
         await d.runAsync(
-          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, scanned) VALUES (?,?,?,?,?,?,?,?,?,0)',
+          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,0)',
           [
             oplName,
             r.bucketId,
@@ -427,6 +438,7 @@ export async function downloadOpls(
             r.qty || 0,
             r.uom || '',
             r.pickListItemId || '',
+            r.asap ? 'ASAP' : null,
           ],
         );
       }
@@ -449,6 +461,7 @@ type BucketRow = {
   not_found?: number | null;
   trolley_id: string | null;
   pick_list_item_id: string | null;
+  priority?: string | null;
 };
 
 function mapBucketRow(r: BucketRow): ReqBucket {
@@ -465,6 +478,7 @@ function mapBucketRow(r: BucketRow): ReqBucket {
     notFound: r.not_found === 1,
     trolleyId: r.trolley_id || null,
     pliId: r.pick_list_item_id || null,
+    asap: r.priority === 'ASAP',
   };
 }
 
@@ -476,6 +490,7 @@ type OplRow = {
   total: number;
   scanned: number;
   last_activity?: string | null;
+  asap?: number | null;
 };
 
 export async function listRequests(): Promise<OrderGroup[]> {
@@ -489,18 +504,21 @@ export async function listRequests(): Promise<OrderGroup[]> {
     SELECT o.opl_name, o.order_name, o.created_on, o.customer,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total,
            o.last_activity AS last_activity,
-           (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned
+           (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned,
+           (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 0
+              AND b.priority = 'ASAP' AND ${fc}) AS asap
     FROM opl o
     WHERE EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AND ${dc}
-    ORDER BY (o.last_activity IS NULL) ASC, o.last_activity DESC,
+    ORDER BY (asap > 0) DESC, (o.last_activity IS NULL) ASC, o.last_activity DESC,
              o.order_name ASC, o.created_on ASC, o.opl_name ASC`,
-    [...fa, ...fa, ...fa, ...da],
+    [...fa, ...fa, ...fa, ...fa, ...da],
   );
   const groups = new Map<string, OrderGroup>();
   for (const o of opls) {
     if (o.scanned >= o.total) continue; // complete → Trolley tab
     const brows = await d.getAllAsync<BucketRow>(
-      `SELECT * FROM bucket b WHERE b.opl_name = ? AND ${fc} ORDER BY b.scanned ASC, b.id ASC`,
+      `SELECT * FROM bucket b WHERE b.opl_name = ? AND ${fc}
+       ORDER BY b.scanned ASC, (b.priority = 'ASAP') DESC, b.id ASC`,
       [o.opl_name, ...fa],
     );
     const opl: ReqOpl = {
@@ -510,6 +528,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
       customer: o.customer || '',
       total: o.total,
       scanned: o.scanned,
+      asap: o.asap ?? 0,
       buckets: brows.map(mapBucketRow),
     };
     const g = groups.get(opl.orderName);

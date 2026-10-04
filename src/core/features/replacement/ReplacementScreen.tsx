@@ -157,7 +157,9 @@ function BucketReplaceFlow({
   } = useReplacementStore();
   const { showSuccess, showError } = useToast();
   const [selected, setSelected] = useState<ReplacementCandidate | null>(null);
-  const [pickedOpl, setPickedOpl] = useState<BucketOplAllocation | null>(null);
+  const [chosenOpl, setPickedOpl] = useState<BucketOplAllocation | null>(null);
+  // Only one OPL: it is the one, until another is picked.
+  const pickedOpl = chosenOpl ?? (bucketOpls.length === 1 ? bucketOpls[0] : null);
   const [scope, setScope] = useState<'whole' | 'stems' | null>(null);
   const [stemCount, setStemCount] = useState('1');
   const [stemResult, setStemResult] = useState<{
@@ -170,13 +172,6 @@ function BucketReplaceFlow({
     loadBucketOpls(repository, snapshot.bucketId);
     loadBucketCandidates(repository, snapshot.bucketId);
   }, [loadBucketCandidates, loadBucketOpls, repository, snapshot.bucketId]);
-
-  // Auto-select when only one OPL exists.
-  useEffect(() => {
-    if (bucketOpls.length === 1 && !pickedOpl) {
-      setPickedOpl(bucketOpls[0]);
-    }
-  }, [bucketOpls, pickedOpl]);
 
   // A bucket can only be replaced if it's currently allocated to at least one OPL.
   // We treat "no OPLs" as a hard block — nothing to swap.
@@ -553,6 +548,14 @@ function BunchMoveEditor({
     return pickedReplacePli;
   })();
 
+  // A donor picked for another target line (or before the replace phase) no longer applies.
+  const donorKey = phase === 'replace' ? targetPli?.pickListItem ?? '' : '';
+  const [donorFor, setDonorFor] = useState(donorKey);
+  if (donorFor !== donorKey) {
+    setDonorFor(donorKey);
+    setReplacementDonor(null);
+  }
+
   // Load picker options once
   useEffect(() => {
     let cancelled = false;
@@ -647,7 +650,6 @@ function BunchMoveEditor({
       snapshot.farm,
       snapshot.bucketId,
     );
-    setReplacementDonor(null);
   }, [
     phase,
     targetPli,

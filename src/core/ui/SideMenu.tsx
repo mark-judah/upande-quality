@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -69,21 +69,17 @@ export function SideMenu({
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const drawerWidth = Math.min(Math.max(screenWidth * 0.8, 240), 320);
-  const slide = useRef(new Animated.Value(-drawerWidth)).current;
+  const slide = useState(() => new Animated.Value(-drawerWidth))[0];
 
-  const [fullName, setFullName] = useState(storeFullName ?? '');
+  const [storedName, setStoredName] = useState('');
+  const fullName = storeFullName || storedName;
 
   useEffect(() => {
     if (!visible) return;
     // Fallback to AsyncStorage when auth store hasn't been populated yet
     // (legacy paths that mounted SideMenu before hydrate finished).
-    if (!storeFullName) {
-      storage.get(StorageKeys.fullName).then((n) => {
-        if (n) setFullName(n);
-      });
-    } else {
-      setFullName(storeFullName);
-    }
+    if (storeFullName) return;
+    storage.get(StorageKeys.fullName).then((n) => setStoredName(n || ''));
   }, [visible, storeFullName]);
 
   useEffect(() => {
@@ -242,7 +238,7 @@ export function SideMenu({
 
 const s = StyleSheet.create({
   overlay: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.overlay },
   drawer: {
     position: 'absolute',
     top: 0,

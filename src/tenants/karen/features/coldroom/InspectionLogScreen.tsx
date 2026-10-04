@@ -60,8 +60,13 @@ export function KarenInspectionLogScreen({ userFarm }: { userFarm: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
+  // Another farm: its own cold stores, none picked yet.
+  const [storesFor, setStoresFor] = useState(farm);
+  if (storesFor !== farm) {
+    setStoresFor(farm);
     setColdstore('');
+  }
+  useEffect(() => {
     if (farm) loadColdStores(farm);
   }, [farm, loadColdStores]);
 

@@ -232,7 +232,7 @@ const s = StyleSheet.create({
   photoBtnFilled: { borderColor: COLORS.primary },
   thumb: { width: 44, height: 44 },
   thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',

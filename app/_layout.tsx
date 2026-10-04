@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
