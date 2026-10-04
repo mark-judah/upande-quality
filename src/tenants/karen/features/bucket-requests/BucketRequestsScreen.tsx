@@ -479,6 +479,62 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   return (
     <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
+      {/* Fixed above the list: the scan field and the farm badge on its edge stay
+          put while the requests scroll. */}
+      {!online ? (
+        <Text style={s.offline}>Offline — you can still scan; downloads need internet.</Text>
+      ) : null}
+
+      <View style={s.scanWrap}>
+      <Card>
+        {/* One field for both steps: scan the trolley first, then it
+            switches to buckets for that trolley. Routing is by QR content
+            (onAnyScan), so a trolley QR scanned mid-way switches trolleys. */}
+        <View style={s.scanHead}>
+          <Text style={s.scanLabel}>
+            {activeTrolleyId ? 'Scan bucket' : 'Scan trolley'}
+          </Text>
+          {activeTrolleyId ? (
+            <View style={s.trolleyChip}>
+              <Ionicons name="cart" size={13} color={COLORS.text} />
+              <Text style={s.trolleyChipText} numberOfLines={1}>
+                {activeTrolleyId}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  clearActiveTrolley();
+                  setScanStatus(null);
+                  focusWhenReady(scanRef);
+                }}
+                hitSlop={8}
+                style={s.changeRow}
+                accessibilityRole="button"
+                accessibilityLabel="Change trolley"
+              >
+                <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
+                <Text style={s.changeLink}>Change</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+        <ScanField
+          ref={scanRef}
+          onScan={onAnyScan}
+          autoFocus
+          placeholder={activeTrolleyId ? 'Scan bucket QR' : 'Scan trolley QR'}
+        />
+      </Card>
+      {/* The farm these requests are for (the list only ever holds this station's
+          farm), pinned on the scan card's top-right edge. */}
+      {userFarm ? (
+        <View style={s.farmEdge} pointerEvents="none">
+          <Ionicons name="location-outline" size={13} color={COLORS.textMuted} />
+          <Text style={s.farmText} numberOfLines={1}>
+            {userFarm}
+          </Text>
+        </View>
+      ) : null}
+      </View>
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
@@ -486,61 +542,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.text} />
         }
       >
-        {!online ? (
-          <Text style={s.offline}>Offline — you can still scan; downloads need internet.</Text>
-        ) : null}
-
-        <View style={s.scanWrap}>
-        <Card>
-          {/* One field for both steps: scan the trolley first, then it
-              switches to buckets for that trolley. Routing is by QR content
-              (onAnyScan), so a trolley QR scanned mid-way switches trolleys. */}
-          <View style={s.scanHead}>
-            <Text style={s.scanLabel}>
-              {activeTrolleyId ? 'Scan bucket' : 'Scan trolley'}
-            </Text>
-            {activeTrolleyId ? (
-              <View style={s.trolleyChip}>
-                <Ionicons name="cart" size={13} color={COLORS.text} />
-                <Text style={s.trolleyChipText} numberOfLines={1}>
-                  {activeTrolleyId}
-                </Text>
-                <Pressable
-                  onPress={() => {
-                    clearActiveTrolley();
-                    setScanStatus(null);
-                    focusWhenReady(scanRef);
-                  }}
-                  hitSlop={8}
-                  style={s.changeRow}
-                  accessibilityRole="button"
-                  accessibilityLabel="Change trolley"
-                >
-                  <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
-                  <Text style={s.changeLink}>Change</Text>
-                </Pressable>
-              </View>
-            ) : null}
-          </View>
-          <ScanField
-            ref={scanRef}
-            onScan={onAnyScan}
-            autoFocus
-            placeholder={activeTrolleyId ? 'Scan bucket QR' : 'Scan trolley QR'}
-          />
-        </Card>
-        {/* The farm these requests are for (the list only ever holds this station's
-            farm), pinned on the scan card's top-right edge. */}
-        {userFarm ? (
-          <View style={s.farmEdge} pointerEvents="none">
-            <Ionicons name="location-outline" size={13} color={COLORS.textMuted} />
-            <Text style={s.farmText} numberOfLines={1}>
-              {userFarm}
-            </Text>
-          </View>
-        ) : null}
-        </View>
-
         {scanStatus ? (
           <View style={[s.statusBanner, scanStatus.ok ? s.statusOk : s.statusErr]}>
             <Ionicons
@@ -2340,9 +2341,9 @@ const s = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: spacing.sm,
   },
-  // Room above the card for the farm badge on its top edge: the scroll view
-  // clips anything above its content.
-  scanWrap: { position: 'relative', marginTop: 12 },
+  // Above the scroll view, so the farm badge on its top edge sits in the page
+  // padding and nothing clips it.
+  scanWrap: { position: 'relative' },
   farmEdge: {
     position: 'absolute',
     top: -11,
