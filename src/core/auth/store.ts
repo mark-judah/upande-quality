@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authRepository } from './repository';
+import { displayName, fetchCurrentUser, needsRealName } from './roles-api';
 import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
 
@@ -55,10 +56,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   biometricLocked: false,
 
   hydrate: async () => {
-    const [hasSession, roles, email, instanceUrl, bioFlag] = await Promise.all([
+    const [hasSession, roles, email, fullName, instanceUrl, bioFlag] = await Promise.all([
       authRepository.hasSession(),
       authRepository.loadRoles(),
       storage.get(StorageKeys.emailBackup),
+      storage.get(StorageKeys.fullName),
       storage.get(StorageKeys.instanceUrl),
       storage.get(StorageKeys.biometricEnabled),
     ]);
@@ -69,10 +71,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       hydrated: true,
       roles,
       email,
+      fullName: displayName(fullName),
       instanceUrl,
       biometricEnabled,
       biometricLocked,
     });
+    // Sessions from before the name fix stored the email as the name: look the
+    // real one up once, in the background.
+    if (hasSession && needsRealName(fullName)) {
+      fetchCurrentUser()
+        .then(async (me) => {
+          if (!me.fullName) return;
+          await storage.set(StorageKeys.fullName, me.fullName);
+          set({ fullName: me.fullName });
+        })
+        .catch(() => {});
+    }
   },
 
   login: async (email, password, url) => {
@@ -81,7 +95,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (result.ok) {
       set({
         status: 'success',
-        fullName: result.fullName,
+        fullName: displayName(result.fullName),
         email,
         instanceUrl: result.instanceUrl,
         hasSession: true,

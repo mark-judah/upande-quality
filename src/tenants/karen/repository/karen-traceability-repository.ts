@@ -1,3 +1,4 @@
+import { displayName } from '@/src/core/auth/roles-api';
 import type {
   BoxBucketTrace,
   BoxTraceability,
@@ -45,7 +46,7 @@ function transferStages(raw: RawTraceabilitySnapshot): JourneyStage[] {
           date: (e.datetime || '').split(' ')[0],
           datetime: e.datetime || '',
           variety: tr.variety || '',
-          user: e.user || '',
+          user: displayName(e.user || ''),
           detail: e.detail || '',
         }),
       );
@@ -83,9 +84,9 @@ function toStage(raw: RawJourneyStage): JourneyStage {
     variety: String(raw.variety ?? ''),
     stemLength: String(raw.stem_length ?? ''),
     qty: raw.qty ?? null,
-    who: String(raw.who ?? ''),
+    who: displayName(String(raw.who ?? '')),
     whoKind,
-    user: String(raw.user ?? ''),
+    user: displayName(String(raw.user ?? '')),
     detail: String(raw.detail ?? ''),
     harvestTime: String(raw.harvest_time ?? ''),
     cutStage: String(raw.cut_stage ?? ''),

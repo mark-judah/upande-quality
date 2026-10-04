@@ -1,7 +1,7 @@
 import { storage, secureStorage, StorageKeys } from '@/src/core/storage';
 import { api } from '@/src/core/api/client';
 import { loginRequest, probeBaseUrl } from './api';
-import { fetchCurrentUserRoles } from './roles-api';
+import { fetchCurrentUser, needsRealName } from './roles-api';
 import { knownInstances } from './known-instances';
 
 /** The stock /api/method/login response's `full_name` is computed as
@@ -66,19 +66,25 @@ export const authRepository = {
         fullName = real;
         await storage.set(StorageKeys.fullName, fullName);
       }
-      // After the real name is known, so the login screen can greet by name.
-      await knownInstances
-        .remember(fullUrl, email, fullName && fullName !== email ? fullName : null)
-        .catch(() => {});
-
-      // Fetch roles in the background. Failure is non-fatal — login still succeeds.
+      // Roles, and the full name for users who cannot read their own User
+      // record (most of them). Failure is non-fatal — login still succeeds.
       let roles: string[] = [];
       try {
-        roles = await fetchCurrentUserRoles();
+        const me = await fetchCurrentUser();
+        roles = me.roles;
         await storage.set(StorageKeys.userRoles, JSON.stringify(roles));
+        if (me.fullName && needsRealName(fullName)) {
+          fullName = me.fullName;
+          await storage.set(StorageKeys.fullName, fullName);
+        }
       } catch {
         // ignore — UI will treat missing roles as "no special permissions"
       }
+
+      // After the real name is known, so the login screen can greet by name.
+      await knownInstances
+        .remember(fullUrl, email, fullName && !needsRealName(fullName) ? fullName : null)
+        .catch(() => {});
       return { ok: true, fullName, instanceUrl: fullUrl, roles };
     }
 
