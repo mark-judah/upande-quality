@@ -1328,10 +1328,12 @@ function OplCard({
             and the bucket on it (right) on one line. */}
         <View style={s.shelfBucketRow}>
           <Text style={[s.bShelfLead, b.scanned && s.bDone]} numberOfLines={1}>
-            {b.shelf || 'No shelf'}
+            <Text style={s.idWord}>SHELF </Text>
+            {(b.shelf || 'none').toUpperCase()}
           </Text>
           <Text style={[s.bIdRight, b.scanned && s.bDone]} numberOfLines={1}>
-            {b.bucketId} ({Math.round(b.qty)})
+            <Text style={s.idWord}>BUCKET </Text>
+            {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
           </Text>
         </View>
         {/* Variety and stem length, with Replace on the same line (not beside the
@@ -2271,11 +2273,13 @@ const s = StyleSheet.create({
   bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
-  bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
+  // Shelf and bucket ids: same size, upper case, each after a small word label.
+  bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, flexShrink: 1 },
+  idWord: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, textDecorationLine: 'none' },
   metaReplaceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   metaGrow: { flex: 1, minWidth: 0 },
   shelfBucketRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
+  bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
   replaceBtn: {
