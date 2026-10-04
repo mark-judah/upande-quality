@@ -2011,8 +2011,6 @@ function TripCard({
   children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
-  // The route: every stop in the order the truck drives them.
-  const route = [...(trip.stops ?? [])].sort((x, y) => x.stop - y.stop);
   const ui = yourStop ? (STOP_UI[yourStop.status] ?? STOP_UI.waiting) : null;
   const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
   return (
@@ -2032,17 +2030,6 @@ function TripCard({
           </Text>
         </View>
       </View>
-
-      {route.length ? (
-        <Text style={s.tripRoute} numberOfLines={2}>
-          {route.map((st, i) => (
-            <Text key={`${st.stop}-${st.farm}`} style={st.isYou ? s.tripRouteYou : undefined}>
-              {i ? '  →  ' : ''}
-              {st.farm}
-            </Text>
-          ))}
-        </Text>
-      ) : null}
 
       {children}
 
@@ -2116,8 +2103,6 @@ const s = StyleSheet.create({
   shelvedState: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   shelvedStateWaiting: { color: COLORS.warn },
   // Requests trip card
-  tripRoute: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: spacing.xs },
-  tripRouteYou: { fontFamily: fontFamily.bold, color: COLORS.text },
   yourStopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   yourStopStatus: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm },
   yourStopScan: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xs },
