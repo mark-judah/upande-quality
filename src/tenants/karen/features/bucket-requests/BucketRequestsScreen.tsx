@@ -562,6 +562,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {dateChoices.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
+            <Text style={s.dateLabel}>Delivery date</Text>
             {dateChoices.map((d) => (
               <Pressable
                 key={d}
@@ -2630,7 +2631,8 @@ const s = StyleSheet.create({
   reasonChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
-  dateRow: { gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: 2 },
+  dateRow: { gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: 2, alignItems: 'center' },
+  dateLabel: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginRight: 2 },
   tabsScroll: { flexGrow: 1 },
   tabsInner: { flex: 1, minWidth: 340 },
   dateChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
