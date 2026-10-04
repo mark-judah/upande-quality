@@ -1107,7 +1107,7 @@ function RequestsTab({
       <Card>
         <View style={s.empty}>
           <Ionicons name="download-outline" size={26} color={COLORS.textMuted} />
-          <Text style={s.emptyTitle}>No picklists</Text>
+          <Text style={s.emptyTitle}>No new requests</Text>
         </View>
       </Card>
     );
