@@ -19,6 +19,7 @@ import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { showDialog } from '@/src/core/ui/DialogHost';
+import { ChangePasswordDialog } from '@/src/core/auth/ChangePasswordDialog';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
   const { showSuccess, showError } = useToast();
 
   const [moduleReady, setModuleReady] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const [hardwareReady, setHardwareReady] = useState(false);
   const [verCheck, setVerCheck] = useState<VersionCheck | null>(null);
   const [siteApps, setSiteApps] = useState<{ label: string; version: string }[] | null>(null);
@@ -151,6 +153,16 @@ export default function SettingsScreen() {
           </View>
           <Toggle value={biometricEnabled} onChange={onToggleBiometric} />
         </View>
+        <View style={{ height: spacing.md }} />
+        <Button label="Change password" variant="outline" iconLeft="key-outline" onPress={() => setPwOpen(true)} />
+        <ChangePasswordDialog
+          visible={pwOpen}
+          onClose={() => setPwOpen(false)}
+          onChanged={() => {
+            setPwOpen(false);
+            showSuccess('Password changed.');
+          }}
+        />
       </Card>
 
       <Card title="App & Server">

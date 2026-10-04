@@ -19,6 +19,7 @@ import * as Biometric from '@/src/core/biometric';
 import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { APP_VERSION } from '@/src/core/version';
 import { showDialog } from '@/src/core/ui/DialogHost';
+import { requestPasswordReset } from '@/src/core/auth/password-api';
 
 const APP_NAME = 'Upande Quality';
 const HOME_ROUTE = '/';
@@ -51,6 +52,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   // Biometric re-login replays the saved password against the instance it was
   // saved for, so it is only offered while that instance is the selected one.
@@ -148,6 +150,42 @@ export default function Login() {
         onPress: async () => setInstances(await knownInstances.forget(inst.url)),
       },
     ]);
+  };
+
+  // Forgot password: the server emails a link to set a new one, for the email
+  // typed above on the instance selected.
+  const onForgotPassword = () => {
+    const who = email.trim();
+    if (!url.trim()) {
+      setErr('Choose the instance first.');
+      return;
+    }
+    if (!who) {
+      setErr('Type your email first, then tap Forgot password.');
+      return;
+    }
+    showDialog(
+      'Reset your password?',
+      `We'll email ${who} a link to set a new password on ${instanceLabel(url)}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send link',
+          onPress: async () => {
+            setResetting(true);
+            const r = await requestPasswordReset(url, who);
+            setResetting(false);
+            if (r.ok) {
+              setErr(null);
+              showDialog('Check your email', r.message, [{ text: 'OK' }], { name: 'mail-outline', tone: 'success' });
+            } else {
+              setErr(r.message);
+            }
+          },
+        },
+      ],
+      { name: 'key-outline', tone: 'info' },
+    );
   };
 
   const submit = async () => {
@@ -344,6 +382,9 @@ export default function Login() {
             </View>
             {errorBanner}
             <Button label="Sign in" onPress={submit} loading={submitting} />
+            <Pressable onPress={onForgotPassword} disabled={resetting} style={s.switchLink}>
+              <Text style={s.switchLinkText}>{resetting ? 'Sending reset link…' : 'Forgot password?'}</Text>
+            </Pressable>
             {bioAvailable ? (
               <Pressable
                 onPress={() => {
