@@ -191,6 +191,27 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     for (const o of [...trolley, ...inTransit]) for (const b of o.buckets) add(b, o.orderName, o.customer || '');
     return out;
   }, [requests, trolley, inTransit]);
+  // Shelved at the hub for the day: bucket, shelf and time, order and customer.
+  const shelvedList = useMemo(
+    () =>
+      shelvedTrips.flatMap((t) =>
+        t.buckets
+          .filter((b) => b.shelved)
+          .map((b) => ({
+            key: `${t.tripId}-${b.opl}-${b.bucketId}`,
+            label: b.bucketId.toUpperCase(),
+            meta: [
+              b.shelf ? `shelf ${b.shelf.toUpperCase()}` : '',
+              b.shelvedAt ? `shelved ${b.shelvedAt.slice(11, 16)}` : '',
+              t.vehicle ? `truck ${t.vehicle}` : '',
+            ]
+              .filter(Boolean)
+              .join(' · '),
+            sub: [b.orderName, b.customer].filter(Boolean).join(' · '),
+          })),
+      ),
+    [shelvedTrips],
+  );
   // The buckets already loaded and on the road (Trolley's summary: what left the trolley).
   const transitList = useMemo(() => {
     const keys = new Set(inTransit.flatMap((o) => o.buckets.map((b) => `${o.orderName}-${b.id}`)));
@@ -718,6 +739,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
               done={shelvedCount.done}
               total={shelvedCount.total || allBuckets}
+              items={shelvedList}
             />
           </Card>
         ) : null}
