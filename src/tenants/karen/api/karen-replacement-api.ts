@@ -147,7 +147,34 @@ export type RawPendingResponse = {
 
 type RawListResponse<T> = { data?: T[] };
 
-type RawStemLengthRow = { name?: string; length?: string };
+
+/** Varieties + stem lengths for the Edit Details / Replacement pickers, in one
+ *  call (shared by both lists; fetched again after a failure). */
+let optionsCall: Promise<{ varieties: string[]; stemLengths: string[] }> | null = null;
+function pickerOptions(): Promise<{ varieties: string[]; stemLengths: string[] }> {
+  if (!optionsCall) {
+    optionsCall = api<{ data?: { varieties?: string[]; stem_lengths?: string[] } }>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.getVarietyAndStemLengthOptions',
+    })
+      .then((res) => ({ varieties: res.data?.varieties ?? [], stemLengths: res.data?.stem_lengths ?? [] }))
+      // A server without that call yet: read the lists directly, as before.
+      .catch(async () => {
+        const [varieties, stems] = await Promise.all([
+          fetchRoseVarieties().catch(() => [] as string[]),
+          api<{ data?: { name?: string; length?: string }[] }>({
+            method: 'GET',
+            url: '/api/resource/Stem Length',
+            params: { fields: JSON.stringify(['name', 'length']), limit_page_length: 500, order_by: 'length asc' },
+          }).catch(() => ({ data: [] as { name?: string; length?: string }[] })),
+        ]);
+        const stemLengths = (stems.data ?? []).map((r) => r.length ?? r.name ?? '').filter(Boolean);
+        if (!varieties.length && !stemLengths.length) optionsCall = null; // try again next time
+        return { varieties, stemLengths };
+      });
+  }
+  return optionsCall;
+}
 
 export const karenReplacementApi = {
   async listReplacementCandidates(payload: { bucket_id: string }): Promise<RawCandidatesResponse> {
@@ -278,9 +305,10 @@ export const karenReplacementApi = {
     });
   },
 
-  /** Every rose variety, sub-groups included (see rose-varieties). */
+  /** Every rose variety, sub-groups included — from the server, so users without
+   *  read rights on Item still get the full list. */
   async listVarieties(): Promise<string[]> {
-    return fetchRoseVarieties();
+    return (await pickerOptions()).varieties;
   },
 
   /** Map of item_code → item_group for the given varieties, so the UI can gate
@@ -304,15 +332,6 @@ export const karenReplacementApi = {
   },
 
   async listStemLengths(): Promise<string[]> {
-    const res = await api<RawListResponse<RawStemLengthRow>>({
-      method: 'GET',
-      url: '/api/resource/Stem Length',
-      params: {
-        fields: JSON.stringify(['name', 'length']),
-        limit_page_length: 500,
-        order_by: 'length asc',
-      },
-    });
-    return (res.data ?? []).map((r) => r.length ?? r.name ?? '').filter((s) => s.length > 0);
+    return (await pickerOptions()).stemLengths;
   },
 };

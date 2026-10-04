@@ -23,9 +23,9 @@ type SiteApp = { title?: string; version?: string };
 
 /** Apps on the connected site worth showing, in display order. */
 const SHOWN_APPS: [string, string][] = [
-  ['upande_quality', 'Upande Quality'],
-  ['erpnext', 'ERPNext'],
   ['frappe', 'Frappe'],
+  ['erpnext', 'ERPNext'],
+  ['upande_quality', 'Upande Quality'],
 ];
 
 /** Versions of the site's apps, or [] when the site won't say. Never throws. */

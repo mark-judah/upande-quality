@@ -240,7 +240,15 @@ export type RawShelvedTrip = {
   received_at?: string;
   total?: number;
   shelved?: number;
-  buckets?: { bucket?: string; opl?: string; order_name?: string; shelved?: boolean; shelf?: string; shelved_at?: string }[];
+  buckets?: {
+    bucket?: string;
+    opl?: string;
+    order_name?: string;
+    customer?: string;
+    shelved?: boolean;
+    shelf?: string;
+    shelved_at?: string;
+  }[];
 };
 
 export type RawTripArrival = {
@@ -342,6 +350,38 @@ export const karenBucketRequestsApi = {
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.markRequestedBucketNotFound',
       data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** "Issued offline": which line (team) a requested bucket was issued to. */
+  requestedBucketIssueInfo(pickListItem: string): Promise<{
+    message?: {
+      status?: string;
+      message?: string;
+      bucket?: string;
+      line?: string;
+      this_issued?: boolean;
+      same_line?: boolean;
+      issued_to?: { opl: string; order_name?: string; team?: string; same_line?: boolean }[];
+    };
+  }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.requestedBucketIssueInfo',
+      data: { data: { pick_list_item: pickListItem } },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Issued offline to this order's own line: mark it issued (no replacement). */
+  markRequestedBucketIssued(pickListItem: string): Promise<{ message?: { status?: string; message?: string } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.markRequestedBucketIssued',
+      data: { data: { pick_list_item: pickListItem } },
+      // Issuing posts stock entries; allow it time.
+      timeout: 120000,
       validateStatus: () => true,
     });
   },

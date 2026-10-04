@@ -1,6 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 import * as FileSystem from 'expo-file-system/legacy';
 
 /**
@@ -166,20 +166,24 @@ export async function downloadApk(
   }
 
   if (!result?.uri) {
-    const reason = lastError instanceof Error && lastError.message ? ` (${lastError.message})` : '';
+    // The system's own error text is for the logs, not the person updating.
+    if (__DEV__) console.warn('[update] download failed:', lastError);
     throw new InstallError(
-      `The download failed after ${DOWNLOAD_ATTEMPTS} attempts${reason}. Check your connection and try again.`,
+      "The update couldn't be downloaded. Check your connection and try again.",
       'download',
       lastError,
     );
   }
   if (result.status && (result.status < 200 || result.status >= 300)) {
-    throw new InstallError(`The server returned ${result.status} for the update file.`, 'download');
+    if (__DEV__) console.warn(`[update] update file answered ${result.status}`);
+    throw new InstallError("The update file isn't available right now. Try again later.", 'download');
   }
 
   // An HTML error page saved under a .apk name is still a "successful" download.
   const info = await FileSystem.getInfoAsync(result.uri);
-  if (!info.exists || !info.size) throw new InstallError('The downloaded file is empty.', 'download');
+  if (!info.exists || !info.size) {
+    throw new InstallError("The update didn't download properly. Try again.", 'download');
+  }
 
   return result.uri;
 }

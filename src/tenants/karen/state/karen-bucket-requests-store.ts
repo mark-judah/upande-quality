@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as Network from 'expo-network';
 import { isNoResponseError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
+import { setTransferHub } from '@/src/core/tenant/transfer-hub';
 import {
   karenBucketRequestsRepository,
   type CompletedTrip,
@@ -11,6 +12,7 @@ import {
   type PlannedTrip,
   type ReplacementCandidate,
   type ReplaceReason,
+  type BucketIssueInfo,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
@@ -27,6 +29,13 @@ type State = {
   schedules: OplSchedule[];
   reqCount: number;
   trolleyCount: number;
+  /** Buckets scanned onto trolleys of all requested (the Trolley tab's x/n). */
+  scannedBuckets: number;
+  totalBuckets: number;
+  /** End-of-tab summaries: all requested buckets, added to trolleys, on trucks. */
+  allBuckets: number;
+  addedBuckets: number;
+  transitBuckets: number;
   inTransitCount: number;
   tripsCount: number;
   activeTrolleyId: string | null;
@@ -74,6 +83,10 @@ type State = {
   /** Leave a requested bucket out of the transfer — not in the cold room and nothing
    *  to replace it — so its order can load with the buckets that are there. */
   markNotFound: (bucketId: string, pliId: string, notes?: string) => Promise<{ ok: boolean; message: string }>;
+  /** "Issued offline": where the requested bucket was issued. */
+  bucketIssueInfo: (pliId: string) => Promise<BucketIssueInfo | { kind: 'error'; message: string }>;
+  /** Issued offline to its own line: mark it issued (no replacement) and drop it here. */
+  markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
   closeStop: (tripId: string, farm: string, reason?: string) => Promise<{ ok: boolean; message: string }>;
@@ -101,24 +114,17 @@ type State = {
 // One background sync at a time (the poll timer and app-foreground can overlap).
 let syncing = false;
 
-/** "Sat 4 Oct" for a YYYY-MM-DD delivery date. */
-function dayLabel(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** Download result for the delivery date on screen (everything fetched is for it). */
 function downloadMessage(res: { insertedOpls: string[]; refreshedOpls: string[] }, date: string): string {
-  const fresh = res.insertedOpls.length;
-  const refreshed = res.refreshedOpls.length;
-  const day = date ? dayLabel(date) : '';
-  if (fresh + refreshed === 0) return day ? `No picklists for ${day} yet.` : 'No picklists to download.';
-  const parts = [`${day ? `${day}: ` : 'Downloaded '}${plural(fresh, 'new picklist')}`];
-  if (refreshed) parts.push(`${refreshed} refreshed`);
-  return `${parts.join(', ')}.`;
+  // One total — new and refreshed alike are on the phone now. "0 new, 5 refreshed"
+  // read as "no picklists" to the people using it.
+  // No date in the message: the page only ever works on tomorrow's delivery.
+  const total = res.insertedOpls.length + res.refreshedOpls.length;
+  if (total === 0) return 'No new OPLs.';
+  return `${plural(total, 'OPL')} downloaded.`;
 }
 
 /** A trip seen for one delivery date: its orders for that date, and this farm's stop
@@ -161,6 +167,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   schedules: [],
   reqCount: 0,
   trolleyCount: 0,
+  scannedBuckets: 0,
+  totalBuckets: 0,
+  allBuckets: 0,
+  addedBuckets: 0,
+  transitBuckets: 0,
   inTransitCount: 0,
   tripsCount: 0,
   activeTrolleyId: null,
@@ -206,16 +217,25 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   },
 
   refresh: async () => {
-    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = await Promise.all([
-      db.listRequests(),
-      db.listTrolley(),
-      db.listInTransit(),
-      db.listVehicles(),
-      db.listPlannedTrips(),
-      db.listSchedules(),
-      db.counts(),
-      db.listDeliveryDates(),
-    ]);
+    let lists;
+    try {
+      lists = await Promise.all([
+        db.listRequests(),
+        db.listTrolley(),
+        db.listInTransit(),
+        db.listVehicles(),
+        db.listPlannedTrips(),
+        db.listSchedules(),
+        db.counts(),
+        db.listDeliveryDates(),
+      ]);
+    } catch (e) {
+      // A local-database hiccup (e.g. the connection released by a reload) must
+      // not surface as an error: keep what is on screen; the next refresh retries.
+      if (__DEV__) console.warn('[bucket-requests] refresh failed:', e);
+      return;
+    }
+    const [requests, trolley, inTransit, vehicles, allTrips, schedules, c, deliveryDates] = lists;
     // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
     const dd = get().deliveryDate;
     const plannedTrips = dd
@@ -240,6 +260,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       plannedTrips,
       reqCount: c.requests,
       trolleyCount: c.trolley,
+      scannedBuckets: c.scannedBuckets,
+      totalBuckets: c.totalBuckets,
+      allBuckets: c.allBuckets,
+      addedBuckets: c.addedBuckets,
+      transitBuckets: c.transitBuckets,
       inTransitCount: c.inTransit,
       tripsCount: plannedTrips.length,
     });
@@ -491,6 +516,29 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     }
   },
 
+  bucketIssueInfo: async (pliId) => {
+    try {
+      return await karenBucketRequestsRepository.bucketIssueInfo(pliId);
+    } catch (e) {
+      return { kind: 'error', message: (e as Error)?.message || 'Could not check where it was issued.' };
+    }
+  },
+
+  markIssued: async (rowId, pliId) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to mark it issued.' };
+    try {
+      const res = await karenBucketRequestsRepository.markBucketIssued(pliId);
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      await db.removeIssuedLocal(rowId);
+      await get().refresh();
+      return { ok: true, message: res.message };
+    } catch (e) {
+      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
+      return { ok: false, message: (e as Error)?.message || 'Could not mark it issued.' };
+    }
+  },
+
   markNotFound: async (bucketId, pliId, notes) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to mark a bucket not found.' };
@@ -542,6 +590,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { ok: false, message: res.message };
       }
       set({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: res.hub });
+      // Remembered, so Bucket Requests stays off Home and the menu at the hub.
+      if (res.hub) setTransferHub(res.hub);
       return { ok: true };
     } catch (e) {
       set({ loadingShelved: false });

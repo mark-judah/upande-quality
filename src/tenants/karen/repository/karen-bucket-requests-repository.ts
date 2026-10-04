@@ -91,8 +91,19 @@ export type PlannedTripStop = {
 
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
-export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Other';
-export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Other'];
+export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Issued offline' | 'Other';
+/** Where a requested bucket was issued ("Issued offline"): the lines (OPL teams) it
+ *  went to, and whether one is this order's own line (then: mark issued, no replace). */
+export type BucketIssueInfo = {
+  kind: 'ok';
+  line: string;
+  thisIssued: boolean;
+  sameLine: boolean;
+  issuedTo: { opl: string; orderName: string; team: string; sameLine: boolean }[];
+};
+
+/** Reasons offered in the replace modal ('Other' stays a valid type for older records). */
+export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Issued offline'];
 
 export type PlannedTrip = {
   tripId: string;
@@ -172,7 +183,15 @@ export type ShelvedTrip = {
   receivedAt: string;
   total: number;
   shelved: number;
-  buckets: { bucketId: string; opl: string; orderName: string; shelved: boolean; shelf: string; shelvedAt: string }[];
+  buckets: {
+    bucketId: string;
+    opl: string;
+    orderName: string;
+    customer: string;
+    shelved: boolean;
+    shelf: string;
+    shelvedAt: string;
+  }[];
 };
 
 export type FetchAllocationsOutcome =
@@ -536,6 +555,31 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'No replacement bucket found.' };
   },
 
+  async bucketIssueInfo(pickListItem: string): Promise<BucketIssueInfo | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.requestedBucketIssueInfo(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not check where it was issued.' };
+    return {
+      kind: 'ok',
+      line: m.line ?? '',
+      thisIssued: !!m.this_issued,
+      sameLine: !!m.same_line,
+      issuedTo: (m.issued_to ?? []).map((r) => ({
+        opl: r.opl,
+        orderName: r.order_name ?? r.opl,
+        team: r.team ?? '',
+        sameLine: !!r.same_line,
+      })),
+    };
+  },
+
+  async markBucketIssued(pickListItem: string): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketIssued(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked issued.' };
+    return { kind: 'error', message: m.message ?? 'Could not mark it issued.' };
+  },
+
   async markBucketNotFound(pickListItem: string, notes?: string): Promise<SaveTrolleyOutcome> {
     const raw = await karenBucketRequestsApi.markRequestedBucketNotFound({ pick_list_item: pickListItem, notes });
     const m = raw.message ?? {};
@@ -602,6 +646,7 @@ export const karenBucketRequestsRepository = {
           bucketId: b.bucket ?? '',
           opl: b.opl ?? '',
           orderName: b.order_name ?? b.opl ?? '',
+          customer: b.customer ?? '',
           shelved: !!b.shelved,
           shelf: b.shelf ?? '',
           shelvedAt: b.shelved_at ?? '',
@@ -670,7 +715,7 @@ export const karenBucketRequestsRepository = {
     const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
     if (m.status === 'success') {
       const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;
-      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next run` : ''}.` };
+      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next trip` : ''}.` };
     }
     return { kind: 'error', message: m.message ?? 'Could not close the stop.' };
   },

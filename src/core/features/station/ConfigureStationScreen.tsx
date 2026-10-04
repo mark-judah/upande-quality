@@ -9,7 +9,7 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { useUserStation } from '@/src/core/tenant/user-station';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { useStationStore } from './store';
 import { stationRepository } from './repository';
 
@@ -37,7 +37,7 @@ export function ConfigureStationScreen({ next }: Props) {
   const isXflora = tenant === 'Xflora';
 
   useEffect(() => {
-    if (farms.length === 0 && greenhouses.length === 0) load();
+    if (farms.length === 0 && greenhouses.length === 0) load(tenant);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,8 +81,8 @@ export function ConfigureStationScreen({ next }: Props) {
       title="Configure Station"
       loading={loading && farms.length === 0 && greenhouses.length === 0}
       error={error}
-      onRetry={load}
-      onRefresh={load}
+      onRetry={() => load(tenant)}
+      onRefresh={() => load(tenant)}
     >
       <Card>
         <Dropdown
@@ -168,5 +168,5 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
-  suggestionText: { color: COLORS.text, fontSize: 14 },
+  suggestionText: { fontFamily: fontFamily.regular, color: COLORS.text, fontSize: scaleFont(14) },
 });

@@ -11,7 +11,7 @@ export default function IntakeQcRoute() {
   }
 
   return (
-    <RequireStation next="/intake-qc">
+    <RequireStation next="/intake-qc" title="Intake QC">
       {(station) => (
         <KarenQcScreen
           userFarm={station.userFarm}

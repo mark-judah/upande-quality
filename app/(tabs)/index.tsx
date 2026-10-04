@@ -6,7 +6,7 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { useAuthStore } from '@/src/core/auth/store';
 import { useDrawerItems } from '@/src/core/ui/drawer-items-context';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import type { DrawerItem } from '@/src/core/tenant/types';
 
 /** Map each known drawer route to a stable Ionicon. Kept in sync with the
@@ -117,7 +117,15 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxl },
   greeting: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   name: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
+  // space-between, not a column gap: 2 × 48% + a fixed gap overflows narrow
+  // screens and dropped the grid to one tile per row.
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.md,
+    marginTop: spacing.xs,
+  },
   tile: {
     flexBasis: '48%',
     flexGrow: 0,
@@ -140,10 +148,10 @@ const s = StyleSheet.create({
   tileLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   tileLabelMuted: { color: COLORS.textMuted },
   tileMuted: { opacity: 0.65 },
-  tileHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, lineHeight: 16 },
+  tileHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, lineHeight: scaleFont(16) },
   tileComingSoon: {
     fontFamily: fontFamily.medium,
-    fontSize: 10,
+    fontSize: scaleFont(10),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

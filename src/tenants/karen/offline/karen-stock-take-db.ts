@@ -15,6 +15,8 @@ export type StockTakeScanRow = {
   serverShelf: string | null;
   serverVariety: string | null;
   serverStemLength: string | null;
+  /** Stems in the bucket (its shelf record, or its latest harvest entry). */
+  serverQty: number | null;
   serverAgeDays: number | null;
   syncError: string | null;
 };
@@ -29,6 +31,7 @@ export type StockTakeSyncResult =
       shelf: string | null;
       variety: string | null;
       stemLength: string | null;
+      qty: number | null;
       ageDays: number | null;
     }
   | { bucketId: string; ok: false; message: string };
@@ -53,6 +56,7 @@ CREATE TABLE IF NOT EXISTS stock_take_scan (
   server_shelf TEXT,
   server_variety TEXT,
   server_stem_length TEXT,
+  server_qty REAL,
   server_age_days INTEGER,
   sync_error TEXT,
   UNIQUE(coldstore, bucket_id)
@@ -64,6 +68,11 @@ CREATE INDEX IF NOT EXISTS idx_stock_take_pending ON stock_take_scan(coldstore, 
 export async function initStockTakeDb(): Promise<void> {
   const d = await db();
   await d.execAsync(DDL);
+  // Phones that created the table before it had server_qty get the column added.
+  const cols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(stock_take_scan)');
+  if (!cols.some((c) => c.name === 'server_qty')) {
+    await d.execAsync('ALTER TABLE stock_take_scan ADD COLUMN server_qty REAL');
+  }
 }
 
 type Row = {
@@ -76,6 +85,7 @@ type Row = {
   server_shelf: string | null;
   server_variety: string | null;
   server_stem_length: string | null;
+  server_qty: number | null;
   server_age_days: number | null;
   sync_error: string | null;
 };
@@ -91,6 +101,7 @@ function mapRow(r: Row): StockTakeScanRow {
     serverShelf: r.server_shelf,
     serverVariety: r.server_variety,
     serverStemLength: r.server_stem_length,
+    serverQty: r.server_qty ?? null,
     serverAgeDays: r.server_age_days,
     syncError: r.sync_error,
   };
@@ -170,9 +181,9 @@ export async function applySyncResults(
         await d.runAsync(
           `UPDATE stock_take_scan
            SET synced = 1, sync_error = NULL, server_status = ?, server_shelf = ?,
-               server_variety = ?, server_stem_length = ?, server_age_days = ?
+               server_variety = ?, server_stem_length = ?, server_qty = ?, server_age_days = ?
            WHERE coldstore = ? AND bucket_id = ?`,
-          [r.status, r.shelf, r.variety, r.stemLength, r.ageDays, coldstore, r.bucketId],
+          [r.status, r.shelf, r.variety, r.stemLength, r.qty, r.ageDays, coldstore, r.bucketId],
         );
       } else {
         await d.runAsync(

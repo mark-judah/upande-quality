@@ -4,20 +4,18 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
-import { useAuthStore } from '@/src/core/auth/store';
 import { useReplacementStore } from '../replacement/store';
 import type {
   PendingBunch,
   ReplacementCandidate,
   ReplacementRepository,
 } from '../replacement/types';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = { repository: ReplacementRepository };
-
-const HARVEST_DETAILS_UPDATER = 'Harvest Details Updater';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -29,7 +27,6 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 export function PendingReshelvingScreen({ repository }: Props) {
-  const hasRole = useAuthStore((s) => s.hasRole(HARVEST_DETAILS_UPDATER));
   const {
     pending,
     pendingLoading,
@@ -43,25 +40,17 @@ export function PendingReshelvingScreen({ repository }: Props) {
     loadPending(repository);
   }, [loadPending, repository]);
 
-  if (!hasRole) {
-    return (
-      <Screen title="Pending Reshelving">
-        <Card>
-          <Text style={s.muted}>
-            You need the <Text style={s.strong}>Harvest Details Updater</Text> role to use this page.
-          </Text>
-        </Card>
-      </Screen>
-    );
-  }
-
   return (
     <Screen title="Pending Reshelving" onRefresh={() => loadPending(repository)}>
       <Card>
         <View style={s.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>BUNCHES WAITING</Text>
-            <Text style={s.bigNum}>{pending.length}</Text>
+            {pendingLoading && pending.length === 0 ? (
+              <Skeleton width={48} height={30} style={{ marginTop: 4, marginBottom: 2 }} />
+            ) : (
+              <Text style={s.bigNum}>{pending.length}</Text>
+            )}
             <Text style={s.muted}>
               Each bunch is on the packhouse floor until a matching bucket appears.
             </Text>
@@ -77,7 +66,18 @@ export function PendingReshelvingScreen({ repository }: Props) {
       </Card>
 
       {pendingLoading ? (
-        <Card><Text style={s.muted}>Loading…</Text></Card>
+        Array.from({ length: 3 }, (_, i) => (
+          <Card key={i}>
+            <View style={s.row}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Skeleton width="45%" height={14} />
+                <Skeleton width="65%" height={12} />
+                <Skeleton width="55%" height={10} />
+              </View>
+              <Skeleton width={22} height={22} radius={11} />
+            </View>
+          </Card>
+        ))
       ) : pendingError ? (
         <Alert tone="danger">{pendingError}</Alert>
       ) : pending.length === 0 ? (
@@ -196,7 +196,24 @@ function ReshelveSection({
   };
 
   if (bunchDestinationsLoading) {
-    return <Text style={s.muted}>Searching for matching buckets…</Text>;
+    return (
+      <View>
+        {Array.from({ length: 2 }, (_, i) => (
+          <View key={i} style={s.candidateRow}>
+            <View style={s.candidateHeader}>
+              <Skeleton width="40%" height={14} />
+              <Skeleton width={20} height={20} radius={10} />
+            </View>
+            <View style={s.candidateMeta}>
+              <Skeleton width={70} height={20} radius={6} />
+              <Skeleton width={60} height={20} radius={6} />
+              <Skeleton width={70} height={20} radius={6} />
+            </View>
+            <Skeleton width="50%" height={10} style={{ marginTop: 8 }} />
+          </View>
+        ))}
+      </View>
+    );
   }
   if (bunchDestinationsError) {
     return <Alert tone="danger">{bunchDestinationsError}</Alert>;
@@ -257,7 +274,9 @@ function CandidateRow({
   return (
     <Pressable onPress={onPress} style={[s.candidateRow, selected && s.candidateRowSelected]}>
       <View style={s.candidateHeader}>
-        <Text style={s.candidateId}>{candidate.bucketId.toUpperCase()}</Text>
+        <Text style={s.candidateId} numberOfLines={1}>
+          {candidate.bucketId.toUpperCase()}
+        </Text>
         <MaterialCommunityIcons
           name={selected ? 'check-circle' : 'checkbox-blank-circle-outline'}
           size={20}
@@ -287,14 +306,14 @@ function Pill({ label, value, warn }: { label: string; value: string; warn?: boo
 }
 
 const s = StyleSheet.create({
-  helper: { fontSize: 13, color: COLORS.textMuted },
-  muted: { fontSize: 13, color: COLORS.textMuted },
-  strong: { color: COLORS.text, fontWeight: '600' },
-  subtle: { fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
+  helper: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  strong: { fontFamily: fontFamily.semiBold, color: COLORS.text },
+  subtle: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, marginTop: 4 },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  label: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bigNum: { fontSize: 28, fontWeight: '700', color: COLORS.text, marginTop: 2 },
+  label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bigNum: { fontFamily: fontFamily.bold, fontSize: scaleFont(28), color: COLORS.text, marginTop: 2 },
   refreshBtn: {
     width: 36,
     height: 36,
@@ -305,7 +324,7 @@ const s = StyleSheet.create({
   },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bunchId: { fontSize: 14, fontWeight: '700', color: COLORS.text, letterSpacing: 0.4 },
+  bunchId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.4 },
 
   candidateRow: {
     paddingVertical: 12,
@@ -321,10 +340,10 @@ const s = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: '#f0f7ff',
   },
-  candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  candidateId: { fontSize: 14, fontWeight: '700', color: COLORS.text, letterSpacing: 0.5 },
+  candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  candidateId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.5 },
   candidateMeta: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  candidateFooter: { marginTop: 6, fontSize: 11, color: COLORS.textMuted },
+  candidateFooter: { fontFamily: fontFamily.regular, marginTop: 6, fontSize: scaleFont(11), color: COLORS.textMuted },
 
   pill: {
     paddingHorizontal: 8,
@@ -334,10 +353,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
-  pillLabel: { fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 });

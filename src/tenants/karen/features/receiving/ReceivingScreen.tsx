@@ -13,7 +13,7 @@ import type {
   BucketDetails,
   ReceivingOutcome,
 } from '@/src/tenants/karen/repository/karen-receiving-repository';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 export function KarenReceivingScreen() {
   const scanRef = useRef<ScanFieldHandle>(null);
@@ -108,7 +108,7 @@ export function KarenReceivingScreen() {
     <Screen title="Receiving">
       <Card title="Batch mode">
         <View style={s.row}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={s.bodyText}>
               {batchMode ? `Active · ${batchId}` : 'Each scan submits independently'}
             </Text>
@@ -331,21 +331,22 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bodyText: { fontSize: 14, color: COLORS.text },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bodyText: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: COLORS.border,
     marginVertical: 10,
   },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
-    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
   endBatch: {
     alignSelf: 'flex-end',
     paddingHorizontal: 14,
@@ -354,5 +355,5 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.text,
   },
-  endBatchLabel: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
+  endBatchLabel: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: scaleFont(14) },
 });

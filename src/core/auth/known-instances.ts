@@ -75,8 +75,8 @@ export const knownInstances = {
   async remember(url: string, email: string | null, fullName: string | null = null): Promise<void> {
     const key = instanceKey(url);
     if (!key) return;
-    const rest = (await read()).filter((i) => instanceKey(i.url) !== key);
-    await write([{ url, email, fullName, lastUsedAt: Date.now() }, ...rest]);
+    // One server per device: signing in to one replaces whatever was saved.
+    await write([{ url, email, fullName, lastUsedAt: Date.now() }]);
   },
 
   async forget(url: string): Promise<KnownInstance[]> {

@@ -1,23 +1,33 @@
 import { useEffect, useMemo } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useFonts, DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
-import { Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import * as SystemUI from 'expo-system-ui';
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
 import 'react-native-reanimated';
 import { TenantProvider, useTenant } from '@/src/core/tenant/tenant-context';
 import { ToastProvider } from '@/src/core/ui/Toast';
 import { DialogHost } from '@/src/core/ui/DialogHost';
 import { OfflineBanner } from '@/src/core/ui/OfflineBanner';
 import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
+import { useUserStation } from '@/src/core/tenant/user-station';
+import { useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { startTelemetry } from '@/src/core/telemetry/service';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
 import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
+import { COLORS } from '@/src/core/theme';
 
 // Hold the native splash until fonts + auth hydrated.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -33,21 +43,41 @@ function UpdatePromptGate({ active }: { active: boolean }) {
 function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
   const roles = useAuthStore((s) => s.roles);
+  const { station } = useUserStation();
+  const hub = useTransferHub();
 
   // Role-gated entries stay out of the drawer AND the home grid, since both
   // render from this same list. Recomputes when roles arrive after login.
+  // A station at the sales farm (the transfer hub) doesn't get Bucket Requests:
+  // that page is for the remote farms sending buckets there.
+  const atHub = !!hub && station?.userFarm === hub;
   const items = useMemo(
-    () => getDrawerFor(tenant).filter((it) => !it.role || rolesInclude(roles, it.role)),
-    [tenant, roles],
+    () =>
+      getDrawerFor(tenant).filter(
+        (it) => (!it.role || rolesInclude(roles, it.role)) && !(atHub && it.route === 'bucket-requests'),
+      ),
+    [tenant, roles, atHub],
   );
 
   return <DrawerItemsProvider items={items}>{children}</DrawerItemsProvider>;
 }
 
+// Light navigation theme in the app's colours, whatever the phone's dark mode: the
+// screens draw behind the phone's own (see-through) button bar, and a dark theme
+// left that strip black on every page but the menu.
+const NAV_THEME = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: COLORS.bgMuted, card: COLORS.surface },
+};
+
+// The window behind every screen (and behind the phone's own navigation bar, now
+// that the app draws edge to edge) is the app's light grey, not black.
+SystemUI.setBackgroundColorAsync(COLORS.bgMuted).catch(() => {});
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    DMSans_400Regular,
-    DMSans_500Medium,
+    Poppins_400Regular,
+    Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
   });
@@ -106,9 +136,11 @@ export default function RootLayout() {
             <TenantScopedDrawer>
               <ToastProvider>
                 <StatusBar style="dark" />
+                <ThemeProvider value={NAV_THEME}>
                 <Stack
                   screenOptions={{
                     headerShown: false,
+                    contentStyle: { backgroundColor: COLORS.bgMuted },
                     // Forward nav slides in from the right; back gesture slides
                     // the screen out to the left. Matches platform conventions.
                     animation: 'slide_from_right',
@@ -128,6 +160,7 @@ export default function RootLayout() {
                     options={{ presentation: 'fullScreenModal' }}
                   />
                 </Stack>
+                </ThemeProvider>
                 {/* Sticky offline indicator across every screen. */}
                 <OfflineBanner />
                 {/* App-styled confirms / notices (showDialog), above every screen. */}
