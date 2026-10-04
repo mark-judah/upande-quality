@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
-import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
+import { Dialog } from '@/src/core/ui/Dialog';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -1588,16 +1588,61 @@ function InTransitTab({
   loading: boolean;
   onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
 }) {
-  const tripCards = trips.map((t) => (
-    <TripArrivalCard
-      key={t.tripId}
-      trip={t}
-      arrival={arrivals[t.tripId]}
-      deliveryDate={deliveryDate}
-      online={online}
-      onArrival={onArrival}
-    />
-  ));
+  // Grouped per truck: each truck's card lists its own orders and buckets, then its
+  // "arrived" button. Picklists whose truck isn't known yet get a card of their own.
+  const orderRows = (opls: TrolleyOpl[]) =>
+    opls.map((o) => (
+      <View key={o.oplName} style={s.groupInTrip}>
+        {/* Team, order name, customer, then the OPL and its buckets. */}
+        <View style={s.groupLine}>
+          <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
+            {o.orderName}
+          </Text>
+          <TeamChip team={oplTeam[o.oplName]} color={oplLine[o.oplName]?.color} fill />
+        </View>
+        {o.customer ? (
+          <Text style={s.groupCustomer} numberOfLines={1}>
+            {o.customer}
+          </Text>
+        ) : null}
+        <Text style={s.transitOpl} numberOfLines={1}>
+          {o.oplName}
+        </Text>
+        {o.buckets
+          .filter((b) => !b.notFound)
+          .map((b, i) => (
+            <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
+              <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.bShelfLead} numberOfLines={1}>
+                  {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
+                </Text>
+                <Text style={s.bMeta} numberOfLines={1}>
+                  {bucketMeta(b.variety, b.stemLength)}
+                </Text>
+              </View>
+            </View>
+          ))}
+      </View>
+    ));
+  const onTruck = new Set<string>();
+  const tripCards = trips.map((t) => {
+    const mine = items.filter((o) => (t.orders ?? []).some((x) => x.opl === o.oplName));
+    mine.forEach((o) => onTruck.add(o.oplName));
+    return (
+      <TripArrivalCard
+        key={t.tripId}
+        trip={t}
+        arrival={arrivals[t.tripId]}
+        deliveryDate={deliveryDate}
+        online={online}
+        onArrival={onArrival}
+      >
+        {orderRows(mine)}
+      </TripArrivalCard>
+    );
+  });
+  const noTruck = items.filter((o) => !onTruck.has(o.oplName));
   if (!items.length && !trips.length) {
     if (loading) return <SkeletonCards cards={2} />;
     return (
@@ -1612,20 +1657,19 @@ function InTransitTab({
   return (
     <>
       {tripCards}
-      {items.map((o) => (
-        <CompletedCard
-          key={o.oplName}
-          o={o}
-          team={oplTeam[o.oplName]}
-          line={oplLine[o.oplName]}
-          footer={
-            <View style={s.loadedInline}>
-              <Ionicons name={o.arrived ? 'checkmark-done' : 'car'} size={16} color={COLORS.text} />
-              <Text style={s.loadedInlineText}>{o.arrived ? 'Arrived at packhouse' : 'In transit'}</Text>
+      {noTruck.length ? (
+        <Card>
+          <View style={s.tripHead}>
+            <View style={s.tripTruck}>
+              <Ionicons name="car" size={16} color={COLORS.textMuted} />
+              <Text style={s.tripTruckText} numberOfLines={1}>
+                Truck not recorded
+              </Text>
             </View>
-          }
-        />
-      ))}
+          </View>
+          {orderRows(noTruck)}
+        </Card>
+      ) : null}
     </>
   );
 }
@@ -1794,15 +1838,20 @@ function TripArrivalCard({
   deliveryDate,
   online,
   onArrival,
+  children,
 }: {
   trip: CompletedTrip;
   arrival?: TripArrival;
+  /** This truck's orders and buckets, shown above its arrival button. */
+  children?: ReactNode;
   /** Delivery date on screen ('' = every date): only its buckets are counted / listed. */
   deliveryDate: string;
   online: boolean;
   onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
 }) {
-  const [ask, setAsk] = useState<'arrive' | 'complete' | null>(null);
+  const [ask, setAsk] = useState<'complete' | null>(null);
+  // Each truck folds away: tap its header to hide or show its orders.
+  const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const hub = arrival?.hub || 'the packhouse';
   const arrived = !!arrival?.arrivedAt;
@@ -1826,34 +1875,44 @@ function TripArrivalCard({
 
   return (
     <Card>
-      <View style={s.tripHead}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        style={s.tripHead}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText} numberOfLines={1}>
             {trip.vehicle || 'Truck'}
           </Text>
         </View>
-        <View style={[s.tripPill, arrived ? s.tripPillConfirmed : s.tripPillDraft]}>
-          <Text style={[s.tripPillText, arrived ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
-            {arrived ? `At ${hub}` : 'On the road'}
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
+      </Pressable>
+
+      {/* Where the truck is, as check marks: in transit, then arrived — arrival is
+          confirmed by itself once shelving at the hub starts (no button). */}
+      <View style={s.stageList}>
+        <View style={s.stageRow}>
+          <Ionicons name="checkmark-circle" size={18} color={SHELVED_GREEN} />
+          <Text style={s.stageText}>In transit{trip.leftAt ? ` · left ${time(trip.leftAt)}` : ''}</Text>
+        </View>
+        <View style={s.stageRow}>
+          <Ionicons
+            name={arrived ? 'checkmark-circle' : 'ellipse-outline'}
+            size={18}
+            color={arrived ? SHELVED_GREEN : COLORS.textMuted}
+          />
+          <Text style={[s.stageText, !arrived && s.stageTextPending]}>
+            Arrived at {hub}
+            {arrived ? ` · ${time(arrival?.arrivedAt ?? '')}` : ''}
           </Text>
         </View>
       </View>
-      <Text style={s.tripMeta} numberOfLines={1}>
-        {trip.tripId}
-        {trip.leftAt ? ` · left ${time(trip.leftAt)}` : ''}
-        {arrived ? ` · arrived ${time(arrival?.arrivedAt ?? '')}` : ''}
-      </Text>
 
-      {!arrived ? (
-        <Button
-          label={`Truck arrived at ${hub}?`}
-          iconLeft="flag-outline"
-          disabled={!online || busy || !arrival}
-          onPress={() => setAsk('arrive')}
-          style={{ marginTop: spacing.md }}
-        />
-      ) : (
+      {open ? children : null}
+
+      {arrived ? (
         <>
           <View style={s.divider} />
           <View style={s.arrivalRow}>
@@ -1905,27 +1964,9 @@ function TripArrivalCard({
             />
           </View>
         </>
-      )}
+      ) : null}
 
-      <Dialog
-        visible={ask === 'arrive'}
-        onClose={() => setAsk(null)}
-        busy={busy}
-        icon={{ name: 'flag-outline', tone: 'info' }}
-        title={`Truck at ${hub}?`}
-        subtitle={`Confirm ${trip.vehicle || 'the truck'} has arrived at ${hub} with trip ${trip.tripId}.`}
-        actions={
-          <>
-            <Button label="Not yet" variant="outline" onPress={() => setAsk(null)} disabled={busy} style={{ flex: 1 }} />
-            <Button label="Yes, it's here" loading={busy} onPress={() => run('arrive')} style={{ flex: 1 }} />
-          </>
-        }
-      >
-        <DialogList>
-          <DialogRow label="Buckets on the trip" value={String(total)} />
-          <DialogRow label="Shelved so far" value={String(shelved)} />
-        </DialogList>
-      </Dialog>
+
 
       <Dialog
         visible={ask === 'complete'}
@@ -2388,6 +2429,11 @@ const s = StyleSheet.create({
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   issuedNote: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   issuedNoteSame: { color: SHELVED_GREEN },
+  stageList: { gap: 4, marginTop: spacing.sm },
+  stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stageText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  stageTextPending: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  transitOpl: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginBottom: 2 },
   repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
