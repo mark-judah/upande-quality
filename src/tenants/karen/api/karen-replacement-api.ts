@@ -1,4 +1,5 @@
 import { api } from '@/src/core/api/client';
+import { fetchRoseVarieties } from './rose-varieties';
 
 export type RawCandidate = {
   bucket_id?: string;
@@ -157,9 +158,19 @@ function pickerOptions(): Promise<{ varieties: string[]; stemLengths: string[] }
       url: '/api/method/upande_quality.mobile.api.getVarietyAndStemLengthOptions',
     })
       .then((res) => ({ varieties: res.data?.varieties ?? [], stemLengths: res.data?.stem_lengths ?? [] }))
-      .catch((e) => {
-        optionsCall = null;
-        throw e;
+      // A server without that call yet: read the lists directly, as before.
+      .catch(async () => {
+        const [varieties, stems] = await Promise.all([
+          fetchRoseVarieties().catch(() => [] as string[]),
+          api<{ data?: { name?: string; length?: string }[] }>({
+            method: 'GET',
+            url: '/api/resource/Stem Length',
+            params: { fields: JSON.stringify(['name', 'length']), limit_page_length: 500, order_by: 'length asc' },
+          }).catch(() => ({ data: [] as { name?: string; length?: string }[] })),
+        ]);
+        const stemLengths = (stems.data ?? []).map((r) => r.length ?? r.name ?? '').filter(Boolean);
+        if (!varieties.length && !stemLengths.length) optionsCall = null; // try again next time
+        return { varieties, stemLengths };
       });
   }
   return optionsCall;
