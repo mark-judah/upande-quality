@@ -34,7 +34,7 @@ export function KarenShelfOperationsScreen({
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
   const {
-    mode,
+    mode: storeMode,
     shelfId,
     loading,
     lastTransferOutcome,
@@ -97,6 +97,11 @@ export function KarenShelfOperationsScreen({
     [opls, oplTeam, oplTeams],
   );
 
+  // The single-tab page renders its own tab from the first frame; going by the
+  // shared store alone, it flashed the Shelf Operations (Transfer) page until
+  // the store caught up.
+  const mode = only ?? storeMode;
+
   useEffect(() => () => reset(), [reset]);
 
   // The two pages stay mounted and share one store: the single-tab page takes
@@ -105,9 +110,15 @@ export function KarenShelfOperationsScreen({
   useFocusEffect(
     useCallback(() => {
       if (!only) return;
-      setMode(only);
+      const st = useKarenShelfOperationsStore.getState();
+      if (st.mode !== only) setMode(only);
+      // Fresh OPLs on every visit (the page stays mounted between visits).
+      if (only === 'issue-offline') {
+        if (st.oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
+        else loadOpls();
+      }
       return () => setMode('transfer');
-    }, [only, setMode]),
+    }, [only, setMode, setOplDeliveryDate, loadOpls]),
   );
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
@@ -133,6 +144,7 @@ export function KarenShelfOperationsScreen({
   }, [mode, shelfId, coldstore]);
 
   useEffect(() => {
+    if (only) return; // the single-tab page loads on focus, above
     if (mode === 'stock-take') {
       initStockTake();
       loadColdStores(userFarm);
