@@ -66,6 +66,7 @@ export function KarenShelfOperationsScreen({
     clearShelf,
     submitTransfer,
     loadOpls,
+    setOplFarm,
     setOplDeliveryDate,
     setOplTeam,
     selectOpl,
@@ -115,11 +116,12 @@ export function KarenShelfOperationsScreen({
       if (st.mode !== only) setMode(only);
       // Fresh OPLs on every visit (the page stays mounted between visits).
       if (only === 'issue-offline') {
+        setOplFarm(userFarm);
         if (st.oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
         else loadOpls();
       }
       return () => setMode('transfer');
-    }, [only, setMode, setOplDeliveryDate, loadOpls]),
+    }, [only, userFarm, setMode, setOplFarm, setOplDeliveryDate, loadOpls]),
   );
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
@@ -152,6 +154,7 @@ export function KarenShelfOperationsScreen({
     } else if (mode === 'issue-offline') {
       // Issuing works on tomorrow's deliveries only: a date left from yesterday
       // moves on to the new tomorrow (which loads its OPLs).
+      setOplFarm(userFarm);
       if (oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
       else loadOpls();
     }

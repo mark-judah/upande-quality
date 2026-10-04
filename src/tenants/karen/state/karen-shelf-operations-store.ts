@@ -63,6 +63,9 @@ type State = {
   setShelfFromScan: (raw: string) => { ok: boolean; message?: string; shelfId?: string };
   clearShelf: () => void;
   submitTransfer: (rawBucket: string) => Promise<TransferOutcome>;
+  /** The station's farm: a remote farm issues only its own buckets' OPLs. */
+  oplFarm: string;
+  setOplFarm: (farm: string) => void;
   loadOpls: () => Promise<void>;
   setOplDeliveryDate: (date: string) => Promise<void>;
   setOplTeam: (team: string) => void;
@@ -113,6 +116,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   opls: [],
   oplsLoading: false,
   oplDeliveryDate: localDay(1),
+  oplFarm: '',
   oplTeam: '',
   varieties: [],
   stemLengths: [],
@@ -182,7 +186,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     const date = get().oplDeliveryDate;
     set({ oplsLoading: true });
     try {
-      const opls = await karenShelfOperationsRepository.fetchOfflineIssueOpls(date);
+      const opls = await karenShelfOperationsRepository.fetchOfflineIssueOpls(date, get().oplFarm || undefined);
       // A slow answer for a date the operator has since moved off is dropped.
       if (get().oplDeliveryDate !== date) return;
       // Keep the team filter only while that team still has OPLs on this date.
@@ -192,6 +196,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       if (get().oplDeliveryDate === date) set({ oplsLoading: false });
     }
   },
+
+  setOplFarm: (oplFarm) => set({ oplFarm }),
 
   setOplDeliveryDate: async (oplDeliveryDate) => {
     // The picked OPL belongs to the old date's list: start over on the new one.
@@ -209,7 +215,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   selectOpl: async (opl) => {
     set({ ...ISSUE_OFFLINE_RESET, opl, offlineBucketsLoading: true });
     try {
-      const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl);
+      const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl, get().oplFarm || undefined);
       // A slow answer for an OPL the operator has since moved off is dropped.
       if (get().opl === opl) set({ offlineBuckets, offlineBucketsLoading: false });
     } catch {
@@ -271,7 +277,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
         set({ allocatedBucket: null, reason: null, correctVariety: '', correctStemLength: '' });
         const opl = state.opl;
         karenShelfOperationsRepository
-          .fetchOfflineIssueBuckets(opl)
+          .fetchOfflineIssueBuckets(opl, get().oplFarm || undefined)
           .then((offlineBuckets) => {
             if (get().opl === opl) set({ offlineBuckets });
           })
@@ -397,6 +403,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       lastTransferOutcome: null,
       ...ISSUE_OFFLINE_RESET,
       oplDeliveryDate: localDay(1),
+  oplFarm: '',
       oplTeam: '',
       coldstore: null,
       stockTakeScans: [],

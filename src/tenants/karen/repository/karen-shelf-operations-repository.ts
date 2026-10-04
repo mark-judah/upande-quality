@@ -153,8 +153,9 @@ export const karenShelfOperationsRepository = {
     return { kind: 'error', message: pickMessage(raw, 'Transfer failed.') };
   },
 
-  async fetchOfflineIssueOpls(deliveryDate?: string): Promise<OfflineOpl[]> {
-    const rows: RawOfflineOpl[] = await karenShelfOperationsApi.fetchOfflineIssueOpls(deliveryDate);
+  /** A remote `farm` gets only the OPLs with its buckets; the sales farm gets all. */
+  async fetchOfflineIssueOpls(deliveryDate?: string, farm?: string): Promise<OfflineOpl[]> {
+    const rows: RawOfflineOpl[] = await karenShelfOperationsApi.fetchOfflineIssueOpls(deliveryDate, farm);
     return rows.map((r) => ({
       oplName: r.opl_name,
       orderName: r.order_name || r.opl_name,
@@ -167,8 +168,8 @@ export const karenShelfOperationsRepository = {
     }));
   },
 
-  async fetchOfflineIssueBuckets(oplName: string): Promise<OfflineBucket[]> {
-    const rows: RawOfflineBucket[] = await karenShelfOperationsApi.fetchOfflineIssueBuckets(oplName);
+  async fetchOfflineIssueBuckets(oplName: string, farm?: string): Promise<OfflineBucket[]> {
+    const rows: RawOfflineBucket[] = await karenShelfOperationsApi.fetchOfflineIssueBuckets(oplName, farm);
     return rows.map((r) => ({
       bucket: r.bucket,
       variety: r.variety ?? null,

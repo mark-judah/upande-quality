@@ -115,21 +115,21 @@ const OFFLINE_ISSUE = '/api/method/upande_packhouse.api.offline_issue';
 export const karenShelfOperationsApi = {
   /** Open OPLs that still have buckets to issue — delivering on `deliveryDate`
    *  (YYYY-MM-DD), or recent delivery dates when it is not given. */
-  async fetchOfflineIssueOpls(deliveryDate?: string): Promise<RawOfflineOpl[]> {
+  async fetchOfflineIssueOpls(deliveryDate?: string, farm?: string): Promise<RawOfflineOpl[]> {
     const res = await api<{ message?: { opls?: RawOfflineOpl[] } }>({
       method: 'GET',
       url: `${OFFLINE_ISSUE}.offline_issue_opls`,
-      params: deliveryDate ? { delivery_date: deliveryDate } : undefined,
+      params: { ...(deliveryDate ? { delivery_date: deliveryDate } : {}), ...(farm ? { farm } : {}) },
     });
     return res.message?.opls ?? [];
   },
 
   /** The buckets an OPL is still waiting on. */
-  async fetchOfflineIssueBuckets(oplName: string): Promise<RawOfflineBucket[]> {
+  async fetchOfflineIssueBuckets(oplName: string, farm?: string): Promise<RawOfflineBucket[]> {
     const res = await api<{ message?: { buckets?: RawOfflineBucket[] } }>({
       method: 'GET',
       url: `${OFFLINE_ISSUE}.offline_issue_buckets`,
-      params: { opl_name: oplName },
+      params: { opl_name: oplName, ...(farm ? { farm } : {}) },
     });
     return res.message?.buckets ?? [];
   },
