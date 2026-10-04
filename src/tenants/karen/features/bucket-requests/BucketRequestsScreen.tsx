@@ -1132,20 +1132,29 @@ function RequestsTab({
   const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
+    const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
+    const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
+    // Order name (customer under it) on the left, the team always on the right.
+    const head = (
+      <View style={s.groupLine}>
+        {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
+        <View style={s.groupNames}>
+          <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+            {g.orderName}
+          </Text>
+          {customer ? (
+            <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+              {customer}
+            </Text>
+          ) : null}
+        </View>
+        {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
+      </View>
+    );
     if (inTrip) {
-      // Order name with its team and schedule number inline; the trip itself is
-      // the card around it.
-      const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
-      const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
       return (
         <View key={g.orderName} style={s.groupInTrip}>
-          <View style={s.groupLine}>
-            {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
-            <Text style={[s.groupHdr, { flexShrink: 1 }]} numberOfLines={1}>
-              {g.orderName}
-            </Text>
-            {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
-          </View>
+          {head}
           {g.opls.map((o) => (
             <OplCard
               key={o.oplName}
@@ -1163,8 +1172,7 @@ function RequestsTab({
     }
     return (
       <View key={g.orderName}>
-        <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]}>{g.orderName}</Text>
-        {customer ? <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>{customer}</Text> : null}
+        {head}
         {g.opls.map((o) => (
           <OplCard
             key={o.oplName}
@@ -1396,7 +1404,6 @@ function OplCard({
                 <Text style={s.oplTagUnschedText}>Unscheduled</Text>
               </View>
             )}
-            {!trip || trip.onTrip ? <TeamChip team={team} color={trip ? undefined : line?.color} /> : null}
           </View>
           <View style={s.oplHead}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -2100,6 +2107,7 @@ const s = StyleSheet.create({
   yourStopStatus: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm },
   yourStopScan: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xs },
   groupLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  groupNames: { flex: 1, minWidth: 0 },
   // Scanned buckets: folded under one green line, struck through when shown.
   bDone: { color: SHELVED_GREEN, textDecorationLine: 'line-through' },
   doneToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.sm },
