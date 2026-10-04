@@ -17,6 +17,7 @@ import {
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
 import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
 import { COLORS } from '@/src/core/theme';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 
 /** Group / filter label for an OPL allocated without a packing team. */
 const NO_TEAM = 'No team';
@@ -397,7 +398,11 @@ export function KarenShelfOperationsScreen({
           {opl ? (
             <Card title="Allocated bucket that was not issued">
               {offlineBucketsLoading ? (
-                <Text style={s.muted}>Loading buckets…</Text>
+                <View style={{ gap: 10 }}>
+                  <Skeleton width={'70%'} height={14} />
+                  <Skeleton width={'55%'} height={14} />
+                  <Skeleton width={'80%'} height={14} />
+                </View>
               ) : offlineBuckets.length === 0 ? (
                 <Text style={s.muted}>Every bucket on this OPL is issued.</Text>
               ) : (

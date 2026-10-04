@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenDiscardStore } from '@/src/tenants/karen/state/karen-discard-store';
@@ -77,12 +78,7 @@ export function KarenDiscardsScreen({ userFarm }: { userFarm: string }) {
       {listError ? <Alert tone="danger">{listError}</Alert> : null}
 
       {listLoading && buckets.length === 0 ? (
-        <Card>
-          <View style={s.empty}>
-            <ActivityIndicator color={COLORS.text} />
-            <Text style={s.emptyHint}>Loading discard list…</Text>
-          </View>
-        </Card>
+        <SkeletonCards cards={3} rows={2} />
       ) : null}
 
       {!listLoading && buckets.length === 0 ? (

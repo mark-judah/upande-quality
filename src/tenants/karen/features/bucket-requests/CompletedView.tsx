@@ -8,7 +8,7 @@ import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/
 import type { TrolleyOpl } from '@/src/tenants/karen/offline/bucket-requests-db';
 import type { CompletedTrip } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import type { LineColor } from './line-colors';
-import { ListSkeleton } from './ListSkeleton';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 
 /** "Completed": what this farm has finished — trips the truck has left the farm on,
  *  and picklists that are on a trolley, loaded or on the road. A trip that left before
@@ -74,7 +74,7 @@ export function CompletedView({
 
       <Text style={s.section}>Trips that left {farm || 'this farm'}</Text>
       {loading && !trips.length ? (
-        <ListSkeleton cards={2} rows={2} />
+        <SkeletonCards cards={2} rows={2} />
       ) : !trips.length ? (
         <Card>
           <Text style={s.empty}>No completed trips in the last few days.</Text>

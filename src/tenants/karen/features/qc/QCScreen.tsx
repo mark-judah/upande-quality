@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -52,9 +53,7 @@ export function KarenQcScreen({ userFarm: _userFarm, userGreenhouse }: Props) {
       <ScanAndBatchSection scanRef={scanRef} onError={showError} />
 
       {parametersLoading && parameters.length === 0 ? (
-        <Card>
-          <Text style={s.muted}>Loading quality concerns…</Text>
-        </Card>
+        <SkeletonCards cards={2} rows={4} />
       ) : isQuarantineMode ? (
         <QuarantineMode />
       ) : (

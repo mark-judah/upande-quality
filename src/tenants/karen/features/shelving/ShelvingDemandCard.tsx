@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Card } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { api } from '@/src/core/api/client';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 
@@ -104,8 +105,11 @@ export function ShelvingDemandCard({ farm }: { farm?: string }) {
       {error ? <Text style={s.err}>{error}</Text> : null}
 
       {loading && rows.length === 0 ? (
-        <View style={s.center}>
-          <ActivityIndicator color={COLORS.text} />
+        <View style={{ gap: 10 }}>
+          <Skeleton width={'70%'} height={14} />
+          <Skeleton width={'55%'} height={14} />
+          <Skeleton width={'80%'} height={14} />
+          <Skeleton width={'45%'} height={14} />
         </View>
       ) : null}
 

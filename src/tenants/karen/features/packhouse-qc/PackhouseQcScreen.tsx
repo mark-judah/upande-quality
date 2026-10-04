@@ -4,6 +4,7 @@ import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/
 import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Alert, Card } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Screen } from '@/src/core/ui/Screen';
@@ -1581,9 +1582,8 @@ function GradingReplaceModal({
             ) : null}
           </ScrollView>
         ) : state.loading ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <ActivityIndicator color={COLORS.text} />
-            <Text style={[s.muted, { marginTop: 10 }]}>Finding matching buckets…</Text>
+          <View style={{ padding: 16 }}>
+            <SkeletonCards cards={3} rows={1} />
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">

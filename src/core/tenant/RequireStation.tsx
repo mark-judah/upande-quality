@@ -27,7 +27,8 @@ export function RequireStation({ next, children }: Props) {
   const { station, loaded } = useUserStation();
 
   if (!loaded) {
-    return <Screen title="Loading…">{null}</Screen>;
+    // No "Loading…" title: it flashed in the header before every station page.
+    return <Screen title="" loading>{null}</Screen>;
   }
 
   if (!station) {

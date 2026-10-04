@@ -17,6 +17,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Spinner } from '@/src/core/ui/Spinner';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
 import { storage, StorageKeys } from '@/src/core/storage';
@@ -234,7 +235,11 @@ export function KarenSolutionMixingScreen({
           </Text>
           <View style={{ height: 12 }} />
           {chemicalsLoading && chemicals.length === 0 ? (
-            <Spinner inline label="Loading chemicals…" />
+            <View style={{ gap: 10 }}>
+              <Skeleton width={'70%'} height={14} />
+              <Skeleton width={'55%'} height={14} />
+              <Skeleton width={'80%'} height={14} />
+            </View>
           ) : null}
 
           {rows.length === 0 ? (

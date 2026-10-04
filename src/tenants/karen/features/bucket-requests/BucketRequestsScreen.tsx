@@ -19,7 +19,7 @@ import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
-import { ListSkeleton } from './ListSkeleton';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
@@ -1106,7 +1106,7 @@ function RequestsTab({
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
   if (!groups.length && !trips.length) {
-    if (loading) return <ListSkeleton />;
+    if (loading) return <SkeletonCards />;
     return (
       <Card>
         <View style={s.empty}>
@@ -1593,7 +1593,7 @@ function InTransitTab({
     />
   ));
   if (!items.length && !trips.length) {
-    if (loading) return <ListSkeleton cards={2} />;
+    if (loading) return <SkeletonCards cards={2} />;
     return (
       <Card>
         <View style={s.empty}>
@@ -1646,7 +1646,7 @@ function ShelvedTab({
   const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
 
   if (!trips.length) {
-    if (loading && online) return <ListSkeleton cards={2} rows={4} />;
+    if (loading && online) return <SkeletonCards cards={2} rows={4} />;
     return (
       <Card>
         <View style={s.empty}>

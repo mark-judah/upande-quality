@@ -1,11 +1,12 @@
 import { StyleSheet, View } from 'react-native';
-import { Card } from '@/src/core/ui/Card';
-import { Skeleton } from '@/src/core/ui/Skeleton';
+import { Card } from './Card';
+import { Skeleton } from './Skeleton';
 import { spacing } from '@/src/core/theme';
 
-/** Stand-in cards while a Bucket Requests list loads: a head line with a pill, then
- *  bucket-like rows, so the page keeps its shape when the data lands. */
-export function ListSkeleton({ cards = 3, rows = 3 }: { cards?: number; rows?: number }) {
+/** Stand-in cards while a list or page loads: a head line with a pill, then
+ *  list-like rows, so the page keeps its shape when the data lands. Used app-wide
+ *  in place of spinners for content that is loading. */
+export function SkeletonCards({ cards = 3, rows = 3 }: { cards?: number; rows?: number }) {
   return (
     <>
       {Array.from({ length: cards }, (_, c) => (
