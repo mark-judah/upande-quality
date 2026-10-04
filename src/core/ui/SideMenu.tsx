@@ -161,20 +161,23 @@ export function SideMenu({
               bounces={false}
               showsVerticalScrollIndicator={false}
             >
-              <View style={s.header}>
+              {/* Initials beside the name, the site under the name. */}
+              <View style={[s.header, s.headerRow]}>
                 <View style={s.avatar}>
                   <Text style={s.avatarText}>{initials}</Text>
                 </View>
-                <Text style={s.name} numberOfLines={1}>
-                  {name || 'Signed in'}
-                </Text>
-                {(tenant || instanceUrl) ? (
-                  <Text style={s.meta} numberOfLines={1}>
-                    {tenant ?? ''}
-                    {tenant && instanceUrl ? ' · ' : ''}
-                    {instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : ''}
+                <View style={s.headerText}>
+                  <Text style={s.name} numberOfLines={1}>
+                    {name || 'Signed in'}
                   </Text>
-                ) : null}
+                  {(tenant || instanceUrl) ? (
+                    <Text style={s.meta} numberOfLines={1}>
+                      {tenant ?? ''}
+                      {tenant && instanceUrl ? ' · ' : ''}
+                      {instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : ''}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
 
               <View style={s.nav}>
@@ -266,8 +269,9 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  headerText: { flex: 1, minWidth: 0 },
   avatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   name: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   meta: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text, marginTop: 2 },
