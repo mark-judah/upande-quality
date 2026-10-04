@@ -516,17 +516,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               </Pressable>
             </View>
           ) : null}
-          {/* Which picklists these are, in words QC use: "Picklists for tomorrow's
-              delivery" (a bare "Delivery date: Tomorrow" confused them). */}
-          {deliveryDate ? (
-            <Text style={s.scanDate} numberOfLines={2}>
-              Picklists for{' '}
-              <Text style={s.scanDateDay}>
-                {dateLabel(deliveryDate) === 'Tomorrow' ? "tomorrow's" : `${dateLabel(deliveryDate)}'s`}
-              </Text>{' '}
-              delivery
-            </Text>
-          ) : null}
         </View>
         <ScanField
           ref={scanRef}
@@ -2354,15 +2343,6 @@ const s = StyleSheet.create({
     zIndex: 2,
     elevation: 4,
   },
-  scanDate: {
-    marginLeft: 'auto',
-    flexShrink: 1,
-    textAlign: 'right',
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.xs,
-    color: COLORS.textMuted,
-  },
-  scanDateDay: { fontFamily: fontFamily.bold, color: COLORS.text },
   scanHead: {
     flexDirection: 'row',
     flexWrap: 'wrap',
