@@ -8,7 +8,7 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenDiscardStore } from '@/src/tenants/karen/state/karen-discard-store';
 import type { DiscardListBucket } from '@/src/tenants/karen/repository/karen-discard-repository';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 const norm = (id: string): string => id.trim().toLowerCase();
 
@@ -171,7 +171,7 @@ function BucketRow({
 }
 
 const s = StyleSheet.create({
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
   shelfBlock: { marginTop: spacing.md },
   shelfHdr: {
     fontFamily: fontFamily.bold,

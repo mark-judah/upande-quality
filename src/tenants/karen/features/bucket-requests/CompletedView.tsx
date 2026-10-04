@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import type { TrolleyOpl } from '@/src/tenants/karen/offline/bucket-requests-db';
 import type { CompletedTrip } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import type { LineColor } from './line-colors';
@@ -252,7 +252,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surfaceAlt,
   },
   tileCount: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
-  tileLabel: { fontFamily: fontFamily.medium, fontSize: 11, color: COLORS.textMuted },
+  tileLabel: { fontFamily: fontFamily.medium, fontSize: scaleFont(11), color: COLORS.textMuted },
   section: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,
@@ -267,7 +267,7 @@ const s = StyleSheet.create({
   pill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
   pillDone: { backgroundColor: COLORS.surfaceAlt },
   pillShort: { backgroundColor: '#FEF3F2' },
-  pillText: { fontFamily: fontFamily.semiBold, fontSize: 11 },
+  pillText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11) },
   pillTextDone: { color: COLORS.text },
   pillTextShort: { color: COLORS.danger },
   loadedLine: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, marginTop: 4 },

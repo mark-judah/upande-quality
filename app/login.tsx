@@ -16,7 +16,7 @@ import {
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
-import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, borderRadius, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { APP_VERSION } from '@/src/core/version';
 import { showDialog } from '@/src/core/ui/DialogHost';
 import { requestPasswordReset } from '@/src/core/auth/password-api';
@@ -435,7 +435,7 @@ const s = StyleSheet.create({
     backgroundColor: '#FEF2F2',
     marginBottom: spacing.lg,
   },
-  errText: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#991B1B', lineHeight: 19 },
+  errText: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#991B1B', lineHeight: scaleFont(19) },
   bioCard: {
     alignItems: 'center',
     gap: spacing.md,

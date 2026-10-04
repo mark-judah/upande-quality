@@ -6,7 +6,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   SURFACES,
   useKarenVehicleHygieneStore,
@@ -140,7 +140,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   empty: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
@@ -165,6 +165,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontFamily: fontFamily.medium, fontSize: 13, color: COLORS.textSecondary },
+  chipText: { fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.textSecondary },
   chipTextActive: { color: COLORS.textOnPrimary },
 });

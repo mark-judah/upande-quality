@@ -1,5 +1,5 @@
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
@@ -300,12 +300,12 @@ function AddReasonModal({
 }
 
 const s = StyleSheet.create({
-  section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: 12, letterSpacing: 0.4 },
-  hint: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  errorText: { fontFamily: fontFamily.regular, fontSize: 12, color: 'red', marginTop: 6 },
+  section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: scaleFont(12), letterSpacing: 0.4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  errorText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: 'red', marginTop: 6 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  shelvedBadge: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.primary },
-  coldBadge: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.textMuted },
+  shelvedBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.primary },
+  coldBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -313,11 +313,11 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  detailLabel: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
-  detailValue: { fontFamily: fontFamily.medium, fontSize: 13, color: COLORS.text },
-  detailValueStrong: { fontFamily: fontFamily.bold, fontSize: 15 },
+  detailLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  detailValue: { fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.text },
+  detailValueStrong: { fontFamily: fontFamily.bold, fontSize: scaleFont(15) },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
-  headerText: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.textMuted, letterSpacing: 0.3 },
+  headerText: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted, letterSpacing: 0.3 },
   stemsCol: { width: 70, textAlign: 'center' },
   removeCol: { width: 34, alignItems: 'center' },
   rejectRow: {
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
-  reasonText: { fontFamily: fontFamily.regular, flex: 1, fontSize: 14, color: COLORS.text },
+  reasonText: { fontFamily: fontFamily.regular, flex: 1, fontSize: scaleFont(14), color: COLORS.text },
   stemsInput: {
     fontFamily: fontFamily.regular,
     borderWidth: 1,
@@ -335,7 +335,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
   },
   totalRow: {
@@ -347,12 +347,12 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  totalLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
-  totalValue: { fontFamily: fontFamily.bold, fontSize: 15, color: COLORS.text },
+  totalLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  totalValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
   emptyBox: { alignItems: 'center', paddingVertical: 18, gap: 6 },
-  emptyText: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
+  emptyText: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  addText: { fontFamily: fontFamily.semiBold, fontSize: 14, color: COLORS.primary },
+  addText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.primary },
   modalRoot: { flex: 1, backgroundColor: COLORS.surface },
   modalSearch: {
     fontFamily: fontFamily.regular,
@@ -363,7 +363,7 @@ const s = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
@@ -371,7 +371,7 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.bold,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     letterSpacing: 0.4,
     color: COLORS.textMuted,
@@ -379,6 +379,6 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
   },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontFamily: fontFamily.regular, fontSize: 15, color: COLORS.text },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });

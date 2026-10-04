@@ -10,7 +10,7 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Spinner } from '@/src/core/ui/Spinner';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useAuthStore } from '@/src/core/auth/store';
 import { useKarenFreightDispatchStore } from '@/src/tenants/karen/state/karen-freight-dispatch-store';
 
@@ -321,12 +321,12 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   statusLine: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
-  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   denied: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
-    lineHeight: 20,
+    lineHeight: scaleFont(20),
   },
   deniedRole: { fontFamily: fontFamily.semiBold, color: COLORS.text },
   pointList: {
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
   pointName: { flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
   pointTag: {
     fontFamily: fontFamily.regular,
-    fontSize: 10,
+    fontSize: scaleFont(10),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

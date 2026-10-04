@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import {
   useKarenQcStore,
   type QuarantineAction,
@@ -142,19 +142,19 @@ function ActionButton({
 const s = StyleSheet.create({
   alertCard: { backgroundColor: COLORS.bgMuted },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  alertTitle: { fontFamily: fontFamily.bold, fontSize: 16, color: COLORS.text },
-  alertBody: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text, marginTop: 4 },
+  alertTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(16), color: COLORS.text },
+  alertBody: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, marginTop: 4 },
   sectionLabel: {
     fontFamily: fontFamily.bold,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     color: COLORS.textMuted,
     letterSpacing: 0.4,
     marginBottom: 12,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bucketTitle: { fontFamily: fontFamily.bold, fontSize: 18, color: COLORS.text },
-  bucketSubtitle: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bucketTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
+  bucketSubtitle: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -166,9 +166,9 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  tagLabel: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text },
+  tagLabel: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.text },
   stemsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stemsLabel: { fontFamily: fontFamily.semiBold, fontSize: 14, color: COLORS.text },
+  stemsLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   stemsInput: {
     fontFamily: fontFamily.regular,
     width: 100,
@@ -176,14 +176,14 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 8,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  stemsOf: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted },
+  stemsOf: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
   actionLabel: {
     fontFamily: fontFamily.bold,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     color: COLORS.textMuted,
     letterSpacing: 0.4,

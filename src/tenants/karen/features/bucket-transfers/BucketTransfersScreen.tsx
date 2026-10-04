@@ -11,7 +11,7 @@ import {
   type TransferTab,
   type TransferGroup,
 } from '@/src/tenants/karen/state/karen-bucket-transfers-store';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 const GREEN = '#12B76A';
 const GREEN_BG = '#ECFDF3';
@@ -251,7 +251,7 @@ const s = StyleSheet.create({
   order: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full },
-  statusTxt: { fontFamily: fontFamily.bold, fontSize: 11 },
+  statusTxt: { fontFamily: fontFamily.bold, fontSize: scaleFont(11) },
   subRow: {
     flexDirection: 'row',
     alignItems: 'center',

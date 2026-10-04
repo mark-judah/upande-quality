@@ -26,8 +26,7 @@ import {
   COLORS,
   fontFamily,
   fontSize,
-  spacing,
-} from '@/src/core/theme';
+  spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenSolutionMixingStore,
   type ChemicalRow,
@@ -412,14 +411,14 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 6 },
-  helperText: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 6 },
+  helperText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   empty: {
     fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 12,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
   dateTimeRow: { flexDirection: 'row', gap: spacing.sm },
   sliderLabel: {
@@ -521,9 +520,9 @@ const s = StyleSheet.create({
   },
   thumbErrorText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: scaleFont(9),
     fontFamily: fontFamily.semiBold,
     textAlign: 'center',
   },
-  errText: { fontFamily: fontFamily.regular, color: COLORS.danger ?? '#EF4444', fontSize: 11, marginTop: 4 },
+  errText: { fontFamily: fontFamily.regular, color: COLORS.danger ?? '#EF4444', fontSize: scaleFont(11), marginTop: 4 },
 });

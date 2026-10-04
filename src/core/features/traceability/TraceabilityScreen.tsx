@@ -18,7 +18,7 @@ import type {
   TraceabilitySnapshot,
   TraceabilityStatus,
 } from './types';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = { repository: TraceabilityRepository };
 
@@ -554,27 +554,27 @@ const DOT = 8;
 const TRACK_W = 2;
 
 const s = StyleSheet.create({
-  helper:      { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
-  muted:       { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
-  approxNote:  { fontFamily: fontFamily.regular, marginTop: 8, fontSize: 12, color: '#9a5a00', lineHeight: 16 },
+  helper:      { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  muted:       { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  approxNote:  { fontFamily: fontFamily.regular, marginTop: 8, fontSize: scaleFont(12), color: '#9a5a00', lineHeight: scaleFont(16) },
   bucketHead:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bucketHeadSub: { fontFamily: fontFamily.regular, marginTop: 2, fontSize: 12, color: COLORS.textMuted },
-  chevron:     { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, paddingLeft: 8 },
+  bucketHeadSub: { fontFamily: fontFamily.regular, marginTop: 2, fontSize: scaleFont(12), color: COLORS.textMuted },
+  chevron:     { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, paddingLeft: 8 },
   bucketTrail: { marginTop: 10 },
 
   headerRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bucketLabel: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bucketId:    { fontFamily: fontFamily.bold, fontSize: 20, color: COLORS.text, marginTop: 2, letterSpacing: 1 },
-  subId:       { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bucketLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bucketId:    { fontFamily: fontFamily.bold, fontSize: scaleFont(20), color: COLORS.text, marginTop: 2, letterSpacing: 1 },
+  subId:       { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   badge:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  badgeText:   { fontFamily: fontFamily.bold, fontSize: 13 },
+  badgeText:   { fontFamily: fontFamily.bold, fontSize: scaleFont(13) },
 
   row:           { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
-  rowLabel:      { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  rowValue:      { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
-  rowValueSmall: { fontFamily: fontFamily.regular, fontSize: 11 },
+  rowLabel:      { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  rowValue:      { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  rowValueSmall: { fontFamily: fontFamily.regular, fontSize: scaleFont(11) },
 
-  bunchSub:    { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, lineHeight: 16 },
+  bunchSub:    { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, lineHeight: scaleFont(16) },
 
   bunchRow: {
     paddingVertical: 10,
@@ -587,13 +587,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
   },
   bunchHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  bunchId:     { fontFamily: fontFamily.bold, fontSize: 13, color: COLORS.text },
+  bunchId:     { fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
   bunchMeta:   { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   bunchFooter: { marginTop: 6 },
-  bunchFooterText: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted },
-  bunchOpl:    { fontFamily: fontFamily.semiBold, marginTop: 2, fontSize: 11, color: '#1a8a3a' },
+  bunchFooterText: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted },
+  bunchOpl:    { fontFamily: fontFamily.semiBold, marginTop: 2, fontSize: scaleFont(11), color: '#1a8a3a' },
   statusChip:  { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  statusChipText: { fontFamily: fontFamily.bold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
+  statusChipText: { fontFamily: fontFamily.bold, fontSize: scaleFont(10), textTransform: 'uppercase', letterSpacing: 0.3 },
 
   stageRow:     { flexDirection: 'row', gap: 12 },
   spineLine:    { width: DOT, alignItems: 'center', paddingTop: 6 },
@@ -602,16 +602,16 @@ const s = StyleSheet.create({
   stageBody:    { flex: 1, paddingTop: 2 },
   stageBodyGap: { paddingBottom: 16 },
   stageHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  stageName:    { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text },
-  stageDate:    { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted },
-  stageDetail:  { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  stageName:    { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  stageDate:    { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  stageDetail:  { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   stageMeta:    { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   stageFooter:  {
     marginTop: 6,
     gap: 2,
   },
-  stageWho:     { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted },
-  stageDoc:     { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic' },
+  stageWho:     { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted },
+  stageDoc:     { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, fontStyle: 'italic' },
 
   pill:         {
     paddingHorizontal: 8,
@@ -623,9 +623,9 @@ const s = StyleSheet.create({
     alignItems: 'baseline',
   },
   pillWarn:     { backgroundColor: '#fde8ec' },
-  pillLabel:    { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel:    { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn:{ color: '#9a1f33' },
-  pillValue:    { fontFamily: fontFamily.semiBold, fontSize: 12, color: COLORS.text },
+  pillValue:    { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn:{ color: '#9a1f33' },
 
   nextBtnWrap:  { marginTop: 16 },

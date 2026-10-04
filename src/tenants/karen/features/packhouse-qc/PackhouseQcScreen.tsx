@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/src/core/auth/store';
 import { ScanField } from '@/src/core/scanning/ScanField';
-import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, borderRadius, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Alert, Card } from '@/src/core/ui/Card';
@@ -2246,8 +2246,8 @@ const s = StyleSheet.create({
   },
   donorCardSelected: { borderColor: COLORS.text, backgroundColor: '#F5F3FF' },
   donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  donorId: { fontFamily: fontFamily.bold, fontSize: 15, color: COLORS.text },
-  label: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  donorId: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
+  label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   landingHeader: { marginBottom: spacing.lg },
   landingTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.xl, color: COLORS.text },
   landingSubtitle: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: 4 },
@@ -2305,15 +2305,15 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  hint: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted },
-  warn: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  warn: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   section: {
     
     fontFamily: fontFamily.bold,
     
     color: COLORS.textMuted,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     letterSpacing: 0.4,
   },
   pickerRow: {
@@ -2343,13 +2343,13 @@ const s = StyleSheet.create({
   },
   chipWarn: { backgroundColor: '#FFFBEB', borderColor: '#B45309' },
   chipDanger: { backgroundColor: '#FEF2F2', borderColor: COLORS.danger },
-  chipText: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
+  chipText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   empty: {
     fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 16,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
   actionRow: { flexDirection: 'row', gap: 12 },
   issueCard: {
@@ -2361,7 +2361,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   issueHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  issueTitle: { fontFamily: fontFamily.semiBold, fontSize: 14, color: COLORS.text },
+  issueTitle: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   specCheckRow: { paddingVertical: 4 },
   specCheckHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   chipAccepted: { backgroundColor: '#F0FDF4', borderColor: COLORS.success },
@@ -2373,12 +2373,12 @@ const s = StyleSheet.create({
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
   specCheckAffectedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  specCheckAffectedLabel: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text, flex: 1 },
+  specCheckAffectedLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, flex: 1 },
   specCheckAffectedInput: {
     fontFamily: fontFamily.regular,
     width: 72,
@@ -2387,16 +2387,16 @@ const s = StyleSheet.create({
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
     textAlign: 'center',
   },
   specCheckAffectedHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  specCheckAffectedHint: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.danger, flex: 1 },
+  specCheckAffectedHint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.danger, flex: 1 },
   toleranceChipWrap: { marginTop: 8 },
   issueCountRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  issueCountLabel: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, flex: 1 },
+  issueCountLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, flex: 1 },
   issueCountInput: {
     fontFamily: fontFamily.regular,
     width: 64,
@@ -2405,7 +2405,7 @@ const s = StyleSheet.create({
     borderRadius: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     textAlign: 'center',
     backgroundColor: COLORS.bg,
@@ -2417,7 +2417,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 8,
     padding: 12,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
     textAlignVertical: 'top',
@@ -2441,7 +2441,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: {
@@ -2453,10 +2453,10 @@ const s = StyleSheet.create({
   },
   modalRowMain: { flex: 1 },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontFamily: fontFamily.regular, fontSize: 15, color: COLORS.text },
-  modalRowSubtitle: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
+  modalRowSubtitle: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   modalRowBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  modalRowBadgeText: { fontFamily: fontFamily.bold, fontSize: 12, color: COLORS.success },
+  modalRowBadgeText: { fontFamily: fontFamily.bold, fontSize: scaleFont(12), color: COLORS.success },
   modalSectionHeader: {
     backgroundColor: COLORS.bgMuted,
     paddingHorizontal: 16,
@@ -2467,7 +2467,7 @@ const s = StyleSheet.create({
   },
   modalSectionHeaderText: {
     fontFamily: fontFamily.bold,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     color: COLORS.textMuted,
     textTransform: 'uppercase',

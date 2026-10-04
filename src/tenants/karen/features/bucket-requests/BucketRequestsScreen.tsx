@@ -22,7 +22,7 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenBucketRequestsStore,
   type OrderGroup,
@@ -2348,7 +2348,7 @@ const s = StyleSheet.create({
   dimmed: { opacity: 0.5 },
   lineLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.sm },
   lineLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  lineLegendText: { fontFamily: fontFamily.medium, fontSize: 12, color: COLORS.text },
+  lineLegendText: { fontFamily: fontFamily.medium, fontSize: scaleFont(12), color: COLORS.text },
   lineDot: { width: 10, height: 10, borderRadius: 5 },
   oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
@@ -2361,7 +2361,7 @@ const s = StyleSheet.create({
   },
   oplTagConfirmed: { backgroundColor: COLORS.text },
   oplTagPlanned: { backgroundColor: COLORS.surfaceAlt },
-  oplTagText: { fontFamily: fontFamily.semiBold, fontSize: 11, color: COLORS.text },
+  oplTagText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11), color: COLORS.text },
   oplTagTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
   oplTagUnsched: {
     flexDirection: 'row',
@@ -2373,7 +2373,7 @@ const s = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.border,
   },
-  oplTagUnschedText: { fontFamily: fontFamily.medium, fontSize: 11, color: COLORS.textMuted },
+  oplTagUnschedText: { fontFamily: fontFamily.medium, fontSize: scaleFont(11), color: COLORS.textMuted },
   groupCustomer: {
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
@@ -2422,7 +2422,7 @@ const s = StyleSheet.create({
     borderRadius: borderRadius.full,
     backgroundColor: COLORS.text,
   },
-  badgeTxt: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.textOnPrimary ?? '#fff' },
+  badgeTxt: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textOnPrimary ?? '#fff' },
   // Trips tab
   tripHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
@@ -2430,7 +2430,7 @@ const s = StyleSheet.create({
   tripPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },
   tripPillConfirmed: { backgroundColor: COLORS.text },
   tripPillDraft: { backgroundColor: COLORS.surfaceAlt },
-  tripPillText: { fontFamily: fontFamily.bold, fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase' },
+  tripPillText: { fontFamily: fontFamily.bold, fontSize: scaleFont(10), letterSpacing: 0.4, textTransform: 'uppercase' },
   tripPillTextConfirmed: { color: COLORS.textOnPrimary ?? '#fff' },
   tripPillTextDraft: { color: COLORS.textMuted },
   routeLabel: {
@@ -2455,9 +2455,9 @@ const s = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: scaleFont(20),
     fontFamily: fontFamily.bold,
-    fontSize: 11,
+    fontSize: scaleFont(11),
     color: COLORS.textMuted,
     backgroundColor: COLORS.surfaceAlt,
     overflow: 'hidden',
@@ -2567,7 +2567,7 @@ const s = StyleSheet.create({
   repTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   repId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
-  repBestText: { fontFamily: fontFamily.semiBold, fontSize: 10, color: '#067647' },
+  repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   repShelf: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   repShelfText: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, flexShrink: 1 },

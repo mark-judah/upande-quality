@@ -19,7 +19,7 @@ import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import {
   snakeCaseParam,
   uniqueVarieties,
@@ -518,10 +518,10 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.bold,
     
     color: COLORS.textMuted,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     letterSpacing: 0.4,
   },
-  hint: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   pillRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   varietyPill: {
     minWidth: 140,
@@ -536,17 +536,17 @@ const s = StyleSheet.create({
     borderColor: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  varietyPillLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.textMuted },
+  varietyPillLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.textMuted },
   varietyPillLabelActive: { color: COLORS.text },
-  varietyPillMeta: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  varietyPillMeta: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, marginTop: 2 },
   varietyPillMetaActive: { color: COLORS.text },
-  sliderLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
+  sliderLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   empty: {
     fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 16,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
   addRow: {
     flexDirection: 'row',
@@ -569,9 +569,9 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   concernHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  concernTitle: { fontFamily: fontFamily.semiBold, fontSize: 14, color: COLORS.text },
+  concernTitle: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   affectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  affectedLabel: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: 13 },
+  affectedLabel: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: scaleFont(13) },
   affectedInput: {
     fontFamily: fontFamily.regular,
     width: 80,
@@ -579,13 +579,13 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 6,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
   tolRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  tolLabel: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted },
-  tolValue: { fontFamily: fontFamily.semiBold, fontSize: 12, color: COLORS.text },
+  tolLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  tolValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   tolExceeded: { color: COLORS.danger },
   actionRow: { flexDirection: 'row', gap: 12 },
   scopeRow: { flexDirection: 'row', gap: 12 },
@@ -601,13 +601,13 @@ const s = StyleSheet.create({
   scopePillSelected: { borderColor: COLORS.text, backgroundColor: COLORS.bg },
   scopePillLabel: { fontFamily: fontFamily.semiBold, color: COLORS.textMuted },
   scopePillLabelSelected: { color: COLORS.text },
-  scopeHelper: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: 13, marginBottom: 8 },
+  scopeHelper: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: scaleFont(13), marginBottom: 8 },
   groupHeader: {
     
     fontFamily: fontFamily.semiBold,
     
     color: COLORS.text,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     marginTop: 12,
     marginBottom: 4,
   },
@@ -618,7 +618,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  checkLabel: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text },
+  checkLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
   modalSearch: {
     fontFamily: fontFamily.regular,
@@ -628,11 +628,11 @@ const s = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontFamily: fontFamily.regular, fontSize: 15, color: COLORS.text },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });

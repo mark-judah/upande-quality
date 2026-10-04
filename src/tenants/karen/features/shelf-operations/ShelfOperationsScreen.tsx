@@ -16,7 +16,7 @@ import {
   type ShelfOperationsMode,
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
 import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { Skeleton } from '@/src/core/ui/Skeleton';
 
 /** Group / filter label for an OPL allocated without a packing team. */
@@ -717,13 +717,13 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   farmBannerFarm: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: 15, color: COLORS.text, flexShrink: 1 },
+  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
   teamSelect: { width: 170, marginLeft: 12 },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   noMargin: { marginBottom: 0 },
   noTopMargin: { marginTop: 0 },
-  sheetLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text, marginBottom: 6 },
-  filterLabel: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
+  sheetLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginBottom: 6 },
+  filterLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
     flex: 1,
     paddingVertical: 10,
@@ -733,7 +733,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   modeButtonActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
+  modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   modeButtonLabelActive: { color: COLORS.surface },
   shelfStatusRow: {
     flexDirection: 'row',
@@ -743,13 +743,13 @@ const s = StyleSheet.create({
   },
   shelfStatusLabel: {
     fontFamily: fontFamily.regular,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  changeLink: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
+  changeLink: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
   pickRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -762,20 +762,20 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   pickRowActive: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
-  pickTitle: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text },
-  pickDetail: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  pickInside: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text, marginTop: 2 },
-  pickMark: { fontFamily: fontFamily.regular, fontSize: 16, color: COLORS.textMuted },
+  pickTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  pickDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
+  pickInside: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, marginTop: 2 },
+  pickMark: { fontFamily: fontFamily.regular, fontSize: scaleFont(16), color: COLORS.textMuted },
   pickMarkActive: { color: COLORS.text },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   detailLabel: {
     fontFamily: fontFamily.regular,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
   stockTakeRow: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -786,14 +786,14 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  stockTakeBucketId: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text },
-  stockTakeStatus: { fontFamily: fontFamily.semiBold, fontSize: 13, flexShrink: 1, textAlign: 'right' },
-  stockTakeDetail: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  stockTakeBucketId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  stockTakeStatus: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), flexShrink: 1, textAlign: 'right' },
+  stockTakeDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  syncCount: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text, flexShrink: 1 },
+  syncCount: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, flexShrink: 1 },
   logHeader: {
     fontFamily: fontFamily.bold,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     color: COLORS.textMuted,
     textTransform: 'uppercase',

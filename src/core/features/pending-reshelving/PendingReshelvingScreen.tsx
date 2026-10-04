@@ -14,7 +14,7 @@ import type {
   ReplacementCandidate,
   ReplacementRepository,
 } from '../replacement/types';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = { repository: ReplacementRepository };
 
@@ -320,14 +320,14 @@ function Pill({ label, value, warn }: { label: string; value: string; warn?: boo
 }
 
 const s = StyleSheet.create({
-  helper: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
-  muted: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted },
+  helper: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   strong: { fontFamily: fontFamily.semiBold, color: COLORS.text },
-  subtle: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, marginTop: 4 },
+  subtle: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, marginTop: 4 },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  label: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bigNum: { fontFamily: fontFamily.bold, fontSize: 28, color: COLORS.text, marginTop: 2 },
+  label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bigNum: { fontFamily: fontFamily.bold, fontSize: scaleFont(28), color: COLORS.text, marginTop: 2 },
   refreshBtn: {
     width: 36,
     height: 36,
@@ -338,7 +338,7 @@ const s = StyleSheet.create({
   },
 
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bunchId: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text, letterSpacing: 0.4 },
+  bunchId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.4 },
 
   candidateRow: {
     paddingVertical: 12,
@@ -355,9 +355,9 @@ const s = StyleSheet.create({
     backgroundColor: '#f0f7ff',
   },
   candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  candidateId: { fontFamily: fontFamily.bold, fontSize: 14, color: COLORS.text, letterSpacing: 0.5 },
+  candidateId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.5 },
   candidateMeta: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  candidateFooter: { fontFamily: fontFamily.regular, marginTop: 6, fontSize: 11, color: COLORS.textMuted },
+  candidateFooter: { fontFamily: fontFamily.regular, marginTop: 6, fontSize: scaleFont(11), color: COLORS.textMuted },
 
   pill: {
     paddingHorizontal: 8,
@@ -369,8 +369,8 @@ const s = StyleSheet.create({
     alignItems: 'baseline',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
-  pillLabel: { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontFamily: fontFamily.semiBold, fontSize: 12, color: COLORS.text },
+  pillValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 });

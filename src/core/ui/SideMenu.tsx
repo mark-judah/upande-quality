@@ -12,7 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { useAuthStore } from '@/src/core/auth/store';
 import { storage, StorageKeys } from '@/src/core/storage';
@@ -274,7 +274,7 @@ const s = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   avatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   name: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  meta: { fontFamily: fontFamily.bold, fontSize: 11, color: COLORS.text, marginTop: 2 },
+  meta: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.text, marginTop: 2 },
 
   nav: { paddingTop: spacing.xs, paddingBottom: spacing.sm },
   navItem: {
@@ -290,7 +290,7 @@ const s = StyleSheet.create({
   navLabelMuted: { color: COLORS.textMuted },
   comingSoonBadge: {
     fontFamily: fontFamily.medium,
-    fontSize: 10,
+    fontSize: scaleFont(10),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

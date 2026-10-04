@@ -6,7 +6,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useKarenColdroomStore } from '@/src/tenants/karen/state/karen-coldroom-store';
 import type { InspectionPayload } from '@/src/tenants/karen/api/karen-coldroom-api';
 
@@ -165,9 +165,9 @@ export function KarenInspectionLogScreen({ userFarm }: { userFarm: string }) {
 
 const s = StyleSheet.create({
   section: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   areaLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, marginBottom: 6 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { fontFamily: fontFamily.regular, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: 12, overflow: 'hidden' },
+  chip: { fontFamily: fontFamily.regular, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: scaleFont(12), overflow: 'hidden' },
   chipActive: { backgroundColor: COLORS.text, color: '#FFFFFF', borderColor: COLORS.text },
 });

@@ -1,5 +1,5 @@
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
 import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
@@ -661,12 +661,12 @@ function AddReasonModal({
 }
 
 const s = StyleSheet.create({
-  section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: 12, letterSpacing: 0.4 },
-  hint: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  errorText: { fontFamily: fontFamily.regular, fontSize: 12, color: 'red', marginTop: 6 },
-  scannedBadge: { fontFamily: fontFamily.semiBold, fontSize: 12, color: COLORS.text, marginTop: 6 },
-  fieldLabel: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
-  empty: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: 13, paddingVertical: 4 },
+  section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: scaleFont(12), letterSpacing: 0.4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  errorText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: 'red', marginTop: 6 },
+  scannedBadge: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text, marginTop: 6 },
+  fieldLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  empty: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: scaleFont(13), paddingVertical: 4 },
 
   toggleRow: {
     flexDirection: 'row',
@@ -685,12 +685,12 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bgMuted,
   },
   toggleBtnActive: { backgroundColor: COLORS.text },
-  toggleLabel: { fontFamily: fontFamily.bold, fontSize: 12, color: COLORS.textMuted, letterSpacing: 0.4 },
+  toggleLabel: { fontFamily: fontFamily.bold, fontSize: scaleFont(12), color: COLORS.textMuted, letterSpacing: 0.4 },
   toggleLabelActive: { color: COLORS.bg },
 
   bannerRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  bannerLabel: { fontFamily: fontFamily.regular, fontSize: 11, color: COLORS.textMuted, letterSpacing: 0.3 },
-  bannerCode: { fontFamily: fontFamily.bold, fontSize: 18, color: COLORS.text, marginTop: 2 },
+  bannerLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, letterSpacing: 0.3 },
+  bannerCode: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text, marginTop: 2 },
 
   twoCol: { flexDirection: 'row', gap: 12 },
   colLeft: { flex: 1 },
@@ -707,7 +707,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     backgroundColor: COLORS.bgMuted,
   },
-  chipText: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.text },
+  chipText: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text },
 
   addRow: {
     flexDirection: 'row',
@@ -722,7 +722,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     borderStyle: 'dashed',
   },
-  addLabel: { fontFamily: fontFamily.bold, color: COLORS.text, fontSize: 13.5 },
+  addLabel: { fontFamily: fontFamily.bold, color: COLORS.text, fontSize: scaleFont(13.5) },
 
   notesInput: {
     fontFamily: fontFamily.regular,
@@ -731,12 +731,12 @@ const s = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
     minHeight: 96,
     backgroundColor: COLORS.bg,
   },
-  helpText: { fontFamily: fontFamily.regular, fontSize: 12.5, color: COLORS.textMuted, lineHeight: 17 },
+  helpText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12.5), color: COLORS.textMuted, lineHeight: scaleFont(17) },
   // Shared column widths so the header labels line up with each row.
   failureStemsCol: { width: 76, textAlign: 'center' },
   failureRemoveCol: { width: 30, alignItems: 'center', justifyContent: 'center' },
@@ -746,7 +746,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 8,
   },
-  failureHeaderText: { fontFamily: fontFamily.bold, fontSize: 10.5, color: COLORS.textMuted, letterSpacing: 0.7 },
+  failureHeaderText: { fontFamily: fontFamily.bold, fontSize: scaleFont(10.5), color: COLORS.textMuted, letterSpacing: 0.7 },
   failureRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -758,14 +758,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 8,
   },
-  failureReason: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: 14, color: COLORS.text, marginRight: 8 },
+  failureReason: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: scaleFont(14), color: COLORS.text, marginRight: 8 },
   failureStemsInput: {
     fontFamily: fontFamily.bold,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 8,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     
     color: COLORS.text,
     backgroundColor: COLORS.bg,
@@ -781,7 +781,7 @@ const s = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: COLORS.bgMuted,
   },
-  emptyBoxText: { fontFamily: fontFamily.regular, fontSize: 13, color: COLORS.textMuted, textAlign: 'center', maxWidth: 220 },
+  emptyBoxText: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted, textAlign: 'center', maxWidth: 220 },
   totalCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -801,8 +801,8 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
     marginRight: 12,
   },
-  totalLabel: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: 13, color: COLORS.bg, opacity: 0.85, letterSpacing: 0.3 },
-  totalValue: { fontFamily: fontFamily.bold, fontSize: 30, color: COLORS.bg },
+  totalLabel: { fontFamily: fontFamily.semiBold, flex: 1, fontSize: scaleFont(13), color: COLORS.bg, opacity: 0.85, letterSpacing: 0.3 },
+  totalValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(30), color: COLORS.bg },
 
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
   modalSearch: {
@@ -813,7 +813,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
@@ -821,7 +821,7 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.bold,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     
     letterSpacing: 0.4,
     color: COLORS.textMuted,
@@ -829,6 +829,6 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
   },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontFamily: fontFamily.regular, fontSize: 15, color: COLORS.text },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });

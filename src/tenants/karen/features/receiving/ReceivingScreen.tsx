@@ -13,7 +13,7 @@ import type {
   BucketDetails,
   ReceivingOutcome,
 } from '@/src/tenants/karen/repository/karen-receiving-repository';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 export function KarenReceivingScreen() {
   const scanRef = useRef<ScanFieldHandle>(null);
@@ -331,8 +331,8 @@ function Row({ label, value }: { label: string; value: string }) {
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bodyText: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text },
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bodyText: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: COLORS.border,
@@ -341,12 +341,12 @@ const s = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   detailLabel: {
     fontFamily: fontFamily.regular,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontFamily: fontFamily.regular, fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
   endBatch: {
     alignSelf: 'flex-end',
     paddingHorizontal: 14,
@@ -355,5 +355,5 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.text,
   },
-  endBatchLabel: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: 14 },
+  endBatchLabel: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: scaleFont(14) },
 });

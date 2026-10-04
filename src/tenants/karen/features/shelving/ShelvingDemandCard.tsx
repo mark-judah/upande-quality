@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { Card } from '@/src/core/ui/Card';
 import { Skeleton } from '@/src/core/ui/Skeleton';
 import { api } from '@/src/core/api/client';
-import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 type DemandRow = {
   variety: string;
@@ -163,7 +163,7 @@ const s = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headRow: { borderBottomColor: COLORS.textMuted, marginTop: spacing.sm },
-  hCell: { fontFamily: fontFamily.semiBold, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase' },
+  hCell: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase' },
   cVar: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   cNum: { width: 66, textAlign: 'right', fontFamily: fontFamily.bold, fontSize: fontSize.sm },
   cNumMuted: { width: 66, textAlign: 'right', fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },

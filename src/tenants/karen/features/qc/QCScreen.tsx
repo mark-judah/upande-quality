@@ -7,7 +7,7 @@ import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, fontFamily } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { useKarenQcStore } from '@/src/tenants/karen/state/karen-qc-store';
 import { InspectionMode } from './InspectionMode';
 import { QuarantineMode } from './QuarantineMode';
@@ -134,9 +134,9 @@ function ScanAndBatchSection({
 }
 
 const s = StyleSheet.create({
-  muted: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  loadingText: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
-  batchTitle: { fontFamily: fontFamily.bold, fontSize: 18, color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  loadingText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
+  batchTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
   chipRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'space-between' },
   chip: {
     paddingHorizontal: 12,
@@ -146,6 +146,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  chipText: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text },
-  warn: { fontFamily: fontFamily.semiBold, fontSize: 13, color: COLORS.text, marginTop: 12 },
+  chipText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  warn: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginTop: 12 },
 });

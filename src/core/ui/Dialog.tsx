@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 type Tone = 'danger' | 'success' | 'warn' | 'info';
 
@@ -230,7 +230,7 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: scaleFont(19),
     marginTop: spacing.xs,
     alignSelf: 'stretch',
   },

@@ -6,7 +6,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useKarenColdroomStore } from '@/src/tenants/karen/state/karen-coldroom-store';
 
 const SLOTS = [
@@ -161,7 +161,7 @@ export function KarenTemperatureLogScreen({ userFarm }: { userFarm: string }) {
 
 const s = StyleSheet.create({
   section: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  help: { fontFamily: fontFamily.regular, fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   gridCell: { flexBasis: '48%' },
 });
