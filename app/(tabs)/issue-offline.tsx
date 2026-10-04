@@ -12,7 +12,7 @@ export default function IssueOfflineRoute() {
   }
 
   return (
-    <RequireStation next="/issue-offline">
+    <RequireStation next="/issue-offline" title="Issue Offline">
       {(station) => <KarenShelfOperationsScreen userFarm={station.userFarm} only="issue-offline" />}
     </RequireStation>
   );

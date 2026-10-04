@@ -5,6 +5,9 @@ import { useUserStation, type UserStation } from './user-station';
 type Props = {
   /** The route the user is on, so configure-station can return them here on save. */
   next: string;
+  /** The page's title, shown while the station loads so only the content
+   *  (skeleton) changes when it arrives. */
+  title?: string;
   /**
    * Render the gated content with the resolved station. Children only render
    * after the user has saved a station; otherwise the user is redirected to
@@ -23,12 +26,12 @@ type Props = {
  * The configured station is the single source of truth for *every* page that
  * needs farm/greenhouse — set once via `/configure-station`, used everywhere.
  */
-export function RequireStation({ next, children }: Props) {
+export function RequireStation({ next, title = '', children }: Props) {
   const { station, loaded } = useUserStation();
 
   if (!loaded) {
-    // No "Loading…" title: it flashed in the header before every station page.
-    return <Screen title="" loading>{null}</Screen>;
+    // The page's own header, skeleton content: no "Loading…" title flash.
+    return <Screen title={title} loading>{null}</Screen>;
   }
 
   if (!station) {
