@@ -1415,7 +1415,7 @@ function OplCard({
                 {b.shelf || 'No shelf'}
               </Text>
               <Text style={s.bIdRight} numberOfLines={1}>
-                {b.bucketId}
+                {b.bucketId} ({Math.round(b.qty)})
               </Text>
             </View>
             <Text style={s.bMeta} numberOfLines={1}>
@@ -1424,9 +1424,6 @@ function OplCard({
             </Text>
           </View>
           <View style={s.bSide}>
-            <Text style={s.bQty}>
-              {Math.round(b.qty)} {b.uom}
-            </Text>
             {!b.scanned ? (
               <Pressable
                 onPress={() => onReplace(b)}
