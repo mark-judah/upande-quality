@@ -20,7 +20,7 @@ import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { showDialog } from '@/src/core/ui/DialogHost';
-import { storage, StorageKeys } from '@/src/core/storage';
+import { useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -221,10 +221,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   // Bucket Requests is for the remote farms; at the sales farm (the transfer hub) the
   // buckets arrive instead, so the page shows a note and nothing else.
-  const [savedHub, setSavedHub] = useState<string | null>(null);
-  useEffect(() => {
-    storage.get(StorageKeys.transferHub).then(setSavedHub).catch(() => {});
-  }, []);
+  const savedHub = useTransferHub();
   const hubFarm = shelvedHub || savedHub || '';
   const atHub = !!userFarm && !!hubFarm && userFarm === hubFarm;
 

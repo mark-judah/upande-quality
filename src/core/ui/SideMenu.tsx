@@ -14,7 +14,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useTenant } from '@/src/core/tenant/tenant-context';
-import { useUserStation } from '@/src/core/tenant/user-station';
 import { useAuthStore } from '@/src/core/auth/store';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { useDrawerItems } from './drawer-items-context';
@@ -101,16 +100,8 @@ export function SideMenu({
       .start(() => onClose());
   };
 
-  const allItems = useDrawerItems();
-  // No Bucket Requests link at the sales farm (the transfer hub): it is for the
-  // remote farms that send buckets there.
-  const { station } = useUserStation();
-  const [hub, setHub] = useState<string | null>(null);
-  useEffect(() => {
-    if (visible) storage.get(StorageKeys.transferHub).then(setHub).catch(() => {});
-  }, [visible]);
-  const items =
-    hub && station?.userFarm === hub ? allItems.filter((it) => it.route !== 'bucket-requests') : allItems;
+  // Already without Bucket Requests at the sales farm (see TenantScopedDrawer).
+  const items = useDrawerItems();
 
   const go = (route: string) => {
     closeWithAnim();

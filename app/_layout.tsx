@@ -19,6 +19,8 @@ import { ToastProvider } from '@/src/core/ui/Toast';
 import { DialogHost } from '@/src/core/ui/DialogHost';
 import { OfflineBanner } from '@/src/core/ui/OfflineBanner';
 import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
+import { useUserStation } from '@/src/core/tenant/user-station';
+import { useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { startTelemetry } from '@/src/core/telemetry/service';
@@ -41,12 +43,20 @@ function UpdatePromptGate({ active }: { active: boolean }) {
 function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
   const roles = useAuthStore((s) => s.roles);
+  const { station } = useUserStation();
+  const hub = useTransferHub();
 
   // Role-gated entries stay out of the drawer AND the home grid, since both
   // render from this same list. Recomputes when roles arrive after login.
+  // A station at the sales farm (the transfer hub) doesn't get Bucket Requests:
+  // that page is for the remote farms sending buckets there.
+  const atHub = !!hub && station?.userFarm === hub;
   const items = useMemo(
-    () => getDrawerFor(tenant).filter((it) => !it.role || rolesInclude(roles, it.role)),
-    [tenant, roles],
+    () =>
+      getDrawerFor(tenant).filter(
+        (it) => (!it.role || rolesInclude(roles, it.role)) && !(atHub && it.route === 'bucket-requests'),
+      ),
+    [tenant, roles, atHub],
   );
 
   return <DrawerItemsProvider items={items}>{children}</DrawerItemsProvider>;
