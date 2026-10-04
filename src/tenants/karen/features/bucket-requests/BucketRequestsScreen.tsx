@@ -2236,7 +2236,9 @@ const s = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: spacing.sm,
   },
-  scanWrap: { position: 'relative', marginTop: spacing.sm },
+  // Room above the card for the farm badge on its top edge: the scroll view
+  // clips anything above its content.
+  scanWrap: { position: 'relative', marginTop: spacing.lg },
   farmEdge: {
     position: 'absolute',
     top: -11,
