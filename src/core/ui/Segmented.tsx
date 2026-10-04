@@ -122,6 +122,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 2,
     zIndex: 1,
   },
-  label: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
+  // Centred in its segment: a label shrunk to fit spans the segment's width on
+  // Android, so the text itself has to be centred, not just the box.
+  label: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+  },
   labelActive: { fontFamily: fontFamily.semiBold, color: COLORS.text },
 });
