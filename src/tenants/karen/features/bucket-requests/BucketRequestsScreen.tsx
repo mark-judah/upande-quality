@@ -19,6 +19,7 @@ import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
+import { ListSkeleton } from './ListSkeleton';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
@@ -86,6 +87,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     activeTrolleyId,
     online,
     downloading,
+    loadingTrips,
     syncingOpl,
     manualDownloaded,
     init,
@@ -620,6 +622,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             oplTeam={oplTeam}
             oplLine={oplLine}
             online={online}
+            loading={downloading || loadingTrips}
             replacingId={replacingId}
             onReplace={onReplace}
             onCloseStop={onCloseStop}
@@ -650,6 +653,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             arrivals={arrivals}
             deliveryDate={deliveryDate}
             online={online}
+            loading={loadingTrips}
             onArrival={onArrival}
           />
         )}
@@ -1078,6 +1082,7 @@ function RequestsTab({
   oplTeam,
   oplLine,
   online,
+  loading,
   replacingId,
   onReplace,
   onCloseStop,
@@ -1091,6 +1096,8 @@ function RequestsTab({
   oplTeam: Record<string, string>;
   oplLine: Record<string, LineColor>;
   online: boolean;
+  /** A download or trip-plan pull is running: skeletons while the list is empty. */
+  loading: boolean;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
   onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
@@ -1099,6 +1106,7 @@ function RequestsTab({
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
   if (!groups.length && !trips.length) {
+    if (loading) return <ListSkeleton />;
     return (
       <Card>
         <View style={s.empty}>
@@ -1559,6 +1567,7 @@ function InTransitTab({
   arrivals,
   deliveryDate,
   online,
+  loading,
   onArrival,
 }: {
   items: TrolleyOpl[];
@@ -1569,6 +1578,8 @@ function InTransitTab({
   arrivals: Record<string, TripArrival>;
   deliveryDate: string;
   online: boolean;
+  /** Trip plan is being pulled: skeletons while nothing is shown yet. */
+  loading: boolean;
   onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
 }) {
   const tripCards = trips.map((t) => (
@@ -1582,6 +1593,7 @@ function InTransitTab({
     />
   ));
   if (!items.length && !trips.length) {
+    if (loading) return <ListSkeleton cards={2} />;
     return (
       <Card>
         <View style={s.empty}>
@@ -1634,6 +1646,7 @@ function ShelvedTab({
   const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
 
   if (!trips.length) {
+    if (loading && online) return <ListSkeleton cards={2} rows={4} />;
     return (
       <Card>
         <View style={s.empty}>
