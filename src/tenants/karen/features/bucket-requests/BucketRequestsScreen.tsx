@@ -1134,7 +1134,14 @@ function RequestsTab({
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
-    // Order name (customer under it) on the left, the team always on the right.
+    // The trip the order rides: "KBX 123A · Trip 1 of 2".
+    const ride = plannedTrips.find((t) => (t.orders ?? []).some((o) => g.opls.some((p) => p.oplName === o.opl)));
+    const tripLine = ride
+      ? [ride.vehicle, ride.run ? `Trip ${ride.run}${ride.runs > 1 ? ` of ${ride.runs}` : ''}` : '']
+          .filter(Boolean)
+          .join(' · ')
+      : '';
+    // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
       <View style={s.groupLine}>
         {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
@@ -1145,6 +1152,11 @@ function RequestsTab({
           {customer ? (
             <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
               {customer}
+            </Text>
+          ) : null}
+          {tripLine ? (
+            <Text style={s.groupTrip} numberOfLines={1}>
+              {tripLine}
             </Text>
           ) : null}
         </View>
@@ -2108,6 +2120,7 @@ const s = StyleSheet.create({
   yourStopScan: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xs },
   groupLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   groupNames: { flex: 1, minWidth: 0 },
+  groupTrip: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   // Scanned buckets: folded under one green line, struck through when shown.
   bDone: { color: SHELVED_GREEN, textDecorationLine: 'line-through' },
   doneToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.sm },
