@@ -824,15 +824,20 @@ function LoadConfirm({
   onClose: () => void;
   onConfirm: (loads: PlannedLoad[]) => void;
 }) {
-  const [draft, setDraft] = useState<PlannedLoad[]>([]);
-  const [changing, setChanging] = useState<string | null>(null); // tripId whose truck is being changed
+  // No planned trip: open the truck list straight away.
+  const startChanging = (l: PlannedLoad[] | null) =>
+    (l ?? []).some((g) => g.tripId === UNPLANNED && !g.vehicle) ? UNPLANNED : null;
+  const [draft, setDraft] = useState<PlannedLoad[]>(loads ?? []);
+  const [changing, setChanging] = useState<string | null>(() => startChanging(loads)); // tripId whose truck is being changed
   const [query, setQuery] = useState('');
-  useEffect(() => {
+  // A new set of loads starts the dialog afresh.
+  const [loadsFor, setLoadsFor] = useState(loads);
+  if (loadsFor !== loads) {
+    setLoadsFor(loads);
     setDraft(loads ?? []);
-    // No planned trip: open the truck list straight away.
-    setChanging((loads ?? []).some((g) => g.tripId === UNPLANNED && !g.vehicle) ? UNPLANNED : null);
+    setChanging(startChanging(loads));
     setQuery('');
-  }, [loads]);
+  }
 
   const plate = (name: string) => vehicles.find((v) => v.name === name)?.licensePlate || name;
   const total = draft.reduce((n, g) => n + g.opls.reduce((m, o) => m + bucketCount(o), 0), 0);
@@ -978,16 +983,18 @@ function ReplacePicker({
   /** Issued to this order's own line: mark it issued instead of replacing it. */
   onMarkIssued: (line: string) => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  // Why the bucket is being replaced — goes on the Bucket Replacement record.
-  const [reason, setReason] = useState<ReplaceReason>('Missing');
   const candidates = pick?.candidates ?? [];
   // Default to the best match each time the sheet opens for a bucket.
   const firstId = candidates[0]?.bucketId ?? null;
-  useEffect(() => {
+  const [selected, setSelected] = useState<string | null>(firstId);
+  // Why the bucket is being replaced — goes on the Bucket Replacement record.
+  const [reason, setReason] = useState<ReplaceReason>('Missing');
+  const [pickFor, setPickFor] = useState<{ pick: typeof pick; firstId: string | null }>({ pick, firstId });
+  if (pickFor.pick !== pick || pickFor.firstId !== firstId) {
+    setPickFor({ pick, firstId });
     setSelected(firstId);
     setReason('Missing');
-  }, [pick, firstId]);
+  }
   // "Issued offline": look up which line it went to. Same line — mark it issued,
   // nothing to replace; another line — replace it as usual.
   type IssueResult = BucketIssueInfo | { kind: 'error'; message: string } | null;

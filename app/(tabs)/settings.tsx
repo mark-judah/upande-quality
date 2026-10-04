@@ -33,7 +33,7 @@ export default function SettingsScreen() {
   const forgetDevice = useAuthStore((s) => s.forgetDevice);
   const { showSuccess, showError } = useToast();
 
-  const [moduleReady, setModuleReady] = useState(false);
+  const [moduleReady] = useState(() => Biometric.isModuleAvailable());
   const [hardwareReady, setHardwareReady] = useState(false);
   const [verCheck, setVerCheck] = useState<VersionCheck | null>(null);
   const [siteApps, setSiteApps] = useState<{ label: string; version: string }[] | null>(null);
@@ -45,7 +45,6 @@ export default function SettingsScreen() {
     newestRelease && compareVersions(newestRelease, APP_VERSION) > 0 ? newestRelease : APP_VERSION;
 
   useEffect(() => {
-    setModuleReady(Biometric.isModuleAvailable());
     Biometric.isAvailable().then(setHardwareReady);
     checkLatestVersion().then(setVerCheck);
     getServerVersions().then(setSiteApps);

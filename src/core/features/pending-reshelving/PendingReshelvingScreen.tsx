@@ -166,11 +166,17 @@ function ReshelveSection({
   } = useReplacementStore();
   const { showSuccess, showError } = useToast();
   const [destination, setDestination] = useState<ReplacementCandidate | null>(null);
+  // A pick made for another bunch's destinations no longer applies.
+  const destKey = [bunch.variety, bunch.stemLength, bunch.farm, bunch.sourceBucket].join('|');
+  const [destFor, setDestFor] = useState(destKey);
+  if (destFor !== destKey) {
+    setDestFor(destKey);
+    setDestination(null);
+  }
 
   // Always load destinations for THIS bunch's corrected variety/length when expanded
   useEffect(() => {
     loadBunchDestinations(repository, bunch.variety, bunch.stemLength, bunch.farm, bunch.sourceBucket);
-    setDestination(null);
   }, [
     bunch.variety,
     bunch.stemLength,
