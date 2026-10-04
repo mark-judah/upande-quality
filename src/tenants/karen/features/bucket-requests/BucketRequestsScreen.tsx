@@ -150,14 +150,19 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   useEffect(() => {
     if (tab !== 'transit' || !online || !userFarm) return;
     let live = true;
-    loadCompletedTrips(userFarm).then(() => {
-      if (!live) return;
-      for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
-        if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status');
-      }
-    });
+    const pull = () =>
+      loadCompletedTrips(userFarm).then(() => {
+        if (!live) return;
+        for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
+          if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status');
+        }
+      });
+    pull();
+    // Keep "Arrived at Kapkolia" live: it ticks as soon as shelving starts there.
+    const timer = setInterval(pull, SYNC_INTERVAL_MS);
     return () => {
       live = false;
+      clearInterval(timer);
     };
   }, [tab, online, userFarm, loadCompletedTrips, tripArrival]);
   const onArrival = async (tripId: string, action: 'status' | 'arrive' | 'complete') => {
@@ -176,7 +181,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       if (!b.scanned || b.notFound) return;
       out.push({
         key: `${order}-${b.id}`,
-        label: `${b.bucketId.toUpperCase()} · ${Math.round(b.qty)} ${b.uom || 'stems'}`,
+        label: `${b.bucketId.toUpperCase()} · ${bucketStems(b.qty, b.uom)} stems`,
         meta: [
           bucketMeta(b.variety, b.stemLength),
           b.shelf ? `shelf ${b.shelf.toUpperCase()}` : '',
@@ -1009,7 +1014,8 @@ function ReplacePicker({
 
   const chosen = candidates.find((c) => c.bucketId === selected) ?? null;
   const b = pick?.bucket;
-  const needed = pick?.neededQty ?? b?.qty ?? null;
+  // Stems: the server sums the rows' stock qty; else the bucket's own stems.
+  const needed = pick?.neededQty ?? (b ? bucketStems(b.qty, b.uom) : null);
 
   return (
     <Dialog
@@ -1023,7 +1029,7 @@ function ReplacePicker({
           <Text style={s.sheetSub} numberOfLines={2}>
             {[
               b ? bucketMeta(b.variety, b.stemLength) : '',
-              needed != null ? `${Math.round(needed)} ${b?.uom || 'stems'} needed` : '',
+              needed != null ? `${Math.round(needed)} stems needed` : '',
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -1194,7 +1200,7 @@ function RequestsTab({
 }) {
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
 
-  if (!groups.length && !trips.length) {
+  if (!trips.length) {
     if (loading) return <SkeletonCards />;
     return (
       <Card>
@@ -1258,10 +1264,7 @@ function RequestsTab({
     sorted
       .map((g) => ({ ...g, opls: g.opls.filter((o) => tripOf.get(o.oplName) === tripId) }))
       .filter((g) => g.opls.length);
-  const rest = sorted
-    .map((g) => ({ ...g, opls: g.opls.filter((o) => !tripOf.has(o.oplName)) }))
-    .filter((g) => g.opls.length);
-  const firstUnschedIdx = rest.findIndex((g) => !isScheduled(g));
+  // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
@@ -1350,15 +1353,6 @@ function RequestsTab({
         );
       })}
 
-      {rest.length && trips.length ? (
-        <Text style={s.sectionHdr}>{firstUnschedIdx === 0 ? 'Not on a trip yet' : 'Scheduled — not on a trip yet'}</Text>
-      ) : null}
-      {rest.map((g, idx) => (
-        <View key={g.orderName}>
-          {firstUnschedIdx > 0 && idx === firstUnschedIdx ? <Text style={s.sectionHdr}>Not on a trip yet</Text> : null}
-          {renderGroup(g, !isScheduled(g))}
-        </View>
-      ))}
     </>
   );
 }
@@ -1366,6 +1360,19 @@ function RequestsTab({
 /** Bucket meta line: "Variety · 40cm", omitting any empty part. A bare numeric
  *  stem length gets a "cm" suffix; anything else is shown as-is. Shelf renders as
  *  its own line below this one (see s.bShelf) rather than joined in here. */
+/** A truck has arrived at the hub once it is stamped so, or as soon as any bucket it
+ *  carried is shelved there (shelving at the hub starts = the truck is there). */
+function hasArrived(a: TripArrival | undefined | null): boolean {
+  return !!a && (!!a.arrivedAt || (a.shelved ?? 0) > 0);
+}
+
+/** Stems in a bucket: the order line's qty is in its UOM — "Bunch (10)" is 10 stems a
+ *  bunch, so 20 bunches read 200. A plain stem UOM is already stems. */
+function bucketStems(qty: number, uom?: string | null): number {
+  const per = Number(/\((\d+(?:\.\d+)?)\)/.exec(uom || '')?.[1]) || 1;
+  return Math.round((qty || 0) * per);
+}
+
 /** "Today", "Tomorrow" or "Fri 3 Oct" for a YYYY-MM-DD delivery date. */
 function dateLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -1434,7 +1441,7 @@ function OplCard({
           </View>
           <View style={[s.idCol, s.idColRight]}>
             <Text style={[s.bIdRight, b.scanned && s.bDone]}>
-              {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
+              {b.bucketId.toUpperCase()} ({bucketStems(b.qty, b.uom)})
             </Text>
             <Text style={s.idWord}>BUCKET</Text>
           </View>
@@ -1604,7 +1611,6 @@ function CompletedCard({
 
 function TrolleyTab({
   items,
-  allScanned,
   syncingOpl,
   oplTeam,
   oplLine,
@@ -1613,7 +1619,7 @@ function TrolleyTab({
   total,
 }: {
   items: TrolleyOpl[];
-  /** Every requested bucket is on a trolley: one button loads them all. */
+  /** Every requested bucket is on a trolley. */
   allScanned: boolean;
   syncingOpl: string | null;
   oplTeam: Record<string, string>;
@@ -1642,16 +1648,16 @@ function TrolleyTab({
   }
   // Loaded onto the truck but not dispatched yet: stays here (the dashboard sends it
   // on its way), so only the orders still on trolleys can be loaded.
+  // One button loads every order on the trolley — no button per order.
   const toLoad = items.filter((o) => !o.loadedToTruck);
-  const bulk = allScanned && toLoad.length > 1;
   return (
     <>
-      {bulk ? (
+      {toLoad.length ? (
         <Card>
           <Button
             label="Load to truck"
             iconLeft="car-outline"
-            loading={syncingOpl === '*'}
+            loading={!!syncingOpl}
             disabled={!!syncingOpl}
             onPress={() => onLoad(toLoad)}
           />
@@ -1669,19 +1675,11 @@ function TrolleyTab({
                 <Ionicons name="car-outline" size={16} color={COLORS.text} />
                 <Text style={s.loadedInlineText}>Loaded on truck · waiting for dispatch</Text>
               </View>
-            ) : bulk ? (
+            ) : (
               <View style={s.loadedInline}>
                 <Ionicons name="cart-outline" size={16} color={COLORS.text} />
                 <Text style={s.loadedInlineText}>On trolley</Text>
               </View>
-            ) : (
-              <Button
-                label="Load to truck"
-                iconLeft="car-outline"
-                loading={syncingOpl === o.oplName}
-                disabled={!!syncingOpl}
-                onPress={() => onLoad([o])}
-              />
             )
           }
         />
@@ -1743,7 +1741,7 @@ function InTransitTab({
               <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.bShelfLead} numberOfLines={1}>
-                  {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
+                  {b.bucketId.toUpperCase()} ({bucketStems(b.qty, b.uom)})
                 </Text>
                 <Text style={s.bMeta} numberOfLines={1}>
                   {bucketMeta(b.variety, b.stemLength)}
@@ -1757,8 +1755,8 @@ function InTransitTab({
   // Trucks still on the road first, the one that left earliest on top; trucks that
   // have arrived at Kapkolia after them.
   const ordered = [...trips].sort((a, b) => {
-    const aIn = arrivals[a.tripId]?.arrivedAt ? 1 : 0;
-    const bIn = arrivals[b.tripId]?.arrivedAt ? 1 : 0;
+    const aIn = a.arrived || hasArrived(arrivals[a.tripId]) ? 1 : 0;
+    const bIn = b.arrived || hasArrived(arrivals[b.tripId]) ? 1 : 0;
     return aIn - bIn || (a.leftAt || '').localeCompare(b.leftAt || '') || a.tripId.localeCompare(b.tripId);
   });
   const tripCards = ordered.map((t) => {
@@ -2013,7 +2011,7 @@ function TripArrivalCard({
   const [busy, setBusy] = useState(false);
   // The hub by name (Kapkolia), never a generic "the packhouse".
   const hub = arrival?.hub || hubName || 'Kapkolia';
-  const arrived = !!arrival?.arrivedAt;
+  const arrived = trip.arrived || hasArrived(arrival);
   // The buckets for the delivery date on screen; Complete still needs the whole trip
   // shelved (the server checks every bucket on the truck).
   const forDay = (arrival?.buckets ?? []).filter((b) => !deliveryDate || !b.deliveryDate || b.deliveryDate === deliveryDate);
@@ -2105,14 +2103,6 @@ function TripArrivalCard({
             </Text>
           ) : null}
           <View style={[s.repActions, { justifyContent: 'flex-end' }]}>
-            <Button
-              label="Check"
-              variant="outline"
-              iconLeft="refresh"
-              size="sm"
-              disabled={!online || busy}
-              onPress={() => run('status')}
-            />
             <Button
               label="Complete"
               iconLeft="checkmark-done"
