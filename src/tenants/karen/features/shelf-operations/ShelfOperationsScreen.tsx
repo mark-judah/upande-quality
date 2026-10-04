@@ -379,10 +379,13 @@ export function KarenShelfOperationsScreen({
               iconName="clipboard-list-outline"
               value={opl ?? ''}
               options={shownOpls.map((o) => ({
-                label: `${o.team || NO_TEAM} · ${o.orderName} · ${o.issuedPct}% issued`,
+                // Row 1: varieties (what the OPL holds, without opening it), order,
+                // team. Row 2: customer and OPL number.
+                label: [o.varieties.join(', '), o.orderName, o.team || NO_TEAM, `${o.issuedPct}% issued`]
+                  .filter(Boolean)
+                  .join(' · '),
                 value: o.oplName,
-                // Varieties first: what the OPL holds, without opening it.
-                sublabel: [o.varieties.join(', '), o.oplName, o.customer].filter(Boolean).join(' · '),
+                sublabel: [o.customer, o.oplName].filter(Boolean).join(' · '),
               }))}
               placeholder={
                 oplsLoading
