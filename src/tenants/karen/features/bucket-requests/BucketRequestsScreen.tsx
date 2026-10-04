@@ -334,12 +334,25 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     else showError(r.message);
   };
 
-  const onCloseStop = async (t: PlannedTrip, reason?: string) => {
-    const r = await closeStop(t.tripId, userFarm, reason);
-    if (r.ok) showSuccess(r.message);
-    else showError(r.message);
-    return r.ok;
-  };
+  // The stop closes by itself (no "truck leaving" button): once every bucket this
+  // farm has for the truck's current trip is on it, the truck has its load here.
+  // Once per trip per screen; a failed close is tried again on the next update.
+  const autoClosed = useRef(new Set<string>());
+  useEffect(() => {
+    if (!online || !userFarm) return;
+    for (const t of plannedTrips) {
+      const stop = (t.stops ?? []).find((st) => st.isYou);
+      if (!stop || t.yourStopClosed || !t.current || autoClosed.current.has(t.tripId)) continue;
+      const forStop = stop.total || stop.planned;
+      const onTruck = stop.loaded + stop.transit + stop.shelved;
+      if (forStop <= 0 || onTruck < forStop) continue;
+      autoClosed.current.add(t.tripId);
+      closeStop(t.tripId, userFarm).then((r) => {
+        if (r.ok) showSuccess(r.message || 'All buckets are on the truck — stop closed.');
+        else autoClosed.current.delete(t.tripId);
+      });
+    }
+  }, [plannedTrips, online, userFarm, closeStop, showSuccess]);
 
   const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
     const pick = replacePick;
@@ -568,7 +581,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             loading={downloading || loadingTrips}
             replacingId={replacingId}
             onReplace={onReplace}
-            onCloseStop={onCloseStop}
           />
         ) : tab === 'trolley' ? (
           <TrolleyTab
@@ -1030,7 +1042,6 @@ function RequestsTab({
   loading,
   replacingId,
   onReplace,
-  onCloseStop,
 }: {
   groups: OrderGroup[];
   schedules: OplSchedule[];
@@ -1045,7 +1056,6 @@ function RequestsTab({
   loading: boolean;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
-  onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState('');
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
@@ -1229,8 +1239,6 @@ function RequestsTab({
               {/* One card per trip: the trip, then its picklists still to scan. */}
               <TripCard
                 trip={t}
-                online={online}
-                onCloseStop={onCloseStop}
                 scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
                 scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
               >
@@ -1956,21 +1964,13 @@ const STOP_UI: Record<
 };
 
 
-/** Why a farm's stop leaves with fewer buckets than planned (saved on the trip). */
-const SHORT_REASONS = ['Bucket not found', 'Not ready yet', 'Quality reject', 'Truck full', 'Other'] as const;
-type ShortReason = (typeof SHORT_REASONS)[number];
-
 function TripCard({
   trip,
-  online,
-  onCloseStop,
   scanned = 0,
   scanTotal = 0,
   children,
 }: {
   trip: PlannedTrip;
-  online: boolean;
-  onCloseStop: (t: PlannedTrip, reason?: string) => Promise<boolean>;
   /** This farm's buckets on the trip scanned so far, of `scanTotal`: the
    *  progress shown at "Your stop". */
   scanned?: number;
@@ -1979,27 +1979,6 @@ function TripCard({
   children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
-  const [closing, setClosing] = useState(false);
-  const [confirmLeave, setConfirmLeave] = useState(false);
-  // Short stop (not every planned bucket on the truck): why, before it leaves.
-  const [shortReason, setShortReason] = useState<ShortReason | null>(null);
-  const [shortNote, setShortNote] = useState('');
-  const onTruck = yourStop ? yourStop.loaded + yourStop.transit + yourStop.shelved : 0;
-  const forStop = yourStop ? yourStop.total || yourStop.planned : 0;
-  const short = forStop > onTruck;
-  const reasonText = shortReason
-    ? [shortReason === 'Other' ? '' : shortReason, shortNote.trim()].filter(Boolean).join(' — ')
-    : '';
-  const reasonReady = !short || (!!shortReason && (shortReason !== 'Other' || !!shortNote.trim()));
-  const openLeave = () => {
-    setShortReason(null);
-    setShortNote('');
-    setConfirmLeave(true);
-  };
-  // "Truck leaving" once something of this farm is on the truck (the rest, if any, goes
-  // on the truck's next run).
-  const canClose =
-    !!yourStop && !trip.yourStopClosed && trip.current && yourStop.loaded + yourStop.transit + yourStop.shelved > 0;
   // The route: every stop in the order the truck drives them.
   const route = [...(trip.stops ?? [])].sort((x, y) => x.stop - y.stop);
   const ui = yourStop ? (STOP_UI[yourStop.status] ?? STOP_UI.waiting) : null;
@@ -2054,90 +2033,9 @@ function TripCard({
           </View>
         </>
       ) : null}
+      {/* No button: the stop closes by itself once all its buckets are on the truck. */}
       {trip.yourStopClosed ? (
         <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
-      ) : canClose ? (
-        <Button
-          label={closing ? 'Closing…' : 'Truck leaving — close my stop'}
-          singleLine
-          iconLeft="exit-outline"
-          disabled={closing || !online}
-          onPress={openLeave}
-          style={{ marginTop: spacing.sm }}
-        />
-      ) : null}
-      {/* Closing the stop can't be undone from the farm, so ask first. */}
-      {yourStop ? (
-        <Dialog
-          visible={confirmLeave}
-          onClose={() => setConfirmLeave(false)}
-          busy={closing}
-          icon={{ name: 'exit-outline', tone: 'warn' }}
-          title="Truck leaving the farm?"
-          subtitle={`${trip.vehicle || 'The truck'} leaves ${yourStop.farm} and this stop is closed.`}
-          actions={
-            <>
-              <Button
-                label="Cancel"
-                variant="outline"
-                onPress={() => setConfirmLeave(false)}
-                disabled={closing}
-                style={{ flex: 1 }}
-              />
-              <Button
-                label="Yes, it's leaving"
-                iconLeft="exit-outline"
-                loading={closing}
-                disabled={!online || !reasonReady}
-                onPress={async () => {
-                  setClosing(true);
-                  const ok = await onCloseStop(trip, short ? reasonText : undefined);
-                  setClosing(false);
-                  // A failed close keeps the dialog (and the reason typed) for a retry.
-                  if (ok) setConfirmLeave(false);
-                }}
-                style={{ flex: 1 }}
-              />
-            </>
-          }
-        >
-          <DialogList>
-            <DialogRow label="On the truck" value={`${onTruck} bkt`} />
-            <DialogRow label="For this stop" value={`${forStop} bkt`} />
-          </DialogList>
-          {short ? (
-            <>
-              <Text style={s.leaveNote}>
-                {forStop - onTruck} bucket{forStop - onTruck === 1 ? '' : 's'} not on the truck — they go on its
-                next trip. Why is it leaving short?
-              </Text>
-              <View style={s.reasonRow}>
-                {SHORT_REASONS.map((r) => (
-                  <Pressable
-                    key={r}
-                    onPress={() => setShortReason(r)}
-                    disabled={closing}
-                    style={[s.reasonChip, shortReason === r && s.reasonChipOn]}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: shortReason === r }}
-                  >
-                    <Text style={[s.reasonText, shortReason === r && s.reasonTextOn]}>{r}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <TextInput
-                value={shortNote}
-                onChangeText={setShortNote}
-                placeholder={shortReason === 'Other' ? 'Say why (required)' : 'Add a note (optional)'}
-                placeholderTextColor={COLORS.textMuted}
-                editable={!closing}
-                multiline
-                maxLength={300}
-                style={s.leaveInput}
-              />
-            </>
-          ) : null}
-        </Dialog>
       ) : null}
     </Card>
   );
@@ -2219,27 +2117,6 @@ const s = StyleSheet.create({
   arrivalLabel: { flexShrink: 1, marginBottom: 0 },
   arrivalCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   arrivalHint: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
-  leaveNote: {
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.xs,
-    color: COLORS.warn,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  leaveInput: {
-    marginTop: spacing.sm,
-    minHeight: 56,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceAlt,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-    color: COLORS.text,
-    textAlignVertical: 'top',
-  },
   tripClosed: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
   repNone: {
     fontFamily: fontFamily.regular,
