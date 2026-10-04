@@ -12,6 +12,9 @@ import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/
 interface SegmentedOption<T extends string> {
   value: T;
   label: string;
+  /** A count shown under the label (e.g. "12"): short labels with the number on
+   *  its own line fit four tabs on a small scanner without scrolling. */
+  count?: string | number;
 }
 
 interface SegmentedProps<T extends string> {
@@ -33,6 +36,8 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
   );
 
   const padding = 4;
+  // Label plus count: tighter top/bottom padding so the two lines stay a slim bar.
+  const twoLine = options.some((o) => o.count != null);
   const innerWidth = Math.max(0, containerWidth - padding * 2);
   const segmentWidth = options.length > 0 ? innerWidth / options.length : 0;
   const anim = useRef(new Animated.Value(activeIndex)).current;
@@ -76,7 +81,7 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
             key={opt.value}
             onPress={() => onChange(opt.value)}
             activeOpacity={0.7}
-            style={s.btn}
+            style={[s.btn, twoLine && s.btnTwoLine]}
           >
             {/* Shrinks to fit rather than truncating ("Not shelved (3)" on a
                 four-tab bar was cut to "Not shelved..."). */}
@@ -84,10 +89,15 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
               style={[s.label, active && s.labelActive]}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.7}
+              minimumFontScale={0.75}
             >
               {opt.label}
             </Text>
+            {opt.count != null ? (
+              <Text style={[s.count, active && s.labelActive]} numberOfLines={1}>
+                {opt.count}
+              </Text>
+            ) : null}
           </TouchableOpacity>
         );
       })}
@@ -122,6 +132,22 @@ const s = StyleSheet.create({
     paddingHorizontal: 2,
     zIndex: 1,
   },
-  label: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
+  // Centred in its segment: a label shrunk to fit spans the segment's width on
+  // Android, so the text itself has to be centred, not just the box.
+  label: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+  },
   labelActive: { fontFamily: fontFamily.semiBold, color: COLORS.text },
+  count: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    lineHeight: fontSize.xs + 2,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+  },
+  btnTwoLine: { paddingVertical: 3 },
 });

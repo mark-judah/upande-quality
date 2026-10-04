@@ -129,7 +129,7 @@ function open(): Promise<SQLite.SQLiteDatabase> {
 /** A released native connection: reopen and retry once instead of failing the screen. */
 const isDeadConnection = (e: unknown) => /NullPointerException|has been rejected|database is closed/i.test(String((e as Error)?.message ?? e));
 
-function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
+function guarded(d: SQLite.SQLiteDatabase, conn: Promise<SQLite.SQLiteDatabase>): SQLite.SQLiteDatabase {
   return new Proxy(d, {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
@@ -140,8 +140,12 @@ function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
           return await v.apply(target, args);
         } catch (e) {
           if (!isDeadConnection(e)) throw e;
-          cache.conn = null;
-          _migrated = null;
+          // Several queries fail together on one dead connection: only the first
+          // drops it, the rest reuse the reopened one instead of racing new opens.
+          if (cache.conn === conn) {
+            cache.conn = null;
+            _migrated = null;
+          }
           const fresh = await db();
           return (fresh as unknown as Record<string, (...a: unknown[]) => unknown>)[prop](...args);
         }
@@ -154,7 +158,8 @@ function guarded(d: SQLite.SQLiteDatabase): SQLite.SQLiteDatabase {
  *  only in initDb) means a hot reload that adds a column can't leave every query failing
  *  on the old table until the app is restarted. */
 async function db(): Promise<SQLite.SQLiteDatabase> {
-  const d = await open();
+  const conn = open();
+  const d = await conn;
   if (!_migrated) {
     // One migration at a time across module copies (each copy migrates once).
     const run = (cache.queue ?? Promise.resolve()).catch(() => {}).then(() => migrate(d));
@@ -165,7 +170,7 @@ async function db(): Promise<SQLite.SQLiteDatabase> {
     });
   }
   await _migrated;
-  return guarded(d);
+  return guarded(d, conn);
 }
 
 const DDL = `
@@ -686,6 +691,12 @@ export async function markNotFoundLocal(bucketId: string): Promise<void> {
   );
 }
 
+/** Issued offline to its own line: the request is done, nothing to scan or send. */
+export async function removeIssuedLocal(rowId: number): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM bucket WHERE id = ? AND scanned = 0', [rowId]);
+}
+
 /** Loaded / in transit: this farm's scanned buckets of the order (an order collecting
  *  from two farms is loaded farm by farm). */
 export async function markLoadedLocal(oplName: string): Promise<void> {
@@ -705,7 +716,19 @@ export async function markInTransitLocal(oplName: string): Promise<void> {
   );
 }
 
-export async function counts(): Promise<{ requests: number; trolley: number; inTransit: number }> {
+/** Picklists per stage, and buckets: `scannedBuckets` of `totalBuckets` requested
+ *  (the Trolley tab's "scanned/requested"). */
+export async function counts(): Promise<{
+  requests: number;
+  trolley: number;
+  inTransit: number;
+  scannedBuckets: number;
+  totalBuckets: number;
+  /** Every requested bucket, how many are on a trolley (or beyond), how many on a truck. */
+  allBuckets: number;
+  addedBuckets: number;
+  transitBuckets: number;
+}> {
   const d = await db();
   const [fc, fa] = farmCond();
   const [dc, da] = dateCond();
@@ -720,13 +743,27 @@ export async function counts(): Promise<{ requests: number; trolley: number; inT
   let requests = 0;
   let trolley = 0;
   let inTransit = 0;
+  let scannedBuckets = 0;
+  let totalBuckets = 0;
+  let allBuckets = 0;
+  let addedBuckets = 0;
+  let transitBuckets = 0;
   for (const r of rows) {
+    allBuckets += r.total;
+    addedBuckets += r.scanned;
+    if (r.in_transit === 1) transitBuckets += r.scanned;
+    // Trolley is the stage before the truck: an order already loaded / on the
+    // road counts under In Transit, not here.
+    if (r.in_transit !== 1) {
+      scannedBuckets += r.scanned;
+      totalBuckets += r.total;
+    }
     const complete = r.total > 0 && r.scanned >= r.total;
     if (!complete) requests++;
     else if (r.in_transit === 1) inTransit++;
     else trolley++;
   }
-  return { requests, trolley, inTransit };
+  return { requests, trolley, inTransit, scannedBuckets, totalBuckets, allBuckets, addedBuckets, transitBuckets };
 }
 
 export async function upsertTrolley(trolleyId: string): Promise<void> {

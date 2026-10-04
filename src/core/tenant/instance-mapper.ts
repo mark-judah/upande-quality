@@ -31,9 +31,19 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'http://192.168.88.245:8000': 'Karen',
   'http://192.168.1.230:8000': 'Karen',
   "http://172.17.49.204:8082": 'Karen',
+  "http://192.168.100.27:8000": 'Karen',
 };
+
+/** Host (and port) only: the app works out http or https itself, so the
+ *  scheme it ended up on must not change which tenant a site is. */
+const hostOf = (url: string) =>
+  url.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+
+const HOST_TO_TENANT: Record<string, Tenant> = Object.fromEntries(
+  Object.entries(URL_TO_TENANT).map(([url, tenant]) => [hostOf(url), tenant]),
+);
 
 export function getTenantByUrl(url: string | null | undefined): Tenant | null {
   if (!url) return null;
-  return URL_TO_TENANT[url] ?? null;
+  return HOST_TO_TENANT[hostOf(url)] ?? null;
 }

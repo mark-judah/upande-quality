@@ -13,12 +13,14 @@ import * as Updates from 'expo-updates';
 import {
   autoCheckForApk,
   checkForApk,
+  UpdateCheckError,
   type ApkCheck,
   type UpdateErrorKind,
 } from './releases';
 import {
   canInstallInApp,
   downloadApk,
+  InstallError,
   launchInstaller,
   openInBrowser,
   type DownloadProgress,
@@ -67,6 +69,14 @@ type UpdateState = {
 };
 
 const UpdateContext = createContext<UpdateState | null>(null);
+
+/** What the person sees when an install fails: the app's own message, never a
+ *  raw system error (that one is logged). */
+function installErrorFor(err: unknown): { kind: InstallErrorKind | null; message: string } {
+  if (err instanceof InstallError) return { kind: err.kind, message: err.message };
+  if (__DEV__) console.warn('[update] install failed:', err);
+  return { kind: null, message: "The update couldn't be installed. Try again." };
+}
 
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const [check, setCheck] = useState<ApkCheck | null>(null);
@@ -142,8 +152,12 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       setCheck(result);
       return result;
     } catch (err) {
-      const e = err as { kind?: UpdateErrorKind; message?: string };
-      setCheckError({ kind: e?.kind ?? 'failed', message: e?.message ?? 'The check could not be completed.' });
+      // Only the app's own messages reach the screen; anything else is logged.
+      if (err instanceof UpdateCheckError) setCheckError({ kind: err.kind, message: err.message });
+      else {
+        if (__DEV__) console.warn('[update] check failed:', err);
+        setCheckError({ kind: 'failed', message: "Couldn't check for updates. Try again in a moment." });
+      }
       return null;
     } finally {
       setChecking(false);
@@ -182,8 +196,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       await launchInstaller(uri);
       return true;
     } catch (err) {
-      const e = err as { kind?: InstallErrorKind; message?: string };
-      setInstallError({ kind: e?.kind ?? null, message: e?.message ?? 'The update could not be installed.' });
+      setInstallError(installErrorFor(err));
       return false;
     } finally {
       busy.current = false;
@@ -200,8 +213,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       const uri = pending.current;
       pending.current = null;
       launchInstaller(uri).catch((err) => {
-        const e = err as { kind?: InstallErrorKind; message?: string };
-        setInstallError({ kind: e?.kind ?? null, message: e?.message ?? 'The update could not be installed.' });
+        setInstallError(installErrorFor(err));
       });
     });
     return () => sub.remove();

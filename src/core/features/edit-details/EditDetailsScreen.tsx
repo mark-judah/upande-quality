@@ -3,11 +3,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
+import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { Button } from '@/src/core/ui/Button';
-import { LabeledInput } from '@/src/core/ui/LabeledInput';
+import { Dropdown } from '@/src/core/ui/Dropdown';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
-import { useAuthStore } from '@/src/core/auth/store';
 import { useReplacementStore } from '@/src/core/features/replacement/store';
 import type { ReplacementRepository } from '@/src/core/features/replacement/types';
 import type {
@@ -15,14 +16,12 @@ import type {
   TraceabilityRepository,
   TraceabilitySnapshot,
 } from '@/src/core/features/traceability/types';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = {
   replacementRepo: ReplacementRepository;
   traceabilityRepo: TraceabilityRepository;
 };
-
-const HARVEST_DETAILS_UPDATER = 'Harvest Details Updater';
 
 type ScanResult = { kind: 'bucket'; id: string } | { kind: 'bunch'; id: string };
 
@@ -51,7 +50,6 @@ function parseScan(raw: string): ScanResult {
 
 export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) {
   const scanRef = useRef<ScanFieldHandle>(null);
-  const hasRole = useAuthStore((s) => s.hasRole(HARVEST_DETAILS_UPDATER));
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [snapshot, setSnapshot] = useState<TraceabilitySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,18 +77,6 @@ export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) 
     setLoadError(null);
   };
 
-  if (!hasRole) {
-    return (
-      <Screen title="Edit Details">
-        <Card>
-          <Text style={s.muted}>
-            You need the <Text style={s.strong}>Harvest Details Updater</Text> role to use this page.
-          </Text>
-        </Card>
-      </Screen>
-    );
-  }
-
   return (
     <Screen title="Edit Details">
       <Card title="Scan a bucket or bunch">
@@ -101,12 +87,10 @@ export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) 
         <ScanField ref={scanRef} onScan={onScan} autoFocus placeholder="Bucket / Bunch ID" />
       </Card>
 
+      {/* Stamped the moment it is scanned, before its details load. */}
+      {scan ? <ScannedStamp kind={scan.kind} id={scan.id} loading={loading} /> : null}
       {loading ? (
-        <Card>
-          <Text style={s.muted}>
-            Loading {scan?.kind ?? ''} {scan?.id ?? ''}…
-          </Text>
-        </Card>
+        <SkeletonCards cards={2} rows={3} />
       ) : loadError ? (
         <Alert tone="danger">{loadError}</Alert>
       ) : scan && snapshot ? (
@@ -267,7 +251,9 @@ function SprayBunchListEditor({
             <View key={bunch.bunchId} style={s.bunchRow}>
               <Pressable onPress={() => setOpenBunchId(isOpen ? null : bunch.bunchId)}>
                 <View style={s.bunchHeader}>
-                  <Text style={s.bunchId}>{bunch.bunchId}</Text>
+                  <Text style={s.bunchId} numberOfLines={1}>
+                    {bunch.bunchId}
+                  </Text>
                   <MaterialCommunityIcons
                     name={isOpen ? 'chevron-up' : 'chevron-down'}
                     size={22}
@@ -414,15 +400,9 @@ function EditPanel({
     let cancelled = false;
     const lv = repository.listVarieties?.() ?? Promise.resolve<string[]>([]);
     const ll = repository.listStemLengths?.() ?? Promise.resolve<string[]>([]);
-    Promise.all([lv, ll])
-      .then(([vs, ls]) => {
-        if (cancelled) return;
-        setVarieties(vs);
-        setStemLengths(ls);
-      })
-      .catch(() => {
-        // ignore — typeahead won't suggest
-      });
+    // Each list on its own: one failing never empties the other.
+    lv.then((vs) => !cancelled && setVarieties(vs)).catch(() => {});
+    ll.then((ls) => !cancelled && setStemLengths(ls)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -464,26 +444,24 @@ function EditPanel({
 
   const form = (
     <>
-      <Typeahead
+      {/* Full searchable lists: tap to open, search, pick (the current value is
+          pre-selected, not a filter that hides the rest). */}
+      <Dropdown
         label="Variety"
         iconName="flower"
         value={variety}
+        options={varieties.map((v) => ({ label: v, value: v }))}
+        placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
         onChange={setVariety}
-        options={varieties}
-        invalid={!varietyValid}
-        placeholder="Type to search varieties"
-        autoCapitalize="words"
       />
       <View style={{ height: 12 }} />
-      <Typeahead
+      <Dropdown
         label="Stem length"
         iconName="ruler"
         value={stemLength}
+        options={stemLengths.map((l) => ({ label: l, value: l }))}
+        placeholder={stemLengths.length ? 'Pick the stem length' : 'Loading…'}
         onChange={setStemLength}
-        options={stemLengths}
-        invalid={!lengthValid}
-        placeholder="e.g. 62cm"
-        autoCapitalize="none"
       />
       <View style={{ height: 12 }} />
       <Button
@@ -516,76 +494,13 @@ function EditPanel({
   );
 }
 
-function Typeahead({
-  label,
-  iconName,
-  value,
-  onChange,
-  options,
-  placeholder,
-  autoCapitalize,
-  invalid,
-}: {
-  label: string;
-  iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  placeholder?: string;
-  autoCapitalize?: 'none' | 'words' | 'sentences' | 'characters';
-  invalid?: boolean;
-}) {
-  const [focused, setFocused] = useState(false);
-  const q = value.trim().toLowerCase();
-  const suggestions = (
-    q ? options.filter((o) => o.toLowerCase().includes(q)) : options
-  ).slice(0, 10);
-
-  return (
-    <View>
-      <LabeledInput
-        label={label}
-        iconName={iconName}
-        value={value}
-        onChangeText={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        placeholder={placeholder}
-        style={invalid ? s.invalidInput : undefined}
-      />
-      {focused && suggestions.length > 0 ? (
-        <View style={s.suggestions}>
-          {suggestions.map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => {
-                onChange(opt);
-                setFocused(false);
-              }}
-              style={s.suggestion}
-            >
-              <Text style={s.suggestionText}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {invalid && !focused ? (
-        <Text style={s.invalidText}>Pick a value from the list.</Text>
-      ) : null}
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
-  helper: { fontSize: 13, color: COLORS.textMuted },
-  muted: { fontSize: 13, color: COLORS.textMuted },
-  strong: { color: COLORS.text, fontWeight: '600' },
+  helper: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  strong: { fontFamily: fontFamily.semiBold, color: COLORS.text },
 
-  label: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bigId: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginTop: 2, letterSpacing: 1 },
-  subId: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bigId: { fontFamily: fontFamily.bold, fontSize: scaleFont(20), color: COLORS.text, marginTop: 2, letterSpacing: 1 },
+  subId: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
 
   bunchRow: {
     paddingVertical: 10,
@@ -598,7 +513,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  bunchId: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  bunchId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
   pillRow: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pill: {
     paddingHorizontal: 8,
@@ -608,29 +523,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
-  pillLabel: { fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 
-  suggestions: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    backgroundColor: COLORS.bg,
-    maxHeight: 220,
-    overflow: 'hidden',
-  },
-  suggestion: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  suggestionText: { fontSize: 14, color: COLORS.text },
-  invalidInput: { borderColor: '#9a1f33' },
-  invalidText: { marginTop: 4, fontSize: 11, color: '#9a1f33' },
 });

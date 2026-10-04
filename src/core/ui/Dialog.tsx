@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 type Tone = 'danger' | 'success' | 'warn' | 'info';
 
@@ -230,13 +230,13 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: scaleFont(19),
     marginTop: spacing.xs,
     alignSelf: 'stretch',
   },
   body: { alignSelf: 'stretch', marginTop: spacing.md, flexGrow: 0 },
   bodyContent: { paddingBottom: spacing.xs },
-  actions: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch', marginTop: spacing.lg },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignSelf: 'stretch', marginTop: spacing.lg },
   list: {
     alignSelf: 'stretch',
     borderRadius: borderRadius.md,
@@ -245,8 +245,8 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  rowLabel: { flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
-  rowValue: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, textAlign: 'right' },
+  rowLabel: { flexShrink: 0, maxWidth: '50%', fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
+  rowValue: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, textAlign: 'right' },
   flex: { flex: 1 },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },

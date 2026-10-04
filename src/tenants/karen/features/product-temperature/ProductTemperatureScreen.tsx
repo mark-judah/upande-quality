@@ -11,7 +11,7 @@ import { Segmented } from '@/src/core/ui/Segmented';
 import { Spinner } from '@/src/core/ui/Spinner';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenProductTemperatureStore,
   type BoxState,
@@ -35,7 +35,7 @@ const BoxRow = memo(function BoxRow({
   const hasPhoto = !!box.photoUri;
   return (
     <View style={s.boxRow}>
-      <Text style={s.boxLabel}>Box {index + 1}</Text>
+      <Text style={s.boxLabel} numberOfLines={1}>Box {index + 1}</Text>
       <View style={s.tempField}>
         <TextInput
           value={box.temp}
@@ -184,7 +184,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   boxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -192,7 +192,7 @@ const s = StyleSheet.create({
     marginTop: spacing.sm,
   },
   boxLabel: {
-    width: 52,
+    minWidth: 52,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
@@ -218,6 +218,7 @@ const s = StyleSheet.create({
   },
   unit: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
   photoBtn: {
+    flexShrink: 0,
     width: 44,
     height: 44,
     borderRadius: borderRadius.sm,

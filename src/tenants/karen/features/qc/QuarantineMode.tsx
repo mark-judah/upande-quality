@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import {
   useKarenQcStore,
   type QuarantineAction,
@@ -57,8 +57,8 @@ export function QuarantineMode() {
           <Card key={b.bucketId}>
             <View style={s.rowHead}>
               <View style={{ flex: 1 }}>
-                <Text style={s.bucketTitle}>{b.bucketId}</Text>
-                <Text style={s.bucketSubtitle}>{b.itemName || b.itemCode}</Text>
+                <Text style={s.bucketTitle} numberOfLines={1}>{b.bucketId}</Text>
+                <Text style={s.bucketSubtitle} numberOfLines={1}>{b.itemName || b.itemCode}</Text>
               </View>
               <View style={s.tag}>
                 <MaterialCommunityIcons name="alert-outline" size={12} color={COLORS.text} />
@@ -142,19 +142,21 @@ function ActionButton({
 const s = StyleSheet.create({
   alertCard: { backgroundColor: COLORS.bgMuted },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  alertTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  alertBody: { fontSize: 13, color: COLORS.text, marginTop: 4 },
+  alertTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(16), color: COLORS.text },
+  alertBody: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, marginTop: 4 },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fontFamily.bold,
+    fontSize: scaleFont(12),
+    
     color: COLORS.textMuted,
     letterSpacing: 0.4,
     marginBottom: 12,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bucketTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  bucketSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bucketTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
+  bucketSubtitle: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   tag: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -165,23 +167,27 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  tagLabel: { fontSize: 11, fontWeight: '700', color: COLORS.text },
+  tagLabel: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.text },
   stemsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stemsLabel: { fontWeight: '600', fontSize: 14, color: COLORS.text },
+  stemsLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   stemsInput: {
+    fontFamily: fontFamily.regular,
     width: 100,
+    minWidth: 64,
+    flexShrink: 1,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 8,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  stemsOf: { fontSize: 12, color: COLORS.textMuted },
+  stemsOf: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
   actionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fontFamily.bold,
+    fontSize: scaleFont(12),
+    
     color: COLORS.textMuted,
     letterSpacing: 0.4,
   },
@@ -199,6 +205,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bgMuted,
   },
   actionButtonSelected: { borderColor: COLORS.text, backgroundColor: COLORS.bg },
-  actionButtonLabel: { color: COLORS.textMuted, fontWeight: '500' },
-  actionButtonLabelSelected: { color: COLORS.text, fontWeight: '700' },
+  actionButtonLabel: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  actionButtonLabelSelected: { fontFamily: fontFamily.bold, color: COLORS.text },
 });

@@ -17,6 +17,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Spinner } from '@/src/core/ui/Spinner';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
 import { storage, StorageKeys } from '@/src/core/storage';
@@ -25,8 +26,7 @@ import {
   COLORS,
   fontFamily,
   fontSize,
-  spacing,
-} from '@/src/core/theme';
+  spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenSolutionMixingStore,
   type ChemicalRow,
@@ -173,7 +173,7 @@ export function KarenSolutionMixingScreen({
           ) : null}
           <View style={{ height: 12 }} />
           <View style={s.dateTimeRow}>
-            <View style={{ flex: 1 }}>
+            <View style={s.dateTimeCell}>
               <LabeledInput
                 label="Date"
                 iconName="calendar-outline"
@@ -183,7 +183,7 @@ export function KarenSolutionMixingScreen({
                 autoCapitalize="none"
               />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={s.dateTimeCell}>
               <LabeledInput
                 label="Time"
                 iconName="clock-outline"
@@ -234,7 +234,11 @@ export function KarenSolutionMixingScreen({
           </Text>
           <View style={{ height: 12 }} />
           {chemicalsLoading && chemicals.length === 0 ? (
-            <Spinner inline label="Loading chemicals…" />
+            <View style={{ gap: 10 }}>
+              <Skeleton width={'70%'} height={14} />
+              <Skeleton width={'55%'} height={14} />
+              <Skeleton width={'80%'} height={14} />
+            </View>
           ) : null}
 
           {rows.length === 0 ? (
@@ -309,7 +313,7 @@ function ChemicalRowCard({
   return (
     <View style={s.chemCard}>
       <View style={s.chemHead}>
-        <Text style={s.chemTitle}>
+        <Text style={s.chemTitle} numberOfLines={2}>
           {chemicalOptions.find((c) => c.value === row.chemical)?.label ?? 'New chemical'}
         </Text>
         <Pressable onPress={onRemove} hitSlop={8}>
@@ -375,7 +379,9 @@ function ChemicalRowCard({
             ) : null}
             {row.uploadError ? (
               <View style={[s.thumbOverlay, { backgroundColor: 'rgba(220,38,38,0.85)' }]}>
-                <Text style={s.thumbErrorText}>{row.uploadError}</Text>
+                <Text style={s.thumbErrorText} numberOfLines={3}>
+                  {row.uploadError}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -407,15 +413,18 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 6 },
-  helperText: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 6 },
+  helperText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   empty: {
+    fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 12,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
-  dateTimeRow: { flexDirection: 'row', gap: spacing.sm },
+  dateTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  // Below ~140dp a date input clips its value, so narrow screens stack them.
+  dateTimeCell: { flexGrow: 1, flexBasis: 140 },
   sliderLabel: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,
@@ -434,6 +443,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
   },
   addLabel: {
+    flexShrink: 1,
     color: COLORS.text,
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,
@@ -499,6 +509,7 @@ const s = StyleSheet.create({
 
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumbWrap: {
+    flexShrink: 0,
     width: 64, height: 64,
     borderRadius: borderRadius.sm,
     overflow: 'hidden',
@@ -515,9 +526,9 @@ const s = StyleSheet.create({
   },
   thumbErrorText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: scaleFont(9),
     fontFamily: fontFamily.semiBold,
     textAlign: 'center',
   },
-  errText: { color: COLORS.danger ?? '#EF4444', fontSize: 11, marginTop: 4 },
+  errText: { fontFamily: fontFamily.regular, color: COLORS.danger ?? '#EF4444', fontSize: scaleFont(11), marginTop: 4 },
 });

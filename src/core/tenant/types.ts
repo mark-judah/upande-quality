@@ -9,6 +9,7 @@ export type DrawerItem = {
     | 'receiving'
     | 'shelving'
     | 'shelf-operations'
+    | 'issue-offline'
     | 'discards'
     | 'bucket-requests'
     | 'bucket-transfers'

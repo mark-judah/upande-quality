@@ -17,6 +17,7 @@ export type RawStockTakeBucketResult = {
     shelf?: string | null;
     variety?: string | null;
     stem_length?: string | null;
+    qty?: number | null;
     age_days?: number | null;
   };
 };
@@ -66,6 +67,8 @@ export type RawTransferResponse = {
 };
 
 export type IssueOfflineReason = 'not_found' | 'wrong_variety';
+/** What the scan says about the line: the allocated bucket itself was found, or why not. */
+export type IssueOfflineScanReason = IssueOfflineReason | 'found';
 
 export type RawOfflineOpl = {
   opl_name: string;
@@ -77,6 +80,7 @@ export type RawOfflineOpl = {
   issued_stems?: number;
   issued_pct?: number;
   open_buckets?: number;
+  varieties?: string[];
 };
 
 export type RawOfflineBucket = {
@@ -99,6 +103,26 @@ export type RawReplacementCandidate = {
   harvest_date?: string | null;
 };
 
+export type RawOfflineHistory = {
+  replacement: string;
+  reason: 'not_found' | 'wrong_variety';
+  status?: string | null;
+  new_bucket?: string | null;
+  opl_name?: string | null;
+  order_name?: string | null;
+  reported_by?: string | null;
+  reported_at?: string | null;
+};
+
+export type RawReplacementOptions = {
+  found?: boolean;
+  message?: string;
+  needed_qty?: number;
+  farm?: string;
+  candidates?: RawReplacementCandidate[];
+  history?: RawOfflineHistory[];
+};
+
 export type RawIssueOfflineResponse = {
   success?: boolean;
   message?: string;
@@ -114,23 +138,36 @@ const OFFLINE_ISSUE = '/api/method/upande_packhouse.api.offline_issue';
 export const karenShelfOperationsApi = {
   /** Open OPLs that still have buckets to issue — delivering on `deliveryDate`
    *  (YYYY-MM-DD), or recent delivery dates when it is not given. */
-  async fetchOfflineIssueOpls(deliveryDate?: string): Promise<RawOfflineOpl[]> {
+  async fetchOfflineIssueOpls(deliveryDate?: string, farm?: string): Promise<RawOfflineOpl[]> {
     const res = await api<{ message?: { opls?: RawOfflineOpl[] } }>({
       method: 'GET',
       url: `${OFFLINE_ISSUE}.offline_issue_opls`,
-      params: deliveryDate ? { delivery_date: deliveryDate } : undefined,
+      params: { ...(deliveryDate ? { delivery_date: deliveryDate } : {}), ...(farm ? { farm } : {}) },
     });
     return res.message?.opls ?? [];
   },
 
   /** The buckets an OPL is still waiting on. */
-  async fetchOfflineIssueBuckets(oplName: string): Promise<RawOfflineBucket[]> {
+  async fetchOfflineIssueBuckets(oplName: string, farm?: string): Promise<RawOfflineBucket[]> {
     const res = await api<{ message?: { buckets?: RawOfflineBucket[] } }>({
       method: 'GET',
       url: `${OFFLINE_ISSUE}.offline_issue_buckets`,
-      params: { opl_name: oplName },
+      params: { opl_name: oplName, ...(farm ? { farm } : {}) },
     });
     return res.message?.buckets ?? [];
+  },
+
+  /** Buckets that can stand in for `bucket` on the OPL, and the bucket's earlier
+   *  not-found / wrong-variety reports. */
+  async fetchReplacementOptions(oplName: string, bucket: string, farm?: string): Promise<RawReplacementOptions> {
+    const res = await api<{ message?: RawReplacementOptions }>({
+      method: 'GET',
+      url: `${OFFLINE_ISSUE}.replacement_options`,
+      // `farm`: the station — substitutes come from there, and a remote-transfer
+      // bucket that left its farm but never arrived can be replaced.
+      params: { opl_name: oplName, bucket, limit: 20, ...(farm ? { farm } : {}) },
+    });
+    return res.message ?? {};
   },
 
   /** Swap the allocated bucket for the scanned one (when they differ) and
@@ -139,10 +176,11 @@ export const karenShelfOperationsApi = {
     oplName: string;
     allocatedBucket: string;
     scannedBucket: string;
-    reason: IssueOfflineReason;
+    reason: IssueOfflineScanReason;
     variety?: string;
     stemLength?: string;
     notes?: string;
+    farm?: string;
   }): Promise<RawIssueOfflineResponse> {
     const res = await api<{ message?: RawIssueOfflineResponse }>({
       method: 'POST',
@@ -155,6 +193,7 @@ export const karenShelfOperationsApi = {
         variety: args.variety || undefined,
         stem_length: args.stemLength || undefined,
         notes: args.notes || undefined,
+        farm: args.farm || undefined,
       },
       // A swap can wait on stock locks and retry (see offline_issue._swap).
       timeout: 120000,

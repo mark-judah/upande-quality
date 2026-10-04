@@ -3,7 +3,6 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import {
-  APK_VERSION,
   APP_VERSION,
   checkLatestVersion,
   getServerVersions,
@@ -20,10 +19,13 @@ import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { showDialog } from '@/src/core/ui/DialogHost';
+import { displayName, needsRealName } from '@/src/core/auth/roles-api';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
   const email = useAuthStore((s) => s.email);
+  // Name on top, the email under it: Settings is where the email is shown.
+  const name = needsRealName(fullName) ? '' : displayName(fullName);
   const instanceUrl = useAuthStore((s) => s.instanceUrl);
   const biometricEnabled = useAuthStore((s) => s.biometricEnabled);
   const setBiometricEnabled = useAuthStore((s) => s.setBiometricEnabled);
@@ -127,11 +129,11 @@ export default function SettingsScreen() {
         <View style={s.avatarRow}>
           <View style={s.avatar}>
             <Text style={s.avatarInitials}>
-              {(fullName || email || '?').slice(0, 1).toUpperCase()}
+              {(name || '?').slice(0, 1).toUpperCase()}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.userName}>{fullName || email || 'Signed in'}</Text>
+            <Text style={s.userName}>{name || 'Signed in'}</Text>
             {email ? <Text style={s.userEmail}>{email}</Text> : null}
             {instanceUrl ? <Text style={s.userMeta}>{instanceUrl}</Text> : null}
           </View>
@@ -154,16 +156,8 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <Card title="App">
-        <InfoRow label="Installed" value={`v${APP_VERSION}`} />
-        <InfoRow label="Latest" value={`v${latest}`} />
-        {APK_VERSION !== APP_VERSION ? <InfoRow label="APK" value={`v${APK_VERSION}`} /> : null}
-        <InfoRow label="Code" value={codeLine} />
-        <View style={{ height: spacing.md }} />
-        <ApkUpdateSection />
-      </Card>
-
-      <Card title="Server">
+      <Card title="App & Server">
+        {/* Server first (site, Frappe, ERPNext, the app's own backend), then this app. */}
         <InfoRow label="Site" value={instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : '—'} />
         {siteApps === null ? (
           <InfoRow label="Apps" value="Loading…" />
@@ -172,6 +166,11 @@ export default function SettingsScreen() {
         ) : (
           siteApps.map((a) => <InfoRow key={a.label} label={a.label} value={`v${a.version}`} />)
         )}
+        <InfoRow label="Installed" value={`v${APP_VERSION}`} />
+        <InfoRow label="Latest" value={`v${latest}`} />
+        <InfoRow label="Code" value={codeLine} />
+        <View style={{ height: spacing.md }} />
+        <ApkUpdateSection />
       </Card>
 
       <Card title="Session">
@@ -192,7 +191,7 @@ export default function SettingsScreen() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.infoRow}>
-      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={[s.rowLabel, s.infoLabel]}>{label}</Text>
       <Text style={s.infoValue} numberOfLines={1}>
         {value}
       </Text>
@@ -228,6 +227,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     gap: spacing.md, paddingVertical: 4,
   },
+  infoLabel: { flexShrink: 1 },
   infoValue: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   rowLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   rowHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },

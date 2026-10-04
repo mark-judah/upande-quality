@@ -5,6 +5,7 @@ import {
   type IssueOfflineOutcome,
   type OfflineBucket,
   type OfflineOpl,
+  type SubstituteOptions,
 } from '../repository/karen-shelf-operations-repository';
 import type { IssueOfflineReason } from '../api/karen-shelf-operations-api';
 import { mapAxiosError } from '@/src/core/api/client';
@@ -38,6 +39,12 @@ type State = {
   offlineBuckets: OfflineBucket[];
   offlineBucketsLoading: boolean;
   allocatedBucket: string | null;
+  /** Buckets that can go out instead of the allocated one, and its earlier
+   *  not-found / wrong-variety reports — loaded when it is picked. */
+  substitutes: SubstituteOptions | null;
+  substitutesLoading: boolean;
+  /** The substitute the operator picked: the scan must be this bucket. */
+  chosenSubstitute: string | null;
   reason: IssueOfflineReason | null;
   /** Wrong variety: the allocated bucket's real details, for its record. */
   correctVariety: string;
@@ -63,12 +70,17 @@ type State = {
   setShelfFromScan: (raw: string) => { ok: boolean; message?: string; shelfId?: string };
   clearShelf: () => void;
   submitTransfer: (rawBucket: string) => Promise<TransferOutcome>;
+  /** The station's farm: a remote farm issues only its own buckets' OPLs. */
+  oplFarm: string;
+  setOplFarm: (farm: string) => void;
   loadOpls: () => Promise<void>;
   setOplDeliveryDate: (date: string) => Promise<void>;
   setOplTeam: (team: string) => void;
   selectOpl: (opl: string) => Promise<void>;
   selectAllocatedBucket: (bucket: string | null) => void;
-  setReason: (reason: IssueOfflineReason) => void;
+  chooseSubstitute: (bucket: string | null) => void;
+  /** null: back to scanning the allocated bucket itself. */
+  setReason: (reason: IssueOfflineReason | null) => void;
   setCorrectVariety: (variety: string) => void;
   setCorrectStemLength: (length: string) => void;
   submitIssueOffline: (rawBucket: string) => Promise<IssueOfflineOutcome>;
@@ -98,6 +110,9 @@ const ISSUE_OFFLINE_RESET = {
   offlineBuckets: [],
   offlineBucketsLoading: false,
   allocatedBucket: null,
+  substitutes: null,
+  substitutesLoading: false,
+  chosenSubstitute: null,
   reason: null,
   correctVariety: '',
   correctStemLength: '',
@@ -113,6 +128,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   opls: [],
   oplsLoading: false,
   oplDeliveryDate: localDay(1),
+  oplFarm: '',
   oplTeam: '',
   varieties: [],
   stemLengths: [],
@@ -182,7 +198,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     const date = get().oplDeliveryDate;
     set({ oplsLoading: true });
     try {
-      const opls = await karenShelfOperationsRepository.fetchOfflineIssueOpls(date);
+      const opls = await karenShelfOperationsRepository.fetchOfflineIssueOpls(date, get().oplFarm || undefined);
       // A slow answer for a date the operator has since moved off is dropped.
       if (get().oplDeliveryDate !== date) return;
       // Keep the team filter only while that team still has OPLs on this date.
@@ -192,6 +208,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       if (get().oplDeliveryDate === date) set({ oplsLoading: false });
     }
   },
+
+  setOplFarm: (oplFarm) => set({ oplFarm }),
 
   setOplDeliveryDate: async (oplDeliveryDate) => {
     // The picked OPL belongs to the old date's list: start over on the new one.
@@ -209,7 +227,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   selectOpl: async (opl) => {
     set({ ...ISSUE_OFFLINE_RESET, opl, offlineBucketsLoading: true });
     try {
-      const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl);
+      const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl, get().oplFarm || undefined);
       // A slow answer for an OPL the operator has since moved off is dropped.
       if (get().opl === opl) set({ offlineBuckets, offlineBucketsLoading: false });
     } catch {
@@ -217,11 +235,34 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     }
   },
 
-  selectAllocatedBucket: (allocatedBucket) =>
-    set({ allocatedBucket, correctVariety: '', correctStemLength: '', lastOfflineOutcome: null }),
+  selectAllocatedBucket: (allocatedBucket) => {
+    const opl = get().opl;
+    set({
+      allocatedBucket,
+      correctVariety: '',
+      correctStemLength: '',
+      lastOfflineOutcome: null,
+      substitutes: null,
+      chosenSubstitute: null,
+      substitutesLoading: !!(allocatedBucket && opl),
+    });
+    if (!allocatedBucket || !opl) return;
+    karenShelfOperationsRepository
+      .fetchSubstitutes(opl, allocatedBucket, get().oplFarm || undefined)
+      .then((substitutes) => {
+        // A slow answer for a bucket the operator has since moved off is dropped.
+        if (get().allocatedBucket === allocatedBucket) set({ substitutes, substitutesLoading: false });
+      })
+      .catch(() => {
+        if (get().allocatedBucket === allocatedBucket) set({ substitutesLoading: false });
+      });
+  },
+
+  chooseSubstitute: (chosenSubstitute) => set({ chosenSubstitute, lastOfflineOutcome: null }),
 
   setReason: (reason) => {
-    set({ reason, lastOfflineOutcome: null });
+    // Back to scanning the bucket itself: no substitute is picked any more.
+    set({ reason, lastOfflineOutcome: null, ...(reason ? {} : { chosenSubstitute: null }) });
     if (reason === 'wrong_variety' && !get().varieties.length) {
       karenShelfOperationsRepository
         .fetchVarieties()
@@ -248,12 +289,24 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     };
     if (!state.opl) return fail('Pick the OPL first.');
     if (!state.allocatedBucket) return fail('Pick the allocated bucket first.');
-    if (!state.reason) return fail('Say why it was not issued: not found or wrong variety.');
+    // No reason picked: the scan is the allocated bucket itself, found after all —
+    // it goes straight onto its line. Anything else needs Not found / Wrong variety.
     if (state.reason === 'wrong_variety' && !state.correctVariety && !state.correctStemLength.trim()) {
       return fail("Enter the allocated bucket's real variety or stem length.");
     }
     const scannedBucket = karenShelfOperationsRepository.extractBucketIdFromScan(rawBucket);
     if (!scannedBucket) return fail('Please scan a valid bucket QR code.');
+    const chosen = state.chosenSubstitute;
+    const same = (a: string, b: string) => a.toUpperCase() === b.toUpperCase();
+    if (!state.reason && !same(scannedBucket, state.allocatedBucket)) {
+      return fail(
+        `That's ${scannedBucket}, not ${state.allocatedBucket}. If ${state.allocatedBucket} can't be issued, ` +
+          'report it Not found or Wrong variety / stem length and scan the substitute.',
+      );
+    }
+    if (chosen && !same(scannedBucket, chosen) && !same(scannedBucket, state.allocatedBucket)) {
+      return fail(`You picked ${chosen}: scan ${chosen}, or pick ${scannedBucket} from the list first.`);
+    }
 
     set({ loading: true });
     try {
@@ -261,17 +314,25 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
         oplName: state.opl,
         allocatedBucket: state.allocatedBucket,
         scannedBucket,
-        reason: state.reason,
+        reason: state.reason ?? 'found',
         variety: state.reason === 'wrong_variety' ? state.correctVariety : undefined,
         stemLength: state.reason === 'wrong_variety' ? state.correctStemLength.trim() : undefined,
+        farm: state.oplFarm || undefined,
       });
       set({ loading: false, lastOfflineOutcome: outcome });
       if (outcome.kind === 'success') {
         // The bucket is done: drop it from the list and refresh the OPL's progress.
-        set({ allocatedBucket: null, reason: null, correctVariety: '', correctStemLength: '' });
+        set({
+          allocatedBucket: null,
+          reason: null,
+          correctVariety: '',
+          correctStemLength: '',
+          substitutes: null,
+          chosenSubstitute: null,
+        });
         const opl = state.opl;
         karenShelfOperationsRepository
-          .fetchOfflineIssueBuckets(opl)
+          .fetchOfflineIssueBuckets(opl, get().oplFarm || undefined)
           .then((offlineBuckets) => {
             if (get().opl === opl) set({ offlineBuckets });
           })
@@ -397,6 +458,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       lastTransferOutcome: null,
       ...ISSUE_OFFLINE_RESET,
       oplDeliveryDate: localDay(1),
+  oplFarm: '',
       oplTeam: '',
       coldstore: null,
       stockTakeScans: [],

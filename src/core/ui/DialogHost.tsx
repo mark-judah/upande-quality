@@ -81,12 +81,15 @@ export function DialogHost() {
             <Button
               key={`${b.text}-${i}`}
               label={b.text}
+              // Slim, single-line, all the same height in every pop-up.
+              size="sm"
+              singleLine
               variant={b.style === 'cancel' ? 'outline' : 'primary'}
               color={b.style === 'destructive' ? COLORS.danger : undefined}
               loading={busy === i}
               disabled={busy != null && busy !== i}
               onPress={() => press(b, i)}
-              style={{ flex: 1 }}
+              style={{ flexGrow: 1, flexBasis: 0, minWidth: 110 }}
             />
           ))}
         </>

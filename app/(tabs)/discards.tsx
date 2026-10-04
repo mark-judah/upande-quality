@@ -11,7 +11,7 @@ export default function DiscardsRoute() {
   }
 
   return (
-    <RequireStation next="/discards">
+    <RequireStation next="/discards" title="Discards">
       {(station) => <KarenDiscardsScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

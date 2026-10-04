@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { Button } from './Button';
 import { SideMenu } from './SideMenu';
+import { SkeletonCards } from './SkeletonCards';
 
 type Props = {
   title?: string;
@@ -64,9 +64,10 @@ export function Screen({
 
   let body: ReactNode;
   if (loading) {
+    // Skeleton cards, not a spinner: the page keeps its shape while it loads.
     body = (
-      <View style={s.center}>
-        <ActivityIndicator size="large" color={COLORS.text} />
+      <View style={[s.flex, padding]}>
+        <SkeletonCards />
       </View>
     );
   } else if (error) {

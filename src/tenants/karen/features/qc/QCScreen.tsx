@@ -3,10 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { useKarenQcStore } from '@/src/tenants/karen/state/karen-qc-store';
 import { InspectionMode } from './InspectionMode';
 import { QuarantineMode } from './QuarantineMode';
@@ -52,9 +53,7 @@ export function KarenQcScreen({ userFarm: _userFarm, userGreenhouse }: Props) {
       <ScanAndBatchSection scanRef={scanRef} onError={showError} />
 
       {parametersLoading && parameters.length === 0 ? (
-        <Card>
-          <Text style={s.muted}>Loading quality concerns…</Text>
-        </Card>
+        <SkeletonCards cards={2} rows={4} />
       ) : isQuarantineMode ? (
         <QuarantineMode />
       ) : (
@@ -106,7 +105,7 @@ function ScanAndBatchSection({
 
       {batch ? (
         <Card>
-          <Text style={s.batchTitle}>BATCH {batch.batchNo || '—'}</Text>
+          <Text style={s.batchTitle} numberOfLines={1}>BATCH {batch.batchNo || '—'}</Text>
           <Text style={s.muted}>
             Farm: {batch.farm || '—'} • {batch.company || '—'}
           </Text>
@@ -135,10 +134,10 @@ function ScanAndBatchSection({
 }
 
 const s = StyleSheet.create({
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  loadingText: { fontSize: 12, color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
-  batchTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  chipRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'space-between' },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  loadingText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
+  batchTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(18), color: COLORS.text },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12, justifyContent: 'space-between' },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -147,6 +146,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  chipText: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  warn: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginTop: 12 },
+  chipText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  warn: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginTop: 12 },
 });

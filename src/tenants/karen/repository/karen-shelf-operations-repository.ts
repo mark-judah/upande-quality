@@ -2,7 +2,7 @@ import {
   karenShelfOperationsApi,
   type RawTransferPayload,
   type RawTransferResponse,
-  type IssueOfflineReason,
+  type IssueOfflineScanReason,
   type RawOfflineBucket,
   type RawOfflineOpl,
   type RawStockTakeSyncResponse,
@@ -40,6 +40,8 @@ export type OfflineOpl = {
   deliveryDate: string | null;
   issuedPct: number;
   openBuckets: number;
+  /** Varieties on the OPL, shown in the list before it is opened. */
+  varieties: string[];
 };
 
 export type OfflineBucket = {
@@ -49,13 +51,35 @@ export type OfflineBucket = {
   stems: number;
   shelf: string | null;
   onShelf: boolean;
+  /** A remote-transfer bucket on a trolley or truck, not arrived yet. */
+  inTransit: boolean;
 };
 
 export type ReplacementCandidate = {
   bucket: string;
+  variety: string | null;
   shelf: string | null;
   stemLength: string | null;
   stems: number | null;
+};
+
+/** An earlier time this bucket went through offline issuing (not found or
+ *  wrong variety). */
+export type OfflineHistory = {
+  reason: 'not_found' | 'wrong_variety';
+  status: string | null;
+  newBucket: string | null;
+  oplName: string | null;
+  orderName: string | null;
+  reportedBy: string | null;
+  reportedAt: string | null;
+};
+
+export type SubstituteOptions = {
+  candidates: ReplacementCandidate[];
+  /** Why there are none, when there are none. */
+  message: string | null;
+  history: OfflineHistory[];
 };
 
 export type IssueOfflineOutcome =
@@ -151,8 +175,9 @@ export const karenShelfOperationsRepository = {
     return { kind: 'error', message: pickMessage(raw, 'Transfer failed.') };
   },
 
-  async fetchOfflineIssueOpls(deliveryDate?: string): Promise<OfflineOpl[]> {
-    const rows: RawOfflineOpl[] = await karenShelfOperationsApi.fetchOfflineIssueOpls(deliveryDate);
+  /** A remote `farm` gets only the OPLs with its buckets; the sales farm gets all. */
+  async fetchOfflineIssueOpls(deliveryDate?: string, farm?: string): Promise<OfflineOpl[]> {
+    const rows: RawOfflineOpl[] = await karenShelfOperationsApi.fetchOfflineIssueOpls(deliveryDate, farm);
     return rows.map((r) => ({
       oplName: r.opl_name,
       orderName: r.order_name || r.opl_name,
@@ -161,11 +186,12 @@ export const karenShelfOperationsRepository = {
       deliveryDate: r.delivery_date ?? null,
       issuedPct: typeof r.issued_pct === 'number' ? r.issued_pct : 0,
       openBuckets: typeof r.open_buckets === 'number' ? r.open_buckets : 0,
+      varieties: Array.isArray(r.varieties) ? r.varieties : [],
     }));
   },
 
-  async fetchOfflineIssueBuckets(oplName: string): Promise<OfflineBucket[]> {
-    const rows: RawOfflineBucket[] = await karenShelfOperationsApi.fetchOfflineIssueBuckets(oplName);
+  async fetchOfflineIssueBuckets(oplName: string, farm?: string): Promise<OfflineBucket[]> {
+    const rows: RawOfflineBucket[] = await karenShelfOperationsApi.fetchOfflineIssueBuckets(oplName, farm);
     return rows.map((r) => ({
       bucket: r.bucket,
       variety: r.variety ?? null,
@@ -173,6 +199,7 @@ export const karenShelfOperationsRepository = {
       stems: typeof r.stems === 'number' ? r.stems : 0,
       shelf: r.shelf ?? null,
       onShelf: !!r.on_shelf,
+      inTransit: !!r.in_transit,
     }));
   },
 
@@ -180,9 +207,10 @@ export const karenShelfOperationsRepository = {
     oplName: string;
     allocatedBucket: string;
     scannedBucket: string;
-    reason: IssueOfflineReason;
+    reason: IssueOfflineScanReason;
     variety?: string;
     stemLength?: string;
+    farm?: string;
   }): Promise<IssueOfflineOutcome> {
     const raw = await karenShelfOperationsApi.issueOffline(args);
     if (raw.success) {
@@ -201,9 +229,33 @@ export const karenShelfOperationsRepository = {
       message: pickMessage(raw, 'Issue failed.'),
       candidates: (raw.candidates ?? []).map((c) => ({
         bucket: c.new_bucket,
+        variety: c.variety ?? null,
         shelf: c.shelf ?? null,
         stemLength: c.stem_length ?? null,
         stems: typeof c.available_qty === 'number' ? c.available_qty : null,
+      })),
+    };
+  },
+
+  async fetchSubstitutes(oplName: string, bucket: string, farm?: string): Promise<SubstituteOptions> {
+    const raw = await karenShelfOperationsApi.fetchReplacementOptions(oplName, bucket, farm);
+    return {
+      candidates: (raw.candidates ?? []).map((c) => ({
+        bucket: c.new_bucket,
+        variety: c.variety ?? null,
+        shelf: c.shelf ?? null,
+        stemLength: c.stem_length ?? null,
+        stems: typeof c.available_qty === 'number' ? c.available_qty : null,
+      })),
+      message: raw.found === false ? raw.message ?? null : null,
+      history: (raw.history ?? []).map((h) => ({
+        reason: h.reason,
+        status: h.status ?? null,
+        newBucket: h.new_bucket ?? null,
+        oplName: h.opl_name ?? null,
+        orderName: h.order_name ?? null,
+        reportedBy: h.reported_by ?? null,
+        reportedAt: h.reported_at ?? null,
       })),
     };
   },
@@ -233,6 +285,7 @@ export const karenShelfOperationsRepository = {
             shelf: r.payload.shelf ?? null,
             variety: r.payload.variety ?? null,
             stemLength: r.payload.stem_length ?? null,
+            qty: typeof r.payload.qty === 'number' ? r.payload.qty : null,
             ageDays: typeof r.payload.age_days === 'number' ? r.payload.age_days : null,
           };
         }

@@ -131,7 +131,7 @@ export function KarenPackhouseCleaningScreen() {
               <LabeledInput label="Rate" iconName="speedometer" value={detRate} onChangeText={setDetRate} keyboardType="decimal-pad" placeholder="0" />
             </View>
             <View style={{ width: 12 }} />
-            <View style={{ width: 120 }}>
+            <View style={{ width: '40%', maxWidth: 120 }}>
               <Dropdown label="Unit" value={detUnit} options={opts(RATE_UNITS)} searchable={false} onChange={setDetUnit} />
             </View>
           </View>
@@ -156,7 +156,7 @@ export function KarenPackhouseCleaningScreen() {
               <LabeledInput label="Rate" iconName="speedometer" value={disRate} onChangeText={setDisRate} keyboardType="decimal-pad" placeholder="0" />
             </View>
             <View style={{ width: 12 }} />
-            <View style={{ width: 120 }}>
+            <View style={{ width: '40%', maxWidth: 120 }}>
               <Dropdown label="Unit" value={disUnit} options={opts(RATE_UNITS)} searchable={false} onChange={setDisUnit} />
             </View>
           </View>

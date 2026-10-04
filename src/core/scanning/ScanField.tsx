@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { audio } from '@/src/core/audio';
 
 export type ScanFieldHandle = {
@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   input: {
+    fontFamily: fontFamily.regular,
     flex: 1,
     minHeight: 44,
     borderWidth: 1,
@@ -175,7 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },

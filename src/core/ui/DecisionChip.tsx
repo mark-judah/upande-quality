@@ -39,6 +39,6 @@ const s = StyleSheet.create({
   },
   chipSelected: { borderColor: COLORS.text, backgroundColor: COLORS.text },
   chipDisabled: { opacity: 0.4 },
-  label: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
+  label: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, textAlign: 'center' },
   labelSelected: { fontFamily: fontFamily.semiBold, color: COLORS.textOnPrimary },
 });

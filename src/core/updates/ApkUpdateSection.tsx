@@ -8,6 +8,7 @@ import { formatBytes, RELEASES_PAGE_URL } from './releases';
 import { openInBrowser, openUnknownAppSourcesSettings } from './install-apk';
 import { useApkUpdate } from './UpdateProvider';
 import { showDialog } from '@/src/core/ui/DialogHost';
+import { useNetworkStore } from '@/src/core/network/store';
 
 /**
  * The one "Check for updates" button in Settings → App. A new APK is checked
@@ -22,6 +23,7 @@ export function ApkUpdateSection() {
   const available = !!check?.available;
   const { showSuccess, showError } = useToast();
   const [otaChecking, setOtaChecking] = useState(false);
+  const online = useNetworkStore((st) => st.online);
 
   const label = useMemo(() => {
     if (downloading) {
@@ -62,10 +64,10 @@ export function ApkUpdateSection() {
         { name: 'cloud-download-outline', tone: 'success' },
       );
     } catch (err) {
-      // expo-updates wraps the real reason as "Call to function … has been rejected. → Caused by: …".
-      const message = err instanceof Error ? err.message : '';
-      const cause = message.split('Caused by:').pop()?.trim();
-      showError(cause ? `Could not check for updates: ${cause}` : 'Could not check for updates.');
+      // expo-updates' own text ("Call to function … rejected → Caused by: …") is
+      // for the logs; the person gets a plain sentence.
+      if (__DEV__) console.warn('[update] JS update check failed:', err);
+      showError("Couldn't check for updates. Try again in a moment.");
     } finally {
       setOtaChecking(false);
     }
@@ -78,11 +80,17 @@ export function ApkUpdateSection() {
       await install();
       return;
     }
+    // No internet: say so, without trying -- "could not reach" is for a phone that
+    // is online but cannot get to the update page.
+    if (!online) {
+      showError("You're offline. Connect to the internet to check for updates.");
+      return;
+    }
     const result = await refresh();
     // A newer APK turns this button into its download; the status line says so.
     if (result?.available) return;
     await checkOta(result !== null);
-  }, [downloading, checking, otaChecking, available, install, refresh, checkOta]);
+  }, [downloading, checking, otaChecking, available, install, refresh, checkOta, online, showError]);
 
   const onInstallErrorHelp = useCallback(() => {
     if (!installError) return;
@@ -105,15 +113,14 @@ export function ApkUpdateSection() {
 
   let status: string | null = null;
   if (check) {
+    // Only news is shown: being up to date needs no line of its own.
     if (available && apk) status = `v${apk.version} is available as a new APK.`;
-    else if (apk) status = `Latest APK is v${apk.version} — this build is up to date.`;
-    else status = 'No APK has been published yet.';
   }
 
   return (
     <View>
       {status ? <Text style={[s.hint, available && s.accent]}>{status}</Text> : null}
-      {checkError ? (
+      {checkError && !(checkError.kind === 'offline' && !online) ? (
         <Text style={s.error}>
           {checkError.message}
           {checkError.kind === 'rate_limited' ? (
