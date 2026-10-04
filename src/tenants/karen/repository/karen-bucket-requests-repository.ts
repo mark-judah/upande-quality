@@ -670,7 +670,7 @@ export const karenBucketRequestsRepository = {
     const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
     if (m.status === 'success') {
       const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;
-      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next run` : ''}.` };
+      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next trip` : ''}.` };
     }
     return { kind: 'error', message: m.message ?? 'Could not close the stop.' };
   },

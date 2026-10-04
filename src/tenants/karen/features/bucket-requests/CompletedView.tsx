@@ -154,7 +154,7 @@ function TripDone({
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.truckText} numberOfLines={1}>
             {trip.vehicle}
-            {trip.run ? ` · run ${trip.run}${trip.runs ? ` of ${trip.runs}` : ''}` : ''}
+            {trip.run ? ` · trip ${trip.run}${trip.runs ? ` of ${trip.runs}` : ''}` : ''}
           </Text>
         </View>
         <View style={[s.pill, short ? s.pillShort : s.pillDone]}>

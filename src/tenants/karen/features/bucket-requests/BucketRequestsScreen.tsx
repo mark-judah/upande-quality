@@ -1251,7 +1251,7 @@ function RequestsTab({
                 <Text style={s.stepMeta} numberOfLines={1}>
                   {[
                     t.vehicle,
-                    t.run ? `run ${t.run}${t.runs > 1 ? ` of ${t.runs}` : ''}` : '',
+                    t.run ? `trip ${t.run}${t.runs > 1 ? ` of ${t.runs}` : ''}` : '',
                     `${t.farmBuckets} bkt`,
                   ]
                     .filter(Boolean)
@@ -2122,7 +2122,7 @@ function TripCard({
             <>
               <Text style={s.leaveNote}>
                 {forStop - onTruck} bucket{forStop - onTruck === 1 ? '' : 's'} not on the truck — they go on its
-                next run. Why is it leaving short?
+                next trip. Why is it leaving short?
               </Text>
               <View style={s.reasonRow}>
                 {SHORT_REASONS.map((r) => (
