@@ -29,7 +29,7 @@ const LOGO = require('@/assets/images/upande_logo.png');
  * Two steps, the same shape as Upande Sensors:
  *
  *   1. Instance — pick one this device has signed in to before, or type a new
- *      URL. Shown first on a fresh install, and again via "Change".
+ *      URL. Shown first on a fresh install, and again via the pencil.
  *   2. Credentials — or, when biometric unlock is set up for the chosen
  *      instance, a single "Sign in with fingerprint" card.
  *
@@ -228,12 +228,18 @@ export default function Login() {
           <Image source={LOGO} style={s.logo} resizeMode="contain" />
           <Text style={s.appName}>{APP_NAME}</Text>
           {!instanceOpen && url ? (
-            <Pressable onPress={openInstanceEditor} hitSlop={8} style={s.instancePill}>
+            <Pressable
+              onPress={openInstanceEditor}
+              hitSlop={8}
+              style={s.instancePill}
+              accessibilityRole="button"
+              accessibilityLabel="Change instance"
+            >
               <Ionicons name="server-outline" size={14} color={COLORS.textSecondary} />
               <Text style={s.instancePillText} numberOfLines={1}>
                 {instanceLabel(url)}
               </Text>
-              <Text style={s.instancePillAction}>Change</Text>
+              <Ionicons name="pencil" size={14} color={COLORS.primary} style={s.instancePillAction} />
             </Pressable>
           ) : null}
         </View>
@@ -425,7 +431,7 @@ const s = StyleSheet.create({
     maxWidth: '100%',
   },
   instancePillText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary, flexShrink: 1 },
-  instancePillAction: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary, marginLeft: spacing.xs },
+  instancePillAction: { marginLeft: spacing.xs },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: borderRadius.md,
