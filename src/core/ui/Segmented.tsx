@@ -36,6 +36,8 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
   );
 
   const padding = 4;
+  // Label plus count: tighter top/bottom padding so the two lines stay a slim bar.
+  const twoLine = options.some((o) => o.count != null);
   const innerWidth = Math.max(0, containerWidth - padding * 2);
   const segmentWidth = options.length > 0 ? innerWidth / options.length : 0;
   const anim = useRef(new Animated.Value(activeIndex)).current;
@@ -79,7 +81,7 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
             key={opt.value}
             onPress={() => onChange(opt.value)}
             activeOpacity={0.7}
-            style={s.btn}
+            style={[s.btn, twoLine && s.btnTwoLine]}
           >
             {/* Shrinks to fit rather than truncating ("Not shelved (3)" on a
                 four-tab bar was cut to "Not shelved..."). */}
@@ -140,5 +142,12 @@ const s = StyleSheet.create({
     alignSelf: 'stretch',
   },
   labelActive: { fontFamily: fontFamily.semiBold, color: COLORS.text },
-  count: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, textAlign: 'center' },
+  count: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    lineHeight: fontSize.xs + 2,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+  },
+  btnTwoLine: { paddingVertical: 3 },
 });
