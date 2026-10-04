@@ -88,7 +88,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnSm: { paddingVertical: 6, paddingHorizontal: spacing.md, minHeight: 32 },
+  // Small: one fixed height, so side-by-side buttons always line up.
+  btnSm: { paddingVertical: 6, paddingHorizontal: spacing.md, minHeight: 34, height: 34 },
   inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
   label: { fontFamily: fontFamily.bold, fontSize: fontSize.md, flexShrink: 1, textAlign: 'center' },
   labelSm: { fontFamily: fontFamily.regular, fontSize: fontSize.sm },
