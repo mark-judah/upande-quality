@@ -570,6 +570,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {tab === 'requests' ? (
           <RequestsTab
+            farm={userFarm}
+            hub={shelvedHub}
             groups={requests}
             schedules={schedules}
             plannedTrips={plannedTrips}
@@ -1031,6 +1033,8 @@ function ClearDataModal({
  *  truck, this farm's stop and "Truck leaving"), then the orders not on a trip yet —
  *  one list, so trips and requests are not two places to look. */
 function RequestsTab({
+  farm,
+  hub,
   groups,
   schedules,
   plannedTrips,
@@ -1043,6 +1047,9 @@ function RequestsTab({
   replacingId,
   onReplace,
 }: {
+  /** This station's farm and the packhouse it sends to: an order's trip reads "farm → hub". */
+  farm: string;
+  hub: string;
   groups: OrderGroup[];
   schedules: OplSchedule[];
   plannedTrips: PlannedTrip[];
@@ -1134,13 +1141,9 @@ function RequestsTab({
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
-    // The trip the order rides: "KBX 123A · Trip 1 of 2".
-    const ride = plannedTrips.find((t) => (t.orders ?? []).some((o) => g.opls.some((p) => p.oplName === o.opl)));
-    const tripLine = ride
-      ? [ride.vehicle, ride.run ? `Trip ${ride.run}${ride.runs > 1 ? ` of ${ride.runs}` : ''}` : '']
-          .filter(Boolean)
-          .join(' · ')
-      : '';
+    // The trip the order rides, as where it goes: "Chepsito → Kapkolia".
+    const ride = plannedTrips.some((t) => (t.orders ?? []).some((o) => g.opls.some((p) => p.oplName === o.opl)));
+    const tripLine = ride && farm ? `${farm} → ${hub || 'Kapkolia'}` : '';
     // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
       <View style={s.groupLine}>
