@@ -516,6 +516,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               </Pressable>
             </View>
           ) : null}
+          {/* Delivery date on the right of the scan head. */}
+          {dateChoices.length ? (
+            <View style={s.scanDate}>
+              <Text style={s.dateLabel}>Delivery date</Text>
+              {dateChoices.map((d) => (
+                <Pressable
+                  key={d}
+                  onPress={() => setDeliveryDate(d, userFarm)}
+                  style={[s.dateChip, deliveryDate === d && s.dateChipOn]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: deliveryDate === d }}
+                >
+                  <Text style={[s.dateText, deliveryDate === d && s.dateTextOn]}>{dateLabel(d)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
         <ScanField
           ref={scanRef}
@@ -563,18 +580,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
         {dateChoices.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
-            <Text style={s.dateLabel}>Delivery date</Text>
-            {dateChoices.map((d) => (
-              <Pressable
-                key={d}
-                onPress={() => setDeliveryDate(d, userFarm)}
-                style={[s.dateChip, deliveryDate === d && s.dateChipOn]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: deliveryDate === d }}
-              >
-                <Text style={[s.dateText, deliveryDate === d && s.dateTextOn]}>{dateLabel(d)}</Text>
-              </Pressable>
-            ))}
             <Pressable
               onPress={openCompleted}
               style={[s.dateChip, completedView && s.dateChipOn]}
@@ -2358,8 +2363,10 @@ const s = StyleSheet.create({
     zIndex: 2,
     elevation: 4,
   },
+  scanDate: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: 'auto' },
   scanHead: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
