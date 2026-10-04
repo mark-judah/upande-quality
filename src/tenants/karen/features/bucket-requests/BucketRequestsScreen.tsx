@@ -1210,16 +1210,8 @@ function RequestsTab({
 
       {steps.map((t, i) => {
         const tripGroups = onTrip(t.tripId);
-        const last = i === steps.length - 1;
         return (
           <View key={t.tripId} style={s.step}>
-            {/* Step rail: number, then a line down to the next trip. */}
-            <View style={s.stepRail}>
-              <View style={[s.stepDot, t.current ? s.stepDotCurrent : null]}>
-                <Text style={[s.stepNum, t.current ? s.stepNumCurrent : null]}>{i + 1}</Text>
-              </View>
-              {!last ? <View style={s.stepLine} /> : null}
-            </View>
             <View style={[s.stepBody, !t.current ? s.stepBodyLater : null]}>
               {/* One card per trip: the trip, then its picklists still to scan. */}
               <TripCard
@@ -1234,6 +1226,10 @@ function RequestsTab({
                   <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
                 )}
               </TripCard>
+            </View>
+            {/* The trip's number, floating on the card's top-left corner. */}
+            <View style={[s.stepDot, s.stepDotFloat, t.current ? s.stepDotCurrent : null]} pointerEvents="none">
+              <Text style={[s.stepNum, t.current ? s.stepNumCurrent : null]}>{i + 1}</Text>
             </View>
           </View>
         );
@@ -2033,8 +2029,8 @@ function TripCard({
 const SHELVED_GREEN = '#067647';
 
 const s = StyleSheet.create({
-  step: { flexDirection: 'row', gap: spacing.sm },
-  stepRail: { width: 28, alignItems: 'center' },
+  // Room above and left of each trip card for its floating number.
+  step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.xs },
   stepDot: {
     width: 28,
     height: 28,
@@ -2045,10 +2041,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  stepDotFloat: { position: 'absolute', top: -10, left: -6, zIndex: 2, elevation: 3 },
   stepDotCurrent: { borderColor: COLORS.text, backgroundColor: COLORS.text },
   stepNum: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.textMuted },
   stepNumCurrent: { color: COLORS.surface },
-  stepLine: { flex: 1, width: 2, backgroundColor: COLORS.border, marginVertical: spacing.xs },
   stepBody: { flex: 1, minWidth: 0, paddingBottom: spacing.lg },
   stepBodyLater: { opacity: 0.75 },
   // An order inside its trip's card: a section under a thin rule, its picklists
