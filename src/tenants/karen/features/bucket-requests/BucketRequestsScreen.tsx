@@ -1141,13 +1141,10 @@ function RequestsTab({
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
-    // The trip the order rides, as where it goes: "Chepsito → Kapkolia".
-    const ride = plannedTrips.some((t) => (t.orders ?? []).some((o) => g.opls.some((p) => p.oplName === o.opl)));
-    const tripLine = ride && farm ? `${farm} → ${hub || 'Kapkolia'}` : '';
     // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
       <View>
-        {/* Row 1: order name left, team right. Then the customer, then the route. */}
+        {/* Row 1: order name left, team right; the customer under it. */}
         <View style={s.groupLine}>
           {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
           <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]} numberOfLines={1}>
@@ -1158,11 +1155,6 @@ function RequestsTab({
         {customer ? (
           <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
             {customer}
-          </Text>
-        ) : null}
-        {tripLine ? (
-          <Text style={s.groupTrip} numberOfLines={1}>
-            {tripLine}
           </Text>
         ) : null}
       </View>
@@ -1263,6 +1255,7 @@ function RequestsTab({
               {/* One card per trip: the trip, then its picklists still to scan. */}
               <TripCard
                 trip={t}
+                route={farm ? `${farm} → ${hub || 'Kapkolia'}` : undefined}
                 scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
                 scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
               >
@@ -1999,11 +1992,15 @@ const STOP_UI: Record<
 
 function TripCard({
   trip,
+  route,
   scanned = 0,
   scanTotal = 0,
   children,
 }: {
   trip: PlannedTrip;
+  /** Where this farm's buckets go on the trip ("Chepsito → Kapkolia"): the
+   *  heading of this farm's stop section. */
+  route?: string;
   /** This farm's buckets on the trip scanned so far, of `scanTotal`: the
    *  progress shown at "Your stop". */
   scanned?: number;
@@ -2037,7 +2034,9 @@ function TripCard({
       <View style={s.divider} />
       {/* Only this farm's stop: other farms' transfers on the same truck stay with them. */}
       <View style={s.yourStopHead}>
-        <Text style={s.routeLabel}>Your stop</Text>
+        <Text style={[s.routeLabel, s.stopRoute]} numberOfLines={1}>
+          {route || 'Your stop'}
+        </Text>
         {ui ? <Text style={[s.yourStopStatus, { color: ui.color }]}>{ui.label}</Text> : null}
       </View>
       {scanTotal > 0 ? (
@@ -2105,11 +2104,11 @@ const s = StyleSheet.create({
   shelvedStateWaiting: { color: COLORS.warn },
   // Requests trip card
   yourStopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  stopRoute: { flexShrink: 1 },
   yourStopStatus: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm },
   yourStopScan: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: spacing.xs },
   groupLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   groupNames: { flex: 1, minWidth: 0 },
-  groupTrip: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   // Scanned buckets: folded under one green line, struck through when shown.
   bDone: { color: SHELVED_GREEN, textDecorationLine: 'line-through' },
   doneToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: spacing.sm },
