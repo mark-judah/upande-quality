@@ -247,7 +247,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     });
     if (!allocatedBucket || !opl) return;
     karenShelfOperationsRepository
-      .fetchSubstitutes(opl, allocatedBucket)
+      .fetchSubstitutes(opl, allocatedBucket, get().oplFarm || undefined)
       .then((substitutes) => {
         // A slow answer for a bucket the operator has since moved off is dropped.
         if (get().allocatedBucket === allocatedBucket) set({ substitutes, substitutesLoading: false });
@@ -308,6 +308,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
         reason: state.reason,
         variety: state.reason === 'wrong_variety' ? state.correctVariety : undefined,
         stemLength: state.reason === 'wrong_variety' ? state.correctStemLength.trim() : undefined,
+        farm: state.oplFarm || undefined,
       });
       set({ loading: false, lastOfflineOutcome: outcome });
       if (outcome.kind === 'success') {

@@ -13,7 +13,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 
-type Option = { label: string; value: string; sublabel?: string };
+type Option = {
+  label: string;
+  value: string;
+  sublabel?: string;
+  /** The label in pieces, some bold (e.g. the varieties and team of an OPL).
+   *  `label` is still what search matches. */
+  labelParts?: { text: string; bold?: boolean }[];
+};
+
+function OptionLabel({ option }: { option: Option }) {
+  if (!option.labelParts?.length) return <>{option.label}</>;
+  return (
+    <>
+      {option.labelParts.map((p, i) => (
+        <Text key={i} style={p.bold ? s.bold : undefined}>
+          {p.text}
+        </Text>
+      ))}
+    </>
+  );
+}
 
 type Props = {
   label: string;
@@ -78,7 +98,7 @@ export function Dropdown({
           ]}
           numberOfLines={1}
         >
-          {selected?.label ?? placeholder ?? 'Select…'}
+          {selected ? <OptionLabel option={selected} /> : placeholder ?? 'Select…'}
         </Text>
         <Ionicons
           name="chevron-down"
@@ -142,7 +162,7 @@ export function Dropdown({
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[s.rowText, isSelected && { fontFamily: fontFamily.semiBold }]}>
-                        {item.label}
+                        <OptionLabel option={item} />
                       </Text>
                       {item.sublabel ? <Text style={s.rowSub}>{item.sublabel}</Text> : null}
                     </View>
@@ -164,6 +184,7 @@ export function Dropdown({
 }
 
 const s = StyleSheet.create({
+  bold: { fontFamily: fontFamily.bold, color: COLORS.text },
   wrap: { marginBottom: spacing.md },
   wrapCompact: { marginBottom: 0 },
   fieldCompact: { minHeight: 30 },

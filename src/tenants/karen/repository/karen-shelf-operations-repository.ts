@@ -51,6 +51,8 @@ export type OfflineBucket = {
   stems: number;
   shelf: string | null;
   onShelf: boolean;
+  /** A remote-transfer bucket on a trolley or truck, not arrived yet. */
+  inTransit: boolean;
 };
 
 export type ReplacementCandidate = {
@@ -196,6 +198,7 @@ export const karenShelfOperationsRepository = {
       stems: typeof r.stems === 'number' ? r.stems : 0,
       shelf: r.shelf ?? null,
       onShelf: !!r.on_shelf,
+      inTransit: !!r.in_transit,
     }));
   },
 
@@ -206,6 +209,7 @@ export const karenShelfOperationsRepository = {
     reason: IssueOfflineReason;
     variety?: string;
     stemLength?: string;
+    farm?: string;
   }): Promise<IssueOfflineOutcome> {
     const raw = await karenShelfOperationsApi.issueOffline(args);
     if (raw.success) {
@@ -231,8 +235,8 @@ export const karenShelfOperationsRepository = {
     };
   },
 
-  async fetchSubstitutes(oplName: string, bucket: string): Promise<SubstituteOptions> {
-    const raw = await karenShelfOperationsApi.fetchReplacementOptions(oplName, bucket);
+  async fetchSubstitutes(oplName: string, bucket: string, farm?: string): Promise<SubstituteOptions> {
+    const raw = await karenShelfOperationsApi.fetchReplacementOptions(oplName, bucket, farm);
     return {
       candidates: (raw.candidates ?? []).map((c) => ({
         bucket: c.new_bucket,

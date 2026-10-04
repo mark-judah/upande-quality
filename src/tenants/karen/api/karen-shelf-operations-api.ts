@@ -156,11 +156,13 @@ export const karenShelfOperationsApi = {
 
   /** Buckets that can stand in for `bucket` on the OPL, and the bucket's earlier
    *  not-found / wrong-variety reports. */
-  async fetchReplacementOptions(oplName: string, bucket: string): Promise<RawReplacementOptions> {
+  async fetchReplacementOptions(oplName: string, bucket: string, farm?: string): Promise<RawReplacementOptions> {
     const res = await api<{ message?: RawReplacementOptions }>({
       method: 'GET',
       url: `${OFFLINE_ISSUE}.replacement_options`,
-      params: { opl_name: oplName, bucket, limit: 20 },
+      // `farm`: the station — substitutes come from there, and a remote-transfer
+      // bucket that left its farm but never arrived can be replaced.
+      params: { opl_name: oplName, bucket, limit: 20, ...(farm ? { farm } : {}) },
     });
     return res.message ?? {};
   },
@@ -175,6 +177,7 @@ export const karenShelfOperationsApi = {
     variety?: string;
     stemLength?: string;
     notes?: string;
+    farm?: string;
   }): Promise<RawIssueOfflineResponse> {
     const res = await api<{ message?: RawIssueOfflineResponse }>({
       method: 'POST',
@@ -187,6 +190,7 @@ export const karenShelfOperationsApi = {
         variety: args.variety || undefined,
         stem_length: args.stemLength || undefined,
         notes: args.notes || undefined,
+        farm: args.farm || undefined,
       },
       // A swap can wait on stock locks and retry (see offline_issue._swap).
       timeout: 120000,

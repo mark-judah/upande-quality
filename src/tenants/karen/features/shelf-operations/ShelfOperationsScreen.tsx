@@ -391,6 +391,13 @@ export function KarenShelfOperationsScreen({
                 label: [o.varieties.join(', '), o.orderName, o.team || NO_TEAM, `${o.issuedPct}% issued`]
                   .filter(Boolean)
                   .join(' · '),
+                // Varieties and team in bold, to read at a glance.
+                labelParts: [
+                  ...(o.varieties.length ? [{ text: o.varieties.join(', '), bold: true }, { text: ' · ' }] : []),
+                  { text: `${o.orderName} · ` },
+                  { text: o.team || NO_TEAM, bold: true },
+                  { text: ` · ${o.issuedPct}% issued` },
+                ],
                 value: o.oplName,
                 sublabel: [o.customer, o.oplName].filter(Boolean).join(' · '),
               }))}
@@ -429,7 +436,7 @@ export function KarenShelfOperationsScreen({
                       <View style={s.flex}>
                         <Text style={s.pickTitle}>{b.bucket}</Text>
                         <Text style={s.pickDetail}>
-                          {[b.variety, b.stemLength, `${b.stems} stems`, b.shelf ?? 'not on a shelf']
+                          {[b.variety, b.stemLength, `${b.stems} stems`, b.inTransit ? 'on the way from the farm' : (b.shelf ?? 'not on a shelf')]
                             .filter(Boolean)
                             .join(' · ')}
                         </Text>
@@ -513,7 +520,7 @@ export function KarenShelfOperationsScreen({
             ) : null}
             {reason ? (
               <View>
-                <Text style={s.sheetLabel}>Substitute buckets</Text>
+                <Text style={s.sheetLabel}>Pick a substitute</Text>
                 {substitutesLoading ? (
                   <View style={{ gap: 10, marginBottom: 8 }}>
                     <Skeleton width={'70%'} height={14} />
@@ -549,7 +556,7 @@ export function KarenShelfOperationsScreen({
                     {substitutes?.message ?? 'No substitute bucket found.'}
                   </Text>
                 )}
-                <Text style={s.sheetLabel}>Bucket that went out</Text>
+                <Text style={s.sheetLabel}>Scan substitute</Text>
                 <ScanField
                   ref={bucketRef}
                   onScan={onBucketScanIssueOffline}
@@ -558,15 +565,15 @@ export function KarenShelfOperationsScreen({
                     chosenSubstitute
                       ? `Scan ${chosenSubstitute}`
                       : reason === 'not_found'
-                        ? `Scan the bucket issued instead of ${allocatedBucket} (or ${allocatedBucket} itself if found)`
-                        : `Scan the bucket issued instead of ${allocatedBucket}`
+                        ? `Scan substitute (or ${allocatedBucket} if found)`
+                        : 'Scan substitute'
                   }
                   editable={!loading}
                 />
                 {loading ? <Text style={s.muted}>Issuing…</Text> : null}
               </View>
             ) : (
-              <Text style={[s.muted, s.noTopMargin]}>Pick a reason, then scan the bucket that went out.</Text>
+              <Text style={[s.muted, s.noTopMargin]}>Pick a reason, then scan the substitute.</Text>
             )}
             {lastOfflineOutcome?.kind === 'failure' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
           </BottomSheet>
