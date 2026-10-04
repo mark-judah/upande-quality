@@ -191,21 +191,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return out;
   }, [requests, trolley, inTransit]);
 
-  // On trolleys now (scanned, not yet on a truck): bucket, variety and order.
-  const trolleyList = useMemo(() => {
-    const out: { key: string; label: string; meta: string }[] = [];
-    const add = (b: ReqBucket, order: string) => {
-      if (!b.scanned || b.notFound) return;
-      out.push({
-        key: `${order}-${b.id}`,
-        label: `${b.bucketId.toUpperCase()} (${Math.round(b.qty)})`,
-        meta: [bucketMeta(b.variety, b.stemLength), order].filter(Boolean).join(' · '),
-      });
-    };
-    for (const g of requests) for (const o of g.opls) for (const b of o.buckets) add(b, g.orderName);
-    for (const o of trolley) for (const b of o.buckets) add(b, o.orderName);
-    return out;
-  }, [requests, trolley]);
 
   // A trip the truck has left this farm on is done here until its next run.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
@@ -691,10 +676,10 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         ) : tab === 'trolley' ? (
           <StageSummary
             icon="cart-outline"
-            label="On trolley"
-            done={trolleyList.length}
+            label="Added to trolley"
+            done={addedBuckets}
             total={allBuckets}
-            items={trolleyList}
+            items={addedList}
           />
         ) : tab === 'transit' ? (
           <StageSummary
