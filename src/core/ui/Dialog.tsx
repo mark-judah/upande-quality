@@ -249,7 +249,7 @@ const s = StyleSheet.create({
   rowValue: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, textAlign: 'right' },
   flex: { flex: 1 },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },
+  sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.overlay },
   sheet: {
     maxHeight: '88%',
     backgroundColor: COLORS.surface,

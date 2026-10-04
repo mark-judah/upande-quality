@@ -507,7 +507,7 @@ const s = StyleSheet.create({
   },
   thumb: { width: 64, height: 64 },
   thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.25)',
