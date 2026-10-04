@@ -400,15 +400,9 @@ function EditPanel({
     let cancelled = false;
     const lv = repository.listVarieties?.() ?? Promise.resolve<string[]>([]);
     const ll = repository.listStemLengths?.() ?? Promise.resolve<string[]>([]);
-    Promise.all([lv, ll])
-      .then(([vs, ls]) => {
-        if (cancelled) return;
-        setVarieties(vs);
-        setStemLengths(ls);
-      })
-      .catch(() => {
-        // ignore — typeahead won't suggest
-      });
+    // Each list on its own: one failing never empties the other.
+    lv.then((vs) => !cancelled && setVarieties(vs)).catch(() => {});
+    ll.then((ls) => !cancelled && setStemLengths(ls)).catch(() => {});
     return () => {
       cancelled = true;
     };
