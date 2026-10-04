@@ -440,6 +440,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.border,
@@ -453,8 +454,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bioLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },
-  bioEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: -spacing.sm },
+  bioLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text, textAlign: 'center' },
+  bioEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: -spacing.sm, textAlign: 'center' },
   switchLink: { alignSelf: 'center', marginTop: spacing.lg, padding: spacing.sm },
   switchLinkText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary },
   version: {

@@ -79,7 +79,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   btnSm: { paddingVertical: 6, paddingHorizontal: spacing.md, minHeight: 32 },
-  inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  label: { fontFamily: fontFamily.bold, fontSize: fontSize.md },
+  inner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, maxWidth: '100%' },
+  label: { fontFamily: fontFamily.bold, fontSize: fontSize.md, flexShrink: 1, textAlign: 'center' },
   labelSm: { fontFamily: fontFamily.regular, fontSize: fontSize.sm },
 });

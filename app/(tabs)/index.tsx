@@ -117,7 +117,15 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: spacing.xxl },
   greeting: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   name: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
+  // space-between, not a column gap: 2 × 48% + a fixed gap overflows narrow
+  // screens and dropped the grid to one tile per row.
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.md,
+    marginTop: spacing.xs,
+  },
   tile: {
     flexBasis: '48%',
     flexGrow: 0,

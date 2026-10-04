@@ -413,7 +413,7 @@ function BunchRow({
   return (
     <View style={[s.bunchRow, isScanned && s.bunchRowHighlight]}>
       <View style={s.bunchHeader}>
-        <Text style={s.bunchId}>{bunch.bunchId}</Text>
+        <Text style={s.bunchId} numberOfLines={1}>{bunch.bunchId}</Text>
         {bunch.issuedOpl ? (
           <View style={[s.statusChip, { backgroundColor: '#e6f9ee' }]}>
             <Text style={[s.statusChipText, { color: '#1a8a3a' }]}>Issued</Text>
@@ -569,7 +569,7 @@ const s = StyleSheet.create({
   badge:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   badgeText:   { fontFamily: fontFamily.bold, fontSize: scaleFont(13) },
 
-  row:           { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
+  row:           { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 7 },
   rowLabel:      { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
   rowValue:      { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
   rowValueSmall: { fontFamily: fontFamily.regular, fontSize: scaleFont(11) },
@@ -587,7 +587,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
   },
   bunchHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  bunchId:     { fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
+  bunchId:     { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
   bunchMeta:   { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   bunchFooter: { marginTop: 6 },
   bunchFooterText: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted },
@@ -602,7 +602,7 @@ const s = StyleSheet.create({
   stageBody:    { flex: 1, paddingTop: 2 },
   stageBodyGap: { paddingBottom: 16 },
   stageHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  stageName:    { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  stageName:    { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
   stageDate:    { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
   stageDetail:  { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   stageMeta:    { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
@@ -621,11 +621,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn:     { backgroundColor: '#fde8ec' },
   pillLabel:    { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn:{ color: '#9a1f33' },
-  pillValue:    { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
+  pillValue:    { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn:{ color: '#9a1f33' },
 
   nextBtnWrap:  { marginTop: 16 },

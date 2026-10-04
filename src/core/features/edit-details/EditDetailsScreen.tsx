@@ -264,7 +264,9 @@ function SprayBunchListEditor({
             <View key={bunch.bunchId} style={s.bunchRow}>
               <Pressable onPress={() => setOpenBunchId(isOpen ? null : bunch.bunchId)}>
                 <View style={s.bunchHeader}>
-                  <Text style={s.bunchId}>{bunch.bunchId}</Text>
+                  <Text style={s.bunchId} numberOfLines={1}>
+                    {bunch.bunchId}
+                  </Text>
                   <MaterialCommunityIcons
                     name={isOpen ? 'chevron-up' : 'chevron-down'}
                     size={22}
@@ -595,7 +597,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  bunchId: { fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
+  bunchId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
   pillRow: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pill: {
     paddingHorizontal: 8,
@@ -605,11 +607,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
   pillLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
+  pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 
   suggestions: {

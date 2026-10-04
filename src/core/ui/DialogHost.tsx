@@ -86,7 +86,7 @@ export function DialogHost() {
               loading={busy === i}
               disabled={busy != null && busy !== i}
               onPress={() => press(b, i)}
-              style={{ flex: 1 }}
+              style={{ flexGrow: 1, flexBasis: 0, minWidth: 110 }}
             />
           ))}
         </>

@@ -122,7 +122,9 @@ export function Dropdown({
           <View style={[s.sheet, { paddingBottom: insets.bottom }]}>
             <View style={s.sheetHandle} />
             <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>{label || 'Select'}</Text>
+              <Text style={s.sheetTitle} numberOfLines={1}>
+                {label || 'Select'}
+              </Text>
               <TouchableOpacity onPress={() => setOpen(false)} style={s.closeBtn} activeOpacity={0.7}>
                 <Ionicons name="close" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
@@ -241,7 +243,7 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  sheetTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
+  sheetTitle: { flex: 1, fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, marginRight: spacing.md },
   closeBtn: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: COLORS.surfaceAlt,

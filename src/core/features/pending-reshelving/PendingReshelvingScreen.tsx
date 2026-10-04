@@ -290,7 +290,9 @@ function CandidateRow({
   return (
     <Pressable onPress={onPress} style={[s.candidateRow, selected && s.candidateRowSelected]}>
       <View style={s.candidateHeader}>
-        <Text style={s.candidateId}>{candidate.bucketId.toUpperCase()}</Text>
+        <Text style={s.candidateId} numberOfLines={1}>
+          {candidate.bucketId.toUpperCase()}
+        </Text>
         <MaterialCommunityIcons
           name={selected ? 'check-circle' : 'checkbox-blank-circle-outline'}
           size={20}
@@ -354,8 +356,8 @@ const s = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: '#f0f7ff',
   },
-  candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  candidateId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.5 },
+  candidateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  candidateId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, letterSpacing: 0.5 },
   candidateMeta: { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   candidateFooter: { fontFamily: fontFamily.regular, marginTop: 6, fontSize: scaleFont(11), color: COLORS.textMuted },
 
@@ -367,10 +369,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn: { backgroundColor: '#fde8ec' },
   pillLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn: { color: '#9a1f33' },
-  pillValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
+  pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 });

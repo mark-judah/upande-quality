@@ -191,7 +191,7 @@ export default function SettingsScreen() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.infoRow}>
-      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={[s.rowLabel, s.infoLabel]}>{label}</Text>
       <Text style={s.infoValue} numberOfLines={1}>
         {value}
       </Text>
@@ -227,6 +227,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     gap: spacing.md, paddingVertical: 4,
   },
+  infoLabel: { flexShrink: 1 },
   infoValue: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   rowLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   rowHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
