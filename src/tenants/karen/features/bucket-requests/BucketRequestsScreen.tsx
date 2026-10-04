@@ -669,30 +669,30 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           />
         )}
 
-        {/* What this stage has finished, at the end of each tab. */}
-        {tab === 'requests' ? (
-          <StageSummary
-            icon="cart-outline"
-            label="Added to trolley"
-            done={addedBuckets}
-            total={allBuckets}
-            items={addedList}
-          />
-        ) : tab === 'trolley' ? (
-          <StageSummary
-            icon="car-outline"
-            label="Loaded and in transit"
-            done={transitList.length}
-            total={allBuckets}
-            items={transitList}
-          />
-        ) : tab === 'transit' ? (
-          <StageSummary
-            icon="checkmark-done-outline"
-            label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
-            done={shelvedCount.done}
-            total={shelvedCount.total}
-          />
+        {/* The same summary of the day's OPLs at the end of Requests, Trolley and In Transit. */}
+        {tab !== 'shelved' ? (
+          <Card title="Summary of today's OPLs">
+            <StageSummary
+              icon="cart-outline"
+              label="Added to trolley"
+              done={addedBuckets}
+              total={allBuckets}
+              items={addedList}
+            />
+            <StageSummary
+              icon="car-outline"
+              label="Loaded and in transit"
+              done={transitList.length}
+              total={allBuckets}
+              items={transitList}
+            />
+            <StageSummary
+              icon="checkmark-done-outline"
+              label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
+              done={shelvedCount.done}
+              total={shelvedCount.total || allBuckets}
+            />
+          </Card>
         ) : null}
       </ScrollView>
 
@@ -2199,7 +2199,7 @@ function StageSummary({
   const complete = total > 0 && done >= total;
   const canOpen = !!items?.length;
   return (
-    <Card>
+    <View style={s.summaryStage}>
       <Pressable
         onPress={() => canOpen && setOpen((v) => !v)}
         disabled={!canOpen}
@@ -2237,7 +2237,7 @@ function StageSummary({
             </View>
           ))
         : null}
-    </Card>
+    </View>
   );
 }
 
@@ -2605,6 +2605,7 @@ const s = StyleSheet.create({
   stageText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   stageTextPending: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
   transitOpl: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginBottom: 2 },
+  summaryStage: { paddingVertical: spacing.xs },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   summaryLabel: { flex: 1, minWidth: 0, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   summaryCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
