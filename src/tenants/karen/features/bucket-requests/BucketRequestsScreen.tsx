@@ -516,22 +516,16 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               </Pressable>
             </View>
           ) : null}
-          {/* Delivery date on the right of the scan head. */}
-          {dateChoices.length ? (
-            <View style={s.scanDate}>
-              <Text style={s.dateLabel}>Delivery date</Text>
-              {dateChoices.map((d) => (
-                <Pressable
-                  key={d}
-                  onPress={() => setDeliveryDate(d, userFarm)}
-                  style={[s.dateChip, deliveryDate === d && s.dateChipOn]}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: deliveryDate === d }}
-                >
-                  <Text style={[s.dateText, deliveryDate === d && s.dateTextOn]}>{dateLabel(d)}</Text>
-                </Pressable>
-              ))}
-            </View>
+          {/* Which picklists these are, in words QC use: "Picklists for tomorrow's
+              delivery" (a bare "Delivery date: Tomorrow" confused them). */}
+          {deliveryDate ? (
+            <Text style={s.scanDate} numberOfLines={2}>
+              Picklists for{' '}
+              <Text style={s.scanDateDay}>
+                {dateLabel(deliveryDate) === 'Tomorrow' ? "tomorrow's" : `${dateLabel(deliveryDate)}'s`}
+              </Text>{' '}
+              delivery
+            </Text>
           ) : null}
         </View>
         <ScanField
@@ -2363,7 +2357,15 @@ const s = StyleSheet.create({
     zIndex: 2,
     elevation: 4,
   },
-  scanDate: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginLeft: 'auto' },
+  scanDate: {
+    marginLeft: 'auto',
+    flexShrink: 1,
+    textAlign: 'right',
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+  },
+  scanDateDay: { fontFamily: fontFamily.bold, color: COLORS.text },
   scanHead: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -2683,7 +2685,6 @@ const s = StyleSheet.create({
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
   dateRow: { gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: 2, alignItems: 'center' },
-  dateLabel: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginRight: 2 },
   tabsScroll: { flexGrow: 1 },
   tabsInner: { flex: 1, minWidth: 340 },
   dateChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
