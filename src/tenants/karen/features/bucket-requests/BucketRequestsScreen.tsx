@@ -953,8 +953,9 @@ function ReplacePicker({
           ) : null}
           {candidates.length ? (
             <View style={s.repActions}>
-              <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
+              <Button label="Cancel" variant="outline" size="sm" onPress={onClose} style={{ flex: 1 }} />
               <Button
+                size="sm"
                 label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                 iconLeft="swap-horizontal"
                 onPress={() => chosen && onPick(chosen, reason)}
@@ -964,8 +965,9 @@ function ReplacePicker({
             </View>
           ) : null}
           <View style={s.repActions}>
-            {!candidates.length ? <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} /> : null}
+            {!candidates.length ? <Button label="Cancel" variant="outline" size="sm" onPress={onClose} style={{ flex: 1 }} /> : null}
             <Button
+              size="sm"
               label="Not found — no replacement"
               iconLeft="close-circle-outline"
               variant={candidates.length ? 'outline' : undefined}
