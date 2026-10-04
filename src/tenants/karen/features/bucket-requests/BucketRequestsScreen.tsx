@@ -88,7 +88,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     downloading,
     loadingTrips,
     syncingOpl,
-    manualDownloaded,
     init,
     refresh,
     download,
@@ -102,7 +101,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     replaceBucket,
     markNotFound,
     closeStop,
-    clearAll,
     deliveryDate,
     setDeliveryDate,
     completedTrips,
@@ -375,24 +373,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     else showError(r.message);
   };
 
-  const [clearOpen, setClearOpen] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const onClear = () => setClearOpen(true);
-  const onConfirmClear = async () => {
-    setClearing(true);
-    try {
-      await clearAll();
-      showSuccess('Cleared.');
-      setClearOpen(false);
-      // Scheduled picklists come straight back from the server.
-      sync(userFarm);
-    } catch (e) {
-      showError((e as Error)?.message || 'Could not clear the data.');
-    } finally {
-      setClearing(false);
-    }
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -416,9 +396,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     );
   }
 
-  // Refresh and download are always there; clear only after the download
-  // button brought in at least one picklist (reset by clearing), and only
-  // while picklists are actually on the device.
+  // Refresh and download in the header; no clearing of downloaded data.
   const headerActions = (
     <View style={s.headerActions}>
       <Pressable
@@ -449,17 +427,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           <Ionicons name="cloud-download-outline" size={20} color={COLORS.text} />
         )}
       </Pressable>
-      {manualDownloaded && reqCount + trolleyCount + inTransitCount > 0 ? (
-        <Pressable
-          style={s.headerBtn}
-          hitSlop={6}
-          onPress={onClear}
-          accessibilityRole="button"
-          accessibilityLabel="Clear downloaded data"
-        >
-          <Ionicons name="trash-outline" size={19} color={COLORS.danger} />
-        </Pressable>
-      ) : null}
     </View>
   );
 
@@ -629,13 +596,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         onClose={() => setReplacePick(null)}
         onPick={onConfirmReplace}
         onNotFound={onNotFound}
-      />
-      <ClearDataModal
-        visible={clearOpen}
-        busy={clearing}
-        counts={{ requests: reqCount, trolley: trolleyCount, transit: inTransitCount }}
-        onCancel={() => !clearing && setClearOpen(false)}
-        onConfirm={onConfirmClear}
       />
     </Screen>
   );
@@ -976,59 +936,6 @@ function ReplacePicker({
   );
 }
 
-/** Centered destructive-confirm dialog for wiping this device's bucket data. */
-function ClearDataModal({
-  visible,
-  busy,
-  counts,
-  onCancel,
-  onConfirm,
-}: {
-  visible: boolean;
-  busy: boolean;
-  counts: { requests: number; trolley: number; transit: number };
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const items: { icon: keyof typeof Ionicons.glyphMap; label: string; count: number }[] = [
-    { icon: 'document-text-outline', label: 'Picklists', count: counts.requests },
-    { icon: 'cart-outline', label: 'Trolley scans', count: counts.trolley },
-    { icon: 'car-outline', label: 'In transit', count: counts.transit },
-  ];
-  return (
-    <Dialog
-      visible={visible}
-      onClose={onCancel}
-      busy={busy}
-      icon={{ name: 'trash-outline', tone: 'danger' }}
-      title="Clear downloaded data?"
-      subtitle="This removes everything below from this device. Scheduled picklists download again automatically; unsynced scans are lost."
-      actions={
-        <>
-          <Button label="Cancel" variant="outline" onPress={onCancel} disabled={busy} style={{ flex: 1 }} />
-          <Button
-            label="Clear"
-            color={COLORS.danger}
-            iconLeft="trash-outline"
-            onPress={onConfirm}
-            loading={busy}
-            style={{ flex: 1 }}
-          />
-        </>
-      }
-    >
-      <View style={s.dialogList}>
-        {items.map((it) => (
-          <View key={it.label} style={s.dialogRow}>
-            <Ionicons name={it.icon} size={16} color={COLORS.textMuted} />
-            <Text style={s.dialogRowLabel}>{it.label}</Text>
-            <Text style={s.dialogRowCount}>{it.count}</Text>
-          </View>
-        ))}
-      </View>
-    </Dialog>
-  );
-}
 
 /** Picklists to scan, under the planned trip that collects them (trip header with the
  *  truck, this farm's stop and "Truck leaving"), then the orders not on a trip yet —
@@ -2321,17 +2228,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surfaceAlt,
   },
   loadedInlineText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, flexShrink: 1 },
-  dialogList: {
-    alignSelf: 'stretch',
-    marginTop: spacing.lg,
-    borderRadius: borderRadius.md,
-    backgroundColor: COLORS.surfaceAlt,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
-  dialogRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  dialogRowLabel: { flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
-  dialogRowCount: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   dialogSubBlock: { alignSelf: 'stretch' },
   dialogActionsCol: { flex: 1, gap: spacing.sm },
   sheetSub: {
