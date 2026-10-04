@@ -3,7 +3,6 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import {
@@ -128,9 +127,6 @@ export default function RootLayout() {
             <TenantScopedDrawer>
               <ToastProvider>
                 <StatusBar style="dark" />
-                {/* The phone's button bar: light, with dark buttons, over the app's own
-                    background (app.json turns Android's dark contrast strip off). */}
-                <NavigationBar style="light" />
                 <Stack
                   screenOptions={{
                     headerShown: false,
