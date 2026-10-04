@@ -2556,7 +2556,8 @@ const s = StyleSheet.create({
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   issuedNote: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   issuedNoteSame: { color: SHELVED_GREEN },
-  stageList: { gap: 4, marginTop: spacing.sm },
+  // In transit and Arrived side by side on one line (wrapping only if they can't fit).
+  stageList: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.lg, rowGap: 4, marginTop: spacing.sm },
   stageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   stageText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   stageTextPending: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
