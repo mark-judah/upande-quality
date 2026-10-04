@@ -1628,7 +1628,8 @@ function ShelvedTab({
   /** Selected delivery date ("Tomorrow", "Today", "Fri 3 Oct"); '' = every date. */
   day: string;
 }) {
-  const [onlyWaiting, setOnlyWaiting] = useState(false);
+  // Two tabs: Shelved / Not shelved. Opens on Not shelved while anything waits.
+  const [view, setView] = useState<'shelved' | 'waiting' | null>(null);
   const where = hub || 'the packhouse';
   const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
 
@@ -1653,6 +1654,10 @@ function ShelvedTab({
 
   const total = trips.reduce((n, t) => n + t.total, 0);
   const shelved = trips.reduce((n, t) => n + t.shelved, 0);
+  const waiting = total - shelved;
+  const tab = view ?? (waiting ? 'waiting' : 'shelved');
+  const rowsOf = (t: ShelvedTrip) => t.buckets.filter((b) => (tab === 'shelved' ? b.shelved : !b.shelved));
+  const anyRows = trips.some((t) => rowsOf(t).length);
   return (
     <>
       <Card>
@@ -1668,8 +1673,8 @@ function ShelvedTab({
         <ProgressBar value={total ? shelved / total : 0} />
         <View style={s.reasonRow}>
           {[
-            { on: !onlyWaiting, label: 'All', press: () => setOnlyWaiting(false) },
-            { on: onlyWaiting, label: `Not shelved (${total - shelved})`, press: () => setOnlyWaiting(true) },
+            { on: tab === 'shelved', label: `Shelved (${shelved})`, press: () => setView('shelved') },
+            { on: tab === 'waiting', label: `Not shelved (${waiting})`, press: () => setView('waiting') },
           ].map((c) => (
             <Pressable key={c.label} onPress={c.press} style={[s.reasonChip, c.on && s.reasonChipOn]}>
               <Text style={[s.reasonText, c.on && s.reasonTextOn]}>{c.label}</Text>
@@ -1678,8 +1683,23 @@ function ShelvedTab({
         </View>
       </Card>
 
+      {!anyRows ? (
+        <Card>
+          <View style={s.empty}>
+            <Ionicons
+              name={tab === 'waiting' ? 'checkmark-done-outline' : 'file-tray-outline'}
+              size={26}
+              color={COLORS.textMuted}
+            />
+            <Text style={s.emptyTitle}>
+              {tab === 'waiting' ? 'Every bucket is shelved' : 'No bucket shelved yet'}
+            </Text>
+          </View>
+        </Card>
+      ) : null}
+
       {trips.map((t) => {
-        const rows = onlyWaiting ? t.buckets.filter((b) => !b.shelved) : t.buckets;
+        const rows = rowsOf(t);
         if (!rows.length) return null;
         const done = t.shelved === t.total;
         return (
