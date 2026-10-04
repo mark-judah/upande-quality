@@ -20,6 +20,7 @@ import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { showDialog } from '@/src/core/ui/DialogHost';
+import { storage, StorageKeys } from '@/src/core/storage';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -196,6 +197,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return addedList.filter((it) => keys.has(it.key));
   }, [addedList, inTransit]);
 
+
+  // Bucket Requests is for the remote farms; at the sales farm (the transfer hub) the
+  // buckets arrive instead, so the page shows a note and nothing else.
+  const [savedHub, setSavedHub] = useState<string | null>(null);
+  useEffect(() => {
+    storage.get(StorageKeys.transferHub).then(setSavedHub).catch(() => {});
+  }, []);
+  const hubFarm = shelvedHub || savedHub || '';
+  const atHub = !!userFarm && !!hubFarm && userFarm === hubFarm;
 
   // A trip the truck has left this farm on is done here until its next run.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
@@ -515,6 +525,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       </Pressable>
     </View>
   );
+
+  if (atHub) {
+    return (
+      <Screen title="Bucket Requests">
+        <Card>
+          <View style={s.empty}>
+            <Ionicons name="business-outline" size={26} color={COLORS.textMuted} />
+            <Text style={s.emptyTitle}>Not for {hubFarm}</Text>
+            <Text style={s.emptyHint}>
+              {hubFarm} is the sales farm: remote farms send their buckets here. Bucket Requests is used at the remote
+              farms.
+            </Text>
+          </View>
+        </Card>
+      </Screen>
+    );
+  }
 
   return (
     <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>

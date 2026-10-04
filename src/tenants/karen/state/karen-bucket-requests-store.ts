@@ -589,6 +589,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { ok: false, message: res.message };
       }
       set({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: res.hub });
+      // Remembered, so Bucket Requests (and its menu link) can stay out of the hub.
+      if (res.hub) storage.set(StorageKeys.transferHub, res.hub).catch(() => {});
       return { ok: true };
     } catch (e) {
       set({ loadingShelved: false });
