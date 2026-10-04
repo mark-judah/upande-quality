@@ -710,7 +710,15 @@ export async function markInTransitLocal(oplName: string): Promise<void> {
   );
 }
 
-export async function counts(): Promise<{ requests: number; trolley: number; inTransit: number }> {
+/** Picklists per stage, and buckets: `scannedBuckets` of `totalBuckets` requested
+ *  (the Trolley tab's "scanned/requested"). */
+export async function counts(): Promise<{
+  requests: number;
+  trolley: number;
+  inTransit: number;
+  scannedBuckets: number;
+  totalBuckets: number;
+}> {
   const d = await db();
   const [fc, fa] = farmCond();
   const [dc, da] = dateCond();
@@ -725,13 +733,17 @@ export async function counts(): Promise<{ requests: number; trolley: number; inT
   let requests = 0;
   let trolley = 0;
   let inTransit = 0;
+  let scannedBuckets = 0;
+  let totalBuckets = 0;
   for (const r of rows) {
+    scannedBuckets += r.scanned;
+    totalBuckets += r.total;
     const complete = r.total > 0 && r.scanned >= r.total;
     if (!complete) requests++;
     else if (r.in_transit === 1) inTransit++;
     else trolley++;
   }
-  return { requests, trolley, inTransit };
+  return { requests, trolley, inTransit, scannedBuckets, totalBuckets };
 }
 
 export async function upsertTrolley(trolleyId: string): Promise<void> {

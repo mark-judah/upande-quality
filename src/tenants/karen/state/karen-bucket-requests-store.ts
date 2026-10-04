@@ -27,6 +27,9 @@ type State = {
   schedules: OplSchedule[];
   reqCount: number;
   trolleyCount: number;
+  /** Buckets scanned onto trolleys of all requested (the Trolley tab's x/n). */
+  scannedBuckets: number;
+  totalBuckets: number;
   inTransitCount: number;
   tripsCount: number;
   activeTrolleyId: string | null;
@@ -160,6 +163,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   schedules: [],
   reqCount: 0,
   trolleyCount: 0,
+  scannedBuckets: 0,
+  totalBuckets: 0,
   inTransitCount: 0,
   tripsCount: 0,
   activeTrolleyId: null,
@@ -248,6 +253,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       plannedTrips,
       reqCount: c.requests,
       trolleyCount: c.trolley,
+      scannedBuckets: c.scannedBuckets,
+      totalBuckets: c.totalBuckets,
       inTransitCount: c.inTransit,
       tripsCount: plannedTrips.length,
     });

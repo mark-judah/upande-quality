@@ -82,6 +82,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     schedules,
     reqCount,
     trolleyCount,
+    scannedBuckets,
+    totalBuckets,
     inTransitCount,
     activeTrolleyId,
     online,
@@ -496,7 +498,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         onChange={(v) => setTab(v as Tab)}
         options={[
           { value: 'requests', label: 'Requests', count: reqCount },
-          { value: 'trolley', label: 'Trolley', count: trolleyCount },
+          { value: 'trolley', label: 'Trolley', count: `${scannedBuckets}/${totalBuckets}` },
           { value: 'transit', label: 'Transit', count: inTransitCount },
           {
             value: 'shelved',
