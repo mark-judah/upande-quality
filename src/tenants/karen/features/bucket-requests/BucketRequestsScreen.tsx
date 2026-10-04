@@ -1146,24 +1146,25 @@ function RequestsTab({
     const tripLine = ride && farm ? `${farm} → ${hub || 'Kapkolia'}` : '';
     // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
-      <View style={s.groupLine}>
-        {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
-        <View style={s.groupNames}>
-          <Text style={[s.groupHdr, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+      <View>
+        {/* Row 1: order name left, team right. Then the customer, then the route. */}
+        <View style={s.groupLine}>
+          {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
+          <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]} numberOfLines={1}>
             {g.orderName}
           </Text>
-          {customer ? (
-            <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
-              {customer}
-            </Text>
-          ) : null}
-          {tripLine ? (
-            <Text style={s.groupTrip} numberOfLines={1}>
-              {tripLine}
-            </Text>
-          ) : null}
+          {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
         </View>
-        {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
+        {customer ? (
+          <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
+            {customer}
+          </Text>
+        ) : null}
+        {tripLine ? (
+          <Text style={s.groupTrip} numberOfLines={1}>
+            {tripLine}
+          </Text>
+        ) : null}
       </View>
     );
     if (inTrip) {
