@@ -66,8 +66,9 @@ export function Button({
           {iconLeft ? <Ionicons name={iconLeft} size={sm ? 14 : 18} color={fg} /> : null}
           <Text
             style={[s.label, sm ? s.labelSm : null, { color: fg }]}
-            numberOfLines={singleLine ? 1 : undefined}
-            adjustsFontSizeToFit={singleLine}
+            // Small buttons have a fixed height, so they always keep one line.
+            numberOfLines={singleLine || sm ? 1 : undefined}
+            adjustsFontSizeToFit={singleLine || sm}
             minimumFontScale={0.75}
           >
             {label}
