@@ -691,6 +691,12 @@ export async function markNotFoundLocal(bucketId: string): Promise<void> {
   );
 }
 
+/** Issued offline to its own line: the request is done, nothing to scan or send. */
+export async function removeIssuedLocal(rowId: number): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM bucket WHERE id = ? AND scanned = 0', [rowId]);
+}
+
 /** Loaded / in transit: this farm's scanned buckets of the order (an order collecting
  *  from two farms is loaded farm by farm). */
 export async function markLoadedLocal(oplName: string): Promise<void> {

@@ -19,6 +19,7 @@ import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
+import { showDialog } from '@/src/core/ui/DialogHost';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
@@ -37,6 +38,7 @@ import {
   type CompletedTrip,
   type OplSchedule,
   type ReplaceReason,
+  type BucketIssueInfo,
   type TripArrival,
   type ShelvedTrip,
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
@@ -81,7 +83,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     plannedTrips,
     schedules,
     reqCount,
-    trolleyCount,
     scannedBuckets,
     totalBuckets,
     inTransitCount,
@@ -102,6 +103,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     findReplacement,
     replaceBucket,
     markNotFound,
+    bucketIssueInfo,
+    markIssued,
     closeStop,
     deliveryDate,
     setDeliveryDate,
@@ -321,7 +324,24 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     setReplacePick({ bucket: b, pliId, neededQty: found.neededQty, candidates: found.candidates });
   };
 
-  const onNotFound = async () => {
+  // Every change from the Info modal is confirmed first: none can be undone here.
+  const confirm = (title: string, message: string, label: string, run: () => void) =>
+    showDialog(title, message, [{ text: 'Cancel', style: 'cancel' }, { text: label, onPress: run }], {
+      name: 'help-circle-outline',
+      tone: 'warn',
+    });
+
+  const onNotFound = () => {
+    const pick = replacePick;
+    if (!pick) return;
+    confirm(
+      'Not found, no replacement?',
+      `${pick.bucket.bucketId.toUpperCase()} is left out of the transfer and the order loads with the buckets you have.`,
+      'Mark not found',
+      () => void doNotFound(),
+    );
+  };
+  const doNotFound = async () => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
@@ -354,7 +374,38 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
   }, [plannedTrips, online, userFarm, closeStop, showSuccess]);
 
-  const onConfirmReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+  const onMarkIssued = (line: string) => {
+    const pick = replacePick;
+    if (!pick) return;
+    confirm(
+      'Mark as issued?',
+      `${pick.bucket.bucketId.toUpperCase()} was issued offline to ${line || 'this line'}. It is marked issued for this order — nothing is replaced.`,
+      'Mark issued',
+      async () => {
+        if (replaceBusy.current) return;
+        replaceBusy.current = true;
+        setReplacePick(null);
+        setReplacingId(pick.bucket.id);
+        const r = await markIssued(pick.bucket.id, pick.pliId);
+        setReplacingId(null);
+        replaceBusy.current = false;
+        if (r.ok) showSuccess(r.message);
+        else showError(r.message);
+      },
+    );
+  };
+
+  const onConfirmReplace = (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+    const pick = replacePick;
+    if (!pick) return;
+    confirm(
+      'Replace this bucket?',
+      `${pick.bucket.bucketId.toUpperCase()} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.`,
+      'Replace',
+      () => void doReplace(c, reason, notes),
+    );
+  };
+  const doReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
@@ -595,6 +646,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         onClose={() => setReplacePick(null)}
         onPick={onConfirmReplace}
         onNotFound={onNotFound}
+        issueInfo={() => (replacePick ? bucketIssueInfo(replacePick.pliId) : Promise.resolve(null))}
+        onMarkIssued={onMarkIssued}
       />
     </Screen>
   );
@@ -790,6 +843,8 @@ function ReplacePicker({
   onClose,
   onPick,
   onNotFound,
+  issueInfo,
+  onMarkIssued,
 }: {
   pick: {
     bucket: ReqBucket;
@@ -800,6 +855,10 @@ function ReplacePicker({
   onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => void;
   /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
   onNotFound: () => void;
+  /** "Issued offline": where the bucket was issued (which line). */
+  issueInfo: () => Promise<BucketIssueInfo | { kind: 'error'; message: string } | null>;
+  /** Issued to this order's own line: mark it issued instead of replacing it. */
+  onMarkIssued: (line: string) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
@@ -811,6 +870,29 @@ function ReplacePicker({
     setSelected(firstId);
     setReason('Missing');
   }, [pick, firstId]);
+  // "Issued offline": look up which line it went to. Same line — mark it issued,
+  // nothing to replace; another line — replace it as usual.
+  type IssueResult = BucketIssueInfo | { kind: 'error'; message: string } | null;
+  const issueKey = pick && reason === 'Issued offline' ? pick : null;
+  const [issueRes, setIssueRes] = useState<{ key: object; info: IssueResult } | null>(null);
+  useEffect(() => {
+    if (!issueKey) return;
+    let live = true;
+    issueInfo().then((info) => {
+      if (live) setIssueRes({ key: issueKey, info });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueKey]);
+  const issued = issueKey && issueRes?.key === issueKey ? issueRes.info : null;
+  const issuedLoading = !!issueKey && issueRes?.key !== issueKey;
+  const issuedOk = issued && issued.kind === 'ok' ? issued : null;
+  const sameLine = !!issuedOk?.sameLine;
+  const issuedWhere = issuedOk
+    ? issuedOk.issuedTo.map((r) => `${r.team || 'no team'} (${r.orderName})`).join(', ')
+    : '';
 
   const chosen = candidates.find((c) => c.bucketId === selected) ?? null;
   const b = pick?.bucket;
@@ -846,6 +928,19 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
+          {reason === 'Issued offline' ? (
+            <Text style={[s.issuedNote, sameLine && s.issuedNoteSame]}>
+              {issuedLoading
+                ? 'Checking where it was issued…'
+                : issued && issued.kind === 'error'
+                  ? issued.message
+                  : issuedOk?.thisIssued
+                    ? 'Already issued to this order.'
+                    : issuedWhere
+                      ? `Issued to ${issuedWhere}.${sameLine ? ' Same line — mark it issued, nothing to replace.' : ' Another line — replace it.'}`
+                      : 'Not issued anywhere yet — replace it or mark it not found.'}
+            </Text>
+          ) : null}
           <Text style={s.repCount}>
             {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
           </Text>
@@ -862,14 +957,24 @@ function ReplacePicker({
           {candidates.length ? (
             <View style={s.repActions}>
               <Button label="Cancel" variant="outline" size="sm" onPress={onClose} style={{ flex: 1 }} />
-              <Button
-                size="sm"
-                label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
-                iconLeft="swap-horizontal"
-                onPress={() => chosen && onPick(chosen, reason)}
-                disabled={!chosen}
-                style={{ flex: 2 }}
-              />
+              {sameLine ? (
+                <Button
+                  size="sm"
+                  label="Mark as issued"
+                  iconLeft="checkmark-done-outline"
+                  onPress={() => onMarkIssued(issuedOk?.issuedTo.find((r) => r.sameLine)?.team || issuedOk?.line || '')}
+                  style={{ flex: 2 }}
+                />
+              ) : (
+                <Button
+                  size="sm"
+                  label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
+                  iconLeft="swap-horizontal"
+                  onPress={() => chosen && onPick(chosen, reason)}
+                  disabled={!chosen || (reason === 'Issued offline' && issuedLoading)}
+                  style={{ flex: 2 }}
+                />
+              )}
             </View>
           ) : null}
           <View style={s.repActions}>
@@ -2278,6 +2383,8 @@ const s = StyleSheet.create({
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
   repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
+  issuedNote: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
+  issuedNoteSame: { color: SHELVED_GREEN },
   repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },

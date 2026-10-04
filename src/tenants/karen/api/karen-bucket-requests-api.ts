@@ -346,6 +346,38 @@ export const karenBucketRequestsApi = {
     });
   },
 
+  /** "Issued offline": which line (team) a requested bucket was issued to. */
+  requestedBucketIssueInfo(pickListItem: string): Promise<{
+    message?: {
+      status?: string;
+      message?: string;
+      bucket?: string;
+      line?: string;
+      this_issued?: boolean;
+      same_line?: boolean;
+      issued_to?: { opl: string; order_name?: string; team?: string; same_line?: boolean }[];
+    };
+  }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.requestedBucketIssueInfo',
+      data: { data: { pick_list_item: pickListItem } },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Issued offline to this order's own line: mark it issued (no replacement). */
+  markRequestedBucketIssued(pickListItem: string): Promise<{ message?: { status?: string; message?: string } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.markRequestedBucketIssued',
+      data: { data: { pick_list_item: pickListItem } },
+      // Issuing posts stock entries; allow it time.
+      timeout: 120000,
+      validateStatus: () => true,
+    });
+  },
+
   /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
    *  stop, or to the packhouse from the last one. */
   /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */

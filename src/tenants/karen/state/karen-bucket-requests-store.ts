@@ -11,6 +11,7 @@ import {
   type PlannedTrip,
   type ReplacementCandidate,
   type ReplaceReason,
+  type BucketIssueInfo,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type { OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
@@ -77,6 +78,10 @@ type State = {
   /** Leave a requested bucket out of the transfer — not in the cold room and nothing
    *  to replace it — so its order can load with the buckets that are there. */
   markNotFound: (bucketId: string, pliId: string, notes?: string) => Promise<{ ok: boolean; message: string }>;
+  /** "Issued offline": where the requested bucket was issued. */
+  bucketIssueInfo: (pliId: string) => Promise<BucketIssueInfo | { kind: 'error'; message: string }>;
+  /** Issued offline to its own line: mark it issued (no replacement) and drop it here. */
+  markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
   closeStop: (tripId: string, farm: string, reason?: string) => Promise<{ ok: boolean; message: string }>;
@@ -503,6 +508,29 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         return { ok: false, pending: true, message: 'Replace still processing. Check again in a minute.' };
       }
       return { ok: false, message: (e as Error)?.message || 'Replace failed.' };
+    }
+  },
+
+  bucketIssueInfo: async (pliId) => {
+    try {
+      return await karenBucketRequestsRepository.bucketIssueInfo(pliId);
+    } catch (e) {
+      return { kind: 'error', message: (e as Error)?.message || 'Could not check where it was issued.' };
+    }
+  },
+
+  markIssued: async (rowId, pliId) => {
+    await get().refreshOnline();
+    if (!get().online) return { ok: false, message: 'Connect to the internet to mark it issued.' };
+    try {
+      const res = await karenBucketRequestsRepository.markBucketIssued(pliId);
+      if (res.kind !== 'ok') return { ok: false, message: res.message };
+      await db.removeIssuedLocal(rowId);
+      await get().refresh();
+      return { ok: true, message: res.message };
+    } catch (e) {
+      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
+      return { ok: false, message: (e as Error)?.message || 'Could not mark it issued.' };
     }
   },
 

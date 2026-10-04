@@ -92,6 +92,16 @@ export type PlannedTripStop = {
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
 export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Issued offline' | 'Other';
+/** Where a requested bucket was issued ("Issued offline"): the lines (OPL teams) it
+ *  went to, and whether one is this order's own line (then: mark issued, no replace). */
+export type BucketIssueInfo = {
+  kind: 'ok';
+  line: string;
+  thisIssued: boolean;
+  sameLine: boolean;
+  issuedTo: { opl: string; orderName: string; team: string; sameLine: boolean }[];
+};
+
 /** Reasons offered in the replace modal ('Other' stays a valid type for older records). */
 export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Issued offline'];
 
@@ -535,6 +545,31 @@ export const karenBucketRequestsRepository = {
     // "not found"), not an error.
     if (m.found === false) return { kind: 'ok', neededQty: typeof m.needed_qty === 'number' ? m.needed_qty : null, candidates: [] };
     return { kind: 'error', message: m.message ?? 'No replacement bucket found.' };
+  },
+
+  async bucketIssueInfo(pickListItem: string): Promise<BucketIssueInfo | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.requestedBucketIssueInfo(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not check where it was issued.' };
+    return {
+      kind: 'ok',
+      line: m.line ?? '',
+      thisIssued: !!m.this_issued,
+      sameLine: !!m.same_line,
+      issuedTo: (m.issued_to ?? []).map((r) => ({
+        opl: r.opl,
+        orderName: r.order_name ?? r.opl,
+        team: r.team ?? '',
+        sameLine: !!r.same_line,
+      })),
+    };
+  },
+
+  async markBucketIssued(pickListItem: string): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketIssued(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked issued.' };
+    return { kind: 'error', message: m.message ?? 'Could not mark it issued.' };
   },
 
   async markBucketNotFound(pickListItem: string, notes?: string): Promise<SaveTrolleyOutcome> {
