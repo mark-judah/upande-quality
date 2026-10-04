@@ -632,7 +632,12 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           {
             value: 'shelved',
             label: 'Shelved',
-            count: shelvedCount.total ? `${shelvedCount.done}/${shelvedCount.total}` : '—',
+            // Shelved of those on their way: 0/3 before anything is shelved (the
+            // in-transit buckets until the shelving list loads), 0 when none travel.
+            count: (() => {
+              const total = shelvedCount.total || transitList.length;
+              return total ? `${shelvedCount.done}/${total}` : '0';
+            })(),
           },
         ]}
       />
