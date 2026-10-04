@@ -214,6 +214,8 @@ export type RawCompletedTrip = {
   run_chain?: string;
   left_at?: string;
   dispatched_at?: string;
+  arrived_at?: string;
+  arrived?: number;
   planned?: number;
   loaded?: number;
   left_behind?: number;

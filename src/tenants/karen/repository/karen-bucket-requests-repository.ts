@@ -151,6 +151,8 @@ export type CompletedTrip = {
   carriedTo: string[];
   /** Still on its run: the stop itself can reopen (else the rest goes to the next run). */
   stopReopenable: boolean;
+  /** At the hub: stamped arrived, or any bucket it carried shelved there. */
+  arrived: boolean;
   orders: { opl: string; deliveryDate: string; orderName: string; customer: string; varieties: string; buckets: number; loaded: number }[];
 };
 
@@ -199,7 +201,14 @@ export type FetchAllocationsOutcome =
   | { kind: 'error'; message: string };
 
 export type FetchPlannedTripsOutcome =
-  | { kind: 'ok'; trips: PlannedTrip[]; schedules: OplSchedule[]; oplStates: Record<string, OplServerState> }
+  | {
+      kind: 'ok';
+      trips: PlannedTrip[];
+      schedules: OplSchedule[];
+      oplStates: Record<string, OplServerState>;
+      /** Device orders the server still has rows for at this farm; null when it didn't say. */
+      known: string[] | null;
+    }
   | { kind: 'error'; message: string };
 
 /** An order's Packhouse Schedule slot (team + position in that team's run). */
@@ -415,6 +424,7 @@ export const karenBucketRequestsRepository = {
             ['waiting', 'loaded', 'transit', 'arrived'].includes(v as string),
           ),
         ) as Record<string, OplServerState>,
+        known: m.opl_states ? Object.keys(m.opl_states) : null,
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
@@ -609,6 +619,7 @@ export const karenBucketRequestsRepository = {
         leftBehind: t.left_behind ?? 0,
         carriedTo: t.carried_to ?? [],
         stopReopenable: !!t.stop_reopenable,
+        arrived: !!t.arrived || !!t.arrived_at,
         orders: (t.orders ?? []).map((o) => ({
           opl: o.opl ?? '',
           deliveryDate: o.delivery_date ?? '',

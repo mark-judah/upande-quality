@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS planned_trip (
   trip_id TEXT PRIMARY KEY, trip_date TEXT, sort_key INTEGER NOT NULL DEFAULT 0,
   payload TEXT NOT NULL, fetched_at TEXT
 );
+CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
 CREATE INDEX IF NOT EXISTS idx_bucket_opl ON bucket(opl_name);
 CREATE INDEX IF NOT EXISTS idx_bucket_scan ON bucket(bucket_id, scanned);
 `;
@@ -587,6 +588,40 @@ export async function listInTransit(): Promise<TrolleyOpl[]> {
   return listCompleted(1);
 }
 
+/** The store belongs to one server: signing in to another wipes what came from the
+ *  old one (its orders, buckets and trips mean nothing there). Returns true when wiped. */
+export async function matchServer(server: string): Promise<boolean> {
+  if (!server) return false;
+  const d = await db();
+  const row = await d.getFirstAsync<{ v: string }>("SELECT v FROM meta WHERE k = 'server'");
+  if (row?.v === server) return false;
+  const wipe = !!row?.v;
+  if (wipe) await clearAll();
+  await d.runAsync("INSERT OR REPLACE INTO meta (k, v) VALUES ('server', ?)", [server]);
+  return wipe;
+}
+
+/** Drop this farm's orders the server no longer knows (not waiting for transfer and
+ *  no state for them): an order cancelled, re-allocated, or from another server. */
+export async function pruneOpls(keep: Set<string>): Promise<number> {
+  const local = await listOplNames();
+  const gone = local.filter((o) => !keep.has(o));
+  if (!gone.length) return 0;
+  const d = await db();
+  const [fc, fa] = farmCond();
+  await d.withTransactionAsync(async () => {
+    for (const o of gone) {
+      await d.runAsync(`DELETE FROM bucket WHERE opl_name = ? AND ${fc.replace(/\bb\./g, '')}`, [o, ...fa]);
+      const left = await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM bucket WHERE opl_name = ?', [o]);
+      if (!left?.n) {
+        await d.runAsync('DELETE FROM opl WHERE opl_name = ?', [o]);
+        await d.runAsync('DELETE FROM opl_schedule WHERE opl_name = ?', [o]);
+      }
+    }
+  });
+  return gone.length;
+}
+
 export async function listOplNames(): Promise<string[]> {
   const d = await db();
   const [fc, fa] = farmCond();
@@ -718,7 +753,9 @@ export async function markInTransitLocal(oplName: string): Promise<void> {
 
 /** Picklists per stage, and buckets: `scannedBuckets` of `totalBuckets` requested
  *  (the Trolley tab's "scanned/requested"). */
-export async function counts(): Promise<{
+/** `onTrip`: the picklists on a planned trip. When given, only those count, plus any
+ *  already moving (scanned or on a truck) — the same picklists the Requests tab lists. */
+export async function counts(onTrip?: Set<string>): Promise<{
   requests: number;
   trolley: number;
   inTransit: number;
@@ -732,14 +769,15 @@ export async function counts(): Promise<{
   const d = await db();
   const [fc, fa] = farmCond();
   const [dc, da] = dateCond();
-  const rows = await d.getAllAsync<{ total: number; scanned: number; in_transit: number }>(
+  const all = await d.getAllAsync<{ opl_name: string; total: number; scanned: number; in_transit: number }>(
     `
-    SELECT (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, ${truckState(fc)},
+    SELECT o.opl_name, (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, ${truckState(fc)},
       (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned
     FROM opl o
     WHERE EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AND ${dc}`,
     [...fa, ...fa, ...fa, ...fa, ...fa, ...da],
   );
+  const rows = onTrip ? all.filter((r) => onTrip.has(r.opl_name) || r.scanned > 0 || r.in_transit === 1) : all;
   let requests = 0;
   let trolley = 0;
   let inTransit = 0;
