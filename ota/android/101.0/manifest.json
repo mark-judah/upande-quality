@@ -1,13 +1,13 @@
 {
-  "id": "bb3b06df-02cd-4077-82be-8b341f411d7e",
-  "createdAt": "2026-10-03T03:52:35.769Z",
+  "id": "f003d779-2942-4a5e-8a0e-5beaa3a3da8a",
+  "createdAt": "2026-10-04T18:18:51.460Z",
   "runtimeVersion": "101.0",
   "launchAsset": {
-    "hash": "Fmh76-DL6G6-rjeeg37KpXMaHn0NUpeJQn-B1l0T6Jo",
-    "key": "entry-6f140e6c15e6045d5ca0dc7a45b262fa",
+    "hash": "ISRuD-VfdA89u_5xQwUIyXwxj89AoGWIeu7feL-NbAI",
+    "key": "entry-67ff330207f5f619dedbd2f21b96c3fe",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
-    "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/_expo/static/js/android/entry-6f140e6c15e6045d5ca0dc7a45b262fa.hbc"
+    "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/_expo/static/js/android/entry-67ff330207f5f619dedbd2f21b96c3fe.hbc"
   },
   "assets": [
     {
@@ -347,132 +347,6 @@
       "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/fdb28133158efaf18814b5dadfc8f504"
     },
     {
-      "hash": "F2RGVusdAlVIpj8mG3SxCzPa-LZEQzj8LTEIk-K2tBQ",
-      "key": "aa895105c99cdda4f82dc9b5b1e26d87",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/aa895105c99cdda4f82dc9b5b1e26d87"
-    },
-    {
-      "hash": "hV-XTx1wdHdt9jj4Ns590tFF1LyX28jkh_Hiufkh5TY",
-      "key": "3e25a281bdb7b15be3223f3ea14a78a9",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/3e25a281bdb7b15be3223f3ea14a78a9"
-    },
-    {
-      "hash": "hpCE7_lU-UX7Q2WO2epZQyTTkLaiGxtxLgVs9lJ_ltg",
-      "key": "df43eeda0517a2dee06925d637bd6840",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/df43eeda0517a2dee06925d637bd6840"
-    },
-    {
-      "hash": "IMy5BJjYylEbsL4xp07M1fKfvhFhhS73J4G3A5KemOw",
-      "key": "74f9bb7405caec741a24db735b2c5733",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/74f9bb7405caec741a24db735b2c5733"
-    },
-    {
-      "hash": "Vo2v0ts3KFNLQsBk5j7R_0Xsl3Obwh5AcSPf3csq0lU",
-      "key": "7da0c1626a365ce0164d2ae4ebb0573b",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/7da0c1626a365ce0164d2ae4ebb0573b"
-    },
-    {
-      "hash": "s-6cbycTGAZq2uVsMDPm5BkviPXRJ8tQdobYmgomkWg",
-      "key": "b68921520b1d885dd7f854427cde3e82",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/b68921520b1d885dd7f854427cde3e82"
-    },
-    {
-      "hash": "N2SizmL6lVlsMxXBoMo3nnz4J-05fJf8A2klubILdNw",
-      "key": "7a6c1a2c6196d4d0e617b57adb997b3b",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/7a6c1a2c6196d4d0e617b57adb997b3b"
-    },
-    {
-      "hash": "JaUVEE9IAWq8b7sNkTCLzBVfx5TR_5pS8U0NYo-OXoI",
-      "key": "74a7c51e71e5be3e9878deb3b1dd8276",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/74a7c51e71e5be3e9878deb3b1dd8276"
-    },
-    {
-      "hash": "xP1wcCXBPM4w22eu89ZejvZSxpB9cRHbriWEkNxkwLs",
-      "key": "e0062779393299c3012a239746c1830c",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/e0062779393299c3012a239746c1830c"
-    },
-    {
-      "hash": "si6FbdalBZs_y1DbLsYSfSU-R1MA1JEBpnVOkvABUzg",
-      "key": "bcb8399c1cd3b407c9403b6738c0279f",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/bcb8399c1cd3b407c9403b6738c0279f"
-    },
-    {
-      "hash": "kLj34CjsZ_qVE6tCuzO7wWslhLXBoXWF9ACsLIpGRtY",
-      "key": "783b88f315f5e0d18b356e4c7f24ab49",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/783b88f315f5e0d18b356e4c7f24ab49"
-    },
-    {
-      "hash": "JjNn316EQCjqZY0lWXCDmI4FE3ImHqEc6XEJY8K1CMg",
-      "key": "80cec38fe494b2d8d9c1f7f1096e73f5",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/80cec38fe494b2d8d9c1f7f1096e73f5"
-    },
-    {
-      "hash": "JncTivwJDSteQBuxBzR2Abt-sBWFO-VkxMv98CHeaQo",
-      "key": "d456fd1a58332b02c79e9bda60c4853e",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/d456fd1a58332b02c79e9bda60c4853e"
-    },
-    {
-      "hash": "7ju2AXN8j96K8A77CVA9QTisf5iMTIz9Gnqg9NT7cmk",
-      "key": "fc3b9297fa9ed051f7649c8e756276b7",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/fc3b9297fa9ed051f7649c8e756276b7"
-    },
-    {
-      "hash": "9ofXJZfszuAGOLJVi7lIU9hloE61jJMpx9sFU6608qQ",
-      "key": "0f640fdba88da072848e514bf43c2b85",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/0f640fdba88da072848e514bf43c2b85"
-    },
-    {
-      "hash": "T8eOnmxvdwVdB8xdOC9EnnZAgwGarkJGvSnfiprXQJ0",
-      "key": "5af5d01e07e369ab645cbd92c05f89d5",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/5af5d01e07e369ab645cbd92c05f89d5"
-    },
-    {
-      "hash": "yAQv-bysqp9z9pVYlpsTAqCRs6kChZfdT4PPYrvegAw",
-      "key": "67790bc17c5b1ea7abef154cc8e21bc7",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/67790bc17c5b1ea7abef154cc8e21bc7"
-    },
-    {
-      "hash": "ZGVpOrirIDymZpsLQvWUaluvnKJLbO1uSzDQlfUpC4s",
-      "key": "7c78541f1ece5c832d207df0be7b447f",
-      "contentType": "application/octet-stream",
-      "fileExtension": ".ttf",
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/assets/7c78541f1ece5c832d207df0be7b447f"
-    },
-    {
       "hash": "lYdfnvDRLVy91khSkzpXgCHIEM7CR_dWQgfgRs9scok",
       "key": "9ec263601ee3fcd71763941207c9ad0d",
       "contentType": "application/octet-stream",
@@ -611,7 +485,7 @@
     "expoClient": {
       "name": "Upande Quality",
       "slug": "upande-quality",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "orientation": "portrait",
       "icon": "./assets/images/upande_logo.png",
       "scheme": "upandequality",
@@ -645,7 +519,7 @@
           "android.permission.MODIFY_AUDIO_SETTINGS",
           "android.permission.REQUEST_INSTALL_PACKAGES"
         ],
-        "versionCode": 105001
+        "versionCode": 105002
       },
       "web": {
         "output": "static",
@@ -706,7 +580,7 @@
         "backgroundColor": "#FFFFFF"
       }
     },
-    "appVersion": "1.0.1",
-    "publishedAt": "2026-10-03T03:52:35.787Z"
+    "appVersion": "1.0.2",
+    "publishedAt": "2026-10-04T18:18:51.484Z"
   }
 }
