@@ -1327,14 +1327,19 @@ function OplCard({
         {/* Shelf (left, big and bold: what they look for in the cold room)
             and the bucket on it (right) on one line. */}
         <View style={s.shelfBucketRow}>
-          <Text style={[s.bShelfLead, b.scanned && s.bDone]} numberOfLines={1}>
-            <Text style={s.idWord}>SHELF </Text>
-            {(b.shelf || 'none').toUpperCase()}
-          </Text>
-          <Text style={[s.bIdRight, b.scanned && s.bDone]} numberOfLines={1}>
-            <Text style={s.idWord}>BUCKET </Text>
-            {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
-          </Text>
+          {/* Each id with its small word label under it. */}
+          <View style={s.idCol}>
+            <Text style={[s.bShelfLead, b.scanned && s.bDone]} numberOfLines={1}>
+              {(b.shelf || 'none').toUpperCase()}
+            </Text>
+            <Text style={s.idWord}>SHELF</Text>
+          </View>
+          <View style={[s.idCol, s.idColRight]}>
+            <Text style={[s.bIdRight, b.scanned && s.bDone]} numberOfLines={1}>
+              {b.bucketId.toUpperCase()} ({Math.round(b.qty)})
+            </Text>
+            <Text style={s.idWord}>BUCKET</Text>
+          </View>
         </View>
         {/* Variety and stem length, with Replace on the same line (not beside the
             shelf and bucket). */}
@@ -2275,11 +2280,13 @@ const s = StyleSheet.create({
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   // Shelf and bucket ids: same size, upper case, each after a small word label.
   bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, flexShrink: 1 },
-  idWord: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, textDecorationLine: 'none' },
+  idWord: { fontFamily: fontFamily.medium, fontSize: scaleFont(9), color: COLORS.textMuted, letterSpacing: 0.4 },
+  idCol: { flexShrink: 1, minWidth: 0 },
+  idColRight: { marginLeft: 'auto', alignItems: 'flex-end' },
   metaReplaceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   metaGrow: { flex: 1, minWidth: 0 },
-  shelfBucketRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
-  bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
+  shelfBucketRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
   replaceBtn: {
