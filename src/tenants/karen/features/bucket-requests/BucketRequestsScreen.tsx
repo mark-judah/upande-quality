@@ -1365,7 +1365,7 @@ function OplCard({
             <Text style={s.idWord}>BUCKET</Text>
           </View>
         </View>
-        {/* Variety and stem length, with Replace on the same line (not beside the
+        {/* Variety and stem length, with Info (replace / not found) on the same line (not beside the
             shelf and bucket). */}
         <View style={s.metaReplaceRow}>
           <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]} numberOfLines={1}>
@@ -1383,8 +1383,8 @@ function OplCard({
                 <ActivityIndicator size="small" color={COLORS.text} />
               ) : (
                 <>
-                  <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
-                  <Text style={s.changeLink}>Replace</Text>
+                  <Ionicons name="information-circle-outline" size={14} color={COLORS.text} />
+                  <Text style={s.changeLink}>Info</Text>
                 </>
               )}
             </Pressable>
