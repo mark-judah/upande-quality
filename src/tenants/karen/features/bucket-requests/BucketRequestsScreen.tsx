@@ -1392,6 +1392,14 @@ function OplCard({
             color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
           />
           <View style={{ flex: 1, minWidth: 0 }}>
+            {/* Shelf first, big and bold: it is what they look for in the cold
+                room before the bucket on it. */}
+            {!!(b.shelf || b.farm) && (
+              <Text style={s.bShelfLead} numberOfLines={1}>
+                {b.shelf || 'No shelf'}
+                {b.farm ? <Text style={s.bShelfFarm}>  · {b.farm}</Text> : null}
+              </Text>
+            )}
             <Text style={s.bId}>
               {b.bucketId}
               {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
@@ -1399,11 +1407,6 @@ function OplCard({
             <Text style={s.bMeta} numberOfLines={1}>
               {bucketMeta(b.variety, b.stemLength)}
             </Text>
-            {!!(b.farm || b.shelf) && (
-              <Text style={s.bShelf} numberOfLines={1}>
-                {[b.farm, b.shelf].filter(Boolean).join(' · ')}
-              </Text>
-            )}
           </View>
           <View style={s.bSide}>
             <Text style={s.bQty}>
@@ -2456,6 +2459,8 @@ const s = StyleSheet.create({
   bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
+  bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
+  bShelfFarm: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
   bSide: { alignItems: 'flex-end', gap: 4 },
