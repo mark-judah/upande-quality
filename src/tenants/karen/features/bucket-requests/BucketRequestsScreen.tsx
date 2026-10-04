@@ -2311,7 +2311,9 @@ const s = StyleSheet.create({
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
   tabsScroll: { flexGrow: 1 },
-  tabsInner: { flex: 1, minWidth: 340 },
+  // Each of the four tabs gets ~110dp, enough for "Shelved (10/20)"; narrower
+  // screens scroll the bar (the active tab is centred).
+  tabsInner: { flex: 1, minWidth: 440 },
   farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text, flexShrink: 1 },
   truckRow: {
     flexDirection: 'row',

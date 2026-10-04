@@ -84,7 +84,7 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
               style={[s.label, active && s.labelActive]}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.7}
+              minimumFontScale={0.8}
             >
               {opt.label}
             </Text>
