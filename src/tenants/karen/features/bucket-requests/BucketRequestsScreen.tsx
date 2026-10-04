@@ -1143,11 +1143,10 @@ function RequestsTab({
       <View>
         {/* Row 1: order name left, team right; the customer under it. */}
         <View style={s.groupLine}>
-          {dot ? <View style={[s.lineDot, { backgroundColor: dot.color }]} /> : null}
           <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]} numberOfLines={1}>
             {g.orderName}
           </Text>
-          {teams.length ? <TeamChip team={teams.join(', ')} /> : null}
+          {teams.length ? <TeamChip team={teams.join(', ')} color={dot?.color} fill /> : null}
         </View>
         {customer ? (
           <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]} numberOfLines={1}>
@@ -1195,18 +1194,6 @@ function RequestsTab({
 
   return (
     <>
-      {lineColor.lines.length > 1 ? (
-        <View style={s.lineLegend}>
-          {lineColor.lines.map((l) => (
-            <View key={l.team} style={s.lineLegendItem}>
-              <View style={[s.lineDot, { backgroundColor: l.color }]} />
-              <Text style={s.lineLegendText} numberOfLines={1}>
-                {l.team}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
 
       {steps.map((t, i) => {
         const tripGroups = onTrip(t.tripId);
@@ -1412,13 +1399,16 @@ function OplCard({
   );
 }
 
-function TeamChip({ team, color }: { team?: string; color?: string }) {
+/** The team chip. `fill`: the packing line's colour as its background (white
+ *  text) instead of a small dot — the colour key without a separate legend. */
+function TeamChip({ team, color, fill }: { team?: string; color?: string; fill?: boolean }) {
   if (!team) return null;
+  const filled = fill && !!color;
   return (
-    <View style={[s.oplTag, s.oplTagPlanned]}>
-      {color ? <View style={[s.lineDot, { backgroundColor: color }]} /> : null}
-      <Ionicons name="people-outline" size={12} color={COLORS.text} />
-      <Text style={s.oplTagText} numberOfLines={1}>
+    <View style={[s.oplTag, s.oplTagPlanned, filled && { backgroundColor: color, borderColor: color }]}>
+      {color && !filled ? <View style={[s.lineDot, { backgroundColor: color }]} /> : null}
+      <Ionicons name="people-outline" size={12} color={filled ? '#FFFFFF' : COLORS.text} />
+      <Text style={[s.oplTagText, filled && { color: '#FFFFFF' }]} numberOfLines={1}>
         {team}
       </Text>
     </View>
@@ -2197,9 +2187,6 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
-  lineLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.sm },
-  lineLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
-  lineLegendText: { fontFamily: fontFamily.medium, fontSize: scaleFont(12), color: COLORS.text, flexShrink: 1 },
   lineDot: { width: 10, height: 10, borderRadius: 5 },
   oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
