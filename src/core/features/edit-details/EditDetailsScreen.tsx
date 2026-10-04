@@ -8,7 +8,6 @@ import { Button } from '@/src/core/ui/Button';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
-import { useAuthStore } from '@/src/core/auth/store';
 import { useReplacementStore } from '@/src/core/features/replacement/store';
 import type { ReplacementRepository } from '@/src/core/features/replacement/types';
 import type {
@@ -22,8 +21,6 @@ type Props = {
   replacementRepo: ReplacementRepository;
   traceabilityRepo: TraceabilityRepository;
 };
-
-const HARVEST_DETAILS_UPDATER = 'Harvest Details Updater';
 
 type ScanResult = { kind: 'bucket'; id: string } | { kind: 'bunch'; id: string };
 
@@ -52,7 +49,6 @@ function parseScan(raw: string): ScanResult {
 
 export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) {
   const scanRef = useRef<ScanFieldHandle>(null);
-  const hasRole = useAuthStore((s) => s.hasRole(HARVEST_DETAILS_UPDATER));
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [snapshot, setSnapshot] = useState<TraceabilitySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,18 +75,6 @@ export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) 
     setSnapshot(null);
     setLoadError(null);
   };
-
-  if (!hasRole) {
-    return (
-      <Screen title="Edit Details">
-        <Card>
-          <Text style={s.muted}>
-            You need the <Text style={s.strong}>Harvest Details Updater</Text> role to use this page.
-          </Text>
-        </Card>
-      </Screen>
-    );
-  }
 
   return (
     <Screen title="Edit Details">

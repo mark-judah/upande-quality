@@ -94,7 +94,6 @@ export function PackhouseQcScreen() {
   const { showSuccess, showError } = useToast();
   const loggedInEmail = useAuthStore((s) => s.email);
   const loggedInFullName = useAuthStore((s) => s.fullName);
-  const hasRole = useAuthStore((s) => s.hasRole);
 
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
@@ -274,9 +273,9 @@ export function PackhouseQcScreen() {
   // Replacement in Grading QC is TEMPORARILY DISABLED while we finalise the
   // logic/flow — for now Grading QC records reports only, no replacement.
   // The whole feature (store actions, scan modal, API, backend) is left in
-  // place; re-enable by flipping this back to `hasRole('Harvest Details Updater')`.
+  // place; re-enable by flipping REPLACEMENT_ENABLED (no role is required for it).
   const REPLACEMENT_ENABLED = false;
-  const canReplace = REPLACEMENT_ENABLED && hasRole('Harvest Details Updater');
+  const canReplace = REPLACEMENT_ENABLED;
   // …and, for now, only on Spray Roses (Standard Roses is "coming soon" — its
   // bunches have no scannable sticker to trace back to a bucket). undefined
   // while the variety's item group is still loading.

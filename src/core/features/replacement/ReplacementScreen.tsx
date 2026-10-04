@@ -10,7 +10,6 @@ import { Button } from '@/src/core/ui/Button';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
-import { useAuthStore } from '@/src/core/auth/store';
 import { useReplacementStore } from './store';
 import type {
   BucketOplAllocation,
@@ -29,8 +28,6 @@ type Props = {
   replacementRepo: ReplacementRepository;
   traceabilityRepo: TraceabilityRepository;
 };
-
-const HARVEST_DETAILS_UPDATER = 'Harvest Details Updater';
 
 type ScanResult =
   | { kind: 'bucket'; id: string }
@@ -70,7 +67,6 @@ function formatDate(iso: string | null | undefined): string {
 
 export function ReplacementScreen({ replacementRepo, traceabilityRepo }: Props) {
   const scanRef = useRef<ScanFieldHandle>(null);
-  const hasRole = useAuthStore((s) => s.hasRole(HARVEST_DETAILS_UPDATER));
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [snapshot, setSnapshot] = useState<TraceabilitySnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
@@ -97,18 +93,6 @@ export function ReplacementScreen({ replacementRepo, traceabilityRepo }: Props) 
     setSnapshot(null);
     setSnapshotError(null);
   };
-
-  if (!hasRole) {
-    return (
-      <Screen title="Replacement">
-        <Card>
-          <Text style={s.muted}>
-            You need the <Text style={s.strong}>Harvest Details Updater</Text> role to use this page.
-          </Text>
-        </Card>
-      </Screen>
-    );
-  }
 
   return (
     <Screen title="Replacement">

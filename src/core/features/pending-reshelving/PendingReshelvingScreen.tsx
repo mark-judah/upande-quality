@@ -7,7 +7,6 @@ import { Card, Alert } from '@/src/core/ui/Card';
 import { Skeleton } from '@/src/core/ui/Skeleton';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
-import { useAuthStore } from '@/src/core/auth/store';
 import { useReplacementStore } from '../replacement/store';
 import type {
   PendingBunch,
@@ -17,8 +16,6 @@ import type {
 import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = { repository: ReplacementRepository };
-
-const HARVEST_DETAILS_UPDATER = 'Harvest Details Updater';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -30,7 +27,6 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 export function PendingReshelvingScreen({ repository }: Props) {
-  const hasRole = useAuthStore((s) => s.hasRole(HARVEST_DETAILS_UPDATER));
   const {
     pending,
     pendingLoading,
@@ -43,18 +39,6 @@ export function PendingReshelvingScreen({ repository }: Props) {
   useEffect(() => {
     loadPending(repository);
   }, [loadPending, repository]);
-
-  if (!hasRole) {
-    return (
-      <Screen title="Pending Reshelving">
-        <Card>
-          <Text style={s.muted}>
-            You need the <Text style={s.strong}>Harvest Details Updater</Text> role to use this page.
-          </Text>
-        </Card>
-      </Screen>
-    );
-  }
 
   return (
     <Screen title="Pending Reshelving" onRefresh={() => loadPending(repository)}>
