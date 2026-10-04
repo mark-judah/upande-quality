@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as SystemUI from 'expo-system-ui';
 import {
   useFonts,
   Poppins_400Regular,
@@ -23,6 +24,7 @@ import { startTelemetry } from '@/src/core/telemetry/service';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
 import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
+import { COLORS } from '@/src/core/theme';
 
 // Hold the native splash until fonts + auth hydrated.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -48,6 +50,10 @@ function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
 
   return <DrawerItemsProvider items={items}>{children}</DrawerItemsProvider>;
 }
+
+// The window behind every screen (and behind the phone's own navigation bar, now
+// that the app draws edge to edge) is the app's light grey, not black.
+SystemUI.setBackgroundColorAsync(COLORS.bgMuted).catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

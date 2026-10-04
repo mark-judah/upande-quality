@@ -98,6 +98,7 @@
       "url": "https://mark-judah.github.io/upande-quality/ota/android/101.0/manifest.json",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
-    }
+    },
+    "backgroundColor": "#F5F5F5"
   }
 }
