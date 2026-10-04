@@ -169,17 +169,25 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // Every bucket already on a trolley (or beyond), for "Added to trolley": the
   // requests' scanned ones plus every bucket of the orders on trolleys / trucks.
   const addedList = useMemo(() => {
-    const out: { key: string; label: string; meta: string }[] = [];
-    const add = (b: ReqBucket, order: string) => {
+    // Everything about each: bucket and qty, variety and length, order and customer.
+    const out: { key: string; label: string; meta: string; sub?: string }[] = [];
+    const add = (b: ReqBucket, order: string, customer: string) => {
       if (!b.scanned || b.notFound) return;
       out.push({
         key: `${order}-${b.id}`,
-        label: `${b.bucketId.toUpperCase()} (${Math.round(b.qty)})`,
-        meta: [b.shelf ? b.shelf.toUpperCase() : '', bucketMeta(b.variety, b.stemLength), order].filter(Boolean).join(' · '),
+        label: `${b.bucketId.toUpperCase()} · ${Math.round(b.qty)} ${b.uom || 'stems'}`,
+        meta: [
+          bucketMeta(b.variety, b.stemLength),
+          b.shelf ? `shelf ${b.shelf.toUpperCase()}` : '',
+          b.trolleyId ? `trolley ${b.trolleyId.toUpperCase()}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        sub: [order, customer].filter(Boolean).join(' · '),
       });
     };
-    for (const g of requests) for (const o of g.opls) for (const b of o.buckets) add(b, g.orderName);
-    for (const o of [...trolley, ...inTransit]) for (const b of o.buckets) add(b, o.orderName);
+    for (const g of requests) for (const o of g.opls) for (const b of o.buckets) add(b, g.orderName, o.customer || '');
+    for (const o of [...trolley, ...inTransit]) for (const b of o.buckets) add(b, o.orderName, o.customer || '');
     return out;
   }, [requests, trolley, inTransit]);
 
@@ -2194,7 +2202,7 @@ function StageSummary({
   done: number;
   total: number;
   /** The buckets that finished this stage: tap the summary to list them, checked. */
-  items?: { key: string; label: string; meta: string }[];
+  items?: { key: string; label: string; meta: string; sub?: string }[];
 }) {
   const [open, setOpen] = useState(false);
   if (!total) return null;
@@ -2230,6 +2238,11 @@ function StageSummary({
                 <Text style={s.bMeta} numberOfLines={1}>
                   {it.meta}
                 </Text>
+                {it.sub ? (
+                  <Text style={s.bMetaSub} numberOfLines={1}>
+                    {it.sub}
+                  </Text>
+                ) : null}
               </View>
             </View>
           ))
@@ -2605,6 +2618,7 @@ const s = StyleSheet.create({
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   summaryLabel: { flex: 1, minWidth: 0, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   summaryCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
+  bMetaSub: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
