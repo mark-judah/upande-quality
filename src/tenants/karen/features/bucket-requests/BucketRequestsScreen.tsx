@@ -190,6 +190,11 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     for (const o of [...trolley, ...inTransit]) for (const b of o.buckets) add(b, o.orderName, o.customer || '');
     return out;
   }, [requests, trolley, inTransit]);
+  // The buckets already loaded and on the road (Trolley's summary: what left the trolley).
+  const transitList = useMemo(() => {
+    const keys = new Set(inTransit.flatMap((o) => o.buckets.map((b) => `${o.orderName}-${b.id}`)));
+    return addedList.filter((it) => keys.has(it.key));
+  }, [addedList, inTransit]);
 
 
   // A trip the truck has left this farm on is done here until its next run.
@@ -675,11 +680,11 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           />
         ) : tab === 'trolley' ? (
           <StageSummary
-            icon="cart-outline"
-            label="Added to trolley"
-            done={addedBuckets}
+            icon="car-outline"
+            label="Loaded and in transit"
+            done={transitList.length}
             total={allBuckets}
-            items={addedList}
+            items={transitList}
           />
         ) : tab === 'transit' ? (
           <StageSummary
