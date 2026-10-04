@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -60,6 +60,14 @@ function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
 
   return <DrawerItemsProvider items={items}>{children}</DrawerItemsProvider>;
 }
+
+// Light navigation theme in the app's colours, whatever the phone's dark mode: the
+// screens draw behind the phone's own (see-through) button bar, and a dark theme
+// left that strip black on every page but the menu.
+const NAV_THEME = {
+  ...DefaultTheme,
+  colors: { ...DefaultTheme.colors, background: COLORS.bgMuted, card: COLORS.surface },
+};
 
 // The window behind every screen (and behind the phone's own navigation bar, now
 // that the app draws edge to edge) is the app's light grey, not black.
@@ -127,9 +135,11 @@ export default function RootLayout() {
             <TenantScopedDrawer>
               <ToastProvider>
                 <StatusBar style="dark" />
+                <ThemeProvider value={NAV_THEME}>
                 <Stack
                   screenOptions={{
                     headerShown: false,
+                    contentStyle: { backgroundColor: COLORS.bgMuted },
                     // Forward nav slides in from the right; back gesture slides
                     // the screen out to the left. Matches platform conventions.
                     animation: 'slide_from_right',
@@ -149,6 +159,7 @@ export default function RootLayout() {
                     options={{ presentation: 'fullScreenModal' }}
                   />
                 </Stack>
+                </ThemeProvider>
                 {/* Sticky offline indicator across every screen. */}
                 <OfflineBanner />
                 {/* App-styled confirms / notices (showDialog), above every screen. */}

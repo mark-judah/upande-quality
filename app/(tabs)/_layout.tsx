@@ -55,6 +55,7 @@ export default function TabLayout() {
         // Each tab's screen renders its own <Screen> with header + hamburger,
         // so the Tabs navigator itself doesn't draw a header.
         headerShown: false,
+        sceneStyle: { backgroundColor: COLORS.bgMuted },
         tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: COLORS.surface,
