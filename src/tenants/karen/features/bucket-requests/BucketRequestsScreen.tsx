@@ -830,16 +830,12 @@ function ReplacePicker({
   const [selected, setSelected] = useState<string | null>(null);
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
   const [reason, setReason] = useState<ReplaceReason>('Missing');
-  // "Other" says why in a note (required); the others may add one.
-  const [note, setNote] = useState('');
-  const noteReady = reason !== 'Other' || !!note.trim();
   const candidates = pick?.candidates ?? [];
   // Default to the best match each time the sheet opens for a bucket.
   const firstId = candidates[0]?.bucketId ?? null;
   useEffect(() => {
     setSelected(firstId);
     setReason('Missing');
-    setNote('');
   }, [pick, firstId]);
 
   const chosen = candidates.find((c) => c.bucketId === selected) ?? null;
@@ -876,17 +872,6 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
-          {reason === 'Other' ? (
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Say why it is replaced (required)"
-              placeholderTextColor={COLORS.textMuted}
-              multiline
-              maxLength={300}
-              style={s.leaveInput}
-            />
-          ) : null}
           <Text style={s.repCount}>
             {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
           </Text>
@@ -907,8 +892,8 @@ function ReplacePicker({
                 size="sm"
                 label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                 iconLeft="swap-horizontal"
-                onPress={() => chosen && noteReady && onPick(chosen, reason, note.trim() || undefined)}
-                disabled={!chosen || !noteReady}
+                onPress={() => chosen && onPick(chosen, reason)}
+                disabled={!chosen}
                 style={{ flex: 2 }}
               />
             </View>

@@ -92,7 +92,8 @@ export type PlannedTripStop = {
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
 export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Other';
-export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Other'];
+/** Reasons offered in the replace modal ('Other' stays a valid type for older records). */
+export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety'];
 
 export type PlannedTrip = {
   tripId: string;
