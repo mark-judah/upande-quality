@@ -610,6 +610,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             oplTeam={oplTeam}
             oplLine={oplLine}
             onLoad={onLoad}
+            scanned={scannedBuckets}
+            total={totalBuckets}
           />
         ) : tab === 'shelved' ? (
           <ShelvedTab
@@ -1505,13 +1507,23 @@ function TrolleyTab({
   oplTeam: Record<string, string>;
   oplLine: Record<string, LineColor>;
   onLoad: (opls: TrolleyOpl[]) => void;
+  /** The tab's count: buckets on trolleys of those requested (not yet on a truck). */
+  scanned: number;
+  total: number;
 }) {
   if (!items.length) {
+    // An order is listed here once every one of its buckets is on a trolley.
     return (
       <Card>
         <View style={s.empty}>
           <Ionicons name="cart-outline" size={26} color={COLORS.textMuted} />
-          <Text style={s.emptyTitle}>No completed orders</Text>
+          <Text style={s.emptyTitle}>{scanned ? 'No order fully on a trolley yet' : 'Nothing on a trolley yet'}</Text>
+          {scanned ? (
+            <Text style={s.emptyHint}>
+              {scanned} of {total} requested buckets scanned — an order shows here once all its buckets are on a
+              trolley.
+            </Text>
+          ) : null}
         </View>
       </Card>
     );

@@ -742,8 +742,12 @@ export async function counts(): Promise<{
   let scannedBuckets = 0;
   let totalBuckets = 0;
   for (const r of rows) {
-    scannedBuckets += r.scanned;
-    totalBuckets += r.total;
+    // Trolley is the stage before the truck: an order already loaded / on the
+    // road counts under In Transit, not here.
+    if (r.in_transit !== 1) {
+      scannedBuckets += r.scanned;
+      totalBuckets += r.total;
+    }
     const complete = r.total > 0 && r.scanned >= r.total;
     if (!complete) requests++;
     else if (r.in_transit === 1) inTransit++;
