@@ -103,7 +103,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     closeStop,
     clearAll,
     deliveryDate,
-    deliveryDates,
     setDeliveryDate,
     completedTrips,
     loadingCompleted,
@@ -169,14 +168,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // from Trips to Completed.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
 
-  // Delivery date to work on: tomorrow (opens on it) and every other date the
-  // downloaded orders carry — else an order for another day sits on the device
-  // ("already on device") with no chip to reach it. No Today chip: the farms
-  // work on tomorrow's deliveries.
-  const dateChoices = useMemo(
-    () => [...new Set([isoDay(1), ...deliveryDates])].filter((d) => d !== isoDay(0)).sort(),
-    [deliveryDates],
-  );
+  // The farms work on tomorrow's deliveries: one Tomorrow chip, nothing else. A
+  // date left over from yesterday (or "every date") snaps back to tomorrow.
+  const tomorrow = isoDay(1);
+  const dateChoices = useMemo(() => [tomorrow], [tomorrow]);
+  useEffect(() => {
+    if (deliveryDate !== tomorrow) setDeliveryDate(tomorrow, userFarm);
+  }, [deliveryDate, tomorrow, userFarm, setDeliveryDate]);
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
