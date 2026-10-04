@@ -724,6 +724,10 @@ export async function counts(): Promise<{
   inTransit: number;
   scannedBuckets: number;
   totalBuckets: number;
+  /** Every requested bucket, how many are on a trolley (or beyond), how many on a truck. */
+  allBuckets: number;
+  addedBuckets: number;
+  transitBuckets: number;
 }> {
   const d = await db();
   const [fc, fa] = farmCond();
@@ -741,7 +745,13 @@ export async function counts(): Promise<{
   let inTransit = 0;
   let scannedBuckets = 0;
   let totalBuckets = 0;
+  let allBuckets = 0;
+  let addedBuckets = 0;
+  let transitBuckets = 0;
   for (const r of rows) {
+    allBuckets += r.total;
+    addedBuckets += r.scanned;
+    if (r.in_transit === 1) transitBuckets += r.scanned;
     // Trolley is the stage before the truck: an order already loaded / on the
     // road counts under In Transit, not here.
     if (r.in_transit !== 1) {
@@ -753,7 +763,7 @@ export async function counts(): Promise<{
     else if (r.in_transit === 1) inTransit++;
     else trolley++;
   }
-  return { requests, trolley, inTransit, scannedBuckets, totalBuckets };
+  return { requests, trolley, inTransit, scannedBuckets, totalBuckets, allBuckets, addedBuckets, transitBuckets };
 }
 
 export async function upsertTrolley(trolleyId: string): Promise<void> {

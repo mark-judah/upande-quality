@@ -31,6 +31,10 @@ type State = {
   /** Buckets scanned onto trolleys of all requested (the Trolley tab's x/n). */
   scannedBuckets: number;
   totalBuckets: number;
+  /** End-of-tab summaries: all requested buckets, added to trolleys, on trucks. */
+  allBuckets: number;
+  addedBuckets: number;
+  transitBuckets: number;
   inTransitCount: number;
   tripsCount: number;
   activeTrolleyId: string | null;
@@ -170,6 +174,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   trolleyCount: 0,
   scannedBuckets: 0,
   totalBuckets: 0,
+  allBuckets: 0,
+  addedBuckets: 0,
+  transitBuckets: 0,
   inTransitCount: 0,
   tripsCount: 0,
   activeTrolleyId: null,
@@ -260,6 +267,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       trolleyCount: c.trolley,
       scannedBuckets: c.scannedBuckets,
       totalBuckets: c.totalBuckets,
+      allBuckets: c.allBuckets,
+      addedBuckets: c.addedBuckets,
+      transitBuckets: c.transitBuckets,
       inTransitCount: c.inTransit,
       tripsCount: plannedTrips.length,
     });

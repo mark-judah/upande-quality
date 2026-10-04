@@ -85,6 +85,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     reqCount,
     scannedBuckets,
     totalBuckets,
+    allBuckets,
+    addedBuckets,
+    transitBuckets,
     inTransitCount,
     activeTrolleyId,
     online,
@@ -635,6 +638,20 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             onArrival={onArrival}
           />
         )}
+
+        {/* What this stage has finished, at the end of each tab. */}
+        {tab === 'requests' ? (
+          <StageSummary icon="cart-outline" label="Added to trolley" done={addedBuckets} total={allBuckets} />
+        ) : tab === 'trolley' ? (
+          <StageSummary icon="car-outline" label="Loaded and in transit" done={transitBuckets} total={allBuckets} />
+        ) : tab === 'transit' ? (
+          <StageSummary
+            icon="checkmark-done-outline"
+            label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
+            done={shelvedCount.done}
+            total={shelvedCount.total}
+          />
+        ) : null}
       </ScrollView>
 
       <LoadConfirm
@@ -2094,6 +2111,36 @@ function TripCard({
   );
 }
 
+/** A tab's closing line: how many requested buckets have finished this stage. */
+function StageSummary({
+  icon,
+  label,
+  done,
+  total,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  done: number;
+  total: number;
+}) {
+  if (!total) return null;
+  const complete = done >= total;
+  return (
+    <Card>
+      <View style={s.summaryRow}>
+        <Ionicons name={complete ? 'checkmark-circle' : icon} size={18} color={complete ? SHELVED_GREEN : COLORS.text} />
+        <Text style={s.summaryLabel} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[s.summaryCount, complete && { color: SHELVED_GREEN }]}>
+          {done}/{total}
+        </Text>
+      </View>
+      <ProgressBar value={total ? Math.min(1, done / total) : 0} />
+    </Card>
+  );
+}
+
 /** Text and border of the "shelved" pill: a darker green that reads on its pale fill. */
 const SHELVED_GREEN = '#067647';
 
@@ -2457,6 +2504,9 @@ const s = StyleSheet.create({
   stageText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   stageTextPending: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
   transitOpl: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginBottom: 2 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
+  summaryLabel: { flex: 1, minWidth: 0, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  summaryCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   repShelfRight: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   repActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   loadGroup: { borderWidth: 1, borderColor: COLORS.border, borderRadius: borderRadius.md, marginBottom: spacing.sm, paddingHorizontal: spacing.sm, paddingBottom: spacing.xs },
