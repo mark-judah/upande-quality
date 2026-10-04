@@ -692,8 +692,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           <StageSummary
             icon="cart-outline"
             label="On trolley"
-            done={scannedBuckets}
-            total={totalBuckets}
+            done={trolleyList.length}
+            total={allBuckets}
             items={trolleyList}
           />
         ) : tab === 'transit' ? (
@@ -2205,8 +2205,8 @@ function StageSummary({
   items?: { key: string; label: string; meta: string; sub?: string }[];
 }) {
   const [open, setOpen] = useState(false);
-  if (!total) return null;
-  const complete = done >= total;
+  // Shown even at 0 (e.g. everything already on a truck): the tab always ends with it.
+  const complete = total > 0 && done >= total;
   const canOpen = !!items?.length;
   return (
     <Card>
