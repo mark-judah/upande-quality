@@ -1453,6 +1453,12 @@ function OplCard({
             {bucketMeta(b.variety, b.stemLength)}
             {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
           </Text>
+          {b.asap && !b.scanned ? (
+            // A quality-issue replacement the packhouse is waiting on: load it first.
+            <View style={s.asapPill}>
+              <Text style={s.asapPillText}>ASAP</Text>
+            </View>
+          ) : null}
           {!b.scanned ? (
             <Pressable
               onPress={() => onReplace(b)}
@@ -1506,6 +1512,11 @@ function OplCard({
               <Text style={s.oplMeta}>
                 {opl.scanned}/{opl.total} scanned
               </Text>
+              {opl.asap ? (
+                <Text style={s.asapNote}>
+                  {opl.asap} ASAP replacement{opl.asap === 1 ? '' : 's'} — packing is waiting, load first
+                </Text>
+              ) : null}
             </View>
             <Text style={s.pct}>{pct}%</Text>
           </View>
@@ -2367,6 +2378,15 @@ const s = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bNotFound: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.danger },
+  asapPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    backgroundColor: '#B42318',
+    marginRight: spacing.xs,
+  },
+  asapPillText: { fontFamily: fontFamily.bold, fontSize: 10, color: '#fff', letterSpacing: 0.4 },
+  asapNote: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: '#B42318', marginTop: 2 },
   scroll: { paddingBottom: 40 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

@@ -30,6 +30,8 @@ export type RawAllocationItem = {
   allocated_date?: string;
   /** Sales Order delivery date (YYYY-MM-DD). */
   delivery_date?: string;
+  /** 'ASAP': a quality-issue replacement the packhouse needs on the next truck. */
+  priority?: string | null;
 };
 
 export type RawAllocationResponse = {

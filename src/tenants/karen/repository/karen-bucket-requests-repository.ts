@@ -33,6 +33,8 @@ export type AllocationItem = {
   deliveryDate: string;
   salesOrder: string;
   pickListItemId: string;
+  /** A quality-issue replacement found during packing: load it first. */
+  asap: boolean;
 };
 
 export type SavedTrolleyBucket = {
@@ -259,6 +261,7 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     salesOrder: r.sales_order ?? '',
     pickListItemId: r.pick_list_item_id ?? '',
     farm: r.farm || (r.warehouse ?? '').split(' ')[0] || '',
+    asap: r.priority === 'ASAP',
   };
 }
 
