@@ -37,7 +37,7 @@ export function ConfigureStationScreen({ next }: Props) {
   const isXflora = tenant === 'Xflora';
 
   useEffect(() => {
-    if (farms.length === 0 && greenhouses.length === 0) load();
+    if (farms.length === 0 && greenhouses.length === 0) load(tenant);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,8 +81,8 @@ export function ConfigureStationScreen({ next }: Props) {
       title="Configure Station"
       loading={loading && farms.length === 0 && greenhouses.length === 0}
       error={error}
-      onRetry={load}
-      onRefresh={load}
+      onRetry={() => load(tenant)}
+      onRefresh={() => load(tenant)}
     >
       <Card>
         <Dropdown
