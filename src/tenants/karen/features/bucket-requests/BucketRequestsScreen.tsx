@@ -1661,7 +1661,14 @@ function InTransitTab({
       </View>
     ));
   const onTruck = new Set<string>();
-  const tripCards = trips.map((t) => {
+  // Trucks still on the road first, the one that left earliest on top; trucks that
+  // have arrived at Kapkolia after them.
+  const ordered = [...trips].sort((a, b) => {
+    const aIn = arrivals[a.tripId]?.arrivedAt ? 1 : 0;
+    const bIn = arrivals[b.tripId]?.arrivedAt ? 1 : 0;
+    return aIn - bIn || (a.leftAt || '').localeCompare(b.leftAt || '') || a.tripId.localeCompare(b.tripId);
+  });
+  const tripCards = ordered.map((t) => {
     const mine = items.filter((o) => (t.orders ?? []).some((x) => x.opl === o.oplName));
     mine.forEach((o) => onTruck.add(o.oplName));
     return (
