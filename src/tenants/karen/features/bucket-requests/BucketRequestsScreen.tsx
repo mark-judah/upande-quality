@@ -42,7 +42,6 @@ import {
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import { isoDay, setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 import { lineColors, type LineColor } from './line-colors';
-import { CompletedView } from './CompletedView';
 
 type Tab = 'requests' | 'trolley' | 'transit' | 'shelved';
 
@@ -107,9 +106,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     deliveryDate,
     setDeliveryDate,
     completedTrips,
-    loadingCompleted,
     loadCompletedTrips,
-    reopenStop,
     arrivals,
     tripArrival,
     shelvedTrips,
@@ -164,16 +161,12 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return r.ok;
   };
 
-  // "Completed" (after the date chips): finished trips and picklists, every date.
-  const [completedView, setCompletedView] = useState(false);
-  // A trip the truck has left this farm on is done here until the next run: it moves
-  // from Trips to Completed.
+  // A trip the truck has left this farm on is done here until its next run.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
 
   // The farms work on tomorrow's deliveries: one Tomorrow chip, nothing else. A
   // date left over from yesterday (or "every date") snaps back to tomorrow.
   const tomorrow = isoDay(1);
-  const dateChoices = useMemo(() => [tomorrow], [tomorrow]);
   useEffect(() => {
     if (deliveryDate !== tomorrow) setDeliveryDate(tomorrow, userFarm);
   }, [deliveryDate, tomorrow, userFarm, setDeliveryDate]);
@@ -387,29 +380,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
   };
 
-  // "Completed" is a toggle beside the date chips: the date stays selected and the
-  // Completed page follows it.
-  const openCompleted = async () => {
-    if (completedView) {
-      setCompletedView(false);
-      return;
-    }
-    setCompletedView(true);
-    if (!deliveryDate) await setDeliveryDate(isoDay(1), userFarm);
-    const r = await loadCompletedTrips(userFarm);
-    if (!r.ok && r.message) showError(r.message);
-  };
-
-  const onReopen = async (t: CompletedTrip) => {
-    const r = await reopenStop(t.tripId, userFarm);
-    if (r.ok) showSuccess(r.message);
-    else showError(r.message);
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      if (completedView && online) await loadCompletedTrips(userFarm);
       // On the Trips tab a pull also re-pulls the live plan (when online).
       if (tab === 'requests' && online) await loadPlannedTrips(userFarm);
       if (tab === 'shelved' && online) await loadShelvedBuckets(userFarm);
@@ -561,32 +534,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           </View>
         ) : null}
 
-        {dateChoices.length ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateRow}>
-            <Pressable
-              onPress={openCompleted}
-              style={[s.dateChip, completedView && s.dateChipOn]}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: completedView }}
-            >
-              <Text style={[s.dateText, completedView && s.dateTextOn]}>Completed</Text>
-            </Pressable>
-          </ScrollView>
-        ) : null}
-
-        {completedView ? (
-          <CompletedView
-            farm={userFarm}
-            deliveryDate={deliveryDate}
-            trips={completedTrips}
-            loading={loadingCompleted}
-            trolley={trolley}
-            inTransit={inTransit}
-            oplLine={oplLine}
-            onReopen={onReopen}
-          />
-        ) : (
-          <>
         {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
             bar scrolls sideways instead of squeezing the labels. */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabsScroll}>
@@ -652,8 +599,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             loading={loadingTrips}
             onArrival={onArrival}
           />
-        )}
-          </>
         )}
       </ScrollView>
 
@@ -2660,13 +2605,8 @@ const s = StyleSheet.create({
   reasonChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   reasonText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
   reasonTextOn: { color: '#fff' },
-  dateRow: { gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: 2, alignItems: 'center' },
   tabsScroll: { flexGrow: 1 },
   tabsInner: { flex: 1, minWidth: 340 },
-  dateChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bg },
-  dateChipOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  dateText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text },
-  dateTextOn: { color: '#fff' },
   farmText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.text, flexShrink: 1 },
   truckRow: {
     flexDirection: 'row',
