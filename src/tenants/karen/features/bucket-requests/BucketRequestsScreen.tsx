@@ -1388,7 +1388,6 @@ function OplCard({
       </View>
       <View style={s.oplHead}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={s.oplDate}>{opl.createdOn || '—'}</Text>
           <Text style={s.oplMeta}>
             {opl.scanned}/{opl.total} scanned
           </Text>
@@ -1485,7 +1484,7 @@ function CompletedCard({
             {o.orderName}
           </Text>
           <Text style={s.oplMeta} numberOfLines={1}>
-            {o.createdOn} · trolley {o.trolleys.join(', ') || '—'}
+            Trolley {o.trolleys.join(', ') || '—'}
           </Text>
         </View>
         <View style={s.badge}>
@@ -1714,7 +1713,6 @@ function ShelvedTab({
         <View style={s.arrivalRow}>
           <Text style={[s.routeLabel, s.arrivalLabel]} numberOfLines={1}>
             Shelved at {where}
-            {day ? ` · ${day}` : ''}
           </Text>
           <Text style={s.arrivalCount}>
             {shelved} / {total}
@@ -2105,7 +2103,6 @@ function TripCard({
       <View style={s.tripMetaRow}>
         <Text style={s.tripMeta} numberOfLines={1}>
           {trip.tripId}
-          {trip.tripDate ? ` · ${trip.tripDate}` : ''}
         </Text>
         {trip.yourStop > 0 && trip.totalStops > 1 ? (
           <Text style={s.tripStop} numberOfLines={1}>
@@ -2461,7 +2458,6 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   oplHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  oplDate: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   oplMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
   pct: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text },
   track: {
