@@ -154,16 +154,11 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <Card title="App">
+      <Card title="App & Server">
         <InfoRow label="Installed" value={`v${APP_VERSION}`} />
         <InfoRow label="Latest" value={`v${latest}`} />
         {APK_VERSION !== APP_VERSION ? <InfoRow label="APK" value={`v${APK_VERSION}`} /> : null}
         <InfoRow label="Code" value={codeLine} />
-        <View style={{ height: spacing.md }} />
-        <ApkUpdateSection />
-      </Card>
-
-      <Card title="Server">
         <InfoRow label="Site" value={instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : '—'} />
         {siteApps === null ? (
           <InfoRow label="Apps" value="Loading…" />
@@ -172,6 +167,8 @@ export default function SettingsScreen() {
         ) : (
           siteApps.map((a) => <InfoRow key={a.label} label={a.label} value={`v${a.version}`} />)
         )}
+        <View style={{ height: spacing.md }} />
+        <ApkUpdateSection />
       </Card>
 
       <Card title="Session">

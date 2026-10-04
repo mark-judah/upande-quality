@@ -115,8 +115,8 @@ async function fetchReleases(): Promise<GithubRelease[]> {
     });
   } catch {
     throw timedOut
-      ? new UpdateCheckError('timeout', 'GitHub did not respond in time.')
-      : new UpdateCheckError('offline', 'Could not reach GitHub.');
+      ? new UpdateCheckError('timeout', 'The update page did not respond in time. Try again in a moment.')
+      : new UpdateCheckError('offline', "Couldn't reach the update page. Try again in a moment.");
   } finally {
     clearTimeout(timer);
   }
