@@ -1407,20 +1407,19 @@ function OplCard({
             color={b.notFound ? COLORS.danger : b.scanned ? (COLORS.success ?? '#12B76A') : COLORS.textMuted}
           />
           <View style={{ flex: 1, minWidth: 0 }}>
-            {/* Shelf first, big and bold: it is what they look for in the cold
-                room before the bucket on it. */}
-            {!!(b.shelf || b.farm) && (
+            {/* Shelf (left, big and bold: what they look for in the cold room)
+                and the bucket on it (right) on one line. */}
+            <View style={s.shelfBucketRow}>
               <Text style={s.bShelfLead} numberOfLines={1}>
                 {b.shelf || 'No shelf'}
-                {b.farm ? <Text style={s.bShelfFarm}>  · {b.farm}</Text> : null}
               </Text>
-            )}
-            <Text style={s.bId}>
-              {b.bucketId}
-              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
-            </Text>
+              <Text style={s.bIdRight} numberOfLines={1}>
+                {b.bucketId}
+              </Text>
+            </View>
             <Text style={s.bMeta} numberOfLines={1}>
-              {bucketMeta(b.variety, b.stemLength)}
+              {[bucketMeta(b.variety, b.stemLength), b.farm].filter(Boolean).join(' · ')}
+              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
             </Text>
           </View>
           <View style={s.bSide}>
@@ -2475,7 +2474,8 @@ const s = StyleSheet.create({
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary },
   bShelf: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 1 },
   bShelfLead: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
-  bShelfFarm: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
+  shelfBucketRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+  bIdRight: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, marginLeft: 'auto', flexShrink: 1 },
   bQty: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   bTrolley: { maxWidth: '35%' },
   bSide: { alignItems: 'flex-end', gap: 4 },
