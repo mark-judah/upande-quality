@@ -78,6 +78,13 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {
