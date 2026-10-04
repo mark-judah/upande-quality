@@ -100,6 +100,26 @@ export type RawReplacementCandidate = {
   harvest_date?: string | null;
 };
 
+export type RawOfflineHistory = {
+  replacement: string;
+  reason: 'not_found' | 'wrong_variety';
+  status?: string | null;
+  new_bucket?: string | null;
+  opl_name?: string | null;
+  order_name?: string | null;
+  reported_by?: string | null;
+  reported_at?: string | null;
+};
+
+export type RawReplacementOptions = {
+  found?: boolean;
+  message?: string;
+  needed_qty?: number;
+  farm?: string;
+  candidates?: RawReplacementCandidate[];
+  history?: RawOfflineHistory[];
+};
+
 export type RawIssueOfflineResponse = {
   success?: boolean;
   message?: string;
@@ -132,6 +152,17 @@ export const karenShelfOperationsApi = {
       params: { opl_name: oplName, ...(farm ? { farm } : {}) },
     });
     return res.message?.buckets ?? [];
+  },
+
+  /** Buckets that can stand in for `bucket` on the OPL, and the bucket's earlier
+   *  not-found / wrong-variety reports. */
+  async fetchReplacementOptions(oplName: string, bucket: string): Promise<RawReplacementOptions> {
+    const res = await api<{ message?: RawReplacementOptions }>({
+      method: 'GET',
+      url: `${OFFLINE_ISSUE}.replacement_options`,
+      params: { opl_name: oplName, bucket, limit: 20 },
+    });
+    return res.message ?? {};
   },
 
   /** Swap the allocated bucket for the scanned one (when they differ) and

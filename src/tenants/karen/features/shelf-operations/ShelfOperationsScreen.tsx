@@ -47,6 +47,9 @@ export function KarenShelfOperationsScreen({
     offlineBuckets,
     offlineBucketsLoading,
     allocatedBucket,
+    substitutes,
+    substitutesLoading,
+    chosenSubstitute,
     reason,
     correctVariety,
     correctStemLength,
@@ -71,6 +74,7 @@ export function KarenShelfOperationsScreen({
     setOplTeam,
     selectOpl,
     selectAllocatedBucket,
+    chooseSubstitute,
     setReason,
     setCorrectVariety,
     setCorrectStemLength,
@@ -450,6 +454,26 @@ export function KarenShelfOperationsScreen({
             title="Why was it not issued?"
             subtitle={pickedBucket ? [pickedBucket.bucket, pickedBucket.variety, pickedBucket.stemLength, `${pickedBucket.stems} stems`].filter(Boolean).join(' · ') : undefined}
           >
+            {/* Checked as soon as the bucket is picked: did it already go through
+                offline issuing as not found or the wrong variety? */}
+            {substitutes?.history.length ? (
+              <Alert tone="warn">
+                {substitutes.history
+                  .map((h) =>
+                    [
+                      `Already reported ${h.reason === 'not_found' ? 'not found' : 'wrong variety'}`,
+                      h.orderName || h.oplName,
+                      h.newBucket ? `replaced by ${h.newBucket}` : '',
+                      h.reportedBy,
+                      h.reportedAt,
+                      h.status,
+                    ]
+                      .filter(Boolean)
+                      .join(' · '),
+                  )
+                  .join('\n')}
+              </Alert>
+            ) : null}
             <View style={[s.modeRow, s.noMargin]}>
               <ModeButton label="Not found" active={reason === 'not_found'} onPress={() => setReason('not_found')} />
               <ModeButton
@@ -489,15 +513,53 @@ export function KarenShelfOperationsScreen({
             ) : null}
             {reason ? (
               <View>
+                <Text style={s.sheetLabel}>Substitute buckets</Text>
+                {substitutesLoading ? (
+                  <View style={{ gap: 10, marginBottom: 8 }}>
+                    <Skeleton width={'70%'} height={14} />
+                    <Skeleton width={'55%'} height={14} />
+                  </View>
+                ) : substitutes?.candidates.length ? (
+                  substitutes.candidates.map((c) => {
+                    const picked = chosenSubstitute === c.bucket;
+                    return (
+                      <Pressable
+                        key={c.bucket}
+                        style={[s.pickRow, picked && s.pickRowActive]}
+                        onPress={() => {
+                          chooseSubstitute(picked ? null : c.bucket);
+                          focusWhenReady(bucketRef);
+                        }}
+                        disabled={loading}
+                      >
+                        <View style={s.flex}>
+                          <Text style={s.pickTitle}>{c.bucket}</Text>
+                          <Text style={s.pickDetail}>
+                            {[c.shelf ?? 'not on a shelf', c.stemLength, c.stems != null ? `${c.stems} stems` : '']
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </Text>
+                        </View>
+                        <Text style={[s.pickMark, picked && s.pickMarkActive]}>{picked ? '●' : '○'}</Text>
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={[s.muted, s.noTopMargin]}>
+                    {substitutes?.message ?? 'No substitute bucket found.'}
+                  </Text>
+                )}
                 <Text style={s.sheetLabel}>Bucket that went out</Text>
                 <ScanField
                   ref={bucketRef}
                   onScan={onBucketScanIssueOffline}
                   autoFocus
                   placeholder={
-                    reason === 'not_found'
-                      ? `Scan the bucket issued instead of ${allocatedBucket} (or ${allocatedBucket} itself if found)`
-                      : `Scan the bucket issued instead of ${allocatedBucket}`
+                    chosenSubstitute
+                      ? `Scan ${chosenSubstitute}`
+                      : reason === 'not_found'
+                        ? `Scan the bucket issued instead of ${allocatedBucket} (or ${allocatedBucket} itself if found)`
+                        : `Scan the bucket issued instead of ${allocatedBucket}`
                   }
                   editable={!loading}
                 />

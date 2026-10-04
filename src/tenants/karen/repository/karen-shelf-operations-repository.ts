@@ -60,6 +60,25 @@ export type ReplacementCandidate = {
   stems: number | null;
 };
 
+/** An earlier time this bucket went through offline issuing (not found or
+ *  wrong variety). */
+export type OfflineHistory = {
+  reason: 'not_found' | 'wrong_variety';
+  status: string | null;
+  newBucket: string | null;
+  oplName: string | null;
+  orderName: string | null;
+  reportedBy: string | null;
+  reportedAt: string | null;
+};
+
+export type SubstituteOptions = {
+  candidates: ReplacementCandidate[];
+  /** Why there are none, when there are none. */
+  message: string | null;
+  history: OfflineHistory[];
+};
+
 export type IssueOfflineOutcome =
   | {
       kind: 'success';
@@ -208,6 +227,28 @@ export const karenShelfOperationsRepository = {
         shelf: c.shelf ?? null,
         stemLength: c.stem_length ?? null,
         stems: typeof c.available_qty === 'number' ? c.available_qty : null,
+      })),
+    };
+  },
+
+  async fetchSubstitutes(oplName: string, bucket: string): Promise<SubstituteOptions> {
+    const raw = await karenShelfOperationsApi.fetchReplacementOptions(oplName, bucket);
+    return {
+      candidates: (raw.candidates ?? []).map((c) => ({
+        bucket: c.new_bucket,
+        shelf: c.shelf ?? null,
+        stemLength: c.stem_length ?? null,
+        stems: typeof c.available_qty === 'number' ? c.available_qty : null,
+      })),
+      message: raw.found === false ? raw.message ?? null : null,
+      history: (raw.history ?? []).map((h) => ({
+        reason: h.reason,
+        status: h.status ?? null,
+        newBucket: h.new_bucket ?? null,
+        oplName: h.opl_name ?? null,
+        orderName: h.order_name ?? null,
+        reportedBy: h.reported_by ?? null,
+        reportedAt: h.reported_at ?? null,
       })),
     };
   },
