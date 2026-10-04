@@ -6,7 +6,7 @@ import { Card, Alert } from '@/src/core/ui/Card';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { Button } from '@/src/core/ui/Button';
-import { LabeledInput } from '@/src/core/ui/LabeledInput';
+import { Dropdown } from '@/src/core/ui/Dropdown';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useReplacementStore } from '@/src/core/features/replacement/store';
@@ -444,26 +444,24 @@ function EditPanel({
 
   const form = (
     <>
-      <Typeahead
+      {/* Full searchable lists: tap to open, search, pick (the current value is
+          pre-selected, not a filter that hides the rest). */}
+      <Dropdown
         label="Variety"
         iconName="flower"
         value={variety}
+        options={varieties.map((v) => ({ label: v, value: v }))}
+        placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
         onChange={setVariety}
-        options={varieties}
-        invalid={!varietyValid}
-        placeholder="Type to search varieties"
-        autoCapitalize="words"
       />
       <View style={{ height: 12 }} />
-      <Typeahead
+      <Dropdown
         label="Stem length"
         iconName="ruler"
         value={stemLength}
+        options={stemLengths.map((l) => ({ label: l, value: l }))}
+        placeholder={stemLengths.length ? 'Pick the stem length' : 'Loading…'}
         onChange={setStemLength}
-        options={stemLengths}
-        invalid={!lengthValid}
-        placeholder="e.g. 62cm"
-        autoCapitalize="none"
       />
       <View style={{ height: 12 }} />
       <Button
@@ -496,71 +494,8 @@ function EditPanel({
   );
 }
 
-function Typeahead({
-  label,
-  iconName,
-  value,
-  onChange,
-  options,
-  placeholder,
-  autoCapitalize,
-  invalid,
-}: {
-  label: string;
-  iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  placeholder?: string;
-  autoCapitalize?: 'none' | 'words' | 'sentences' | 'characters';
-  invalid?: boolean;
-}) {
-  const [focused, setFocused] = useState(false);
-  const q = value.trim().toLowerCase();
-  const suggestions = (
-    q ? options.filter((o) => o.toLowerCase().includes(q)) : options
-  ).slice(0, 10);
-
-  return (
-    <View>
-      <LabeledInput
-        label={label}
-        iconName={iconName}
-        value={value}
-        onChangeText={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        placeholder={placeholder}
-        style={invalid ? s.invalidInput : undefined}
-      />
-      {focused && suggestions.length > 0 ? (
-        <View style={s.suggestions}>
-          {suggestions.map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => {
-                onChange(opt);
-                setFocused(false);
-              }}
-              style={s.suggestion}
-            >
-              <Text style={s.suggestionText}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {invalid && !focused ? (
-        <Text style={s.invalidText}>Pick a value from the list.</Text>
-      ) : null}
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   helper: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
-  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   strong: { fontFamily: fontFamily.semiBold, color: COLORS.text },
 
   label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
@@ -596,22 +531,4 @@ const s = StyleSheet.create({
   pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 
-  suggestions: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    backgroundColor: COLORS.bg,
-    maxHeight: 220,
-    overflow: 'hidden',
-  },
-  suggestion: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  suggestionText: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
-  invalidInput: { borderColor: '#9a1f33' },
-  invalidText: { fontFamily: fontFamily.regular, marginTop: 4, fontSize: scaleFont(11), color: '#9a1f33' },
 });

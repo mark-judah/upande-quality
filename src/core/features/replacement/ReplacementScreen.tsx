@@ -8,6 +8,7 @@ import { Skeleton } from '@/src/core/ui/Skeleton';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { Button } from '@/src/core/ui/Button';
+import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
@@ -801,28 +802,23 @@ function BunchMoveEditor({
           Update what the bunch actually is. Pick variety and length from the lists.
         </Text>
         <View style={{ height: 12 }} />
-        <Typeahead
+        {/* Full searchable lists: tap to open, search, pick. */}
+        <Dropdown
           label="Variety"
           iconName="flower"
           value={variety}
+          options={varieties.map((v) => ({ label: v, value: v }))}
+          placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
           onChange={setVariety}
-          options={varieties}
-          invalid={!varietyValid}
-          placeholder="Type to search varieties"
-          autoCapitalize="words"
-          maxSuggestions={8}
         />
         <View style={{ height: 12 }} />
-        <Typeahead
+        <Dropdown
           label="Stem length"
           iconName="ruler"
           value={stemLength}
+          options={stemLengths.map((l) => ({ label: l, value: l }))}
+          placeholder={stemLengths.length ? 'Pick the stem length' : 'Loading…'}
           onChange={setStemLength}
-          options={stemLengths}
-          invalid={!lengthValid}
-          placeholder="e.g. 62cm"
-          autoCapitalize="none"
-          maxSuggestions={10}
         />
         {anyCorrection ? (
           <Text style={[s.muted, { marginTop: 10 }]}>
@@ -1061,70 +1057,6 @@ function Pill({ label, value, warn }: { label: string; value: string; warn?: boo
   );
 }
 
-function Typeahead({
-  label,
-  iconName,
-  value,
-  onChange,
-  options,
-  placeholder,
-  autoCapitalize,
-  invalid,
-  maxSuggestions = 8,
-}: {
-  label: string;
-  iconName: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  placeholder?: string;
-  autoCapitalize?: 'none' | 'words' | 'sentences' | 'characters';
-  invalid?: boolean;
-  maxSuggestions?: number;
-}) {
-  const [focused, setFocused] = useState(false);
-  const q = value.trim().toLowerCase();
-  const suggestions = q
-    ? options.filter((o) => o.toLowerCase().includes(q)).slice(0, maxSuggestions)
-    : options.slice(0, maxSuggestions);
-
-  return (
-    <View>
-      <LabeledInput
-        label={label}
-        iconName={iconName}
-        value={value}
-        onChangeText={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        placeholder={placeholder}
-        style={invalid ? s.invalidInput : undefined}
-      />
-      {focused && suggestions.length > 0 ? (
-        <View style={s.suggestions}>
-          {suggestions.map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => {
-                onChange(opt);
-                setFocused(false);
-              }}
-              style={s.suggestion}
-            >
-              <Text style={s.suggestionText}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {invalid && !focused ? (
-        <Text style={s.invalidText}>Pick a value from the list.</Text>
-      ) : null}
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   helper: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
@@ -1180,24 +1112,6 @@ const s = StyleSheet.create({
   pillValue: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn: { color: '#9a1f33' },
 
-  suggestions: {
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    backgroundColor: COLORS.bg,
-    maxHeight: 220,
-    overflow: 'hidden',
-  },
-  suggestion: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  suggestionText: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
-  invalidInput: { borderColor: '#9a1f33' },
-  invalidText: { fontFamily: fontFamily.regular, marginTop: 4, fontSize: scaleFont(11), color: '#9a1f33' },
 
   scopeRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   scopeButton: {
