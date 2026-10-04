@@ -40,6 +40,8 @@ export type OfflineOpl = {
   deliveryDate: string | null;
   issuedPct: number;
   openBuckets: number;
+  /** Varieties on the OPL, shown in the list before it is opened. */
+  varieties: string[];
 };
 
 export type OfflineBucket = {
@@ -161,6 +163,7 @@ export const karenShelfOperationsRepository = {
       deliveryDate: r.delivery_date ?? null,
       issuedPct: typeof r.issued_pct === 'number' ? r.issued_pct : 0,
       openBuckets: typeof r.open_buckets === 'number' ? r.open_buckets : 0,
+      varieties: Array.isArray(r.varieties) ? r.varieties : [],
     }));
   },
 

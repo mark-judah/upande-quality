@@ -77,6 +77,7 @@ export type RawOfflineOpl = {
   issued_stems?: number;
   issued_pct?: number;
   open_buckets?: number;
+  varieties?: string[];
 };
 
 export type RawOfflineBucket = {

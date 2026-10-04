@@ -381,7 +381,8 @@ export function KarenShelfOperationsScreen({
               options={shownOpls.map((o) => ({
                 label: `${o.team || NO_TEAM} · ${o.orderName} · ${o.issuedPct}% issued`,
                 value: o.oplName,
-                sublabel: [o.oplName, o.customer, o.deliveryDate].filter(Boolean).join(' · '),
+                // Varieties first: what the OPL holds, without opening it.
+                sublabel: [o.varieties.join(', '), o.oplName, o.customer].filter(Boolean).join(' · '),
               }))}
               placeholder={
                 oplsLoading
