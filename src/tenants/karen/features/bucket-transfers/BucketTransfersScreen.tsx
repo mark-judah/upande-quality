@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
@@ -46,6 +46,8 @@ export function KarenBucketTransfersScreen() {
   const counts = useMemo(() => {
     const c = { none: 0, progress: 0, ready: 0, issued: 0 };
     for (const g of groups) c[g.status] += 1;
+    // Issued counts BUCKETS issued (every order's), not orders.
+    c.issued = groups.reduce((n, g) => n + g.issuedCount, 0);
     return c;
   }, [groups]);
 
@@ -86,23 +88,19 @@ export function KarenBucketTransfersScreen() {
         </Pressable>
       </View>
 
-      {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
-          bar scrolls sideways instead of squeezing the labels. */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabsScroll}>
-        <View style={s.tabsInner}>
-          <Segmented
-            radius={10}
-            value={tab}
-            onChange={(v) => setTab(v as TransferTab)}
-            options={[
-              { value: 'none', label: `Not shelved (${counts.none})` },
-              { value: 'progress', label: `Shelved (${counts.progress})` },
-              { value: 'ready', label: `Ready (${counts.ready})` },
-              { value: 'issued', label: `Issued (${counts.issued})` },
-            ]}
-          />
-        </View>
-      </ScrollView>
+      {/* Short labels with the count underneath (as on Bucket Requests): four tabs
+          fit a ~320dp scanner inside the bar, with nothing spilling past it. */}
+      <Segmented
+        radius={10}
+        value={tab}
+        onChange={(v) => setTab(v as TransferTab)}
+        options={[
+          { value: 'none', label: 'Not shelved', count: counts.none },
+          { value: 'progress', label: 'Shelved', count: counts.progress },
+          { value: 'ready', label: 'Ready', count: counts.ready },
+          { value: 'issued', label: 'Issued', count: counts.issued },
+        ]}
+      />
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
@@ -162,6 +160,13 @@ function OrderCard({ g }: { g: TransferGroup }) {
     <Card>
       <View style={s.hd}>
         <View style={{ flex: 1, minWidth: 0 }}>
+          {/* Its place in the schedule: shelved at the hub in sequence, like it moves. */}
+          <View style={s.seqRow}>
+            <Text style={[s.seqChip, !g.schedule && s.seqChipNone]}>
+              {g.schedule ? `${g.team || 'Team'} #${g.schedule}` : 'Not scheduled'}
+            </Text>
+            {g.shelveNext ? <Text style={s.nextChip}>Shelve next</Text> : null}
+          </View>
           <Text style={s.order} numberOfLines={1}>
             {g.orderName}
           </Text>
@@ -258,8 +263,28 @@ const s = StyleSheet.create({
   },
   dateValue: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
   hd: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  tabsScroll: { flexGrow: 1 },
-  tabsInner: { flex: 1, minWidth: 340 },
+  seqRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  seqChip: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.xs,
+    color: COLORS.text,
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  seqChipNone: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  nextChip: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.xs,
+    color: '#fff',
+    backgroundColor: GREEN,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
   order: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full },

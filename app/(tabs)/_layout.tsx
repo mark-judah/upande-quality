@@ -55,6 +55,10 @@ export default function TabLayout() {
         // Each tab's screen renders its own <Screen> with header + hamburger,
         // so the Tabs navigator itself doesn't draw a header.
         headerShown: false,
+        // A tab left behind stays mounted but frozen: it stops re-rendering on store
+        // updates / sync timers while hidden, so the JS thread is free and opening
+        // another page is quick. It catches up the moment it is shown again.
+        freezeOnBlur: true,
         sceneStyle: { backgroundColor: COLORS.bgMuted },
         tabBarShowLabel: false,
         tabBarStyle: {

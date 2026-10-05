@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -16,6 +16,8 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { Dialog } from '@/src/core/ui/Dialog';
+import { Dropdown } from '@/src/core/ui/Dropdown';
+import { karenShelfOperationsRepository } from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -39,6 +41,7 @@ import {
   type CompletedTrip,
   type OplSchedule,
   type ReplaceReason,
+  type ReplaceCorrection,
   type BucketIssueInfo,
   type TripArrival,
   type ShelvedTrip,
@@ -58,7 +61,19 @@ type OplTripMap = Record<string, OplTripInfo>;
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const { showSuccess, showError } = useToast();
-  const [tab, setTab] = useState<Tab>('requests');
+  const [tab, setTabState] = useState<Tab>('requests');
+  // The bar moves at once (`picked`); the tab's content follows as a transition, so
+  // a heavy list never holds up the tap. A tab is mounted the first time it opens and
+  // kept (hidden) after, so switching back to it is instant.
+  const [picked, setPicked] = useState<Tab>('requests');
+  const [opened, setOpened] = useState<Tab[]>(['requests']);
+  const setTab = useCallback((t: Tab) => {
+    setPicked(t);
+    startTransition(() => {
+      setTabState(t);
+      setOpened((o) => (o.includes(t) ? o : [...o, t]));
+    });
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // Orders waiting for "Load to planned truck" to be confirmed (null = sheet closed).
@@ -88,7 +103,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     totalBuckets,
     allBuckets,
     addedBuckets,
-    inTransitCount,
+    transitBuckets,
     activeTrolleyId,
     online,
     downloading,
@@ -123,9 +138,19 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   // Shelved: the selected delivery date's buckets, pulled with the screen (its tab
   // shows the count), again when the date or tab changes, and on pull-to-refresh.
+  // Not on every tab switch: opening Shelved re-pulls only once the last pull is older
+  // than the sync interval (pull-to-refresh always pulls).
+  const shelvedAt = useRef(0);
   useEffect(() => {
-    if (online && userFarm) loadShelvedBuckets(userFarm);
-  }, [tab, deliveryDate, online, userFarm, loadShelvedBuckets]);
+    if (!online || !userFarm) return;
+    shelvedAt.current = Date.now();
+    loadShelvedBuckets(userFarm).catch(() => {});
+  }, [deliveryDate, online, userFarm, loadShelvedBuckets]);
+  useEffect(() => {
+    if (tab !== 'shelved' || !online || !userFarm || Date.now() - shelvedAt.current < SYNC_INTERVAL_MS) return;
+    shelvedAt.current = Date.now();
+    loadShelvedBuckets(userFarm).catch(() => {});
+  }, [tab, online, userFarm, loadShelvedBuckets]);
   const shelvedCount = useMemo(
     () => ({
       done: shelvedTrips.reduce((n, t) => n + t.shelved, 0),
@@ -133,6 +158,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }),
     [shelvedTrips],
   );
+  const requestedTotal = Math.max(allBuckets, shelvedCount.done);
 
   // In Transit: this farm's trips on the road (dispatched, not received yet), with
   // their arrival at the hub. Pulled when the tab opens.
@@ -147,17 +173,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       ),
     [completedTrips, deliveryDate],
   );
+  const transitAt = useRef(0);
   useEffect(() => {
     if (tab !== 'transit' || !online || !userFarm) return;
     let live = true;
-    const pull = () =>
-      loadCompletedTrips(userFarm).then(() => {
-        if (!live) return;
-        for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
-          if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status');
-        }
-      });
-    pull();
+    const pull = () => {
+      transitAt.current = Date.now();
+      return loadCompletedTrips(userFarm)
+        .then(() => {
+          if (!live) return;
+          for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
+            if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status').catch(() => {});
+          }
+        })
+        .catch(() => {});
+    };
+    // Reopening the tab shows what it had; it pulls again only when that is stale.
+    if (Date.now() - transitAt.current >= SYNC_INTERVAL_MS) pull();
     // Keep "Arrived at Kapkolia" live: it ticks as soon as shelving starts there.
     const timer = setInterval(pull, SYNC_INTERVAL_MS);
     return () => {
@@ -333,6 +365,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return activeTrolleyId ? onBucketScan(raw) : onTrolleyScan(raw);
   };
 
+  // A scan the server refused after it was saved here (already issued / on a truck).
+  useEffect(
+    () =>
+      useKarenBucketRequestsStore.subscribe((st, prev) => {
+        if (!st.scanRefusal || st.scanRefusal === prev.scanRefusal) return;
+        setScanStatus({ ok: false, message: st.scanRefusal.message });
+        showError(st.scanRefusal.message);
+      }),
+    [showError],
+  );
+
   const onBucketScan = async (raw: string) => {
     const r = await scanBucketFromScan(raw);
     setScanStatus({ ok: r.ok, message: r.message });
@@ -461,23 +504,36 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     );
   };
 
-  const onConfirmReplace = (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+  const onConfirmReplace = (
+    c: ReplacementCandidate,
+    reason: ReplaceReason,
+    notes?: string,
+    correction?: ReplaceCorrection,
+  ) => {
     const pick = replacePick;
     if (!pick) return;
+    const old = pick.bucket.bucketId.toUpperCase();
+    const real = [correction?.variety, correction?.stemLength].filter(Boolean).join(' · ');
     confirm(
       'Replace this bucket?',
-      `${pick.bucket.bucketId.toUpperCase()} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.`,
+      `${old} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.` +
+        (real ? ` ${old} stays on its shelf, recorded as ${real}.` : ''),
       'Replace',
-      () => void doReplace(c, reason, notes),
+      () => void doReplace(c, reason, notes, correction),
     );
   };
-  const doReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+  const doReplace = async (
+    c: ReplacementCandidate,
+    reason: ReplaceReason,
+    notes?: string,
+    correction?: ReplaceCorrection,
+  ) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
     setReplacePick(null);
     setReplacingId(pick.bucket.id);
-    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes);
+    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes, correction);
     setReplacingId(null);
     replaceBusy.current = false;
     if (r.ok) showSuccess(r.message);
@@ -628,22 +684,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           names with the count underneath fit any width, a ~320dp scanner included. */}
       <Segmented
         radius={10}
-        value={tab}
+        value={picked}
         onChange={(v) => setTab(v as Tab)}
         options={[
-          { value: 'requests', label: 'Requests', count: reqCount },
-          { value: 'trolley', label: 'Trolley', count: `${scannedBuckets}/${totalBuckets}` },
-          { value: 'transit', label: 'Transit', count: inTransitCount },
-          {
-            value: 'shelved',
-            label: 'Shelved',
-            // Shelved of those on their way: 0/3 before anything is shelved (the
-            // in-transit buckets until the shelving list loads), 0 when none travel.
-            count: (() => {
-              const total = shelvedCount.total || transitList.length;
-              return total ? `${shelvedCount.done}/${total}` : '0';
-            })(),
-          },
+          // Every count is BUCKETS, out of the same total — the buckets requested —
+          // and a stage counts a bucket once it has reached it (on a trolley ⊇ on a
+          // truck ⊇ shelved). The shelving list can hold buckets the device no longer
+          // lists (a closed stop), so the total never reads below what's shelved.
+          { value: 'requests', label: 'Requests', count: requestedTotal },
+          { value: 'trolley', label: 'Trolley', count: `${addedBuckets}/${requestedTotal}` },
+          { value: 'transit', label: 'Transit', count: `${transitBuckets}/${requestedTotal}` },
+          { value: 'shelved', label: 'Shelved', count: `${shelvedCount.done}/${requestedTotal}` },
         ]}
       />
       <ScrollView
@@ -674,55 +725,75 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         ) : null}
 
 
-        {tab === 'requests' ? (
-          <RequestsTab
-            farm={userFarm}
-            hub={shelvedHub}
-            groups={requests}
-            schedules={schedules}
-            plannedTrips={plannedTrips}
-            trips={openTrips}
-            oplTrip={oplTrip}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            online={online}
-            loading={downloading || loadingTrips}
-            replacingId={replacingId}
-            onReplace={onReplace}
-          />
-        ) : tab === 'trolley' ? (
-          <TrolleyTab
-            items={trolley}
-            allScanned={reqCount === 0}
-            syncingOpl={syncingOpl}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            onLoad={onLoad}
-            scanned={scannedBuckets}
-            total={totalBuckets}
-          />
-        ) : tab === 'shelved' ? (
-          <ShelvedTab
-            trips={shelvedTrips}
-            hub={shelvedHub}
-            loading={loadingShelved}
-            online={online}
-            day={deliveryDate ? dateLabel(deliveryDate) : ''}
-          />
-        ) : (
-          <InTransitTab
-            hub={shelvedHub}
-            items={inTransit}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            trips={roadTrips}
-            arrivals={arrivals}
-            deliveryDate={deliveryDate}
-            online={online}
-            loading={loadingTrips}
-            onArrival={onArrival}
-          />
-        )}
+        {/* Lazily mounted, then kept: a hidden tab keeps its rendered list. */}
+        {opened.includes('requests') ? (
+          <View style={tab === 'requests' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'requests'}>
+            <RequestsTab
+              farm={userFarm}
+              hub={shelvedHub}
+              groups={requests}
+              schedules={schedules}
+              plannedTrips={plannedTrips}
+              trips={openTrips}
+              oplTrip={oplTrip}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              online={online}
+              loading={downloading || loadingTrips}
+              replacingId={replacingId}
+              onReplace={onReplace}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('trolley') ? (
+          <View style={tab === 'trolley' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'trolley'}>
+            <TrolleyTab
+              items={trolley}
+              allScanned={reqCount === 0}
+              syncingOpl={syncingOpl}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              onLoad={onLoad}
+              scanned={scannedBuckets}
+              total={totalBuckets}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('shelved') ? (
+          <View style={tab === 'shelved' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'shelved'}>
+            <ShelvedTab
+              trips={shelvedTrips}
+              hub={shelvedHub}
+              loading={loadingShelved}
+              online={online}
+              day={deliveryDate ? dateLabel(deliveryDate) : ''}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('transit') ? (
+          <View style={tab === 'transit' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'transit'}>
+            <InTransitTab
+              hub={shelvedHub}
+              items={inTransit}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              trips={roadTrips}
+              arrivals={arrivals}
+              deliveryDate={deliveryDate}
+              online={online}
+              loading={loadingTrips}
+              onArrival={onArrival}
+            />
+            </Frozen>
+          </View>
+        ) : null}
 
         {/* The same summary of the day's OPLs at the end of Requests, Trolley and In Transit. */}
         {tab !== 'shelved' ? (
@@ -770,6 +841,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     </Screen>
   );
 }
+
+/** A hidden tab skips re-rendering (a scan refreshes every list); it renders again,
+ *  with the latest data, the moment it is shown. */
+const Frozen = memo(
+  function Frozen({ children }: { active: boolean; children: ReactNode }) {
+    return <>{children}</>;
+  },
+  (prev, next) => !prev.active && !next.active,
+);
 
 /** One truck's share of a load: the orders planned on that truck's trip. */
 type PlannedLoad = { vehicle: string; plannedVehicle: string; tripId: string; status: string; opls: TrolleyOpl[] };
@@ -975,7 +1055,7 @@ function ReplacePicker({
     candidates: ReplacementCandidate[];
   } | null;
   onClose: () => void;
-  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => void;
+  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string, correction?: ReplaceCorrection) => void;
   /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
   onNotFound: () => void;
   /** "Issued offline": where the bucket was issued (which line). */
@@ -990,11 +1070,29 @@ function ReplacePicker({
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
   const [reason, setReason] = useState<ReplaceReason>('Missing');
   const [pickFor, setPickFor] = useState<{ pick: typeof pick; firstId: string | null }>({ pick, firstId });
+  // Wrong variety: what the bucket really holds, so its record is corrected.
+  const [realVariety, setRealVariety] = useState('');
+  const [realLength, setRealLength] = useState('');
+  const [varieties, setVarieties] = useState<string[]>([]);
+  const [lengths, setLengths] = useState<string[]>([]);
   if (pickFor.pick !== pick || pickFor.firstId !== firstId) {
     setPickFor({ pick, firstId });
     setSelected(firstId);
     setReason('Missing');
+    setRealVariety('');
+    setRealLength('');
   }
+  const wrongVariety = reason === 'Wrong variety';
+  useEffect(() => {
+    if (!wrongVariety) return;
+    if (!varieties.length) karenShelfOperationsRepository.fetchVarieties().then(setVarieties).catch(() => {});
+    if (!lengths.length) karenShelfOperationsRepository.fetchStemLengths().then(setLengths).catch(() => {});
+  }, [wrongVariety, varieties.length, lengths.length]);
+  const correction: ReplaceCorrection | undefined = wrongVariety
+    ? { variety: realVariety || undefined, stemLength: realLength || undefined }
+    : undefined;
+  // Wrong variety needs at least what it really holds before it can be replaced.
+  const correctionMissing = wrongVariety && !realVariety && !realLength;
   // "Issued offline": look up which line it went to. Same line — mark it issued,
   // nothing to replace; another line — replace it as usual.
   type IssueResult = BucketIssueInfo | { kind: 'error'; message: string } | null;
@@ -1054,6 +1152,35 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
+          {wrongVariety ? (
+            <View style={s.correctBox}>
+              <Text style={s.correctNote}>
+                {b?.bucketId} stays on its shelf. Enter what it really holds so its record is corrected.
+              </Text>
+              <Dropdown
+                label="Real variety"
+                iconName="flower-outline"
+                value={realVariety}
+                options={[
+                  { label: 'Same as recorded', value: '' },
+                  ...varieties.map((v) => ({ label: v, value: v })),
+                ]}
+                placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
+                onChange={setRealVariety}
+              />
+              <Dropdown
+                label="Real stem length"
+                iconName="ruler"
+                value={realLength}
+                options={[
+                  { label: 'Same as recorded', value: '' },
+                  ...lengths.map((l) => ({ label: l, value: l })),
+                ]}
+                placeholder={lengths.length ? 'Pick the stem length' : 'Loading…'}
+                onChange={setRealLength}
+              />
+            </View>
+          ) : null}
           {reason === 'Issued offline' ? (
             <Text style={[s.issuedNote, sameLine && s.issuedNoteSame]}>
               {issuedLoading
@@ -1098,8 +1225,8 @@ function ReplacePicker({
                   singleLine
                   label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                   iconLeft="swap-horizontal"
-                  onPress={() => chosen && onPick(chosen, reason)}
-                  disabled={!chosen || (reason === 'Issued offline' && issuedLoading)}
+                  onPress={() => chosen && onPick(chosen, reason, undefined, correction)}
+                  disabled={!chosen || correctionMissing || (reason === 'Issued offline' && issuedLoading)}
                   style={{ flex: 2 }}
                 />
               )}
@@ -1219,9 +1346,9 @@ function RequestsTab({
     );
   }
 
-  // Shown in schedule order: team, then slot (Team A #1, #2 …, Team B #1 …);
-  // orders only on a trip follow in trip order; unscheduled ones sink to the
-  // bottom (greyed).
+  // Shown in sequence steps, as transfers move: every team's #1, then every team's
+  // #2 … (Team A #1, Team B #1, … Team A #2 …); orders only on a trip follow in trip
+  // order; unscheduled ones sink to the bottom (greyed).
   const isScheduled = (g: OrderGroup) => g.opls.some((o) => !!oplTrip[o.oplName]);
   const slot = new Map<string, [string, number]>();
   for (const sc of schedules) {
@@ -1229,19 +1356,20 @@ function RequestsTab({
   }
   plannedTrips.forEach((t, ti) =>
     (t.orders ?? []).forEach((o, oi) => {
-      if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', ti * 1000 + oi]);
+      if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', 1_000_000 + ti * 1000 + oi]);
     }),
   );
+  // Step (schedule #) first, then team.
+  const bySlot = (ra: [string, number], rb: [string, number]) =>
+    ra[1] !== rb[1] ? ra[1] - rb[1] : ra[0] === rb[0] ? 0 : ra[0] < rb[0] ? -1 : 1;
   const rankOf = (g: OrderGroup): [string, number] => {
     let best: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
     for (const o of g.opls) {
       const r = slot.get(o.oplName);
-      if (r && (r[0] < best[0] || (r[0] === best[0] && r[1] < best[1]))) best = r;
+      if (r && bySlot(r, best) < 0) best = r;
     }
     return best;
   };
-  const bySlot = (ra: [string, number], rb: [string, number]) =>
-    ra[0] === rb[0] ? ra[1] - rb[1] : ra[0] < rb[0] ? -1 : 1;
   const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
   const sorted = [...groups]
     .sort((a, b) => {
@@ -1271,16 +1399,27 @@ function RequestsTab({
     sorted
       .map((g) => ({ ...g, opls: g.opls.filter((o) => tripOf.get(o.oplName) === tripId) }))
       .filter((g) => g.opls.length);
+  // Picking order across every trip as listed (every team's #1, then #2 …): the
+  // number on each order, "Pick first" on the first and "Pick last" on the last.
+  const pickPos = new Map<string, number>();
+  for (const t of steps) for (const g of onTrip(t.tripId)) if (!pickPos.has(g.orderName)) pickPos.set(g.orderName, pickPos.size + 1);
+  const pickN = pickPos.size;
   // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
+    const pos = pickPos.get(g.orderName);
     // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
       <View>
         {/* Row 1: order name left, team right; the customer under it. */}
         <View style={s.groupLine}>
+          {pos ? (
+            <View style={[s.pickBadge, pos === 1 ? s.pickBadgeFirst : null]}>
+              <Text style={[s.pickBadgeText, pos === 1 ? s.pickBadgeTextFirst : null]}>{pos}</Text>
+            </View>
+          ) : null}
           <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]}>
             {g.orderName}
           </Text>
@@ -1289,6 +1428,11 @@ function RequestsTab({
         {customer ? (
           <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>
             {customer}
+          </Text>
+        ) : null}
+        {pos && pickN > 1 && (pos === 1 || pos === pickN) ? (
+          <Text style={[s.pickTag, pos === 1 ? s.pickTagFirst : null]}>
+            {pos === 1 ? 'Pick first' : `Pick last · ${pos} of ${pickN}`}
           </Text>
         ) : null}
       </View>
@@ -2186,7 +2330,10 @@ function TripCard({
   children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
-  const ui = yourStop ? (STOP_UI[yourStop.status] ?? STOP_UI.waiting) : null;
+  // Staging starts with the first bucket scanned here, on this device, before the
+  // server hears of it (offline too): "Not staged" only while nothing is scanned.
+  const stopStatus = yourStop?.status === 'waiting' && scanned > 0 ? 'loading' : yourStop?.status;
+  const ui = yourStop ? (STOP_UI[stopStatus ?? 'waiting'] ?? STOP_UI.waiting) : null;
   const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
   return (
     <Card>
@@ -2305,6 +2452,24 @@ function StageSummary({
 const SHELVED_GREEN = '#067647';
 
 const s = StyleSheet.create({
+  pickBadge: {
+    minWidth: 26,
+    height: 26,
+    paddingHorizontal: 6,
+    borderRadius: 13,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  pickBadgeFirst: { backgroundColor: COLORS.success ?? '#12B76A', borderColor: COLORS.success ?? '#12B76A' },
+  pickBadgeText: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
+  pickBadgeTextFirst: { color: '#fff' },
+  pickTag: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
+  pickTagFirst: { color: COLORS.success ?? '#067647' },
+  tabHidden: { display: 'none' },
   // Room above and left of each trip card for its floating number.
   step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.md },
   stepDot: {
@@ -2666,6 +2831,8 @@ const s = StyleSheet.create({
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
   repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
+  correctBox: { marginTop: spacing.sm, gap: 2 },
+  correctNote: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginBottom: 4 },
   issuedNote: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   issuedNoteSame: { color: SHELVED_GREEN },
   // In transit and Arrived side by side on one line (wrapping only if they can't fit).

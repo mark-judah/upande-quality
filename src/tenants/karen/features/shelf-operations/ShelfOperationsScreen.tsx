@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,6 +8,12 @@ import { Dropdown } from '@/src/core/ui/Dropdown';
 import { BottomSheet } from '@/src/core/ui/Dialog';
 import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
+import { InlineCamera } from '@/src/core/scanning/InlineCamera';
+import { mapAxiosError } from '@/src/core/api/client';
+import {
+  karenShelfOperationsRepository,
+  type IssuedBucket,
+} from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import {
@@ -65,6 +71,7 @@ export function KarenShelfOperationsScreen({
     stockTakeSyncProgress,
     stockTakeSyncError,
     setMode,
+    handOver,
     setShelfFromScan,
     clearShelf,
     submitTransfer,
@@ -95,6 +102,25 @@ export function KarenShelfOperationsScreen({
     [opls],
   );
   const pickedBucket = offlineBuckets.find((b) => b.bucket === allocatedBucket) ?? null;
+  const pickedOpl = opls.find((o) => o.oplName === opl) ?? null;
+  // The buckets already issued to the picked OPL's line (the "bkt" button).
+  const [issued, setIssued] = useState<{ opl: string; loading: boolean; buckets: IssuedBucket[]; error?: string } | null>(
+    null,
+  );
+  const openIssued = async (oplName: string) => {
+    setIssued({ opl: oplName, loading: true, buckets: [] });
+    try {
+      const buckets = await karenShelfOperationsRepository.fetchIssuedBuckets(oplName);
+      setIssued((cur) => (cur?.opl === oplName ? { opl: oplName, loading: false, buckets } : cur));
+    } catch (err) {
+      setIssued((cur) =>
+        cur?.opl === oplName ? { opl: oplName, loading: false, buckets: [], error: mapAxiosError(err).message } : cur,
+      );
+    }
+  };
+  // Issue Offline: the camera above the "Issue this bucket" sheet (not its own screen).
+  const [camOpen, setCamOpen] = useState(false);
+  if (camOpen && !allocatedBucket) setCamOpen(false);
   const shownOpls = useMemo(
     () =>
       opls
@@ -117,15 +143,15 @@ export function KarenShelfOperationsScreen({
     useCallback(() => {
       if (!only) return;
       const st = useKarenShelfOperationsStore.getState();
-      if (st.mode !== only) setMode(only);
+      if (st.mode !== only) handOver(only);
       // Fresh OPLs on every visit (the page stays mounted between visits).
       if (only === 'issue-offline') {
         setOplFarm(userFarm);
         if (st.oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
         else loadOpls();
       }
-      return () => setMode('transfer');
-    }, [only, userFarm, setMode, setOplFarm, setOplDeliveryDate, loadOpls]),
+      return () => handOver('transfer');
+    }, [only, userFarm, handOver, setOplFarm, setOplDeliveryDate, loadOpls]),
   );
 
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
@@ -417,6 +443,37 @@ export function KarenShelfOperationsScreen({
               disabled={oplsLoading || loading}
               onChange={(v) => selectOpl(v)}
             />
+            {/* The OPL being worked on, spelled out under the picker (remembered when
+                the page is left and reopened). */}
+            {pickedOpl ? (
+              <View style={s.pickedOpl}>
+                <View style={s.pickedHead}>
+                  <Text style={[s.pickedOrder, s.pickTitleFlex]} numberOfLines={1}>
+                    {pickedOpl.orderName}
+                  </Text>
+                  {/* The buckets already issued to this line: tap for the list. */}
+                  <Pressable
+                    onPress={() => void openIssued(pickedOpl.oplName)}
+                    style={s.bktBtn}
+                    hitSlop={6}
+                    accessibilityLabel="Buckets issued to this OPL"
+                  >
+                    <Text style={s.bktBtnText}>{pickedOpl.issuedBuckets} bkt</Text>
+                  </Pressable>
+                </View>
+                <Text style={s.pickedMeta} numberOfLines={1}>
+                  {[pickedOpl.oplName, pickedOpl.customer].filter(Boolean).join(' · ')}
+                </Text>
+                <Text style={s.pickedMeta} numberOfLines={1}>
+                  {[pickedOpl.team || NO_TEAM, `${pickedOpl.issuedPct}% issued`, `${pickedOpl.openBuckets} bucket${pickedOpl.openBuckets === 1 ? '' : 's'} left`].join(' · ')}
+                </Text>
+                {pickedOpl.varieties.length ? (
+                  <Text style={s.pickedVar} numberOfLines={2}>
+                    {pickedOpl.varieties.join(', ')}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </Card>
 
           {opl ? (
@@ -432,24 +489,47 @@ export function KarenShelfOperationsScreen({
               ) : (
                 offlineBuckets.map((b) => {
                   const picked = allocatedBucket === b.bucket;
+                  const done = b.issuedOffline;
                   return (
                     <Pressable
                       key={b.bucket}
-                      style={[s.pickRow, picked && s.pickRowActive]}
-                      onPress={() => selectAllocatedBucket(picked ? null : b.bucket)}
+                      style={[s.pickRow, picked && s.pickRowActive, done && s.pickRowDone]}
+                      onPress={() =>
+                        done
+                          ? showError(`${b.bucket} was already issued offline to this OPL.`)
+                          : selectAllocatedBucket(picked ? null : b.bucket)
+                      }
                       disabled={loading}
                     >
                       <View style={s.pickBody}>
-                        <Text style={s.pickTitle} numberOfLines={1}>
-                          {b.bucket}
-                        </Text>
+                        {/* Bucket on the left, its shelf on the right of the same line,
+                            each with its label underneath. */}
+                        <View style={s.pickTitleRow}>
+                          <View style={s.pickTitleFlex}>
+                            <Text style={s.pickTitle} numberOfLines={1}>
+                              {b.bucket}
+                            </Text>
+                            <Text style={s.pickIdLabel}>Bucket</Text>
+                          </View>
+                          <View style={s.pickShelfCol}>
+                            <Text
+                              style={[
+                                s.pickShelf,
+                                (b.inTransit || !b.shelf) && s.pickShelfNone,
+                                done && s.pickShelfDone,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {done ? 'Issued offline' : b.inTransit ? 'On the way' : (b.shelf ?? 'No shelf')}
+                            </Text>
+                            <Text style={s.pickIdLabel}>{done ? 'Done' : 'Shelf'}</Text>
+                          </View>
+                        </View>
                         <Text style={s.pickDetail}>
-                          {[b.variety, b.stemLength, `${b.stems} stems`, b.inTransit ? 'on the way from the farm' : (b.shelf ?? 'not on a shelf')]
-                            .filter(Boolean)
-                            .join(' · ')}
+                          {[b.variety, b.stemLength, `${b.stems} stems`].filter(Boolean).join(' · ')}
                         </Text>
                       </View>
-                      <Text style={[s.pickMark, picked && s.pickMarkActive]}>{picked ? '●' : '○'}</Text>
+                      <Text style={[s.pickMark, picked && s.pickMarkActive]}>{done ? '✓' : picked ? '●' : '○'}</Text>
                     </Pressable>
                   );
                 })
@@ -463,10 +543,67 @@ export function KarenShelfOperationsScreen({
            *  scan all happen here, no scrolling to the end of the page. Issuing
            *  clears the picked bucket, which closes it. */}
           <BottomSheet
+            visible={!!issued}
+            onClose={() => setIssued(null)}
+            title={`Issued to ${pickedOpl?.orderName ?? issued?.opl ?? ''}`}
+            subtitle={
+              issued && !issued.loading
+                ? `${issued.buckets.length} bucket${issued.buckets.length === 1 ? '' : 's'} · ${Math.round(
+                    issued.buckets.reduce((n, b) => n + b.contents.reduce((m, c) => m + c.stems, 0), 0),
+                  )} stems`
+                : undefined
+            }
+          >
+            {issued?.loading ? (
+              <View style={{ gap: 10 }}>
+                <Skeleton width={'70%'} height={14} />
+                <Skeleton width={'55%'} height={14} />
+              </View>
+            ) : issued?.error ? (
+              <Alert tone="danger">{issued.error}</Alert>
+            ) : issued && !issued.buckets.length ? (
+              <Text style={s.muted}>Nothing issued to this OPL yet.</Text>
+            ) : (
+              issued?.buckets.map((b) => (
+                <View key={b.bucket} style={s.issuedRow}>
+                  <View style={s.pickTitleRow}>
+                    <Text style={[s.pickTitle, s.pickTitleFlex]} numberOfLines={1}>
+                      {b.bucket}
+                    </Text>
+                    <Text style={[s.issuedTag, b.issuedOffline && s.issuedTagOffline]}>
+                      {b.issuedOffline ? 'Issued offline' : 'Issued'}
+                    </Text>
+                  </View>
+                  {b.contents.map((c, i) => (
+                    <View key={i} style={s.issuedLine}>
+                      <Text style={[s.pickDetail, s.pickTitleFlex]} numberOfLines={1}>
+                        {[c.variety, c.stemLength].filter(Boolean).join(' · ') || '—'}
+                      </Text>
+                      <Text style={s.issuedQty}>{Math.round(c.stems)} stems</Text>
+                    </View>
+                  ))}
+                  {b.at ? <Text style={s.pickIdLabel}>{b.at.slice(0, 16).replace('T', ' ')}</Text> : null}
+                </View>
+              ))
+            )}
+          </BottomSheet>
+
+          <BottomSheet
             visible={!!allocatedBucket}
             onClose={() => selectAllocatedBucket(null)}
             busy={loading}
             title="Issue this bucket"
+            top={
+              camOpen ? (
+                <InlineCamera
+                  onScan={(code) => {
+                    setCamOpen(false);
+                    void onBucketScanIssueOffline(code);
+                  }}
+                  onClose={() => setCamOpen(false)}
+                />
+              ) : undefined
+            }
             subtitle={pickedBucket ? [pickedBucket.bucket, pickedBucket.variety, pickedBucket.stemLength, `${pickedBucket.stems} stems`].filter(Boolean).join(' · ') : undefined}
           >
             {/* Checked as soon as the bucket is picked: did it already go through
@@ -497,6 +634,8 @@ export function KarenShelfOperationsScreen({
                 <ScanField
                   ref={bucketRef}
                   onScan={onBucketScanIssueOffline}
+                  onCameraPress={() => setCamOpen((o) => !o)}
+                  cameraOpen={camOpen}
                   autoFocus
                   placeholder={`Scan ${allocatedBucket} to issue it to this line`}
                   editable={!loading}
@@ -594,6 +733,8 @@ export function KarenShelfOperationsScreen({
                 <ScanField
                   ref={bucketRef}
                   onScan={onBucketScanIssueOffline}
+                  onCameraPress={() => setCamOpen((o) => !o)}
+                  cameraOpen={camOpen}
                   autoFocus
                   placeholder={
                     chosenSubstitute
@@ -758,6 +899,45 @@ const s = StyleSheet.create({
   noMargin: { marginBottom: 0 },
   noTopMargin: { marginTop: 0 },
   sheetLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginBottom: 6 },
+  pickRowDone: { opacity: 0.6 },
+  pickedHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bktBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: COLORS.text,
+  },
+  bktBtnText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.bg },
+  issuedRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    gap: 3,
+  },
+  issuedLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  issuedQty: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  issuedTag: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.textMuted },
+  issuedTagOffline: { color: COLORS.success ?? '#067647' },
+  pickShelfDone: { color: COLORS.success ?? '#067647' },
+  pickTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  pickShelfCol: { alignItems: 'flex-end', flexShrink: 0 },
+  pickIdLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, marginTop: 1 },
+  pickTitleFlex: { flex: 1, minWidth: 0 },
+  pickShelf: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 0 },
+  // Same bold size as the bucket, greyed when there is no shelf to go to.
+  pickShelfNone: { color: COLORS.textMuted },
+  pickedOpl: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    gap: 2,
+  },
+  pickedOrder: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
+  pickedMeta: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  pickedVar: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text, marginTop: 2 },
   filterLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
     flex: 1,

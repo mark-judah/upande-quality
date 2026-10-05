@@ -94,6 +94,8 @@ export type PlannedTripStop = {
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
 export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Issued offline' | 'Other';
+/** Wrong variety: what the replaced bucket really holds — its record is corrected. */
+export type ReplaceCorrection = { variety?: string; stemLength?: string };
 /** Where a requested bucket was issued ("Issued offline"): the lines (OPL teams) it
  *  went to, and whether one is this order's own line (then: mark issued, no replace). */
 export type BucketIssueInfo = {
@@ -507,14 +509,33 @@ export const karenBucketRequestsRepository = {
     pliIds: string[];
     flag: 'loaded' | 'transit';
     truck?: string;
-  }): Promise<{ kind: 'ok'; updated: number } | { kind: 'error'; message: string }> {
+    keepShelf?: boolean;
+  }): Promise<
+    | {
+        kind: 'ok';
+        updated: number;
+        conflicts: { bucket: string; reason: string; truck: string | null }[];
+      }
+    | { kind: 'error'; message: string }
+  > {
     const raw = await karenBucketRequestsApi.setOfflineTrolleyFlags({
       pli_ids: args.pliIds,
       flag: args.flag,
       ...(args.truck ? { truck: args.truck } : {}),
+      ...(args.keepShelf ? { keep_shelf: 1 as const } : {}),
     });
     const m = raw.message ?? {};
-    if (m.status === 'success') return { kind: 'ok', updated: m.updated ?? 0 };
+    if (m.status === 'success') {
+      return {
+        kind: 'ok',
+        updated: m.updated ?? 0,
+        conflicts: (m.conflicts ?? []).map((c) => ({
+          bucket: c.bucket ?? '',
+          reason: c.reason ?? '',
+          truck: c.truck ?? null,
+        })),
+      };
+    }
     return { kind: 'error', message: m.message ?? 'Sync failed.' };
   },
 
@@ -739,11 +760,12 @@ export const karenBucketRequestsRepository = {
     newBucketId: string,
     reason?: ReplaceReason,
     notes?: string,
+    correction?: ReplaceCorrection,
   ): Promise<
     | { kind: 'ok'; newBucket: string; shelf: string; stemLength: string; message: string }
     | { kind: 'error'; message: string }
   > {
-    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId, reason, notes);
+    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId, reason, notes, correction);
     const m = raw.message ?? {};
     if (m.status === 'success' && m.new_bucket) {
       return {
