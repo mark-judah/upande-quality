@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { stationRepository, type Farm } from './repository';
+import type { Tenant } from '@/src/core/tenant/instance-mapper';
 import { mapAxiosError } from '@/src/core/api/client';
 
 type State = {
@@ -7,7 +8,7 @@ type State = {
   greenhouses: string[];
   loading: boolean;
   error: string | null;
-  load: () => Promise<void>;
+  load: (tenant?: Tenant | null) => Promise<void>;
 };
 
 export const useStationStore = create<State>((set) => ({
@@ -15,11 +16,11 @@ export const useStationStore = create<State>((set) => ({
   greenhouses: [],
   loading: false,
   error: null,
-  load: async () => {
+  load: async (tenant) => {
     set({ loading: true, error: null });
     try {
       const [farms, greenhouses] = await Promise.all([
-        stationRepository.fetchFarms(),
+        stationRepository.fetchFarms(tenant),
         stationRepository.fetchGreenhouseWarehouses(),
       ]);
       set({ farms, greenhouses, loading: false });

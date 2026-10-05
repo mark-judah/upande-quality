@@ -10,7 +10,7 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Spinner } from '@/src/core/ui/Spinner';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useAuthStore } from '@/src/core/auth/store';
 import { useKarenFreightDispatchStore } from '@/src/tenants/karen/state/karen-freight-dispatch-store';
 
@@ -180,7 +180,7 @@ export function KarenFreightDispatchScreen() {
       {trip ? (
         <>
           <Card>
-            <Text style={s.section}>{trip.name}</Text>
+            <Text style={s.section} numberOfLines={1}>{trip.name}</Text>
             <Text style={s.statusLine}>{trip.status}</Text>
             <View style={{ height: 8 }} />
             <Fact label="Vehicle" value={trip.vehicle ?? '—'} />
@@ -321,12 +321,12 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   statusLine: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   denied: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
-    lineHeight: 20,
+    lineHeight: scaleFont(20),
   },
   deniedRole: { fontFamily: fontFamily.semiBold, color: COLORS.text },
   pointList: {
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
   pointName: { flex: 1, fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
   pointTag: {
     fontFamily: fontFamily.regular,
-    fontSize: 10,
+    fontSize: scaleFont(10),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -357,10 +357,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.md,
     paddingVertical: 5,
   },
   factLabel: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
-  factValue: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
+  factValue: { flexShrink: 1, textAlign: 'right', fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text },
   docketRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,6 +370,7 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   docketBtn: {
+    flexShrink: 0,
     width: 56,
     height: 56,
     borderRadius: borderRadius.sm,
@@ -383,7 +385,7 @@ const s = StyleSheet.create({
   docketLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   docketHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',

@@ -33,6 +33,8 @@ export type AllocationItem = {
   deliveryDate: string;
   salesOrder: string;
   pickListItemId: string;
+  /** A quality-issue replacement found during packing: load it first. */
+  asap: boolean;
 };
 
 export type SavedTrolleyBucket = {
@@ -63,6 +65,11 @@ export type PlannedTripOrder = {
   varieties: string;
   buckets: number;
   stems: number;
+  /** This order's own progress at the farm. */
+  total: number;
+  loaded: number;
+  transit: number;
+  shelved: number;
 };
 
 export type StopStatus = 'waiting' | 'loading' | 'ready' | 'transit' | 'done';
@@ -86,8 +93,19 @@ export type PlannedTripStop = {
 
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
-export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Other';
-export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Other'];
+export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Issued offline' | 'Other';
+/** Where a requested bucket was issued ("Issued offline"): the lines (OPL teams) it
+ *  went to, and whether one is this order's own line (then: mark issued, no replace). */
+export type BucketIssueInfo = {
+  kind: 'ok';
+  line: string;
+  thisIssued: boolean;
+  sameLine: boolean;
+  issuedTo: { opl: string; orderName: string; team: string; sameLine: boolean }[];
+};
+
+/** Reasons offered in the replace modal ('Other' stays a valid type for older records). */
+export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong variety', 'Issued offline'];
 
 export type PlannedTrip = {
   tripId: string;
@@ -105,6 +123,79 @@ export type PlannedTrip = {
   capacity: number;
   stops: PlannedTripStop[];
   orders: PlannedTripOrder[];
+  /** Run of the truck's route (one trip per run: packhouse → farms → packhouse); 0 = none. */
+  run: number;
+  runs: number;
+  runChain: string;
+  window: string;
+  /** The truck is loading this run now (else it waits for run `afterRun` to come back). */
+  current: boolean;
+  afterRun: number;
+  /** This farm's stop is closed — the truck has left it. */
+  yourStopClosed: boolean;
+  loadedBuckets: number;
+};
+
+/** A trip the truck has left this farm on (stop closed, dispatched or received). */
+export type CompletedTrip = {
+  tripId: string;
+  vehicle: string;
+  tripDate: string;
+  status: string;
+  run: number;
+  runs: number;
+  runChain: string;
+  leftAt: string;
+  planned: number;
+  loaded: number;
+  leftBehind: number;
+  /** Open trips that now carry what this one left behind. */
+  carriedTo: string[];
+  /** Still on its run: the stop itself can reopen (else the rest goes to the next run). */
+  stopReopenable: boolean;
+  /** At the hub: stamped arrived, or any bucket it carried shelved there. */
+  arrived: boolean;
+  orders: { opl: string; deliveryDate: string; orderName: string; customer: string; varieties: string; buckets: number; loaded: number }[];
+};
+
+/** A dispatched trip at the transfer hub: whether the truck is confirmed there and how
+ *  many of the buckets it carried are shelved (whole trip, and this farm's). */
+export type TripArrival = {
+  tripId: string;
+  hub: string;
+  tripStatus: string;
+  arrivedAt: string;
+  receivedAt: string;
+  total: number;
+  shelved: number;
+  /** Buckets still on the truck — not shelved at the hub yet. */
+  waiting: string[];
+  farmTotal: number;
+  farmShelved: number;
+  /** Every bucket on the trip with its order's delivery date (for the date filter). */
+  buckets: { bucket: string; opl: string; shelved: boolean; offTruck: boolean; deliveryDate: string }[];
+};
+
+/** A dispatched trip from this farm and each bucket it carried: shelved at the hub yet? */
+export type ShelvedTrip = {
+  tripId: string;
+  vehicle: string;
+  status: string;
+  tripDate: string;
+  dispatchedAt: string;
+  arrivedAt: string;
+  receivedAt: string;
+  total: number;
+  shelved: number;
+  buckets: {
+    bucketId: string;
+    opl: string;
+    orderName: string;
+    customer: string;
+    shelved: boolean;
+    shelf: string;
+    shelvedAt: string;
+  }[];
 };
 
 export type FetchAllocationsOutcome =
@@ -112,7 +203,14 @@ export type FetchAllocationsOutcome =
   | { kind: 'error'; message: string };
 
 export type FetchPlannedTripsOutcome =
-  | { kind: 'ok'; trips: PlannedTrip[]; schedules: OplSchedule[]; oplStates: Record<string, OplServerState> }
+  | {
+      kind: 'ok';
+      trips: PlannedTrip[];
+      schedules: OplSchedule[];
+      oplStates: Record<string, OplServerState>;
+      /** Device orders the server still has rows for at this farm; null when it didn't say. */
+      known: string[] | null;
+    }
   | { kind: 'error'; message: string };
 
 /** An order's Packhouse Schedule slot (team + position in that team's run). */
@@ -163,6 +261,7 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     salesOrder: r.sales_order ?? '',
     pickListItemId: r.pick_list_item_id ?? '',
     farm: r.farm || (r.warehouse ?? '').split(' ')[0] || '',
+    asap: r.priority === 'ASAP',
   };
 }
 
@@ -180,6 +279,10 @@ function mapPlannedTripOrder(r: RawPlannedTripOrder): PlannedTripOrder {
     varieties: r.varieties ?? '',
     buckets: num(r.buckets),
     stems: num(r.stems),
+    total: num(r.total),
+    loaded: num(r.loaded),
+    transit: num(r.transit),
+    shelved: num(r.shelved),
   };
 }
 
@@ -220,6 +323,14 @@ function mapPlannedTrip(r: RawPlannedTrip): PlannedTrip {
     capacity: num(r.capacity),
     stops: (r.stops ?? []).map(mapPlannedTripStop),
     orders: (r.orders ?? []).map(mapPlannedTripOrder),
+    run: num(r.run),
+    runs: num(r.runs),
+    runChain: r.run_chain ?? '',
+    window: r.window ?? '',
+    current: (r.run_state ?? 'current') !== 'later',
+    afterRun: num(r.after_run),
+    yourStopClosed: !!r.your_stop_closed,
+    loadedBuckets: num(r.loaded_buckets),
   };
 }
 
@@ -316,6 +427,7 @@ export const karenBucketRequestsRepository = {
             ['waiting', 'loaded', 'transit', 'arrived'].includes(v as string),
           ),
         ) as Record<string, OplServerState>,
+        known: m.opl_states ? Object.keys(m.opl_states) : null,
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
@@ -450,7 +562,176 @@ export const karenBucketRequestsRepository = {
         candidates: list.map(toCandidate).filter((c) => c.bucketId),
       };
     }
+    // The server answered and nothing matches: no candidates (the screen then offers
+    // "not found"), not an error.
+    if (m.found === false) return { kind: 'ok', neededQty: typeof m.needed_qty === 'number' ? m.needed_qty : null, candidates: [] };
     return { kind: 'error', message: m.message ?? 'No replacement bucket found.' };
+  },
+
+  async bucketIssueInfo(pickListItem: string): Promise<BucketIssueInfo | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.requestedBucketIssueInfo(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not check where it was issued.' };
+    return {
+      kind: 'ok',
+      line: m.line ?? '',
+      thisIssued: !!m.this_issued,
+      sameLine: !!m.same_line,
+      issuedTo: (m.issued_to ?? []).map((r) => ({
+        opl: r.opl,
+        orderName: r.order_name ?? r.opl,
+        team: r.team ?? '',
+        sameLine: !!r.same_line,
+      })),
+    };
+  },
+
+  async markBucketIssued(pickListItem: string): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketIssued(pickListItem);
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked issued.' };
+    return { kind: 'error', message: m.message ?? 'Could not mark it issued.' };
+  },
+
+  async markBucketNotFound(pickListItem: string, notes?: string): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketNotFound({ pick_list_item: pickListItem, notes });
+    const m = raw.message ?? {};
+    if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked not found.' };
+    return { kind: 'error', message: m.message ?? 'Could not mark it not found.' };
+  },
+
+  async fetchCompletedTrips(
+    farm: string,
+  ): Promise<{ kind: 'ok'; trips: CompletedTrip[] } | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.getFarmCompletedTrips(farm);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not load completed trips.' };
+    return {
+      kind: 'ok',
+      trips: (m.trips ?? []).map((t) => ({
+        tripId: t.trip ?? '',
+        vehicle: t.vehicle ?? '',
+        tripDate: t.trip_date ?? '',
+        status: t.status ?? '',
+        run: t.run ?? 0,
+        runs: t.runs ?? 0,
+        runChain: t.run_chain ?? '',
+        leftAt: t.left_at ?? '',
+        planned: t.planned ?? 0,
+        loaded: t.loaded ?? 0,
+        leftBehind: t.left_behind ?? 0,
+        carriedTo: t.carried_to ?? [],
+        stopReopenable: !!t.stop_reopenable,
+        arrived: !!t.arrived || !!t.arrived_at,
+        orders: (t.orders ?? []).map((o) => ({
+          opl: o.opl ?? '',
+          deliveryDate: o.delivery_date ?? '',
+          orderName: o.order_name ?? o.opl ?? '',
+          customer: o.customer ?? '',
+          varieties: o.varieties ?? '',
+          buckets: o.buckets ?? 0,
+          loaded: o.loaded ?? 0,
+        })),
+      })),
+    };
+  },
+
+  async fetchShelvedBuckets(
+    farm: string,
+    deliveryDate?: string,
+  ): Promise<{ kind: 'ok'; hub: string; trips: ShelvedTrip[] } | { kind: 'error'; message: string }> {
+    const raw = await karenBucketRequestsApi.getFarmShelvedBuckets(farm, deliveryDate);
+    const m = raw.message ?? {};
+    if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not load shelved buckets.' };
+    return {
+      kind: 'ok',
+      hub: m.hub || 'the packhouse',
+      trips: (m.trips ?? []).map((t) => ({
+        tripId: t.trip ?? '',
+        vehicle: t.vehicle ?? '',
+        status: t.status ?? '',
+        tripDate: t.trip_date ?? '',
+        dispatchedAt: t.dispatched_at ?? '',
+        arrivedAt: t.arrived_at ?? '',
+        receivedAt: t.received_at ?? '',
+        total: t.total ?? 0,
+        shelved: t.shelved ?? 0,
+        buckets: (t.buckets ?? []).map((b) => ({
+          bucketId: b.bucket ?? '',
+          opl: b.opl ?? '',
+          orderName: b.order_name ?? b.opl ?? '',
+          customer: b.customer ?? '',
+          shelved: !!b.shelved,
+          shelf: b.shelf ?? '',
+          shelvedAt: b.shelved_at ?? '',
+        })),
+      })),
+    };
+  },
+
+  /** Arrival at the transfer hub for a dispatched trip (see the API). */
+  async tripArrival(args: {
+    tripId: string;
+    farm: string;
+    action: 'status' | 'arrive' | 'complete';
+  }): Promise<{ kind: 'ok'; arrival: TripArrival } | { kind: 'error'; message: string; unshelved: string[] }> {
+    const raw = await karenBucketRequestsApi.tripArrival({ name: args.tripId, farm: args.farm, action: args.action });
+    const m = raw.message ?? {};
+    if (m.status !== 'success') {
+      return { kind: 'error', message: m.message ?? 'Could not update the trip.', unshelved: m.unshelved ?? [] };
+    }
+    return {
+      kind: 'ok',
+      arrival: {
+        tripId: m.name ?? args.tripId,
+        hub: m.hub || 'the packhouse',
+        tripStatus: m.trip_status ?? '',
+        arrivedAt: m.arrived_at ?? '',
+        receivedAt: m.received_at ?? '',
+        total: m.total ?? 0,
+        shelved: m.shelved ?? 0,
+        waiting: m.waiting ?? [],
+        farmTotal: m.farm_total ?? 0,
+        farmShelved: m.farm_shelved ?? 0,
+        buckets: (m.buckets ?? []).map((b) => ({
+          bucket: b.bucket ?? '',
+          opl: b.opl ?? '',
+          shelved: !!b.shelved,
+          offTruck: !!b.off_truck,
+          deliveryDate: b.delivery_date ?? '',
+        })),
+      },
+    };
+  },
+
+  async reopenTripStop(args: { tripId: string; farm: string }): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.reopenTripStop({ name: args.tripId, farm: args.farm });
+    const m = raw.message ?? {};
+    if (m.status === 'success') {
+      const n = m.left_behind ?? 0;
+      return {
+        kind: 'ok',
+        message:
+          m.mode === 'stop'
+            ? `Stop reopened — load the ${n} bucket${n === 1 ? '' : 's'} left behind onto ${args.tripId}.`
+            : `${n} bucket${n === 1 ? '' : 's'} left behind moved to ${(m.trips ?? []).join(', ')}.`,
+      };
+    }
+    return { kind: 'error', message: m.message ?? 'Could not reopen the trip.' };
+  },
+
+  async closeTripStop(args: { tripId: string; farm: string; reason?: string }): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.closeTripStop({
+      name: args.tripId,
+      farm: args.farm,
+      ...(args.reason ? { reason: args.reason } : {}),
+    });
+    const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
+    if (m.status === 'success') {
+      const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;
+      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next trip` : ''}.` };
+    }
+    return { kind: 'error', message: m.message ?? 'Could not close the stop.' };
   },
 
   async replaceBucket(

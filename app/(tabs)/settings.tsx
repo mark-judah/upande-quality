@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
-import { checkLatestVersion, type VersionCheck } from '@/src/core/version';
+import {
+  APP_VERSION,
+  checkLatestVersion,
+  getServerVersions,
+  type VersionCheck,
+} from '@/src/core/version';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -10,11 +15,17 @@ import { useToast } from '@/src/core/ui/Toast';
 import { useAuthStore } from '@/src/core/auth/store';
 import * as Biometric from '@/src/core/biometric';
 import { ApkUpdateSection } from '@/src/core/updates/ApkUpdateSection';
+import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
+import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { showDialog } from '@/src/core/ui/DialogHost';
+import { displayName, needsRealName } from '@/src/core/auth/roles-api';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
   const email = useAuthStore((s) => s.email);
+  // Name on top, the email under it: Settings is where the email is shown.
+  const name = needsRealName(fullName) ? '' : displayName(fullName);
   const instanceUrl = useAuthStore((s) => s.instanceUrl);
   const biometricEnabled = useAuthStore((s) => s.biometricEnabled);
   const setBiometricEnabled = useAuthStore((s) => s.setBiometricEnabled);
@@ -22,20 +33,23 @@ export default function SettingsScreen() {
   const forgetDevice = useAuthStore((s) => s.forgetDevice);
   const { showSuccess, showError } = useToast();
 
-  const [moduleReady, setModuleReady] = useState(false);
+  const [moduleReady] = useState(() => Biometric.isModuleAvailable());
   const [hardwareReady, setHardwareReady] = useState(false);
   const [verCheck, setVerCheck] = useState<VersionCheck | null>(null);
+  const [siteApps, setSiteApps] = useState<{ label: string; version: string }[] | null>(null);
+  // The newest version known: the newest GitHub release of any kind, or this
+  // app once a JS update has put it past that -- so Latest bumps with every
+  // update and never trails Installed.
+  const newestRelease = useApkUpdate().check?.latestVersion ?? verCheck?.latest ?? null;
+  const latest =
+    newestRelease && compareVersions(newestRelease, APP_VERSION) > 0 ? newestRelease : APP_VERSION;
 
   useEffect(() => {
-    setModuleReady(Biometric.isModuleAvailable());
     Biometric.isAvailable().then(setHardwareReady);
     checkLatestVersion().then(setVerCheck);
+    getServerVersions().then(setSiteApps);
   }, []);
 
-  // Hardcoded app version hidden — the GitHub Release is the source of truth.
-  // const appVersion = Constants.expoConfig?.version ?? '1.0.0';
-  // const runtimeVersion = (Updates.runtimeVersion as string | undefined) || appVersion;
-  // const buildNo = Application.nativeBuildVersion ?? '';
   const otaId = (Updates.updateId ?? '').slice(0, 8);
   const otaChannel = (Updates.channel as string | undefined) ?? '';
   const otaDate = Updates.createdAt ? Updates.createdAt.toISOString().slice(0, 10) : '';
@@ -46,13 +60,18 @@ export default function SettingsScreen() {
   const onToggleBiometric = async () => {
     if (!biometricEnabled) {
       if (!moduleReady) {
-        Alert.alert('Update needed', 'Install the latest build to enable biometric unlock.');
+        showDialog('Update needed', 'Install the latest build to enable biometric unlock.', undefined, {
+          name: 'finger-print',
+          tone: 'warn',
+        });
         return;
       }
       if (!hardwareReady) {
-        Alert.alert(
+        showDialog(
           'Biometric unavailable',
           'Enroll a fingerprint or face in your device settings, then try again.',
+          undefined,
+          { name: 'finger-print', tone: 'warn' },
         );
         return;
       }
@@ -72,7 +91,7 @@ export default function SettingsScreen() {
   };
 
   const onSignOut = () => {
-    Alert.alert('Sign out?', 'You can sign back in with biometrics or your password.', [
+    showDialog('Sign out?', 'You can sign back in with biometrics or your password.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign out',
@@ -86,7 +105,7 @@ export default function SettingsScreen() {
   };
 
   const onForgetDevice = () => {
-    Alert.alert(
+    showDialog(
       'Forget this device?',
       'Clears your session and disables biometric unlock.',
       [
@@ -109,11 +128,11 @@ export default function SettingsScreen() {
         <View style={s.avatarRow}>
           <View style={s.avatar}>
             <Text style={s.avatarInitials}>
-              {(fullName || email || '?').slice(0, 1).toUpperCase()}
+              {(name || '?').slice(0, 1).toUpperCase()}
             </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.userName}>{fullName || email || 'Signed in'}</Text>
+            <Text style={s.userName}>{name || 'Signed in'}</Text>
             {email ? <Text style={s.userEmail}>{email}</Text> : null}
             {instanceUrl ? <Text style={s.userMeta}>{instanceUrl}</Text> : null}
           </View>
@@ -136,24 +155,19 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <Card title="App">
-        <View style={s.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.rowLabel}>Version</Text>
-            {/* Hardcoded app version hidden — the GitHub Release is the source of truth.
-            <Text style={s.rowHint}>
-              v{appVersion}
-              {buildNo ? ` (${buildNo})` : ''}
-              {runtimeVersion && runtimeVersion !== appVersion ? `  ·  runtime ${runtimeVersion}` : ''}
-            </Text>
-            */}
-            {/* Latest version from the GitHub Release — read-only (not a link). */}
-            <Text style={s.rowHint}>
-              {verCheck && verCheck.latest ? `v${verCheck.latest}` : '—'}
-            </Text>
-            <Text style={s.rowHint}>{codeLine}</Text>
-          </View>
-        </View>
+      <Card title="App & Server">
+        {/* Server first (site, Frappe, ERPNext, the app's own backend), then this app. */}
+        <InfoRow label="Site" value={instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : '—'} />
+        {siteApps === null ? (
+          <InfoRow label="Apps" value="Loading…" />
+        ) : siteApps.length === 0 ? (
+          <InfoRow label="Apps" value="Not available" />
+        ) : (
+          siteApps.map((a) => <InfoRow key={a.label} label={a.label} value={`v${a.version}`} />)
+        )}
+        <InfoRow label="Installed" value={`v${APP_VERSION}`} />
+        <InfoRow label="Latest" value={`v${latest}`} />
+        <InfoRow label="Code" value={codeLine} />
         <View style={{ height: spacing.md }} />
         <ApkUpdateSection />
       </Card>
@@ -170,6 +184,17 @@ export default function SettingsScreen() {
         />
       </Card>
     </Screen>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={[s.rowLabel, s.infoLabel]}>{label}</Text>
+      <Text style={s.infoValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -195,8 +220,14 @@ const s = StyleSheet.create({
   avatarInitials: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   userName: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   userEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: 2 },
-  userMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
+  userMeta: { fontFamily: fontFamily.bold, fontSize: fontSize.xs, color: COLORS.text, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  infoRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: spacing.md, paddingVertical: 4,
+  },
+  infoLabel: { flexShrink: 1 },
+  infoValue: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   rowLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
   rowHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   updateAvailable: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.primary, marginTop: 4 },

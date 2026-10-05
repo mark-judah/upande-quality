@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
@@ -7,6 +7,8 @@ import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { formatBytes, RELEASES_PAGE_URL } from './releases';
 import { openInBrowser, openUnknownAppSourcesSettings } from './install-apk';
 import { useApkUpdate } from './UpdateProvider';
+import { showDialog } from '@/src/core/ui/DialogHost';
+import { useNetworkStore } from '@/src/core/network/store';
 
 /**
  * The one "Check for updates" button in Settings → App. A new APK is checked
@@ -21,6 +23,7 @@ export function ApkUpdateSection() {
   const available = !!check?.available;
   const { showSuccess, showError } = useToast();
   const [otaChecking, setOtaChecking] = useState(false);
+  const online = useNetworkStore((st) => st.online);
 
   const label = useMemo(() => {
     if (downloading) {
@@ -37,7 +40,7 @@ export function ApkUpdateSection() {
   }, [downloading, progress, checking, otaChecking, available, apk]);
 
   /** A JS patch for the runtime this APK already has, through `updates.url`. */
-  const checkOta = useCallback(async () => {
+  const checkOta = useCallback(async (apkChecked: boolean) => {
     if (__DEV__) {
       showSuccess('This APK is up to date. OTA updates are off in development.');
       return;
@@ -47,18 +50,30 @@ export function ApkUpdateSection() {
       const result = await Updates.checkForUpdateAsync();
       const fetched = result.isAvailable ? await Updates.fetchUpdateAsync() : null;
       if (!fetched?.isNew) {
-        showSuccess("You're on the latest version.");
+        // Without the APK check there may still be a newer APK; don't claim otherwise.
+        showSuccess(apkChecked ? "You're on the latest version." : 'No JS update available.');
         return;
       }
-      Alert.alert('Update ready', 'Reload now to apply it?', [
-        { text: 'Later', style: 'cancel' },
-        { text: 'Reload', onPress: () => Updates.reloadAsync() },
-      ]);
+      showDialog(
+        'Update ready',
+        'Reload now to apply it?',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Reload', onPress: () => Updates.reloadAsync() },
+        ],
+        { name: 'cloud-download-outline', tone: 'success' },
+      );
     } catch (err) {
-      // expo-updates wraps the real reason as "Call to function … has been rejected. → Caused by: …".
-      const message = err instanceof Error ? err.message : '';
-      const cause = message.split('Caused by:').pop()?.trim();
-      showError(cause ? `Could not check for updates: ${cause}` : 'Could not check for updates.');
+      // No manifest for this runtime yet (a fresh APK, before its first OTA):
+      // nothing newer exists, so that is "up to date", not a failure.
+      if (/\b404\b/.test(String((err as Error)?.message ?? err))) {
+        showSuccess(apkChecked ? "You're on the latest version." : 'No JS update available.');
+        return;
+      }
+      // expo-updates' own text ("Call to function … rejected → Caused by: …") is
+      // for the logs; the person gets a plain sentence.
+      if (__DEV__) console.warn('[update] JS update check failed:', err);
+      showError("Couldn't check for updates. Try again in a moment.");
     } finally {
       setOtaChecking(false);
     }
@@ -71,37 +86,47 @@ export function ApkUpdateSection() {
       await install();
       return;
     }
+    // No internet: say so, without trying -- "could not reach" is for a phone that
+    // is online but cannot get to the update page.
+    if (!online) {
+      showError("You're offline. Connect to the internet to check for updates.");
+      return;
+    }
     const result = await refresh();
     // A newer APK turns this button into its download; the status line says so.
     if (result?.available) return;
-    await checkOta();
-  }, [downloading, checking, otaChecking, available, install, refresh, checkOta]);
+    await checkOta(result !== null);
+  }, [downloading, checking, otaChecking, available, install, refresh, checkOta, online, showError]);
 
   const onInstallErrorHelp = useCallback(() => {
     if (!installError) return;
     const blocked = installError.kind === 'blocked';
-    Alert.alert('Update failed', installError.message, [
-      { text: 'Close', style: 'cancel' },
-      blocked
-        ? { text: 'Allow installs', onPress: () => openUnknownAppSourcesSettings().catch(() => {}) }
-        : {
-            text: 'Open in browser',
-            onPress: () => openInBrowser(apk?.downloadUrl ?? RELEASES_PAGE_URL).catch(() => {}),
-          },
-    ]);
+    showDialog(
+      'Update failed',
+      installError.message,
+      [
+        { text: 'Close', style: 'cancel' },
+        blocked
+          ? { text: 'Allow installs', onPress: () => openUnknownAppSourcesSettings().catch(() => {}) }
+          : {
+              text: 'Open in browser',
+              onPress: () => openInBrowser(apk?.downloadUrl ?? RELEASES_PAGE_URL).catch(() => {}),
+            },
+      ],
+      { name: 'alert-circle-outline', tone: 'warn' },
+    );
   }, [installError, apk]);
 
   let status: string | null = null;
   if (check) {
+    // Only news is shown: being up to date needs no line of its own.
     if (available && apk) status = `v${apk.version} is available as a new APK.`;
-    else if (apk) status = `Latest APK is v${apk.version} — this build is up to date.`;
-    else status = 'No APK has been published yet.';
   }
 
   return (
     <View>
       {status ? <Text style={[s.hint, available && s.accent]}>{status}</Text> : null}
-      {checkError ? (
+      {checkError && !(checkError.kind === 'offline' && !online) ? (
         <Text style={s.error}>
           {checkError.message}
           {checkError.kind === 'rate_limited' ? (

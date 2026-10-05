@@ -108,7 +108,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.06)',
     padding: spacing.md, borderRadius: 10, maxWidth: 320,
   },
-  errorText: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.danger },
+  errorText: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.danger },
   linkBtn: { marginTop: spacing.md, padding: spacing.sm },
   linkText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary },
 });

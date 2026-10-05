@@ -99,6 +99,20 @@ function parse(commit) {
 const PATCH_LIMIT = 100;
 const MINOR_LIMIT = 50;
 
+/**
+ * Release line 2: numbering restarted at 1.0.0 (the old line's releases are
+ * the `legacy-v*` tags, kept as pre-releases). Its build numbers and runtimes
+ * sit apart from line 1's, which reused the same x.y.z:
+ *
+ * - versionCode + 100000, so a line-2 APK installs OVER any line-1 build and
+ *   keeps the phone's data -- Android refuses a lower versionCode.
+ * - runtime major + 100 ("101.0" for 1.0.x), so a line-2 JS update is never
+ *   handed to a phone still running a line-1 APK of the same x.y, whose native
+ *   code is different.
+ */
+const VERSION_CODE_BASE = 100000;
+const RUNTIME_MAJOR_BASE = 100;
+
 function parseVersion(version) {
   const parts = version.split('.').map((n) => parseInt(n, 10));
   if (parts.length !== 3 || parts.some((n) => !Number.isInteger(n) || n < 0)) {
@@ -156,12 +170,12 @@ function nextVersion(current, bump = 'patch') {
  */
 function runtimeVersionFor(version) {
   const { major, minor } = parseVersion(version);
-  return `${major}.${minor}`;
+  return `${RUNTIME_MAJOR_BASE + major}.${minor}`;
 }
 
 function versionCodeFor(version) {
   const { major, minor, patch } = parseVersion(version);
-  return (major * MINOR_LIMIT + minor) * PATCH_LIMIT + patch;
+  return VERSION_CODE_BASE + (major * MINOR_LIMIT + minor) * PATCH_LIMIT + patch;
 }
 
 const SECTIONS = [
@@ -217,9 +231,22 @@ const pkg = JSON.parse(readFileSync(PKG_JSON, 'utf8'));
 const currentVersion = appConfig.expo.version;
 const tag = lastTag();
 const commits = commitsSince(tag).map(parse);
+// The Expo SDK the installed APKs of this runtime were built with. A JS bundle
+// from another SDK crashes on them, so a new SDK can never go out over the air:
+// a patch bump is promoted to a minor one (new runtime, new APK).
+const expoSdk = Number(String(pkg.dependencies?.expo ?? '').replace(/^[^\d]*/, '').split('.')[0]);
+const runtimeSdk = appConfig.expo.extra?.runtimeSdk;
+const sdkChanged = Number.isFinite(expoSdk) && runtimeSdk != null && runtimeSdk !== expoSdk;
 // Always one step per merge; --bump only exists to skip to a round number.
-const bump = flagValue('bump') ?? 'patch';
-const version = hasFlag('keep-version') ? currentVersion : nextVersion(currentVersion, bump);
+const requestedBump = flagValue('bump') ?? 'patch';
+const bump = sdkChanged && requestedBump === 'patch' ? 'minor' : requestedBump;
+// --set X.Y.Z puts the version somewhere specific, e.g. 1.0.0 to start a new
+// release line; otherwise one odometer step.
+const setTo = flagValue('set');
+if (setTo) parseVersion(setTo);
+const version = hasFlag('keep-version')
+  ? currentVersion
+  : setTo || nextVersion(currentVersion, bump);
 const versionCode = versionCodeFor(version);
 
 if (hasFlag('apply')) {
@@ -228,6 +255,18 @@ if (hasFlag('apply')) {
   // expo-updates refuses a bundle whose runtime does not match the installed
   // build, so this is what keeps a 1.1.x update off a 1.0.x APK.
   appConfig.expo.runtimeVersion = runtimeVersionFor(version);
+  if (Number.isFinite(expoSdk)) {
+    appConfig.expo.extra = { ...appConfig.expo.extra, runtimeSdk: expoSdk };
+  }
+  // The update URL is the published manifest itself (GitHub Pages), one folder
+  // per runtime, so it moves with the runtime.
+  const updates = appConfig.expo.updates;
+  if (updates?.url?.includes('/ota/android/')) {
+    updates.url = updates.url.replace(
+      /\/ota\/android\/[^/]+\/manifest\.json$/,
+      `/ota/android/${appConfig.expo.runtimeVersion}/manifest.json`,
+    );
+  }
   writeFileSync(APP_JSON, `${JSON.stringify(appConfig, null, 2)}\n`);
 
   pkg.version = version;

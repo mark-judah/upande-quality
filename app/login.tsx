@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -24,8 +16,10 @@ import {
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
-import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, borderRadius, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { APP_VERSION } from '@/src/core/version';
+import { showDialog } from '@/src/core/ui/DialogHost';
+import { requestPasswordReset } from '@/src/core/auth/password-api';
 
 const APP_NAME = 'Upande Quality';
 const HOME_ROUTE = '/';
@@ -35,7 +29,7 @@ const LOGO = require('@/assets/images/upande_logo.png');
  * Two steps, the same shape as Upande Sensors:
  *
  *   1. Instance — pick one this device has signed in to before, or type a new
- *      URL. Shown first on a fresh install, and again via "Change".
+ *      URL. Shown first on a fresh install, and again by long-pressing the logo.
  *   2. Credentials — or, when biometric unlock is set up for the chosen
  *      instance, a single "Sign in with fingerprint" card.
  *
@@ -58,6 +52,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   // Biometric re-login replays the saved password against the instance it was
   // saved for, so it is only offered while that instance is the selected one.
@@ -65,6 +60,9 @@ export default function Login() {
   const [bioBusy, setBioBusy] = useState(false);
   const [usePassword, setUsePassword] = useState(false);
   const bioAvailable = !!bioUrl && instanceKey(bioUrl) === instanceKey(url);
+  // Who signs in here, by name; the email until that instance has a saved name.
+  const accountName =
+    instances.find((i) => instanceKey(i.url) === instanceKey(url))?.fullName || email;
   const biometricOnly = bioAvailable && !usePassword && !instanceOpen;
 
   useEffect(() => {
@@ -131,27 +129,56 @@ export default function Login() {
   };
 
   const openInstanceEditor = () => {
-    setDraftUrl('');
+    setDraftUrl(url ? instanceLabel(url) : '');
     setErr(null);
     setInstanceOpen(true);
   };
 
-  const continueWithDraft = () => {
-    const typed = draftUrl.trim();
+  // Changes the server: the old one is forgotten, not kept beside the new one.
+  const continueWithDraft = async () => {
+    const typed = draftUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     if (!typed) return;
     const known = instances.find((i) => instanceKey(i.url) === instanceKey(typed));
+    if (url && instanceKey(url) !== instanceKey(typed)) {
+      setInstances(await knownInstances.forget(url));
+    }
     selectInstance(known ?? { url: typed });
   };
 
-  const removeInstance = (inst: KnownInstance) => {
-    Alert.alert('Remove instance?', `${instanceLabel(inst.url)} will no longer be suggested here.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => setInstances(await knownInstances.forget(inst.url)),
-      },
-    ]);
+  // Forgot password: the server emails a link to set a new one, for the email
+  // typed above on the instance selected.
+  const onForgotPassword = () => {
+    const who = email.trim();
+    if (!url.trim()) {
+      setErr('Choose the instance first.');
+      return;
+    }
+    if (!who) {
+      setErr('Type your email first, then tap Forgot password.');
+      return;
+    }
+    showDialog(
+      'Reset your password?',
+      `We'll email ${who} a link to set a new password on ${instanceLabel(url)}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send link',
+          onPress: async () => {
+            setResetting(true);
+            const r = await requestPasswordReset(url, who);
+            setResetting(false);
+            if (r.ok) {
+              setErr(null);
+              showDialog('Check your email', r.message, [{ text: 'OK' }], { name: 'mail-outline', tone: 'success' });
+            } else {
+              setErr(r.message);
+            }
+          },
+        },
+      ],
+      { name: 'key-outline', tone: 'info' },
+    );
   };
 
   const submit = async () => {
@@ -160,7 +187,7 @@ export default function Login() {
       return;
     }
     if (!email.trim() || !password) {
-      setErr('Email and password are required.');
+      setErr('Email or username and password are required.');
       return;
     }
     setSubmitting(true);
@@ -191,63 +218,33 @@ export default function Login() {
         extraScrollHeight={40}
       >
         <View style={s.brand}>
-          <Image source={LOGO} style={s.logo} resizeMode="contain" />
+          {/* Long-press the logo to change the server: kept out of the way of
+              people who only ever sign in to one. */}
+          <Pressable
+            onLongPress={openInstanceEditor}
+            delayLongPress={600}
+            accessibilityRole="button"
+            accessibilityLabel="Change server"
+            accessibilityHint="Long-press to change the server"
+          >
+            <Image source={LOGO} style={s.logo} resizeMode="contain" />
+          </Pressable>
           <Text style={s.appName}>{APP_NAME}</Text>
           {!instanceOpen && url ? (
-            <Pressable onPress={openInstanceEditor} hitSlop={8} style={s.instancePill}>
+            <View style={s.instancePill}>
               <Ionicons name="server-outline" size={14} color={COLORS.textSecondary} />
               <Text style={s.instancePillText} numberOfLines={1}>
                 {instanceLabel(url)}
               </Text>
-              <Text style={s.instancePillAction}>Change</Text>
-            </Pressable>
+            </View>
           ) : null}
         </View>
 
         {instanceOpen ? (
           <View style={s.card}>
-            {instances.length > 0 ? (
-              <>
-                <Text style={s.label}>Previously used</Text>
-                {instances.map((inst) => {
-                  const selected = instanceKey(inst.url) === instanceKey(url);
-                  return (
-                    <Pressable
-                      key={inst.url}
-                      onPress={() => selectInstance(inst)}
-                      onLongPress={() => removeInstance(inst)}
-                      style={({ pressed }) => [
-                        s.instanceRow,
-                        selected && s.instanceRowSelected,
-                        pressed && { opacity: 0.8 },
-                      ]}
-                    >
-                      <Ionicons
-                        name={selected ? 'radio-button-on' : 'radio-button-off'}
-                        size={18}
-                        color={selected ? COLORS.primary : COLORS.textMuted}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.instanceHost} numberOfLines={1}>
-                          {instanceLabel(inst.url)}
-                        </Text>
-                        {inst.email ? (
-                          <Text style={s.instanceEmail} numberOfLines={1}>
-                            {inst.email}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Pressable onPress={() => removeInstance(inst)} hitSlop={10}>
-                        <Ionicons name="close" size={18} color={COLORS.textMuted} />
-                      </Pressable>
-                    </Pressable>
-                  );
-                })}
-                <Text style={[s.label, { marginTop: spacing.lg }]}>Or add another</Text>
-              </>
-            ) : (
-              <Text style={s.label}>Instance URL</Text>
-            )}
+            {/* One server per device: this changes it, it does not add another.
+                http or https is worked out when signing in. */}
+            <Text style={s.label}>Server</Text>
             <TextInput
               value={draftUrl}
               onChangeText={setDraftUrl}
@@ -271,7 +268,7 @@ export default function Login() {
                 />
               ) : null}
               <Button
-                label="Continue"
+                label={url ? 'Change' : 'Continue'}
                 style={{ flex: 1 }}
                 onPress={continueWithDraft}
                 disabled={!draftUrl.trim()}
@@ -292,7 +289,7 @@ export default function Login() {
                 <Ionicons name="finger-print" size={34} color={COLORS.text} />
               </View>
               <Text style={s.bioLabel}>{bioBusy ? 'Waiting…' : 'Sign in with biometrics'}</Text>
-              {email ? <Text style={s.bioEmail}>{email}</Text> : null}
+              {accountName ? <Text style={s.bioEmail}>{accountName}</Text> : null}
             </Pressable>
             <Pressable
               onPress={() => {
@@ -307,7 +304,7 @@ export default function Login() {
         ) : (
           <>
             <View style={s.card}>
-              <Text style={s.label}>Email</Text>
+              <Text style={s.label}>Email or username</Text>
               <TextInput
                 value={email}
                 onChangeText={(v) => {
@@ -318,7 +315,7 @@ export default function Login() {
                 autoCorrect={false}
                 keyboardType="email-address"
                 textContentType="username"
-                placeholder="you@upande.com"
+                placeholder="you@upande.com or username"
                 placeholderTextColor={COLORS.textMuted}
                 returnKeyType="next"
                 style={[s.input, { marginBottom: spacing.md }]}
@@ -348,6 +345,9 @@ export default function Login() {
             </View>
             {errorBanner}
             <Button label="Sign in" onPress={submit} loading={submitting} />
+            <Pressable onPress={onForgotPassword} disabled={resetting} style={s.switchLink}>
+              <Text style={s.switchLinkText}>{resetting ? 'Sending reset link…' : 'Forgot password?'}</Text>
+            </Pressable>
             {bioAvailable ? (
               <Pressable
                 onPress={() => {
@@ -388,7 +388,6 @@ const s = StyleSheet.create({
     maxWidth: '100%',
   },
   instancePillText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary, flexShrink: 1 },
-  instancePillAction: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary, marginLeft: spacing.xs },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: borderRadius.md,
@@ -406,6 +405,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   input: {
+    fontFamily: fontFamily.regular,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: borderRadius.sm,
@@ -415,20 +415,6 @@ const s = StyleSheet.create({
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  instanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: spacing.sm,
-  },
-  instanceRowSelected: { borderColor: COLORS.primary },
-  instanceHost: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  instanceEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   pwRow: {
     flexDirection: 'row',
@@ -439,8 +425,8 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bg,
     paddingHorizontal: 10,
   },
-  pwInput: { flex: 1, fontSize: fontSize.md, color: COLORS.text, paddingVertical: 10 },
-  pwToggle: { color: COLORS.text, fontSize: fontSize.sm, fontWeight: '600', padding: 6 },
+  pwInput: { fontFamily: fontFamily.regular, flex: 1, fontSize: fontSize.md, color: COLORS.text, paddingVertical: 10 },
+  pwToggle: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: fontSize.sm, padding: 6 },
   errBox: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -449,11 +435,12 @@ const s = StyleSheet.create({
     backgroundColor: '#FEF2F2',
     marginBottom: spacing.lg,
   },
-  errText: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#991B1B', lineHeight: 19 },
+  errText: { flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#991B1B', lineHeight: scaleFont(19) },
   bioCard: {
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: COLORS.border,
@@ -467,8 +454,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bioLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },
-  bioEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: -spacing.sm },
+  bioLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text, textAlign: 'center' },
+  bioEmail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: -spacing.sm, textAlign: 'center' },
   switchLink: { alignSelf: 'center', marginTop: spacing.lg, padding: spacing.sm },
   switchLinkText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary },
   version: {

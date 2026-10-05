@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { format, parseISO } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
-import { Button } from '@/src/core/ui/Button';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
+import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useTraceabilityStore } from './store';
@@ -17,7 +18,7 @@ import type {
   TraceabilitySnapshot,
   TraceabilityStatus,
 } from './types';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 type Props = { repository: TraceabilityRepository };
 
@@ -89,25 +90,15 @@ export function TraceabilityScreen({ repository }: Props) {
 
   const onScan = (raw: string) => fetch(repository, parseScan(raw));
 
-  // Operator clicks this after reading the result to clear the snapshot and
-  // refocus the scan field for the next scan. We deliberately do NOT sticky-
-  // focus while the result is on screen — Android pops the soft keyboard back
-  // every time the field regains focus, which is jarring when the operator is
-  // trying to read the displayed details.
-  const handleNext = () => {
-    reset();
+  // No "Next scan": once a result (or error) is back the field clears and takes
+  // focus again, so the next bucket / bunch / box is simply scanned and replaces
+  // it. The field never shows the soft keyboard, so refocusing doesn't cover the
+  // result.
+  useEffect(() => {
+    if (loading) return;
     scanRef.current?.clear();
     focusWhenReady(scanRef);
-  };
-
-  const headerLabel =
-    scannedKind === 'box'
-      ? `Box ${scannedId ?? ''}`
-      : scannedKind === 'bunch'
-        ? `Bunch ${scannedId ?? ''}`
-        : `Bucket ${scannedId ?? ''}`;
-
-  const showNextButton = !loading && (snapshot !== null || error !== null);
+  }, [loading, snapshot, error]);
 
   return (
     <Screen title="Traceability">
@@ -119,14 +110,16 @@ export function TraceabilityScreen({ repository }: Props) {
         <ScanField
           ref={scanRef}
           onScan={onScan}
-          autoFocus={!snapshot && !error}
-          editable={!loading && !snapshot && !error}
+          autoFocus
+          editable={!loading}
           placeholder="Bucket / Bunch / Box ID"
         />
       </Card>
 
+      {/* Stamped the moment it is scanned, while its journey loads. */}
+      {loading && scannedId ? <ScannedStamp kind={scannedKind ?? 'bucket'} id={scannedId} loading /> : null}
       {loading ? (
-        <Card><Text style={s.muted}>Looking up {headerLabel}…</Text></Card>
+        <SkeletonCards cards={2} rows={4} />
       ) : error ? (
         <Alert tone="danger">{error}</Alert>
       ) : snapshot && snapshot.kind === 'box' && snapshot.box ? (
@@ -137,11 +130,6 @@ export function TraceabilityScreen({ repository }: Props) {
         <Card><Text style={s.muted}>No bucket, bunch or box scanned yet.</Text></Card>
       )}
 
-      {showNextButton ? (
-        <View style={s.nextBtnWrap}>
-          <Button label="Next scan" onPress={handleNext} />
-        </View>
-      ) : null}
     </Screen>
   );
 }
@@ -419,7 +407,7 @@ function BunchRow({
   return (
     <View style={[s.bunchRow, isScanned && s.bunchRowHighlight]}>
       <View style={s.bunchHeader}>
-        <Text style={s.bunchId}>{bunch.bunchId}</Text>
+        <Text style={s.bunchId} numberOfLines={1}>{bunch.bunchId}</Text>
         {bunch.issuedOpl ? (
           <View style={[s.statusChip, { backgroundColor: '#e6f9ee' }]}>
             <Text style={[s.statusChipText, { color: '#1a8a3a' }]}>Issued</Text>
@@ -560,27 +548,27 @@ const DOT = 8;
 const TRACK_W = 2;
 
 const s = StyleSheet.create({
-  helper:      { fontSize: 13, color: COLORS.textMuted },
-  muted:       { fontSize: 13, color: COLORS.textMuted },
-  approxNote:  { marginTop: 8, fontSize: 12, color: '#9a5a00', lineHeight: 16 },
+  helper:      { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  muted:       { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  approxNote:  { fontFamily: fontFamily.regular, marginTop: 8, fontSize: scaleFont(12), color: '#9a5a00', lineHeight: scaleFont(16) },
   bucketHead:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bucketHeadSub: { marginTop: 2, fontSize: 12, color: COLORS.textMuted },
-  chevron:     { fontSize: 11, color: COLORS.textMuted, paddingLeft: 8 },
+  bucketHeadSub: { fontFamily: fontFamily.regular, marginTop: 2, fontSize: scaleFont(12), color: COLORS.textMuted },
+  chevron:     { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, paddingLeft: 8 },
   bucketTrail: { marginTop: 10 },
 
   headerRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bucketLabel: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  bucketId:    { fontSize: 20, fontWeight: '700', color: COLORS.text, marginTop: 2, letterSpacing: 1 },
-  subId:       { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  bucketLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  bucketId:    { fontFamily: fontFamily.bold, fontSize: scaleFont(20), color: COLORS.text, marginTop: 2, letterSpacing: 1 },
+  subId:       { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   badge:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  badgeText:   { fontSize: 13, fontWeight: '700' },
+  badgeText:   { fontFamily: fontFamily.bold, fontSize: scaleFont(13) },
 
-  row:           { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
-  rowLabel:      { fontSize: 12, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  rowValue:      { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
-  rowValueSmall: { fontSize: 11 },
+  row:           { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 7 },
+  rowLabel:      { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  rowValue:      { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  rowValueSmall: { fontFamily: fontFamily.regular, fontSize: scaleFont(11) },
 
-  bunchSub:    { fontSize: 12, color: COLORS.textMuted, lineHeight: 16 },
+  bunchSub:    { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, lineHeight: scaleFont(16) },
 
   bunchRow: {
     paddingVertical: 10,
@@ -593,13 +581,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
   },
   bunchHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  bunchId:     { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  bunchId:     { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(13), color: COLORS.text },
   bunchMeta:   { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   bunchFooter: { marginTop: 6 },
-  bunchFooterText: { fontSize: 11, color: COLORS.textMuted },
-  bunchOpl:    { marginTop: 2, fontSize: 11, color: '#1a8a3a', fontWeight: '600' },
+  bunchFooterText: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted },
+  bunchOpl:    { fontFamily: fontFamily.semiBold, marginTop: 2, fontSize: scaleFont(11), color: '#1a8a3a' },
   statusChip:  { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  statusChipText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  statusChipText: { fontFamily: fontFamily.bold, fontSize: scaleFont(10), textTransform: 'uppercase', letterSpacing: 0.3 },
 
   stageRow:     { flexDirection: 'row', gap: 12 },
   spineLine:    { width: DOT, alignItems: 'center', paddingTop: 6 },
@@ -608,16 +596,16 @@ const s = StyleSheet.create({
   stageBody:    { flex: 1, paddingTop: 2 },
   stageBodyGap: { paddingBottom: 16 },
   stageHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  stageName:    { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  stageDate:    { fontSize: 12, color: COLORS.textMuted },
-  stageDetail:  { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  stageName:    { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  stageDate:    { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  stageDetail:  { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   stageMeta:    { marginTop: 6, flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   stageFooter:  {
     marginTop: 6,
     gap: 2,
   },
-  stageWho:     { fontSize: 11, color: COLORS.textMuted },
-  stageDoc:     { fontSize: 10, color: COLORS.textMuted, fontStyle: 'italic' },
+  stageWho:     { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted },
+  stageDoc:     { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, fontStyle: 'italic' },
 
   pill:         {
     paddingHorizontal: 8,
@@ -627,11 +615,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     alignItems: 'baseline',
+    maxWidth: '100%',
   },
   pillWarn:     { backgroundColor: '#fde8ec' },
-  pillLabel:    { fontSize: 10, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pillLabel:    { fontFamily: fontFamily.regular, fontSize: scaleFont(10), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.3 },
   pillLabelWarn:{ color: '#9a1f33' },
-  pillValue:    { fontSize: 12, color: COLORS.text, fontWeight: '600' },
+  pillValue:    { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   pillValueWarn:{ color: '#9a1f33' },
 
   nextBtnWrap:  { marginTop: 16 },

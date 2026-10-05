@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Screen } from '@/src/core/ui/Screen';
@@ -11,7 +11,7 @@ import {
   type TransferTab,
   type TransferGroup,
 } from '@/src/tenants/karen/state/karen-bucket-transfers-store';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 const GREEN = '#12B76A';
 const GREEN_BG = '#ECFDF3';
@@ -86,17 +86,23 @@ export function KarenBucketTransfersScreen() {
         </Pressable>
       </View>
 
-      <Segmented
-        radius={10}
-        value={tab}
-        onChange={(v) => setTab(v as TransferTab)}
-        options={[
-          { value: 'none', label: `Not shelved (${counts.none})` },
-          { value: 'progress', label: `Shelved (${counts.progress})` },
-          { value: 'ready', label: `Ready (${counts.ready})` },
-          { value: 'issued', label: `Issued (${counts.issued})` },
-        ]}
-      />
+      {/* Four tabs with counts don't fit a ~320dp scanner: below the min width the
+          bar scrolls sideways instead of squeezing the labels. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabsScroll}>
+        <View style={s.tabsInner}>
+          <Segmented
+            radius={10}
+            value={tab}
+            onChange={(v) => setTab(v as TransferTab)}
+            options={[
+              { value: 'none', label: `Not shelved (${counts.none})` },
+              { value: 'progress', label: `Shelved (${counts.progress})` },
+              { value: 'ready', label: `Ready (${counts.ready})` },
+              { value: 'issued', label: `Issued (${counts.issued})` },
+            ]}
+          />
+        </View>
+      </ScrollView>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
@@ -155,7 +161,7 @@ function OrderCard({ g }: { g: TransferGroup }) {
   return (
     <Card>
       <View style={s.hd}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.order} numberOfLines={1}>
             {g.orderName}
           </Text>
@@ -171,7 +177,9 @@ function OrderCard({ g }: { g: TransferGroup }) {
       <View style={s.subRow}>
         <View style={s.truckPill}>
           <Ionicons name="car-outline" size={14} color={COLORS.text} />
-          <Text style={s.truckPlate}>{g.truck || 'No truck'}</Text>
+          <Text style={s.truckPlate} numberOfLines={1}>
+            {g.truck || 'No truck'}
+          </Text>
         </View>
         <Text style={s.count}>
           {g.shelvedCount}/{g.total} shelved
@@ -192,8 +200,10 @@ function OrderCard({ g }: { g: TransferGroup }) {
           // A bucket can sit on more than one pick row of the same order
           // (e.g. split or re-picked), so its id alone is not a unique key.
           <View key={`${b.bucketId}-${i}`} style={s.bRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bId}>{b.bucketId}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.bId} numberOfLines={1}>
+                {b.bucketId}
+              </Text>
               {meta ? (
                 <Text style={s.bMeta} numberOfLines={1}>
                   {meta}
@@ -248,19 +258,23 @@ const s = StyleSheet.create({
   },
   dateValue: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
   hd: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tabsScroll: { flexGrow: 1 },
+  tabsInner: { flex: 1, minWidth: 340 },
   order: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full },
-  statusTxt: { fontFamily: fontFamily.bold, fontSize: 11 },
+  statusTxt: { fontFamily: fontFamily.bold, fontSize: scaleFont(11) },
   subRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     marginTop: spacing.sm,
   },
   truckPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
     gap: 6,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -273,6 +287,7 @@ const s = StyleSheet.create({
     color: COLORS.text,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    flexShrink: 1,
   },
   count: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textSecondary },
   divider: {
@@ -281,7 +296,7 @@ const s = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
-  bId: { fontFamily: 'monospace', fontSize: fontSize.sm, color: COLORS.text, fontWeight: '700' },
+  bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   pill: {
     flexDirection: 'row',

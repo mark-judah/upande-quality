@@ -1,8 +1,10 @@
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Card } from '@/src/core/ui/Card';
 import { Screen } from '@/src/core/ui/Screen';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenColdroomQcStore } from '@/src/tenants/karen/state/karen-coldroom-qc-store';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -93,16 +95,33 @@ export function KarenColdroomQcScreen() {
             placeholder="Scan or type bucket ID"
             editable={!scanning}
           />
-          {scanning ? <Text style={s.hint}>Loading bucket…</Text> : null}
           {scanError ? <Text style={s.errorText}>{scanError}</Text> : null}
         </Card>
+
+        {scanning && !bucket ? (
+          <Card>
+            <View style={s.rowBetween}>
+              <Skeleton width="45%" height={14} />
+              <Skeleton width={78} height={20} radius={10} />
+            </View>
+            <View style={{ height: 10 }} />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View key={i} style={[s.rowBetween, { paddingVertical: 5 }]}>
+                <Skeleton width="35%" height={12} />
+                <Skeleton width="30%" height={12} />
+              </View>
+            ))}
+          </Card>
+        ) : null}
 
         {bucket ? (
           <>
             {/* BUCKET DETAILS */}
             <Card>
               <View style={s.rowBetween}>
-                <Text style={s.section}>BUCKET · {bucket.bucketId}</Text>
+                <Text style={[s.section, s.shrink]} numberOfLines={1}>
+                  BUCKET · {bucket.bucketId}
+                </Text>
                 {bucket.isShelved ? (
                   <Text style={s.shelvedBadge}>shelved</Text>
                 ) : (
@@ -250,14 +269,9 @@ function AddReasonModal({
   }));
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Reason</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title="Add Reason" onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -288,24 +302,26 @@ function AddReasonModal({
 }
 
 const s = StyleSheet.create({
-  section: { fontWeight: '700', color: COLORS.textMuted, fontSize: 12, letterSpacing: 0.4 },
-  hint: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  errorText: { fontSize: 12, color: 'red', marginTop: 6 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  shelvedBadge: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
-  coldBadge: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+  section: { fontFamily: fontFamily.bold, color: COLORS.textMuted, fontSize: scaleFont(12), letterSpacing: 0.4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  errorText: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: 'red', marginTop: 6 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  shrink: { flexShrink: 1 },
+  shelvedBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.primary },
+  coldBadge: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  detailLabel: { fontSize: 13, color: COLORS.textMuted },
-  detailValue: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
-  detailValueStrong: { fontWeight: '700', fontSize: 15 },
+  detailLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
+  detailValue: { flexShrink: 1, textAlign: 'right', fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.text },
+  detailValueStrong: { fontFamily: fontFamily.bold, fontSize: scaleFont(15) },
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6 },
-  headerText: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
+  headerText: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textMuted, letterSpacing: 0.3 },
   stemsCol: { width: 70, textAlign: 'center' },
   removeCol: { width: 34, alignItems: 'center' },
   rejectRow: {
@@ -315,14 +331,15 @@ const s = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
   },
-  reasonText: { flex: 1, fontSize: 14, color: COLORS.text },
+  reasonText: { fontFamily: fontFamily.regular, flex: 1, fontSize: scaleFont(14), color: COLORS.text },
   stemsInput: {
+    fontFamily: fontFamily.regular,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
   },
   totalRow: {
@@ -334,23 +351,15 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
-  totalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
-  totalValue: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  totalLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  totalValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
   emptyBox: { alignItems: 'center', paddingVertical: 18, gap: 6 },
-  emptyText: { fontSize: 13, color: COLORS.textMuted },
+  emptyText: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.textMuted },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  addText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
-  modalRoot: { flex: 1, backgroundColor: COLORS.surface, paddingTop: 54 },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 15, color: COLORS.primary },
+  addText: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.primary },
+  modalRoot: { flex: 1, backgroundColor: COLORS.surface },
   modalSearch: {
+    fontFamily: fontFamily.regular,
     marginHorizontal: 16,
     marginBottom: 8,
     borderWidth: 1,
@@ -358,21 +367,22 @@ const s = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
   modalSectionHeader: {
+    fontFamily: fontFamily.bold,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: scaleFont(12),
+    
     letterSpacing: 0.4,
     color: COLORS.textMuted,
     backgroundColor: '#F5F5F5',
     textTransform: 'uppercase',
   },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontSize: 15, color: COLORS.text },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });

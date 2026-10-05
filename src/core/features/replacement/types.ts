@@ -1,7 +1,7 @@
 /**
  * Replacement and pending-reshelving types.
  *
- * The "replacement" feature lets a user with the Harvest Details Updater role
+ * The "replacement" feature lets any signed-in user
  * either swap a whole bucket (allocated/issued elsewhere) for a shelved one with
  * matching variety+length+farm, OR move a single bunch out of its current bucket
  * after correcting its claimed variety/stem length. If no destination bucket

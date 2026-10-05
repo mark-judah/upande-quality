@@ -1,29 +1,60 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Dropdown } from '@/src/core/ui/Dropdown';
+import { BottomSheet } from '@/src/core/ui/Dialog';
 import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import {
+  localDay,
   useKarenShelfOperationsStore,
   type ShelfOperationsMode,
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
 import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 
-export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
+/** Group / filter label for an OPL allocated without a packing team. */
+const NO_TEAM = 'No team';
+
+/** `only` turns one tab into a page of its own (the sidebar's Issue Offline):
+ *  its title, no tab switcher. Without it, the Shelf Operations page with all
+ *  three tabs. */
+export function KarenShelfOperationsScreen({
+  userFarm,
+  only,
+}: {
+  userFarm: string;
+  only?: ShelfOperationsMode;
+}) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
   const {
-    mode,
+    mode: storeMode,
     shelfId,
-    reason,
     loading,
     lastTransferOutcome,
+    opls,
+    oplsLoading,
+    oplDeliveryDate,
+    oplTeam,
+    opl,
+    offlineBuckets,
+    offlineBucketsLoading,
+    allocatedBucket,
+    substitutes,
+    substitutesLoading,
+    chosenSubstitute,
+    reason,
+    correctVariety,
+    correctStemLength,
+    varieties,
+    stemLengths,
     lastOfflineOutcome,
     coldStores,
     coldStoresLoading,
@@ -36,9 +67,18 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     setMode,
     setShelfFromScan,
     clearShelf,
-    setReason,
     submitTransfer,
-    submitOfflineRemoval,
+    loadOpls,
+    setOplFarm,
+    setOplDeliveryDate,
+    setOplTeam,
+    selectOpl,
+    selectAllocatedBucket,
+    chooseSubstitute,
+    setReason,
+    setCorrectVariety,
+    setCorrectStemLength,
+    submitIssueOffline,
     initStockTake,
     loadColdStores,
     setColdstore,
@@ -48,10 +88,48 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   } = useKarenShelfOperationsStore();
   const { showSuccess, showError } = useToast();
 
+  // Issue Offline: the date's OPLs, grouped by packing team (no team last), and the
+  // teams to filter by.
+  const oplTeams = useMemo(
+    () => [...new Set(opls.map((o) => o.team || NO_TEAM))].sort((a, b) => (a === NO_TEAM ? 1 : b === NO_TEAM ? -1 : a.localeCompare(b))),
+    [opls],
+  );
+  const pickedBucket = offlineBuckets.find((b) => b.bucket === allocatedBucket) ?? null;
+  const shownOpls = useMemo(
+    () =>
+      opls
+        .filter((o) => !oplTeam || (o.team || NO_TEAM) === oplTeam)
+        .sort((a, b) => oplTeams.indexOf(a.team || NO_TEAM) - oplTeams.indexOf(b.team || NO_TEAM)),
+    [opls, oplTeam, oplTeams],
+  );
+
+  // The single-tab page renders its own tab from the first frame; going by the
+  // shared store alone, it flashed the Shelf Operations (Transfer) page until
+  // the store caught up.
+  const mode = only ?? storeMode;
+
   useEffect(() => () => reset(), [reset]);
 
+  // The two pages stay mounted and share one store: the single-tab page takes
+  // the store over while it is on screen and hands it back on Transfer when
+  // left, so Shelf Operations never opens on a tab it has no button for.
+  useFocusEffect(
+    useCallback(() => {
+      if (!only) return;
+      const st = useKarenShelfOperationsStore.getState();
+      if (st.mode !== only) setMode(only);
+      // Fresh OPLs on every visit (the page stays mounted between visits).
+      if (only === 'issue-offline') {
+        setOplFarm(userFarm);
+        if (st.oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
+        else loadOpls();
+      }
+      return () => setMode('transfer');
+    }, [only, userFarm, setMode, setOplFarm, setOplDeliveryDate, loadOpls]),
+  );
+
   // Transfer mode: shelf then bucket, mirrors Shelving's focus chain.
-  // Offline Removal mode: no shelf step, focus goes straight to the bucket field.
+  // Issue Offline mode: OPL, allocated bucket and reason first, then the scan.
   // Stock Take mode: no shelf step either - focus goes to the bucket field once
   // a cold store is picked.
   useFocusEffect(
@@ -73,9 +151,16 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   }, [mode, shelfId, coldstore]);
 
   useEffect(() => {
+    if (only) return; // the single-tab page loads on focus, above
     if (mode === 'stock-take') {
       initStockTake();
       loadColdStores(userFarm);
+    } else if (mode === 'issue-offline') {
+      // Issuing works on tomorrow's deliveries only: a date left from yesterday
+      // moves on to the new tomorrow (which loads its OPLs).
+      setOplFarm(userFarm);
+      if (oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
+      else loadOpls();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -106,8 +191,8 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
     focusWhenReady(bucketRef);
   };
 
-  const onBucketScanOfflineRemoval = async (raw: string) => {
-    const outcome = await submitOfflineRemoval(raw);
+  const onBucketScanIssueOffline = async (raw: string) => {
+    const outcome = await submitIssueOffline(raw);
     if (outcome.kind === 'success') {
       showSuccess(outcome.message);
     } else {
@@ -138,84 +223,123 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
   };
 
   return (
-    <Screen title="Shelf Operations" scroll={mode !== 'stock-take'}>
+    <Screen title={only === 'issue-offline' ? 'Issue Offline' : 'Shelf Operations'} scroll={mode !== 'stock-take'}>
       <View style={s.farmBanner}>
-        <Text style={s.farmBannerLabel}>Farm</Text>
-        <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
+        <View style={s.farmBannerFarm}>
+          <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.textMuted} />
+          <Text style={s.farmBannerValue} numberOfLines={1}>
+            {userFarm || 'All farms'}
+          </Text>
+        </View>
+        {mode === 'issue-offline' ? (
+          <View style={s.teamSelect}>
+            <Dropdown
+              compact
+              label="Team"
+              iconName="account-group-outline"
+              value={oplTeam}
+              options={[
+                { label: `All teams (${opls.length})`, value: '' },
+                ...oplTeams.map((t) => ({
+                  label: `${t} (${opls.filter((o) => (o.team || NO_TEAM) === t).length})`,
+                  value: t,
+                })),
+              ]}
+              searchable={false}
+              disabled={oplsLoading}
+              onChange={setOplTeam}
+            />
+          </View>
+        ) : null}
       </View>
 
-      <View style={s.modeRow}>
-        <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
-        <ModeButton
-          label="Report Offline Removal"
-          active={mode === 'offline-removal'}
-          onPress={() => switchMode('offline-removal')}
-        />
-        <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
-      </View>
+      {only ? null : (
+        <View style={s.modeRow}>
+          <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
+          <ModeButton
+            label="Issue Offline"
+            active={mode === 'issue-offline'}
+            onPress={() => switchMode('issue-offline')}
+          />
+          <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
+        </View>
+      )}
 
       {mode === 'stock-take' ? (
-        <FlatList<StockTakeScanRow>
-          style={{ flex: 1 }}
-          data={stockTakeScans}
-          keyExtractor={(row) => String(row.id)}
-          renderItem={({ item }) => <StockTakeScanRowView row={item} />}
-          initialNumToRender={20}
-          windowSize={7}
-          removeClippedSubviews
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            <>
-              <Card title="Cold store">
-                <Dropdown
-                  label="Cold store"
-                  iconName="snowflake"
-                  value={coldstore ?? ''}
-                  options={coldStores.map((c) => ({ label: c, value: c }))}
-                  placeholder={coldStoresLoading ? 'Loading…' : 'Pick cold store'}
-                  disabled={coldStoresLoading}
-                  onChange={(v) => setColdstore(v)}
+        <View style={s.flexCol}>
+          {/* These controls live OUTSIDE the FlatList (unlike an earlier
+           *  version that put them in ListHeaderComponent) because
+           *  removeClippedSubviews below can detach and recreate the native
+           *  TextInput view as the list scrolls/re-renders - a hardware
+           *  (Honeywell-style HID) scanner's keystrokes land on whatever
+           *  native view currently holds focus, and a detach/reattach drops
+           *  that without necessarily changing what's visually focused. The
+           *  camera path never depended on continuous native focus, so it
+           *  kept working while hardware scanning silently stopped. Mirrors
+           *  how Transfer/Offline Removal keep their ScanField outside any
+           *  virtualised list. */}
+          <Card title="Cold store">
+            <Dropdown
+              label="Cold store"
+              iconName="snowflake"
+              value={coldstore ?? ''}
+              options={coldStores.map((c) => ({ label: c, value: c }))}
+              placeholder={coldStoresLoading ? 'Loading…' : 'Pick cold store'}
+              disabled={coldStoresLoading}
+              onChange={(v) => setColdstore(v)}
+            />
+          </Card>
+
+          <Card title="Bucket">
+            <ScanField
+              ref={bucketRef}
+              onScan={onBucketScanStockTake}
+              autoFocus={!!coldstore}
+              placeholder={coldstore ? 'Scan bucket QR' : 'Pick the cold store first'}
+              editable={!!coldstore}
+            />
+          </Card>
+
+          {coldstore ? (
+            <Card title="Sync">
+              <View style={s.syncRow}>
+                <Text style={s.syncCount}>
+                  {stockTakePending} bucket{stockTakePending === 1 ? '' : 's'} not yet synced
+                </Text>
+                <Button
+                  label={stockTakeSyncing ? 'Syncing…' : stockTakeSyncError ? 'Retry sync' : 'Sync'}
+                  onPress={onSyncStockTake}
+                  loading={stockTakeSyncing}
+                  disabled={stockTakeSyncing || stockTakePending === 0}
                 />
-              </Card>
-
-              <Card title="Bucket">
-                <ScanField
-                  ref={bucketRef}
-                  onScan={onBucketScanStockTake}
-                  autoFocus={!!coldstore}
-                  placeholder={coldstore ? 'Scan bucket QR' : 'Pick the cold store first'}
-                  editable={!!coldstore}
-                />
-              </Card>
-
-              {coldstore ? (
-                <Card title="Sync">
-                  <View style={s.syncRow}>
-                    <Text style={s.syncCount}>
-                      {stockTakePending} bucket{stockTakePending === 1 ? '' : 's'} not yet synced
-                    </Text>
-                    <Button
-                      label={stockTakeSyncing ? 'Syncing…' : stockTakeSyncError ? 'Retry sync' : 'Sync'}
-                      onPress={onSyncStockTake}
-                      loading={stockTakeSyncing}
-                      disabled={stockTakeSyncing || stockTakePending === 0}
-                    />
-                  </View>
-                  {stockTakeSyncProgress ? (
-                    <Text style={s.muted}>
-                      Syncing {stockTakeSyncProgress.done} of {stockTakeSyncProgress.total}…
-                    </Text>
-                  ) : null}
-                  {stockTakeSyncError ? <Alert tone="danger">{stockTakeSyncError}</Alert> : null}
-                </Card>
+              </View>
+              {stockTakeSyncProgress ? (
+                <Text style={s.muted}>
+                  Syncing {stockTakeSyncProgress.done} of {stockTakeSyncProgress.total}…
+                </Text>
               ) : null}
+              {stockTakeSyncError ? <Alert tone="danger">{stockTakeSyncError}</Alert> : null}
+            </Card>
+          ) : null}
 
-              {stockTakeScans.length ? (
-                <Text style={s.logHeader}>Scanned ({stockTakeScans.length})</Text>
-              ) : null}
-            </>
-          }
-        />
+          <FlatList<StockTakeScanRow>
+            style={s.flex}
+            data={stockTakeScans}
+            keyExtractor={(row) => String(row.id)}
+            renderItem={({ item }) => <StockTakeScanRowView row={item} />}
+            initialNumToRender={20}
+            windowSize={7}
+            removeClippedSubviews
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              stockTakeScans.length ? (
+                <Text style={s.logHeader}>
+                  Scanned ({stockTakeScans.length}) · {stockTakeStems(stockTakeScans)} stems
+                </Text>
+              ) : null
+            }
+          />
+        </View>
       ) : mode === 'transfer' ? (
         <>
           <Card title="Destination shelf">
@@ -229,7 +353,9 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
             />
             {shelfId ? (
               <View style={s.shelfStatusRow}>
-                <Text style={s.shelfStatusLabel}>Moving bucket(s) to {shelfId}</Text>
+                <Text style={s.shelfStatusLabel} numberOfLines={2}>
+                  Moving bucket(s) to {shelfId}
+                </Text>
                 <Pressable onPress={clearShelf} hitSlop={8}>
                   <Text style={s.changeLink}>Change shelf</Text>
                 </Pressable>
@@ -252,33 +378,237 @@ export function KarenShelfOperationsScreen({ userFarm }: { userFarm: string }) {
         </>
       ) : (
         <>
-          <Card title="Reason">
-            <TextInput
-              style={s.reasonInput}
-              placeholder="Why is this bucket being removed? (e.g. damaged, quality hold)"
-              placeholderTextColor={COLORS.textMuted}
-              value={reason}
-              onChangeText={setReason}
-              onBlur={() => {
-                if (reason.trim()) focusWhenReady(bucketRef);
-              }}
-              multiline
-              editable={!loading}
+          <Card title="Order pick list">
+            <Text style={s.filterLabel}>Delivery date</Text>
+            <View style={s.modeRow}>
+              <ModeButton
+                label="Tomorrow"
+                active={oplDeliveryDate === localDay(1)}
+                onPress={() => setOplDeliveryDate(localDay(1))}
+              />
+            </View>
+            <Dropdown
+              label="OPL"
+              iconName="clipboard-list-outline"
+              value={opl ?? ''}
+              options={shownOpls.map((o) => ({
+                // Row 1: varieties (what the OPL holds, without opening it), order,
+                // team. Row 2: customer and OPL number.
+                label: [o.varieties.join(', '), o.orderName, o.team || NO_TEAM, `${o.issuedPct}% issued`]
+                  .filter(Boolean)
+                  .join(' · '),
+                // Varieties and team in bold, to read at a glance.
+                labelParts: [
+                  ...(o.varieties.length ? [{ text: o.varieties.join(', '), bold: true }, { text: ' · ' }] : []),
+                  { text: `${o.orderName} · ` },
+                  { text: o.team || NO_TEAM, bold: true },
+                  { text: ` · ${o.issuedPct}% issued` },
+                ],
+                value: o.oplName,
+                sublabel: [o.customer, o.oplName].filter(Boolean).join(' · '),
+              }))}
+              placeholder={
+                oplsLoading
+                  ? 'Loading…'
+                  : shownOpls.length
+                    ? 'Pick the OPL'
+                    : 'No OPL delivering tomorrow has buckets left to issue'
+              }
+              disabled={oplsLoading || loading}
+              onChange={(v) => selectOpl(v)}
             />
           </Card>
 
-          <Card title="Bucket to report">
-            <ScanField
-              ref={bucketRef}
-              onScan={onBucketScanOfflineRemoval}
-              autoFocus={!!reason.trim()}
-              placeholder={reason.trim() ? 'Scan bucket QR' : 'Enter a reason first'}
-              editable={!loading && !!reason.trim()}
-            />
-            {loading ? <Text style={s.muted}>Reporting…</Text> : null}
-          </Card>
+          {opl ? (
+            <Card title="Allocated bucket that was not issued">
+              {offlineBucketsLoading ? (
+                <View style={{ gap: 10 }}>
+                  <Skeleton width={'70%'} height={14} />
+                  <Skeleton width={'55%'} height={14} />
+                  <Skeleton width={'80%'} height={14} />
+                </View>
+              ) : offlineBuckets.length === 0 ? (
+                <Text style={s.muted}>Every bucket on this OPL is issued.</Text>
+              ) : (
+                offlineBuckets.map((b) => {
+                  const picked = allocatedBucket === b.bucket;
+                  return (
+                    <Pressable
+                      key={b.bucket}
+                      style={[s.pickRow, picked && s.pickRowActive]}
+                      onPress={() => selectAllocatedBucket(picked ? null : b.bucket)}
+                      disabled={loading}
+                    >
+                      <View style={s.pickBody}>
+                        <Text style={s.pickTitle} numberOfLines={1}>
+                          {b.bucket}
+                        </Text>
+                        <Text style={s.pickDetail}>
+                          {[b.variety, b.stemLength, `${b.stems} stems`, b.inTransit ? 'on the way from the farm' : (b.shelf ?? 'not on a shelf')]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      </View>
+                      <Text style={[s.pickMark, picked && s.pickMarkActive]}>{picked ? '●' : '○'}</Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </Card>
+          ) : null}
 
-          {lastOfflineOutcome ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+          {lastOfflineOutcome?.kind === 'success' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+
+          {/* Picking a bucket slides this up: the reason, the record fix and the
+           *  scan all happen here, no scrolling to the end of the page. Issuing
+           *  clears the picked bucket, which closes it. */}
+          <BottomSheet
+            visible={!!allocatedBucket}
+            onClose={() => selectAllocatedBucket(null)}
+            busy={loading}
+            title="Issue this bucket"
+            subtitle={pickedBucket ? [pickedBucket.bucket, pickedBucket.variety, pickedBucket.stemLength, `${pickedBucket.stems} stems`].filter(Boolean).join(' · ') : undefined}
+          >
+            {/* Checked as soon as the bucket is picked: did it already go through
+                offline issuing as not found or the wrong variety? */}
+            {substitutes?.history.length ? (
+              <Alert tone="warn">
+                {substitutes.history
+                  .map((h) =>
+                    [
+                      `Already reported ${h.reason === 'not_found' ? 'not found' : 'wrong variety / stem length'}`,
+                      h.orderName || h.oplName,
+                      h.newBucket ? `replaced by ${h.newBucket}` : '',
+                      h.reportedBy,
+                      h.reportedAt,
+                      h.status,
+                    ]
+                      .filter(Boolean)
+                      .join(' · '),
+                  )
+                  .join('\n')}
+              </Alert>
+            ) : null}
+            {/* The bucket is there: scan it and it goes onto its line. Only when it
+                can't be issued does a reason (and a substitute) come into it. */}
+            {!reason ? (
+              <View>
+                <Text style={s.sheetLabel}>Scan the bucket</Text>
+                <ScanField
+                  ref={bucketRef}
+                  onScan={onBucketScanIssueOffline}
+                  autoFocus
+                  placeholder={`Scan ${allocatedBucket} to issue it to this line`}
+                  editable={!loading}
+                />
+                {loading ? <Text style={s.muted}>Issuing…</Text> : null}
+              </View>
+            ) : null}
+            <Text style={s.sheetLabel}>{reason ? 'Not issued because' : "Can't issue it?"}</Text>
+            <View style={[s.modeRow, s.noMargin]}>
+              <ModeButton
+                label="Not found"
+                active={reason === 'not_found'}
+                onPress={() => setReason(reason === 'not_found' ? null : 'not_found')}
+              />
+              <ModeButton
+                label="Wrong variety / stem length"
+                active={reason === 'wrong_variety'}
+                onPress={() => setReason(reason === 'wrong_variety' ? null : 'wrong_variety')}
+              />
+            </View>
+            {reason === 'wrong_variety' ? (
+              <View>
+                <Text style={[s.muted, s.noTopMargin]}>
+                  {allocatedBucket} stays in the cold store. Enter what it really holds so its record is corrected.
+                </Text>
+                <View style={{ height: 8 }} />
+                <Dropdown
+                  label="Real variety"
+                  iconName="flower-outline"
+                  value={correctVariety}
+                  options={varieties.map((v) => ({ label: v, value: v }))}
+                  placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
+                  disabled={loading}
+                  onChange={setCorrectVariety}
+                />
+                <Dropdown
+                  label="Real stem length"
+                  iconName="ruler"
+                  value={correctStemLength}
+                  options={[
+                    { label: 'Same as recorded', value: '' },
+                    ...stemLengths.map((l) => ({ label: l, value: l })),
+                  ]}
+                  placeholder={stemLengths.length ? 'Pick the stem length, if it differs' : 'Loading…'}
+                  disabled={loading}
+                  onChange={setCorrectStemLength}
+                />
+              </View>
+            ) : null}
+            {reason ? (
+              <View>
+                <Text style={s.sheetLabel}>Pick a substitute</Text>
+                {substitutesLoading ? (
+                  <View style={{ gap: 10, marginBottom: 8 }}>
+                    <Skeleton width={'70%'} height={14} />
+                    <Skeleton width={'55%'} height={14} />
+                  </View>
+                ) : substitutes?.candidates.length ? (
+                  substitutes.candidates.map((c) => {
+                    const picked = chosenSubstitute === c.bucket;
+                    return (
+                      <Pressable
+                        key={c.bucket}
+                        style={[s.pickRow, picked && s.pickRowActive]}
+                        onPress={() => {
+                          chooseSubstitute(picked ? null : c.bucket);
+                          focusWhenReady(bucketRef);
+                        }}
+                        disabled={loading}
+                      >
+                        <View style={s.pickBody}>
+                          <Text style={s.pickTitle} numberOfLines={1}>
+                            {c.bucket}
+                          </Text>
+                          {/* What is inside first: variety and stem length, in bold. */}
+                          <Text style={s.pickInside}>
+                            {[c.variety, c.stemLength].filter(Boolean).join(' · ') || '—'}
+                          </Text>
+                          <Text style={s.pickDetail}>
+                            {[c.stems != null ? `${c.stems} stems` : '', c.shelf ?? 'not on a shelf']
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </Text>
+                        </View>
+                        <Text style={[s.pickMark, picked && s.pickMarkActive]}>{picked ? '●' : '○'}</Text>
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={[s.muted, s.noTopMargin]}>
+                    {substitutes?.message ?? 'No substitute bucket found.'}
+                  </Text>
+                )}
+                <Text style={s.sheetLabel}>Scan substitute</Text>
+                <ScanField
+                  ref={bucketRef}
+                  onScan={onBucketScanIssueOffline}
+                  autoFocus
+                  placeholder={
+                    chosenSubstitute
+                      ? `Scan ${chosenSubstitute}`
+                      : reason === 'not_found'
+                        ? `Scan substitute (or ${allocatedBucket} if found)`
+                        : 'Scan substitute'
+                  }
+                  editable={!loading}
+                />
+                {loading ? <Text style={s.muted}>Issuing…</Text> : null}
+              </View>
+            ) : null}
+            {lastOfflineOutcome?.kind === 'failure' ? <OfflineOutcomeCard outcome={lastOfflineOutcome} /> : null}
+          </BottomSheet>
         </>
       )}
     </Screen>
@@ -329,28 +659,37 @@ function OfflineOutcomeCard({
 }) {
   if (outcome.kind === 'success') {
     return (
-      <Card title="Removal reported">
-        <Row label="Bucket" value={outcome.bucketId} />
-        {outcome.stems != null ? <Row label="Stems" value={String(outcome.stems)} /> : null}
-        {outcome.stockEntry ? <Row label="Stock entry" value={outcome.stockEntry} /> : null}
+      <Card title="Issued offline">
+        <Row label="Issued" value={outcome.issuedBucket} />
+        {outcome.replacement ? <Row label="Replacement record" value={outcome.replacement} /> : null}
+        {outcome.correction && !outcome.correction.ok ? (
+          <Alert tone="danger">{outcome.correction.message || 'The bucket record could not be corrected.'}</Alert>
+        ) : null}
+        <Text style={s.muted}>{outcome.message}</Text>
       </Card>
     );
   }
-  if (outcome.kind === 'failure' && outcome.reason === 'bucket_allocated') {
-    return (
-      <>
-        <Alert tone="danger">{outcome.message}</Alert>
-        {outcome.payload?.sales_orders?.length ? (
-          <Card title="Allocated to">
-            {outcome.payload.sales_orders.map((so) => (
-              <Row key={so} label="Sales order" value={so} />
-            ))}
-          </Card>
-        ) : null}
-      </>
-    );
-  }
-  return <Alert tone="danger">{outcome.message}</Alert>;
+  return (
+    <>
+      <Alert tone="danger">{outcome.message}</Alert>
+      {outcome.candidates.length ? (
+        <Card title="Buckets that could go out instead">
+          {outcome.candidates.map((c) => (
+            <Row
+              key={c.bucket}
+              label={c.bucket}
+              value={[c.variety, c.stemLength, c.stems != null ? `${c.stems} stems` : null, c.shelf].filter(Boolean).join(' · ')}
+            />
+          ))}
+        </Card>
+      ) : null}
+    </>
+  );
+}
+
+/** Stems across the scanned buckets the server has resolved so far. */
+function stockTakeStems(rows: StockTakeScanRow[]): number {
+  return rows.reduce((sum, r) => sum + (r.serverQty ?? 0), 0);
 }
 
 function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
@@ -371,7 +710,9 @@ function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
     );
   }
   const statusColor = row.serverStatus === 'Shelved' ? COLORS.success : COLORS.warn;
-  const detail = [row.serverVariety, row.serverStemLength].filter(Boolean).join(' · ');
+  const detail = [row.serverVariety, row.serverStemLength, row.serverQty != null ? `${row.serverQty} stems` : null]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <View style={s.stockTakeRow}>
       <View style={s.stockTakeHeaderRow}>
@@ -398,6 +739,8 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const s = StyleSheet.create({
+  flex: { flex: 1 },
+  flexCol: { flex: 1, flexDirection: 'column' },
   farmBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -408,58 +751,71 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  farmBannerLabel: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    fontWeight: '600',
-  },
-  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700' },
+  farmBannerFarm: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
+  teamSelect: { width: 170, maxWidth: '55%', marginLeft: 12 },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  noMargin: { marginBottom: 0 },
+  noTopMargin: { marginTop: 0 },
+  sheetLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginBottom: 6 },
+  filterLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
     flex: 1,
+    justifyContent: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 4,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
   },
   modeButtonActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
-  modeButtonLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, textAlign: 'center' },
   modeButtonLabelActive: { color: COLORS.surface },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginTop: 8,
   },
   shelfStatusLabel: {
-    fontSize: 12,
+    flexShrink: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  changeLink: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
-  reasonInput: {
+  changeLink: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
+  pickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    color: COLORS.text,
-    minHeight: 60,
-    textAlignVertical: 'top',
+    marginBottom: 6,
   },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  pickRowActive: { borderColor: COLORS.text, backgroundColor: COLORS.surfaceAlt },
+  pickBody: { flex: 1, minWidth: 0 },
+  pickTitle: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  pickDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
+  pickInside: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text, marginTop: 2 },
+  pickMark: { fontFamily: fontFamily.regular, fontSize: scaleFont(16), color: COLORS.textMuted },
+  pickMarkActive: { color: COLORS.text },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
-    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
   stockTakeRow: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -469,15 +825,17 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
-  stockTakeBucketId: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  stockTakeStatus: { fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
-  stockTakeDetail: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  stockTakeBucketId: { fontFamily: fontFamily.bold, fontSize: scaleFont(14), color: COLORS.text },
+  stockTakeStatus: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), flexShrink: 1, textAlign: 'right' },
+  stockTakeDetail: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2, flexShrink: 1 },
   syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  syncCount: { fontSize: 13, color: COLORS.text, flexShrink: 1 },
+  syncCount: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, flexShrink: 1 },
   logHeader: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fontFamily.bold,
+    fontSize: scaleFont(12),
+    
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

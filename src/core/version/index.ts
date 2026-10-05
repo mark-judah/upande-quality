@@ -1,13 +1,54 @@
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';
 import { api, mapAxiosError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
 
-export const APP_VERSION: string = Constants.expoConfig?.version ?? '1.0.0';
+type OtaExtra = { expoClient?: { version?: string }; appVersion?: string };
+const otaExtra = (Updates.manifest as { extra?: OtaExtra } | null)?.extra;
 
-// The mobile app is versioned via semantic-release (see .releaserc.json): every
-// merge to main publishes a GitHub Release tagged v<version>. The "latest
-// version" the app compares against is therefore the newest GitHub Release.
+/**
+ * The running version. Under an OTA bundle that is the bundle's own, read from
+ * its manifest: bundles published before `extra.expoClient` was added leave
+ * `Constants.expoConfig` reporting the APK's version.
+ */
+export const APP_VERSION: string =
+  otaExtra?.expoClient?.version ?? otaExtra?.appVersion ?? Constants.expoConfig?.version ?? '1.0.0';
+
+/** The installed APK's own versionName, which an OTA bundle does not change. */
+export const APK_VERSION: string = Application.nativeApplicationVersion ?? APP_VERSION;
+
+type SiteApp = { title?: string; version?: string };
+
+/** Apps on the connected site worth showing, in display order. */
+const SHOWN_APPS: [string, string][] = [
+  ['frappe', 'Frappe'],
+  ['erpnext', 'ERPNext'],
+  ['upande_quality', 'Upande Quality'],
+];
+
+/** Versions of the site's apps, or [] when the site won't say. Never throws. */
+export async function getServerVersions(): Promise<{ label: string; version: string }[]> {
+  try {
+    const res = await api<{ message?: Record<string, SiteApp> }>({
+      method: 'GET',
+      url: '/api/method/frappe.utils.change_log.get_versions',
+    });
+    const apps = res?.message ?? {};
+    return SHOWN_APPS.filter(([key]) => apps[key]).map(([key, label]) => ({
+      label,
+      version: apps[key].version || '—',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// The mobile app is versioned by scripts/version.mjs (an odometer bump on every
+// merge to the release branch, see .github/workflows/release.yml), which tags it
+// and publishes a GitHub Release v<version>. The "latest version" the app
+// compares against is therefore the newest GitHub Release.
 export const GITHUB_OWNER = 'mark-judah';
 export const GITHUB_REPO = 'upande-quality';
 export const RELEASES_PAGE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;

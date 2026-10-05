@@ -2,12 +2,11 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.4.1",
+    "version": "1.1.3",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "platforms": [
       "ios",
       "android"
@@ -28,18 +27,18 @@
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/upande_logo.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
-      "versionCode": 5401
+      "versionCode": 105103
     },
     "web": {
       "output": "static",
@@ -75,7 +74,18 @@
       ],
       "expo-asset",
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font",
+      "expo-image",
+      "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -86,14 +96,16 @@
       "eas": {
         "projectId": "df6f9c7d-18cd-4233-901e-a89544cabcbf"
       },
-      "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota"
+      "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota",
+      "runtimeSdk": 57
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "101.1",
     "updates": {
       "enabled": true,
-      "url": "https://kaitet-group.upande.com/api/method/upande_quality.mobile.ota.manifest",
+      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.1/manifest.json",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
-    }
+    },
+    "backgroundColor": "#F5F5F5"
   }
 }

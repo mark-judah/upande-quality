@@ -1,8 +1,11 @@
 import { useAuthStore } from '@/src/core/auth/store';
 import { ScanField } from '@/src/core/scanning/ScanField';
-import { COLORS, borderRadius, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, borderRadius, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { Button } from '@/src/core/ui/Button';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Alert, Card } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Screen } from '@/src/core/ui/Screen';
@@ -30,7 +33,7 @@ import {
 } from '@/src/tenants/karen/state/karen-packhouse-qc-store';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 /** Grading / Reject teams — mirrors the Order Pick List `custom_team` options.
  *  The team filter uses these to reach orders that have no specification linked
@@ -91,7 +94,6 @@ export function PackhouseQcScreen() {
   const { showSuccess, showError } = useToast();
   const loggedInEmail = useAuthStore((s) => s.email);
   const loggedInFullName = useAuthStore((s) => s.fullName);
-  const hasRole = useAuthStore((s) => s.hasRole);
 
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [specPickerOpen, setSpecPickerOpen] = useState(false);
@@ -271,9 +273,9 @@ export function PackhouseQcScreen() {
   // Replacement in Grading QC is TEMPORARILY DISABLED while we finalise the
   // logic/flow — for now Grading QC records reports only, no replacement.
   // The whole feature (store actions, scan modal, API, backend) is left in
-  // place; re-enable by flipping this back to `hasRole('Harvest Details Updater')`.
+  // place; re-enable by flipping REPLACEMENT_ENABLED (no role is required for it).
   const REPLACEMENT_ENABLED = false;
-  const canReplace = REPLACEMENT_ENABLED && hasRole('Harvest Details Updater');
+  const canReplace = REPLACEMENT_ENABLED;
   // …and, for now, only on Spray Roses (Standard Roses is "coming soon" — its
   // bunches have no scannable sticker to trace back to a bucket). undefined
   // while the variety's item group is still loading.
@@ -488,9 +490,15 @@ export function PackhouseQcScreen() {
               disabled={loadingInitial || customerOptions.length === 0}
             >
               <MaterialCommunityIcons name="domain" size={18} color={COLORS.textMuted} />
-              <Text style={s.pickerText} numberOfLines={1}>
-                {loadingInitial ? 'Loading…' : selectedCustomer ?? 'Select customer'}
-              </Text>
+              {loadingInitial ? (
+                <View style={{ flex: 1 }}>
+                  <Skeleton width="55%" height={14} />
+                </View>
+              ) : (
+                <Text style={s.pickerText} numberOfLines={1}>
+                  {selectedCustomer ?? 'Select customer'}
+                </Text>
+              )}
               <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
             </Pressable>
           </Card>
@@ -552,17 +560,21 @@ export function PackhouseQcScreen() {
                 disabled={orderPickListsLoading}
               >
                 <MaterialCommunityIcons name="clipboard-text-outline" size={18} color={COLORS.textMuted} />
-                <Text style={s.pickerText} numberOfLines={1}>
-                  {orderPickListsLoading
-                    ? 'Loading…'
-                    : selectedOrderPickList
+                {orderPickListsLoading ? (
+                  <View style={{ flex: 1 }}>
+                    <Skeleton width="60%" height={14} />
+                  </View>
+                ) : (
+                  <Text style={s.pickerText} numberOfLines={1}>
+                    {selectedOrderPickList
                       ? selectedOrderPickList.orderName || selectedOrderPickList.name
                       : orderPickLists.length === 0
                         ? selectedTeamFilter
                           ? 'No spec-less orders for this team'
                           : 'No orders found for this spec'
                         : 'Select order pick list'}
-                </Text>
+                  </Text>
+                )}
                 <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.textMuted} />
               </Pressable>
             )}
@@ -597,7 +609,10 @@ export function PackhouseQcScreen() {
             <Text style={s.muted}>Consignment No: {selectedOrderPickList.scheduleNumber}</Text>
           ) : null}
           {orderDetailLoading ? (
-            <Text style={s.muted}>Loading order detail…</Text>
+            <View style={{ gap: 6, marginTop: 6 }}>
+              <Skeleton width="40%" height={12} />
+              <Skeleton width="65%" height={12} />
+            </View>
           ) : (
             <>
               {itemLocations.length > 0 ? <Text style={s.muted}>Total Bunches: {orderTotalBunches}</Text> : null}
@@ -618,14 +633,14 @@ export function PackhouseQcScreen() {
           {/* All varieties on the order (a mix group carries several) read like
               the other order facts above — every one is listed so none is
               left out. */}
-          <Text style={s.muted}>
-            {orderVarieties.length > 1 ? 'Varieties' : 'Variety'}:{' '}
-            {orderDetailLoading
-              ? 'Loading…'
-              : orderVarieties.length > 0
-                ? orderVarieties.join(', ')
-                : selectedVariety || 'Not found'}
-          </Text>
+          {orderDetailLoading ? (
+            <Skeleton width="50%" height={12} style={{ marginTop: 6 }} />
+          ) : (
+            <Text style={s.muted}>
+              {orderVarieties.length > 1 ? 'Varieties' : 'Variety'}:{' '}
+              {orderVarieties.length > 0 ? orderVarieties.join(', ') : selectedVariety || 'Not found'}
+            </Text>
+          )}
         </Card>
       ) : null}
 
@@ -662,7 +677,11 @@ export function PackhouseQcScreen() {
         </Card>
       ) : null}
 
-      {qcType === 'Final QC' && selectedOrderPickList && !specification ? (
+      {qcType === 'Final QC' && selectedOrderPickList && !specification && orderDetailLoading ? (
+        <SkeletonCards cards={1} rows={3} />
+      ) : null}
+
+      {qcType === 'Final QC' && selectedOrderPickList && !specification && !orderDetailLoading ? (
         <Card title="Specification">
           <Text style={s.muted}>No specification found for this order.</Text>
         </Card>
@@ -1543,14 +1562,9 @@ function GradingReplaceModal({
   const title = state.mode === 'bunch' ? 'Replace whole bunch' : 'Replace rejected stems';
   const canConfirm = !!state.selectedDonor && state.stems > 0 && !state.submitting && !state.loading;
   return (
-    <Modal visible={state.open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={state.open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title={title} onClose={onClose} />
 
         {state.phase === 'scan' ? (
           <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
@@ -1561,10 +1575,13 @@ function GradingReplaceModal({
             <View style={{ height: 12 }} />
             <ScanField onScan={onScan} autoFocus placeholder="Scan bunch sticker" editable={!state.scanning} />
             {state.scanning ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <ActivityIndicator color={COLORS.text} />
-                <Text style={[s.muted, { marginTop: 10 }]}>Finding the bucket…</Text>
-              </View>
+              <>
+                <View style={{ height: 12 }} />
+                <View style={[s.donorCard, { gap: 8 }]}>
+                  <Skeleton width="45%" height={18} />
+                  <Skeleton width="65%" height={12} />
+                </View>
+              </>
             ) : null}
             {state.scanError ? (
               <>
@@ -1585,9 +1602,8 @@ function GradingReplaceModal({
             ) : null}
           </ScrollView>
         ) : state.loading ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <ActivityIndicator color={COLORS.text} />
-            <Text style={[s.muted, { marginTop: 10 }]}>Finding matching buckets…</Text>
+          <View style={{ padding: 16 }}>
+            <SkeletonCards cards={3} rows={1} />
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
@@ -1706,7 +1722,7 @@ function SpecCheckRow({
   return (
     <View style={s.specCheckRow}>
       <View style={s.specCheckHead}>
-        <Text style={s.muted}>
+        <Text style={[s.muted, s.shrink]}>
           {label}: {expected || '—'}
         </Text>
         <Pressable
@@ -2174,14 +2190,9 @@ function PickerModal({
   );
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title={title} onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -2223,8 +2234,10 @@ function PickerModal({
 }
 
 const s = StyleSheet.create({
-  replaceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  replaceBtn: { flex: 1 },
+  replaceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  // Two buttons per line where they fit; stacked on narrow screens.
+  replaceBtn: { flexGrow: 1, flexBasis: 130 },
+  shrink: { flexShrink: 1 },
   donorCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -2233,9 +2246,9 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   donorCardSelected: { borderColor: COLORS.text, backgroundColor: '#F5F3FF' },
-  donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  donorId: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  label: { fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  donorHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  donorId: { flexShrink: 1, fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text },
+  label: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   landingHeader: { marginBottom: spacing.lg },
   landingTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.xl, color: COLORS.text },
   landingSubtitle: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted, marginTop: 4 },
@@ -2252,6 +2265,7 @@ const s = StyleSheet.create({
   },
   workflowTilePressed: { opacity: 0.7 },
   workflowIconWrap: {
+    flexShrink: 0,
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
@@ -2287,19 +2301,22 @@ const s = StyleSheet.create({
   sectionLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.md },
   sectionLabelRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
   sectionLabelText: {
+    flexShrink: 1,
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.xs,
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
-  hint: { fontSize: 12, color: COLORS.textMuted },
-  warn: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  warn: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   section: {
-    fontWeight: '700',
+    
+    fontFamily: fontFamily.bold,
+    
     color: COLORS.textMuted,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     letterSpacing: 0.4,
   },
   pickerRow: {
@@ -2314,9 +2331,10 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     marginBottom: 12,
   },
-  pickerText: { flex: 1, color: COLORS.text, fontWeight: '600' },
+  pickerText: { fontFamily: fontFamily.semiBold, flex: 1, color: COLORS.text },
   chipRow: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' },
   chip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -2329,12 +2347,13 @@ const s = StyleSheet.create({
   },
   chipWarn: { backgroundColor: '#FFFBEB', borderColor: '#B45309' },
   chipDanger: { backgroundColor: '#FEF2F2', borderColor: COLORS.danger },
-  chipText: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  chipText: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   empty: {
+    fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 16,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
   actionRow: { flexDirection: 'row', gap: 12 },
   issueCard: {
@@ -2345,60 +2364,64 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: COLORS.bg,
   },
-  issueHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  issueTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  issueHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  issueTitle: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   specCheckRow: { paddingVertical: 4 },
   specCheckHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   chipAccepted: { backgroundColor: '#F0FDF4', borderColor: COLORS.success },
   specCheckInput: {
+    fontFamily: fontFamily.regular,
     marginTop: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
   specCheckAffectedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  specCheckAffectedLabel: { fontSize: 13, color: COLORS.text, flex: 1 },
+  specCheckAffectedLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(13), color: COLORS.text, flex: 1 },
   specCheckAffectedInput: {
+    fontFamily: fontFamily.regular,
     width: 72,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
     textAlign: 'center',
   },
   specCheckAffectedHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  specCheckAffectedHint: { fontSize: 12, color: COLORS.danger, flex: 1 },
+  specCheckAffectedHint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.danger, flex: 1 },
   toleranceChipWrap: { marginTop: 8 },
   issueCountRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  issueCountLabel: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
+  issueCountLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, flex: 1 },
   issueCountInput: {
+    fontFamily: fontFamily.regular,
     width: 64,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     textAlign: 'center',
     backgroundColor: COLORS.bg,
   },
   remarksInput: {
+    fontFamily: fontFamily.regular,
     minHeight: 80,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     padding: 12,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
     textAlignVertical: 'top',
@@ -2409,30 +2432,20 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
-  badgeText: { fontWeight: '700', color: '#fff' },
+  badgeText: { fontFamily: fontFamily.bold, color: '#fff' },
   badgeOk: { backgroundColor: COLORS.success },
   badgeWarn: { backgroundColor: '#B45309' },
   badgeDanger: { backgroundColor: COLORS.danger },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
   modalSearch: {
+    fontFamily: fontFamily.regular,
     margin: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: {
@@ -2444,10 +2457,10 @@ const s = StyleSheet.create({
   },
   modalRowMain: { flex: 1 },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontSize: 15, color: COLORS.text },
-  modalRowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
+  modalRowSubtitle: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 2 },
   modalRowBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  modalRowBadgeText: { fontSize: 12, fontWeight: '700', color: COLORS.success },
+  modalRowBadgeText: { fontFamily: fontFamily.bold, fontSize: scaleFont(12), color: COLORS.success },
   modalSectionHeader: {
     backgroundColor: COLORS.bgMuted,
     paddingHorizontal: 16,
@@ -2457,8 +2470,9 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
   },
   modalSectionHeaderText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fontFamily.bold,
+    fontSize: scaleFont(12),
+    
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,

@@ -84,6 +84,33 @@ function hashOf(path) {
   return createHash('sha256').update(readFileSync(path)).digest('base64url');
 }
 
+/**
+ * The public app config, as `Constants.expoConfig` reads it. On an OTA launch
+ * expo-constants takes that from the manifest's `extra.expoClient`; without
+ * it the app keeps reporting the config embedded in the APK, so an update
+ * shows the APK's version instead of its own. Never fatal: a publish without
+ * it still delivers the bundle.
+ */
+function publicExpoConfig() {
+  try {
+    const out = execFileSync('npx', ['expo', 'config', '--json', '--type', 'public'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    const config = JSON.parse(out.slice(out.indexOf('{')));
+    if (config.version !== version) {
+      console.warn(`expo config reports version ${config.version}, app.json ${version}; using app.json.`);
+      config.version = version;
+    }
+    return config;
+  } catch (err) {
+    console.warn(`Could not read the public expo config; the update will show the APK's version. ${err.message}`);
+    return null;
+  }
+}
+const expoClient = publicExpoConfig();
+
 const metadata = JSON.parse(readFileSync(join(EXPORT_DIR, 'metadata.json'), 'utf8'));
 const android = metadata.fileMetadata?.android;
 if (!android) {
@@ -131,22 +158,45 @@ const manifest = {
   createdAt: new Date().toISOString(),
   runtimeVersion,
   launchAsset: {
-    ...assetEntry(android.bundle, 'bundle'),
+    // Keyed by the bundle's own file name, which `expo export` makes unique per
+    // build (index-<hash>). expo-updates reuses any asset whose key it already
+    // has on disk, so a fixed key like 'bundle' means a phone downloads the code
+    // once and then runs that same code under every later update's version.
+    ...assetEntry(android.bundle, android.bundle.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')),
     contentType: 'application/javascript',
   },
   assets: (android.assets || []).map((asset) => {
     const relPath = join('assets', asset.path.replace(/^assets[\\/]/, ''));
     const onDisk = existsSync(join(runtimeDir, relPath)) ? relPath : asset.path;
-    return { ...assetEntry(onDisk, asset.path), fileExtension: `.${asset.ext}` };
+    // The key is the bare content hash -- `expo export` names each asset file by
+    // it -- never the `assets/<hash>` path. expo-updates stores an asset as
+    // <key><fileExtension> and rejects the WHOLE update when either contains a
+    // path separator ("... is not a valid filename"), silently, on the phone.
+    // The bare hash is also the key the APK's embedded copy carries, so a phone
+    // reuses the fonts and images it already has and downloads only the bundle.
+    const key = asset.path.split(/[\\/]/).pop();
+    return { ...assetEntry(onDisk, key), fileExtension: `.${asset.ext}` };
   }),
   metadata: {},
   extra: {
+    // What `Constants.expoConfig` becomes once this update is running.
+    ...(expoClient ? { expoClient } : {}),
     // Carried so the app can show which release a bundle came from; the protocol
     // itself only cares about `id` and `runtimeVersion`.
     appVersion: version,
     publishedAt: new Date().toISOString(),
   },
 };
+
+// Refuse to publish what every phone would reject: expo-updates writes each
+// asset to disk as <key><fileExtension>, so neither may hold a path separator.
+const badAsset = [manifest.launchAsset, ...manifest.assets].find((a) =>
+  /[\\/]/.test(`${a.key}${a.fileExtension}`),
+);
+if (badAsset) {
+  console.error(`Asset key "${badAsset.key}${badAsset.fileExtension}" contains a path separator; expo-updates would reject this update.`);
+  process.exit(1);
+}
 
 writeFileSync(join(runtimeDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 rmSync(EXPORT_DIR, { recursive: true, force: true });

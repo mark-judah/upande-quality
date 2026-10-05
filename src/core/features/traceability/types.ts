@@ -15,7 +15,26 @@ export type StageName =
   | 'Quarantine Rejects'
   | 'Shelving'
   | 'Allocation'
-  | 'Issued';
+  | 'Issued'
+  // Remote transfer (farm → packhouse by truck), from getTraceability's remote_transfers.
+  | 'Awaiting transfer'
+  | 'Not found at farm'
+  | 'Left remote shelf'
+  | 'On trolley'
+  | 'Loaded on truck'
+  | 'In transit'
+  | 'Off the truck'
+  | 'Shelved at sales farm'
+  | 'Stock moved'
+  // Logged steps (Bucket Transfer Event): refusals, wrong-farm shelving, truck left / arrived.
+  | 'Load refused'
+  | 'Left the farm'
+  | 'Arrived at packhouse'
+  | 'Shelving farm corrected'
+  | 'Shelving refused'
+  | 'Shelved at remote farm'
+  | 'Removed from wrong shelf'
+  | 'Ready for packing';
 
 export type WhoKind = 'payroll' | 'user' | '';
 

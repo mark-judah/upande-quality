@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -12,7 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useTenant } from '@/src/core/tenant/tenant-context';
 import { useAuthStore } from '@/src/core/auth/store';
 import { storage, StorageKeys } from '@/src/core/storage';
@@ -20,6 +20,7 @@ import { useDrawerItems } from './drawer-items-context';
 import { APP_VERSION } from '@/src/core/version';
 import * as Updates from 'expo-updates';
 import type { DrawerItem } from '@/src/core/tenant/types';
+import { displayName, needsRealName } from '@/src/core/auth/roles-api';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -31,6 +32,7 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   receiving: 'download-outline',
   shelving: 'albums-outline',
   'shelf-operations': 'repeat-outline',
+  'issue-offline': 'exit-outline',
   'bucket-requests': 'cart-outline',
   'bucket-transfers': 'car-outline',
   'solution-mixing': 'flask-outline',
@@ -61,35 +63,24 @@ export function SideMenu({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { tenant, instanceUrl } = useTenant();
+  const { instanceUrl } = useTenant();
   const logout = useAuthStore((s) => s.logout);
   const storeFullName = useAuthStore((s) => s.fullName);
-  const storeEmail = useAuthStore((s) => s.email);
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const drawerWidth = Math.min(Math.max(screenWidth * 0.8, 240), 320);
-  const slide = useRef(new Animated.Value(-drawerWidth)).current;
+  const slide = useState(() => new Animated.Value(-drawerWidth))[0];
 
-  const [fullName, setFullName] = useState(storeFullName ?? '');
-  const [email, setEmail] = useState(storeEmail ?? '');
+  const [storedName, setStoredName] = useState('');
+  const fullName = storeFullName || storedName;
 
   useEffect(() => {
     if (!visible) return;
     // Fallback to AsyncStorage when auth store hasn't been populated yet
     // (legacy paths that mounted SideMenu before hydrate finished).
-    if (!storeFullName || !storeEmail) {
-      Promise.all([
-        storage.get(StorageKeys.fullName),
-        storage.get(StorageKeys.emailBackup),
-      ]).then(([n, e]) => {
-        if (n) setFullName(n);
-        if (e) setEmail(e);
-      });
-    } else {
-      setFullName(storeFullName);
-      setEmail(storeEmail);
-    }
-  }, [visible, storeFullName, storeEmail]);
+    if (storeFullName) return;
+    storage.get(StorageKeys.fullName).then((n) => setStoredName(n || ''));
+  }, [visible, storeFullName]);
 
   useEffect(() => {
     if (visible) {
@@ -105,6 +96,7 @@ export function SideMenu({
       .start(() => onClose());
   };
 
+  // Already without Bucket Requests at the sales farm (see TenantScopedDrawer).
   const items = useDrawerItems();
 
   const go = (route: string) => {
@@ -130,8 +122,11 @@ export function SideMenu({
     }, 220);
   };
 
+  // The sidebar shows the person by name only; their email is on Settings. A
+  // stored "name" that is really an email (older sessions) doesn't count.
+  const name = needsRealName(fullName) ? '' : displayName(fullName);
   const initials =
-    (fullName || email || '?')
+    (name || '?')
       .split(' ')
       .filter(Boolean)
       .map((n) => n[0])
@@ -163,21 +158,23 @@ export function SideMenu({
               bounces={false}
               showsVerticalScrollIndicator={false}
             >
-              <View style={s.header}>
+              {/* Initials beside the name, the site under the name. */}
+              <View style={[s.header, s.headerRow]}>
                 <View style={s.avatar}>
                   <Text style={s.avatarText}>{initials}</Text>
                 </View>
-                <Text style={s.name} numberOfLines={1}>
-                  {fullName || email || 'User'}
-                </Text>
-                {email ? <Text style={s.email} numberOfLines={1}>{email}</Text> : null}
-                {(tenant || instanceUrl) ? (
-                  <Text style={s.meta} numberOfLines={1}>
-                    {tenant ?? ''}
-                    {tenant && instanceUrl ? ' · ' : ''}
-                    {instanceUrl ? instanceUrl.replace(/^https?:\/\//, '') : ''}
+                <View style={s.headerText}>
+                  <Text style={s.name} numberOfLines={1}>
+                    {name || 'Signed in'}
                   </Text>
-                ) : null}
+                  {/* The site only: the tenant ("Karen") is the app's internal
+                      code name for the client, not something users know it by. */}
+                  {instanceUrl ? (
+                    <Text style={s.meta} numberOfLines={1}>
+                      {instanceUrl.replace(/^https?:\/\//, '')}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
 
               <View style={s.nav}>
@@ -241,7 +238,7 @@ export function SideMenu({
 
 const s = StyleSheet.create({
   overlay: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: COLORS.overlay },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.overlay },
   drawer: {
     position: 'absolute',
     top: 0,
@@ -269,12 +266,12 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  headerText: { flex: 1, minWidth: 0 },
   avatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.textOnPrimary },
   name: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  email: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
-  meta: { fontFamily: fontFamily.regular, fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  meta: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.text, marginTop: 2 },
 
   nav: { paddingTop: spacing.xs, paddingBottom: spacing.sm },
   navItem: {
@@ -290,7 +287,7 @@ const s = StyleSheet.create({
   navLabelMuted: { color: COLORS.textMuted },
   comingSoonBadge: {
     fontFamily: fontFamily.medium,
-    fontSize: 10,
+    fontSize: scaleFont(10),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

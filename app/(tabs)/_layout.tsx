@@ -31,6 +31,7 @@ const ICONS: Record<string, TabIconPair> = {
   'inspection-log':     { outline: 'checkbox-outline',           filled: 'checkbox' },
   discards:             { outline: 'trash-outline',             filled: 'trash' },
   'shelf-operations':   { outline: 'repeat-outline',            filled: 'repeat' },
+  'issue-offline':      { outline: 'exit-outline',              filled: 'exit' },
   'intake-qc':          { outline: 'checkmark-done-outline',    filled: 'checkmark-done' },
   'coldroom-qc':        { outline: 'snow-outline',              filled: 'snow' },
   'packhouse-qc':       { outline: 'cube-outline',              filled: 'cube' },
@@ -54,6 +55,7 @@ export default function TabLayout() {
         // Each tab's screen renders its own <Screen> with header + hamburger,
         // so the Tabs navigator itself doesn't draw a header.
         headerShown: false,
+        sceneStyle: { backgroundColor: COLORS.bgMuted },
         tabBarShowLabel: false,
         tabBarStyle: {
           backgroundColor: COLORS.surface,
@@ -90,6 +92,7 @@ export default function TabLayout() {
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', href: null }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
+      <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
       <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', href: null }} />
@@ -108,7 +111,8 @@ export default function TabLayout() {
       <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', href: null }} />
       <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', href: null }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
+      {/* Settings is reached from the menu and has no use for the tab bar. */}
+      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

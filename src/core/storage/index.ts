@@ -30,6 +30,8 @@ export const StorageKeys = {
   // '1' once picklists were downloaded with the Bucket Requests download
   // button; shows the clear icon. Reset when that data is cleared.
   bucketRequestsDownloaded: 'bucket_requests_downloaded',
+  /** The remote-transfer hub (sales farm), as last reported by the server. */
+  transferHub: 'transfer_hub',
 } as const;
 
 export const storage = {

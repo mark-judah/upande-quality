@@ -1,10 +1,29 @@
 import { storage, secureStorage, StorageKeys } from '@/src/core/storage';
+import { api } from '@/src/core/api/client';
 import { loginRequest, probeBaseUrl } from './api';
-import { fetchCurrentUserRoles } from './roles-api';
+import { fetchCurrentUser, needsRealName } from './roles-api';
 import { knownInstances } from './known-instances';
 
+/** The stock /api/method/login response's `full_name` is computed as
+ *  `first_name + last_name` server-side (frappe/auth.py), which reads as an
+ *  empty string for any User whose name was set via the `full_name` field
+ *  directly. Read the real field straight off the User doctype instead, the
+ *  same fix the packhouse app carries. */
+async function fetchRealFullName(email: string): Promise<string | null> {
+  try {
+    const body = await api<{ message?: { full_name?: string }; data?: { full_name?: string } }>({
+      method: 'GET',
+      url: `/api/method/frappe.client.get_value?doctype=User&filters={"name":"${email}"}&fieldname=["full_name"]`,
+    });
+    const m = body?.message ?? body?.data;
+    return (m && m.full_name) || null;
+  } catch {
+    return null;
+  }
+}
+
 export type LoginOutcome =
-  | { ok: true; fullName: string; instanceUrl: string; roles: string[] }
+  | { ok: true; fullName: string; email: string; instanceUrl: string; roles: string[] }
   | { ok: false; error: string };
 
 function extractSidCookie(setCookie: string | null): string | null {
@@ -16,7 +35,10 @@ function extractSidCookie(setCookie: string | null): string | null {
 }
 
 export const authRepository = {
-  async login(email: string, password: string, bareUrl: string): Promise<LoginOutcome> {
+  /** `login` is the email or the username: Frappe signs in with either (the
+   *  username when System Settings allows it). The account's email is stored. */
+  async login(login: string, password: string, bareUrl: string): Promise<LoginOutcome> {
+    let email = login.trim();
     const cleanUrl = bareUrl.trim().toLowerCase();
     if (!cleanUrl) return { ok: false, error: 'URL required' };
 
@@ -26,7 +48,8 @@ export const authRepository = {
     if (res.status === 200) {
       const cookie = extractSidCookie(res.setCookie);
       if (!cookie) return { ok: false, error: 'Login succeeded but no session cookie was returned' };
-      const fullName = res.body.full_name ?? email;
+      // `||`, not `??`: the login response's full_name is often an empty string.
+      let fullName = res.body.full_name || email;
       await Promise.all([
         storage.set(StorageKeys.cookie, cookie),
         storage.set(StorageKeys.instanceUrl, fullUrl),
@@ -37,18 +60,41 @@ export const authRepository = {
         // plaintext copy in AsyncStorage is cleared so it can't linger.
         secureStorage.set(StorageKeys.passwordBackup, password),
         storage.remove(StorageKeys.passwordBackup),
-        knownInstances.remember(fullUrl, email).catch(() => {}),
       ]);
 
-      // Fetch roles in the background. Failure is non-fatal — login still succeeds.
+      // Now that the cookie is stored, an authenticated follow-up can read the
+      // real name. Non-fatal: keeps the response's value (or email) on failure.
+      const real = await fetchRealFullName(email);
+      if (real && real !== fullName) {
+        fullName = real;
+        await storage.set(StorageKeys.fullName, fullName);
+      }
+      // Roles, and the full name for users who cannot read their own User
+      // record (most of them). Failure is non-fatal — login still succeeds.
       let roles: string[] = [];
       try {
-        roles = await fetchCurrentUserRoles();
+        const me = await fetchCurrentUser();
+        roles = me.roles;
+        // Signed in with a username: keep the account's email from here on.
+        if (me.user && me.user !== email && me.user !== 'Guest') {
+          email = me.user;
+          await storage.set(StorageKeys.emailBackup, email);
+          if (needsRealName(fullName)) fullName = email;
+        }
         await storage.set(StorageKeys.userRoles, JSON.stringify(roles));
+        if (me.fullName && needsRealName(fullName)) {
+          fullName = me.fullName;
+          await storage.set(StorageKeys.fullName, fullName);
+        }
       } catch {
         // ignore — UI will treat missing roles as "no special permissions"
       }
-      return { ok: true, fullName, instanceUrl: fullUrl, roles };
+
+      // After the real name is known, so the login screen can greet by name.
+      await knownInstances
+        .remember(fullUrl, email, fullName && !needsRealName(fullName) ? fullName : null)
+        .catch(() => {});
+      return { ok: true, fullName, email, instanceUrl: fullUrl, roles };
     }
 
     if (res.status === 401) {
