@@ -16,6 +16,8 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
 import { Dialog } from '@/src/core/ui/Dialog';
+import { Dropdown } from '@/src/core/ui/Dropdown';
+import { karenShelfOperationsRepository } from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
@@ -39,6 +41,7 @@ import {
   type CompletedTrip,
   type OplSchedule,
   type ReplaceReason,
+  type ReplaceCorrection,
   type BucketIssueInfo,
   type TripArrival,
   type ShelvedTrip,
@@ -88,7 +91,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     totalBuckets,
     allBuckets,
     addedBuckets,
-    inTransitCount,
+    transitBuckets,
     activeTrolleyId,
     online,
     downloading,
@@ -133,6 +136,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }),
     [shelvedTrips],
   );
+  const requestedTotal = Math.max(allBuckets, shelvedCount.done);
 
   // In Transit: this farm's trips on the road (dispatched, not received yet), with
   // their arrival at the hub. Pulled when the tab opens.
@@ -461,23 +465,36 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     );
   };
 
-  const onConfirmReplace = (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+  const onConfirmReplace = (
+    c: ReplacementCandidate,
+    reason: ReplaceReason,
+    notes?: string,
+    correction?: ReplaceCorrection,
+  ) => {
     const pick = replacePick;
     if (!pick) return;
+    const old = pick.bucket.bucketId.toUpperCase();
+    const real = [correction?.variety, correction?.stemLength].filter(Boolean).join(' · ');
     confirm(
       'Replace this bucket?',
-      `${pick.bucket.bucketId.toUpperCase()} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.`,
+      `${old} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.` +
+        (real ? ` ${old} stays on its shelf, recorded as ${real}.` : ''),
       'Replace',
-      () => void doReplace(c, reason, notes),
+      () => void doReplace(c, reason, notes, correction),
     );
   };
-  const doReplace = async (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => {
+  const doReplace = async (
+    c: ReplacementCandidate,
+    reason: ReplaceReason,
+    notes?: string,
+    correction?: ReplaceCorrection,
+  ) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
     setReplacePick(null);
     setReplacingId(pick.bucket.id);
-    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes);
+    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes, correction);
     setReplacingId(null);
     replaceBusy.current = false;
     if (r.ok) showSuccess(r.message);
@@ -631,19 +648,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         value={tab}
         onChange={(v) => setTab(v as Tab)}
         options={[
-          { value: 'requests', label: 'Requests', count: reqCount },
-          { value: 'trolley', label: 'Trolley', count: `${scannedBuckets}/${totalBuckets}` },
-          { value: 'transit', label: 'Transit', count: inTransitCount },
-          {
-            value: 'shelved',
-            label: 'Shelved',
-            // Shelved of those on their way: 0/3 before anything is shelved (the
-            // in-transit buckets until the shelving list loads), 0 when none travel.
-            count: (() => {
-              const total = shelvedCount.total || transitList.length;
-              return total ? `${shelvedCount.done}/${total}` : '0';
-            })(),
-          },
+          // Every count is BUCKETS, out of the same total — the buckets requested —
+          // and a stage counts a bucket once it has reached it (on a trolley ⊇ on a
+          // truck ⊇ shelved). The shelving list can hold buckets the device no longer
+          // lists (a closed stop), so the total never reads below what's shelved.
+          { value: 'requests', label: 'Requests', count: requestedTotal },
+          { value: 'trolley', label: 'Trolley', count: `${addedBuckets}/${requestedTotal}` },
+          { value: 'transit', label: 'Transit', count: `${transitBuckets}/${requestedTotal}` },
+          { value: 'shelved', label: 'Shelved', count: `${shelvedCount.done}/${requestedTotal}` },
         ]}
       />
       <ScrollView
@@ -975,7 +987,7 @@ function ReplacePicker({
     candidates: ReplacementCandidate[];
   } | null;
   onClose: () => void;
-  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string) => void;
+  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string, correction?: ReplaceCorrection) => void;
   /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
   onNotFound: () => void;
   /** "Issued offline": where the bucket was issued (which line). */
@@ -990,11 +1002,29 @@ function ReplacePicker({
   // Why the bucket is being replaced — goes on the Bucket Replacement record.
   const [reason, setReason] = useState<ReplaceReason>('Missing');
   const [pickFor, setPickFor] = useState<{ pick: typeof pick; firstId: string | null }>({ pick, firstId });
+  // Wrong variety: what the bucket really holds, so its record is corrected.
+  const [realVariety, setRealVariety] = useState('');
+  const [realLength, setRealLength] = useState('');
+  const [varieties, setVarieties] = useState<string[]>([]);
+  const [lengths, setLengths] = useState<string[]>([]);
   if (pickFor.pick !== pick || pickFor.firstId !== firstId) {
     setPickFor({ pick, firstId });
     setSelected(firstId);
     setReason('Missing');
+    setRealVariety('');
+    setRealLength('');
   }
+  const wrongVariety = reason === 'Wrong variety';
+  useEffect(() => {
+    if (!wrongVariety) return;
+    if (!varieties.length) karenShelfOperationsRepository.fetchVarieties().then(setVarieties).catch(() => {});
+    if (!lengths.length) karenShelfOperationsRepository.fetchStemLengths().then(setLengths).catch(() => {});
+  }, [wrongVariety, varieties.length, lengths.length]);
+  const correction: ReplaceCorrection | undefined = wrongVariety
+    ? { variety: realVariety || undefined, stemLength: realLength || undefined }
+    : undefined;
+  // Wrong variety needs at least what it really holds before it can be replaced.
+  const correctionMissing = wrongVariety && !realVariety && !realLength;
   // "Issued offline": look up which line it went to. Same line — mark it issued,
   // nothing to replace; another line — replace it as usual.
   type IssueResult = BucketIssueInfo | { kind: 'error'; message: string } | null;
@@ -1054,6 +1084,35 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
+          {wrongVariety ? (
+            <View style={s.correctBox}>
+              <Text style={s.correctNote}>
+                {b?.bucketId} stays on its shelf. Enter what it really holds so its record is corrected.
+              </Text>
+              <Dropdown
+                label="Real variety"
+                iconName="flower-outline"
+                value={realVariety}
+                options={[
+                  { label: 'Same as recorded', value: '' },
+                  ...varieties.map((v) => ({ label: v, value: v })),
+                ]}
+                placeholder={varieties.length ? 'Pick the variety' : 'Loading…'}
+                onChange={setRealVariety}
+              />
+              <Dropdown
+                label="Real stem length"
+                iconName="ruler"
+                value={realLength}
+                options={[
+                  { label: 'Same as recorded', value: '' },
+                  ...lengths.map((l) => ({ label: l, value: l })),
+                ]}
+                placeholder={lengths.length ? 'Pick the stem length' : 'Loading…'}
+                onChange={setRealLength}
+              />
+            </View>
+          ) : null}
           {reason === 'Issued offline' ? (
             <Text style={[s.issuedNote, sameLine && s.issuedNoteSame]}>
               {issuedLoading
@@ -1098,8 +1157,8 @@ function ReplacePicker({
                   singleLine
                   label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                   iconLeft="swap-horizontal"
-                  onPress={() => chosen && onPick(chosen, reason)}
-                  disabled={!chosen || (reason === 'Issued offline' && issuedLoading)}
+                  onPress={() => chosen && onPick(chosen, reason, undefined, correction)}
+                  disabled={!chosen || correctionMissing || (reason === 'Issued offline' && issuedLoading)}
                   style={{ flex: 2 }}
                 />
               )}
@@ -2186,7 +2245,10 @@ function TripCard({
   children?: ReactNode;
 }) {
   const yourStop = (trip.stops ?? []).find((st) => st.isYou);
-  const ui = yourStop ? (STOP_UI[yourStop.status] ?? STOP_UI.waiting) : null;
+  // Staging starts with the first bucket scanned here, on this device, before the
+  // server hears of it (offline too): "Not staged" only while nothing is scanned.
+  const stopStatus = yourStop?.status === 'waiting' && scanned > 0 ? 'loading' : yourStop?.status;
+  const ui = yourStop ? (STOP_UI[stopStatus ?? 'waiting'] ?? STOP_UI.waiting) : null;
   const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
   return (
     <Card>
@@ -2666,6 +2728,8 @@ const s = StyleSheet.create({
   repBest: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: '#ECFDF3' },
   repBestText: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(10), color: '#067647' },
   repMeta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
+  correctBox: { marginTop: spacing.sm, gap: 2 },
+  correctNote: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginBottom: 4 },
   issuedNote: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   issuedNoteSame: { color: SHELVED_GREEN },
   // In transit and Arrived side by side on one line (wrapping only if they can't fit).

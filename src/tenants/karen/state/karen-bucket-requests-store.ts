@@ -13,6 +13,7 @@ import {
   type PlannedTrip,
   type ReplacementCandidate,
   type ReplaceReason,
+  type ReplaceCorrection,
   type BucketIssueInfo,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
@@ -80,6 +81,7 @@ type State = {
     newBucket: string,
     reason?: ReplaceReason,
     notes?: string,
+    correction?: ReplaceCorrection,
   ) => Promise<{ ok: boolean; message: string; pending?: boolean }>;
   /** Leave a requested bucket out of the transfer — not in the cold room and nothing
    *  to replace it — so its order can load with the buckets that are there. */
@@ -526,11 +528,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     }
   },
 
-  replaceBucket: async (rowId, pliId, newBucket, reason, notes) => {
+  replaceBucket: async (rowId, pliId, newBucket, reason, notes, correction) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
     try {
-      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes);
+      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes, correction);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.replaceBucketLocal(rowId, res.newBucket, res.shelf, res.stemLength);
       await get().refresh();

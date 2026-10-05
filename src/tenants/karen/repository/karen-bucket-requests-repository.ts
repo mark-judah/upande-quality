@@ -94,6 +94,8 @@ export type PlannedTripStop = {
 /** An upcoming planned trip coming to collect from this farm (UI shape). */
 /** Why a requested bucket is being replaced (Bucket Replacement.reason). */
 export type ReplaceReason = 'Missing' | 'Damaged' | 'Wrong variety' | 'Issued offline' | 'Other';
+/** Wrong variety: what the replaced bucket really holds — its record is corrected. */
+export type ReplaceCorrection = { variety?: string; stemLength?: string };
 /** Where a requested bucket was issued ("Issued offline"): the lines (OPL teams) it
  *  went to, and whether one is this order's own line (then: mark issued, no replace). */
 export type BucketIssueInfo = {
@@ -739,11 +741,12 @@ export const karenBucketRequestsRepository = {
     newBucketId: string,
     reason?: ReplaceReason,
     notes?: string,
+    correction?: ReplaceCorrection,
   ): Promise<
     | { kind: 'ok'; newBucket: string; shelf: string; stemLength: string; message: string }
     | { kind: 'error'; message: string }
   > {
-    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId, reason, notes);
+    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId, reason, notes, correction);
     const m = raw.message ?? {};
     if (m.status === 'success' && m.new_bucket) {
       return {

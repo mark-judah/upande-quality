@@ -788,13 +788,20 @@ export async function counts(onTrip?: Set<string>): Promise<{
   const d = await db();
   const [fc, fa] = farmCond();
   const [dc, da] = dateCond();
-  const all = await d.getAllAsync<{ opl_name: string; total: number; scanned: number; in_transit: number }>(
+  const all = await d.getAllAsync<{
+    opl_name: string;
+    total: number;
+    scanned: number;
+    on_truck: number;
+    in_transit: number;
+  }>(
     `
     SELECT o.opl_name, (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, ${truckState(fc)},
-      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned
+      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned,
+      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.truck_transit = 1 AND ${fc}) AS on_truck
     FROM opl o
     WHERE EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AND ${dc}`,
-    [...fa, ...fa, ...fa, ...fa, ...fa, ...da],
+    [...fa, ...fa, ...fa, ...fa, ...fa, ...fa, ...da],
   );
   const rows = onTrip ? all.filter((r) => onTrip.has(r.opl_name) || r.scanned > 0 || r.in_transit === 1) : all;
   let requests = 0;
@@ -808,7 +815,8 @@ export async function counts(onTrip?: Set<string>): Promise<{
   for (const r of rows) {
     allBuckets += r.total;
     addedBuckets += r.scanned;
-    if (r.in_transit === 1) transitBuckets += r.scanned;
+    // Buckets on a truck, counted bucket by bucket (a partly loaded order counts too).
+    transitBuckets += r.on_truck;
     // Trolley is the stage before the truck: an order already loaded / on the
     // road counts under In Transit, not here.
     if (r.in_transit !== 1) {

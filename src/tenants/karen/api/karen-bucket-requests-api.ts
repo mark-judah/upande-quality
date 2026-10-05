@@ -506,11 +506,22 @@ export const karenBucketRequestsApi = {
     newBucketId: string,
     reason?: string,
     notes?: string,
+    /** Wrong variety: what the old bucket really holds, to correct its record. */
+    correction?: { variety?: string; stemLength?: string },
   ): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.replaceRequestedBucket',
-      data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId, reason, notes } },
+      data: {
+        data: {
+          pick_list_item: pickListItem,
+          new_bucket_id: newBucketId,
+          reason,
+          notes,
+          variety: correction?.variety || undefined,
+          stem_length: correction?.stemLength || undefined,
+        },
+      },
       // The swap posts several stock entries in one transaction; allow it time.
       timeout: 120000,
       validateStatus: () => true,

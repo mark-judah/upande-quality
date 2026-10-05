@@ -89,12 +89,17 @@ export function Segmented<T extends string>({ value, options, onChange, radius }
               style={[s.label, active && s.labelActive]}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.75}
+              minimumFontScale={0.6}
             >
               {opt.label}
             </Text>
             {opt.count != null ? (
-              <Text style={[s.count, active && s.labelActive]} numberOfLines={1}>
+              <Text
+                style={[s.count, active && s.labelActive]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
                 {opt.count}
               </Text>
             ) : null}
@@ -113,6 +118,8 @@ const s = StyleSheet.create({
     padding: 4,
     marginBottom: spacing.md,
     position: 'relative',
+    // Nothing draws past the track, whatever the label or screen width.
+    overflow: 'hidden',
   },
   indicator: {
     position: 'absolute',
@@ -126,6 +133,7 @@ const s = StyleSheet.create({
   },
   btn: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 9,
@@ -143,6 +151,7 @@ const s = StyleSheet.create({
   },
   labelActive: { fontFamily: fontFamily.semiBold, color: COLORS.text },
   count: {
+    alignSelf: 'stretch',
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
     lineHeight: fontSize.xs + 2,
