@@ -64,6 +64,8 @@ type State = {
   setTrolleyFromScan: (raw: string) => { ok: boolean; message?: string; trolleyId?: string };
   clearActiveTrolley: () => void;
   scanBucketFromScan: (raw: string) => Promise<{ ok: boolean; message: string }>;
+  /** A trolley scan the server refused after the fact (already issued / on a truck). */
+  scanRefusal: { at: number; message: string } | null;
   loadToTruck: (oplName: string, pliIds: string[], truck: string) => Promise<{ ok: boolean; message: string }>;
   markInTransit: (oplName: string, pliIds: string[]) => Promise<{ ok: boolean; message: string }>;
   /** Load fully-scanned OPLs onto `truck` and mark them in transit, in one action. */
@@ -191,6 +193,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   inTransitCount: 0,
   tripsCount: 0,
   activeTrolleyId: null,
+  scanRefusal: null,
   online: false,
   downloading: false,
   loadingTrips: false,
@@ -437,7 +440,41 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     if (!id) return { ok: false, message: 'Not a bucket QR code.' };
     const trolley = get().activeTrolleyId;
     if (!trolley) return { ok: false, message: 'Scan a trolley first.' };
-    const res: ScanResult = await db.scanBucket(id, trolley);
+    let res: ScanResult;
+    try {
+      res = await db.scanBucket(id, trolley);
+    } catch (e) {
+      // A local-database hiccup (e.g. the connection released by a reload): report it,
+      // never leave it as an unhandled rejection.
+      return { ok: false, message: (e as Error)?.message || 'Could not save the scan — scan it again.' };
+    }
+    if (res.ok && res.pliId && get().online) {
+      // Online: flag it on the trolley on the server too (the same flag the offline
+      // sync sends later), so it can't also be issued offline at the packhouse — in the
+      // background, so the scan never waits on the network. A bucket already issued /
+      // arrived there is refused: the scan is undone and `scanRefusal` says why.
+      const { pliId, rowId, bucketId } = res;
+      karenBucketRequestsRepository
+        .setOfflineTrolleyFlags({ pliIds: [pliId], flag: 'loaded', keepShelf: true })
+        .then(async (flag) => {
+          const clash = flag.kind === 'ok' ? flag.conflicts[0] : null;
+          if (!clash) return;
+          await db.unscanBucket(rowId).catch(() => {});
+          set({
+            scanRefusal: {
+              at: Date.now(),
+              message:
+                clash.reason === 'on_truck'
+                  ? `${bucketId} is already on ${clash.truck ?? 'another truck'} — taken off the trolley.`
+                  : `${bucketId} was already issued / shelved at the packhouse — taken off the trolley.`,
+            },
+          });
+          await get().refresh();
+        })
+        .catch(() => {
+          // No answer: keep the scan; the sync flags it later.
+        });
+    }
     await get().refresh();
     if (!res.ok) return { ok: false, message: res.message };
     return {

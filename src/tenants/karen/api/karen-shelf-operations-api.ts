@@ -80,7 +80,16 @@ export type RawOfflineOpl = {
   issued_stems?: number;
   issued_pct?: number;
   open_buckets?: number;
+  issued_buckets?: number;
   varieties?: string[];
+};
+
+/** A bucket already issued to an OPL's line, with what it held. */
+export type RawIssuedBucket = {
+  bucket: string;
+  issued_offline?: boolean;
+  at?: string;
+  contents?: { variety?: string | null; stem_length?: string | null; stems?: number }[];
 };
 
 export type RawOfflineBucket = {
@@ -92,6 +101,8 @@ export type RawOfflineBucket = {
   on_shelf?: boolean;
   not_found?: boolean;
   in_transit?: boolean;
+  issued?: boolean;
+  issued_offline?: boolean;
 };
 
 export type RawReplacementCandidate = {
@@ -153,6 +164,16 @@ export const karenShelfOperationsApi = {
       method: 'GET',
       url: `${OFFLINE_ISSUE}.offline_issue_buckets`,
       params: { opl_name: oplName, ...(farm ? { farm } : {}) },
+    });
+    return res.message?.buckets ?? [];
+  },
+
+  /** The buckets already issued to the OPL's line. */
+  async fetchIssuedBuckets(oplName: string): Promise<RawIssuedBucket[]> {
+    const res = await api<{ message?: { buckets?: RawIssuedBucket[] } }>({
+      method: 'GET',
+      url: `${OFFLINE_ISSUE}.offline_issue_issued`,
+      params: { opl_name: oplName },
     });
     return res.message?.buckets ?? [];
   },

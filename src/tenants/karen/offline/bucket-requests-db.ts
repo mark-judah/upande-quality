@@ -60,7 +60,7 @@ export type TrolleyOpl = {
 };
 
 export type ScanResult =
-  | { ok: true; oplName: string; oplComplete: boolean; bucketId: string }
+  | { ok: true; oplName: string; oplComplete: boolean; bucketId: string; rowId: number; pliId: string | null }
   | { ok: false; reason: 'not_found' | 'already'; message: string };
 
 /** A dispatch/collection truck, cached offline so the Load-to-truck picker
@@ -843,8 +843,8 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
   const d = await db();
   const lc = bucketId.trim().toLowerCase();
   const [fc, fa] = farmCond();
-  const row = await d.getFirstAsync<{ id: number; opl_name: string }>(
-    `SELECT b.id, b.opl_name FROM bucket b WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND ${fc} LIMIT 1`,
+  const row = await d.getFirstAsync<{ id: number; opl_name: string; pick_list_item_id: string | null }>(
+    `SELECT b.id, b.opl_name, b.pick_list_item_id FROM bucket b WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND ${fc} LIMIT 1`,
     [lc, ...fa],
   );
   if (!row) {
@@ -876,7 +876,13 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
     [row.opl_name, ...fa, row.opl_name, ...fa],
   );
   const oplComplete = !!tot && tot.scanned >= tot.total;
-  return { ok: true, oplName: row.opl_name, oplComplete, bucketId };
+  return { ok: true, oplName: row.opl_name, oplComplete, bucketId, rowId: row.id, pliId: row.pick_list_item_id };
+}
+
+/** Undo a trolley scan (the server refused it: the bucket already went out). */
+export async function unscanBucket(rowId: number): Promise<void> {
+  const d = await db();
+  await d.runAsync('UPDATE bucket SET scanned = 0, trolley_id = NULL, scanned_at = NULL WHERE id = ?', [rowId]);
 }
 
 /** Replace the cached truck list wholesale (called after each download). */

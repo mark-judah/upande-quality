@@ -509,14 +509,33 @@ export const karenBucketRequestsRepository = {
     pliIds: string[];
     flag: 'loaded' | 'transit';
     truck?: string;
-  }): Promise<{ kind: 'ok'; updated: number } | { kind: 'error'; message: string }> {
+    keepShelf?: boolean;
+  }): Promise<
+    | {
+        kind: 'ok';
+        updated: number;
+        conflicts: { bucket: string; reason: string; truck: string | null }[];
+      }
+    | { kind: 'error'; message: string }
+  > {
     const raw = await karenBucketRequestsApi.setOfflineTrolleyFlags({
       pli_ids: args.pliIds,
       flag: args.flag,
       ...(args.truck ? { truck: args.truck } : {}),
+      ...(args.keepShelf ? { keep_shelf: 1 as const } : {}),
     });
     const m = raw.message ?? {};
-    if (m.status === 'success') return { kind: 'ok', updated: m.updated ?? 0 };
+    if (m.status === 'success') {
+      return {
+        kind: 'ok',
+        updated: m.updated ?? 0,
+        conflicts: (m.conflicts ?? []).map((c) => ({
+          bucket: c.bucket ?? '',
+          reason: c.reason ?? '',
+          truck: c.truck ?? null,
+        })),
+      };
+    }
     return { kind: 'error', message: m.message ?? 'Sync failed.' };
   },
 

@@ -25,6 +25,11 @@ export type RawInTransitGroup = {
   shelved_count?: number;
   issued_count?: number;
   buckets?: RawInTransitBucket[];
+  /** Packhouse Schedule: its team's place (0 = not scheduled), the team, and
+   *  whether it is the first order with a bucket still to shelve. */
+  schedule?: number;
+  team?: string;
+  shelve_next?: boolean;
 };
 
 export type RawInTransitResponse = {

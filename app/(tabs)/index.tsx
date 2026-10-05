@@ -78,6 +78,16 @@ export default function HomeScreen() {
           {items.map((it: DrawerItem) => (
             <Pressable
               key={it.route}
+              // Start building the page as the finger lands, so it is (mostly) ready
+              // when the tap completes.
+              onPressIn={() => {
+                if (it.comingSoon) return;
+                try {
+                  router.prefetch(`/${it.route}` as never);
+                } catch {
+                  // prefetch is only a head start
+                }
+              }}
               onPress={() => {
                 if (it.comingSoon) return;
                 router.push(`/${it.route}` as never);

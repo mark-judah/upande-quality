@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -61,7 +61,19 @@ type OplTripMap = Record<string, OplTripInfo>;
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const { showSuccess, showError } = useToast();
-  const [tab, setTab] = useState<Tab>('requests');
+  const [tab, setTabState] = useState<Tab>('requests');
+  // The bar moves at once (`picked`); the tab's content follows as a transition, so
+  // a heavy list never holds up the tap. A tab is mounted the first time it opens and
+  // kept (hidden) after, so switching back to it is instant.
+  const [picked, setPicked] = useState<Tab>('requests');
+  const [opened, setOpened] = useState<Tab[]>(['requests']);
+  const setTab = useCallback((t: Tab) => {
+    setPicked(t);
+    startTransition(() => {
+      setTabState(t);
+      setOpened((o) => (o.includes(t) ? o : [...o, t]));
+    });
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
   const [scanStatus, setScanStatus] = useState<{ ok: boolean; message: string } | null>(null);
   // Orders waiting for "Load to planned truck" to be confirmed (null = sheet closed).
@@ -126,9 +138,19 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   // Shelved: the selected delivery date's buckets, pulled with the screen (its tab
   // shows the count), again when the date or tab changes, and on pull-to-refresh.
+  // Not on every tab switch: opening Shelved re-pulls only once the last pull is older
+  // than the sync interval (pull-to-refresh always pulls).
+  const shelvedAt = useRef(0);
   useEffect(() => {
-    if (online && userFarm) loadShelvedBuckets(userFarm);
-  }, [tab, deliveryDate, online, userFarm, loadShelvedBuckets]);
+    if (!online || !userFarm) return;
+    shelvedAt.current = Date.now();
+    loadShelvedBuckets(userFarm).catch(() => {});
+  }, [deliveryDate, online, userFarm, loadShelvedBuckets]);
+  useEffect(() => {
+    if (tab !== 'shelved' || !online || !userFarm || Date.now() - shelvedAt.current < SYNC_INTERVAL_MS) return;
+    shelvedAt.current = Date.now();
+    loadShelvedBuckets(userFarm).catch(() => {});
+  }, [tab, online, userFarm, loadShelvedBuckets]);
   const shelvedCount = useMemo(
     () => ({
       done: shelvedTrips.reduce((n, t) => n + t.shelved, 0),
@@ -151,17 +173,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       ),
     [completedTrips, deliveryDate],
   );
+  const transitAt = useRef(0);
   useEffect(() => {
     if (tab !== 'transit' || !online || !userFarm) return;
     let live = true;
-    const pull = () =>
-      loadCompletedTrips(userFarm).then(() => {
-        if (!live) return;
-        for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
-          if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status');
-        }
-      });
-    pull();
+    const pull = () => {
+      transitAt.current = Date.now();
+      return loadCompletedTrips(userFarm)
+        .then(() => {
+          if (!live) return;
+          for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
+            if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status').catch(() => {});
+          }
+        })
+        .catch(() => {});
+    };
+    // Reopening the tab shows what it had; it pulls again only when that is stale.
+    if (Date.now() - transitAt.current >= SYNC_INTERVAL_MS) pull();
     // Keep "Arrived at Kapkolia" live: it ticks as soon as shelving starts there.
     const timer = setInterval(pull, SYNC_INTERVAL_MS);
     return () => {
@@ -336,6 +364,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     if (karenBucketRequestsRepository.extractTrolleyIdFromScan(raw)) return onTrolleyScan(raw);
     return activeTrolleyId ? onBucketScan(raw) : onTrolleyScan(raw);
   };
+
+  // A scan the server refused after it was saved here (already issued / on a truck).
+  useEffect(
+    () =>
+      useKarenBucketRequestsStore.subscribe((st, prev) => {
+        if (!st.scanRefusal || st.scanRefusal === prev.scanRefusal) return;
+        setScanStatus({ ok: false, message: st.scanRefusal.message });
+        showError(st.scanRefusal.message);
+      }),
+    [showError],
+  );
 
   const onBucketScan = async (raw: string) => {
     const r = await scanBucketFromScan(raw);
@@ -645,7 +684,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           names with the count underneath fit any width, a ~320dp scanner included. */}
       <Segmented
         radius={10}
-        value={tab}
+        value={picked}
         onChange={(v) => setTab(v as Tab)}
         options={[
           // Every count is BUCKETS, out of the same total — the buckets requested —
@@ -686,55 +725,75 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         ) : null}
 
 
-        {tab === 'requests' ? (
-          <RequestsTab
-            farm={userFarm}
-            hub={shelvedHub}
-            groups={requests}
-            schedules={schedules}
-            plannedTrips={plannedTrips}
-            trips={openTrips}
-            oplTrip={oplTrip}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            online={online}
-            loading={downloading || loadingTrips}
-            replacingId={replacingId}
-            onReplace={onReplace}
-          />
-        ) : tab === 'trolley' ? (
-          <TrolleyTab
-            items={trolley}
-            allScanned={reqCount === 0}
-            syncingOpl={syncingOpl}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            onLoad={onLoad}
-            scanned={scannedBuckets}
-            total={totalBuckets}
-          />
-        ) : tab === 'shelved' ? (
-          <ShelvedTab
-            trips={shelvedTrips}
-            hub={shelvedHub}
-            loading={loadingShelved}
-            online={online}
-            day={deliveryDate ? dateLabel(deliveryDate) : ''}
-          />
-        ) : (
-          <InTransitTab
-            hub={shelvedHub}
-            items={inTransit}
-            oplTeam={oplTeam}
-            oplLine={oplLine}
-            trips={roadTrips}
-            arrivals={arrivals}
-            deliveryDate={deliveryDate}
-            online={online}
-            loading={loadingTrips}
-            onArrival={onArrival}
-          />
-        )}
+        {/* Lazily mounted, then kept: a hidden tab keeps its rendered list. */}
+        {opened.includes('requests') ? (
+          <View style={tab === 'requests' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'requests'}>
+            <RequestsTab
+              farm={userFarm}
+              hub={shelvedHub}
+              groups={requests}
+              schedules={schedules}
+              plannedTrips={plannedTrips}
+              trips={openTrips}
+              oplTrip={oplTrip}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              online={online}
+              loading={downloading || loadingTrips}
+              replacingId={replacingId}
+              onReplace={onReplace}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('trolley') ? (
+          <View style={tab === 'trolley' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'trolley'}>
+            <TrolleyTab
+              items={trolley}
+              allScanned={reqCount === 0}
+              syncingOpl={syncingOpl}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              onLoad={onLoad}
+              scanned={scannedBuckets}
+              total={totalBuckets}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('shelved') ? (
+          <View style={tab === 'shelved' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'shelved'}>
+            <ShelvedTab
+              trips={shelvedTrips}
+              hub={shelvedHub}
+              loading={loadingShelved}
+              online={online}
+              day={deliveryDate ? dateLabel(deliveryDate) : ''}
+            />
+            </Frozen>
+          </View>
+        ) : null}
+        {opened.includes('transit') ? (
+          <View style={tab === 'transit' ? undefined : s.tabHidden}>
+            <Frozen active={tab === 'transit'}>
+            <InTransitTab
+              hub={shelvedHub}
+              items={inTransit}
+              oplTeam={oplTeam}
+              oplLine={oplLine}
+              trips={roadTrips}
+              arrivals={arrivals}
+              deliveryDate={deliveryDate}
+              online={online}
+              loading={loadingTrips}
+              onArrival={onArrival}
+            />
+            </Frozen>
+          </View>
+        ) : null}
 
         {/* The same summary of the day's OPLs at the end of Requests, Trolley and In Transit. */}
         {tab !== 'shelved' ? (
@@ -782,6 +841,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     </Screen>
   );
 }
+
+/** A hidden tab skips re-rendering (a scan refreshes every list); it renders again,
+ *  with the latest data, the moment it is shown. */
+const Frozen = memo(
+  function Frozen({ children }: { active: boolean; children: ReactNode }) {
+    return <>{children}</>;
+  },
+  (prev, next) => !prev.active && !next.active,
+);
 
 /** One truck's share of a load: the orders planned on that truck's trip. */
 type PlannedLoad = { vehicle: string; plannedVehicle: string; tripId: string; status: string; opls: TrolleyOpl[] };
@@ -1278,9 +1346,9 @@ function RequestsTab({
     );
   }
 
-  // Shown in schedule order: team, then slot (Team A #1, #2 …, Team B #1 …);
-  // orders only on a trip follow in trip order; unscheduled ones sink to the
-  // bottom (greyed).
+  // Shown in sequence steps, as transfers move: every team's #1, then every team's
+  // #2 … (Team A #1, Team B #1, … Team A #2 …); orders only on a trip follow in trip
+  // order; unscheduled ones sink to the bottom (greyed).
   const isScheduled = (g: OrderGroup) => g.opls.some((o) => !!oplTrip[o.oplName]);
   const slot = new Map<string, [string, number]>();
   for (const sc of schedules) {
@@ -1288,19 +1356,20 @@ function RequestsTab({
   }
   plannedTrips.forEach((t, ti) =>
     (t.orders ?? []).forEach((o, oi) => {
-      if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', ti * 1000 + oi]);
+      if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', 1_000_000 + ti * 1000 + oi]);
     }),
   );
+  // Step (schedule #) first, then team.
+  const bySlot = (ra: [string, number], rb: [string, number]) =>
+    ra[1] !== rb[1] ? ra[1] - rb[1] : ra[0] === rb[0] ? 0 : ra[0] < rb[0] ? -1 : 1;
   const rankOf = (g: OrderGroup): [string, number] => {
     let best: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
     for (const o of g.opls) {
       const r = slot.get(o.oplName);
-      if (r && (r[0] < best[0] || (r[0] === best[0] && r[1] < best[1]))) best = r;
+      if (r && bySlot(r, best) < 0) best = r;
     }
     return best;
   };
-  const bySlot = (ra: [string, number], rb: [string, number]) =>
-    ra[0] === rb[0] ? ra[1] - rb[1] : ra[0] < rb[0] ? -1 : 1;
   const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
   const sorted = [...groups]
     .sort((a, b) => {
@@ -1330,16 +1399,27 @@ function RequestsTab({
     sorted
       .map((g) => ({ ...g, opls: g.opls.filter((o) => tripOf.get(o.oplName) === tripId) }))
       .filter((g) => g.opls.length);
+  // Picking order across every trip as listed (every team's #1, then #2 …): the
+  // number on each order, "Pick first" on the first and "Pick last" on the last.
+  const pickPos = new Map<string, number>();
+  for (const t of steps) for (const g of onTrip(t.tripId)) if (!pickPos.has(g.orderName)) pickPos.set(g.orderName, pickPos.size + 1);
+  const pickN = pickPos.size;
   // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
+    const pos = pickPos.get(g.orderName);
     // Order name (customer, then trip, under it) on the left, the team always on the right.
     const head = (
       <View>
         {/* Row 1: order name left, team right; the customer under it. */}
         <View style={s.groupLine}>
+          {pos ? (
+            <View style={[s.pickBadge, pos === 1 ? s.pickBadgeFirst : null]}>
+              <Text style={[s.pickBadgeText, pos === 1 ? s.pickBadgeTextFirst : null]}>{pos}</Text>
+            </View>
+          ) : null}
           <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]}>
             {g.orderName}
           </Text>
@@ -1348,6 +1428,11 @@ function RequestsTab({
         {customer ? (
           <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>
             {customer}
+          </Text>
+        ) : null}
+        {pos && pickN > 1 && (pos === 1 || pos === pickN) ? (
+          <Text style={[s.pickTag, pos === 1 ? s.pickTagFirst : null]}>
+            {pos === 1 ? 'Pick first' : `Pick last · ${pos} of ${pickN}`}
           </Text>
         ) : null}
       </View>
@@ -2367,6 +2452,24 @@ function StageSummary({
 const SHELVED_GREEN = '#067647';
 
 const s = StyleSheet.create({
+  pickBadge: {
+    minWidth: 26,
+    height: 26,
+    paddingHorizontal: 6,
+    borderRadius: 13,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  pickBadgeFirst: { backgroundColor: COLORS.success ?? '#12B76A', borderColor: COLORS.success ?? '#12B76A' },
+  pickBadgeText: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
+  pickBadgeTextFirst: { color: '#fff' },
+  pickTag: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
+  pickTagFirst: { color: COLORS.success ?? '#067647' },
+  tabHidden: { display: 'none' },
   // Room above and left of each trip card for its floating number.
   step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.md },
   stepDot: {

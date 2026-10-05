@@ -32,6 +32,8 @@ export const StorageKeys = {
   bucketRequestsDownloaded: 'bucket_requests_downloaded',
   /** The remote-transfer hub (sales farm), as last reported by the server. */
   transferHub: 'transfer_hub',
+  /** Issue Offline: the OPL last picked, with its delivery date ({ opl, date }). */
+  issueOfflineOpl: 'issue_offline_opl',
 } as const;
 
 export const storage = {

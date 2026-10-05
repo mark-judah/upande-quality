@@ -116,12 +116,16 @@ export function BottomSheet({
   subtitle,
   children,
   busy,
+  top,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
   children?: ReactNode;
+  /** Shown in the space above the sheet (e.g. a camera, InlineCamera); the sheet
+   *  shortens to make room and stays open below it. */
+  top?: ReactNode;
   /** Ignore backdrop / back / ✕ while something is in flight. */
   busy?: boolean;
 }) {
@@ -131,7 +135,10 @@ export function BottomSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={dismiss ?? (() => {})} statusBarTranslucent>
       <KeyboardAvoidingView style={s.sheetWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={s.sheetBackdrop} onPress={dismiss} />
-        <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+        {top ? <View style={[s.sheetTop, { paddingTop: Math.max(insets.top, spacing.md) }]}>{top}</View> : null}
+        <View
+          style={[s.sheet, top ? s.sheetUnderTop : null, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
+        >
           <View style={s.sheetHandle} />
           <View style={s.sheetHeader}>
             <View style={s.flex}>
@@ -250,6 +257,8 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: COLORS.overlay },
+  sheetTop: { flex: 1, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
+  sheetUnderTop: { maxHeight: '52%' },
   sheet: {
     maxHeight: '88%',
     backgroundColor: COLORS.surface,

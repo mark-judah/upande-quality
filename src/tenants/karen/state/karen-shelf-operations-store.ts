@@ -9,8 +9,21 @@ import {
 } from '../repository/karen-shelf-operations-repository';
 import type { IssueOfflineReason } from '../api/karen-shelf-operations-api';
 import { mapAxiosError } from '@/src/core/api/client';
+import { storage, StorageKeys } from '@/src/core/storage';
 import * as stockTakeDb from '../offline/karen-stock-take-db';
 import type { StockTakeScanRow } from '../offline/karen-stock-take-db';
+
+/** The OPL last picked in Issue Offline, for its delivery date — picked again when
+ *  the page reopens (leaving the page or the app clears the selection). */
+async function rememberedOpl(date: string): Promise<string | null> {
+  try {
+    const raw = await storage.get(StorageKeys.issueOfflineOpl);
+    const saved = raw ? (JSON.parse(raw) as { opl?: string; date?: string }) : null;
+    return saved?.opl && saved.date === date ? saved.opl : null;
+  } catch {
+    return null;
+  }
+}
 
 export type ShelfOperationsMode = 'transfer' | 'issue-offline' | 'stock-take';
 
@@ -67,6 +80,10 @@ type State = {
   stockTakeSyncError: string | null;
 
   setMode: (mode: ShelfOperationsMode) => void;
+  /** Switch the mode only, keeping what each mode had picked: the single-tab page
+   *  taking the store over / handing it back (also around the camera scanner, which
+   *  blurs the page — resetting there lost the picked OPL before the scan came back). */
+  handOver: (mode: ShelfOperationsMode) => void;
   setShelfFromScan: (raw: string) => { ok: boolean; message?: string; shelfId?: string };
   clearShelf: () => void;
   submitTransfer: (rawBucket: string) => Promise<TransferOutcome>;
@@ -142,6 +159,8 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   stockTakeSyncProgress: null,
   stockTakeSyncError: null,
 
+  handOver: (mode) => set({ mode }),
+
   setMode: (mode) =>
     set({
       mode,
@@ -204,6 +223,13 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       // Keep the team filter only while that team still has OPLs on this date.
       const team = get().oplTeam;
       set({ opls, oplsLoading: false, oplTeam: opls.some((o) => o.team === team) ? team : '' });
+      // Back on the page: pick the OPL it was on, while it still has buckets to issue.
+      if (!get().opl) {
+        const saved = await rememberedOpl(date);
+        if (saved && !get().opl && get().oplDeliveryDate === date && opls.some((o) => o.oplName === saved)) {
+          await get().selectOpl(saved);
+        }
+      }
     } catch {
       if (get().oplDeliveryDate === date) set({ oplsLoading: false });
     }
@@ -226,6 +252,9 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
 
   selectOpl: async (opl) => {
     set({ ...ISSUE_OFFLINE_RESET, opl, offlineBucketsLoading: true });
+    storage
+      .set(StorageKeys.issueOfflineOpl, JSON.stringify({ opl, date: get().oplDeliveryDate }))
+      .catch(() => {});
     try {
       const offlineBuckets = await karenShelfOperationsRepository.fetchOfflineIssueBuckets(opl, get().oplFarm || undefined);
       // A slow answer for an OPL the operator has since moved off is dropped.

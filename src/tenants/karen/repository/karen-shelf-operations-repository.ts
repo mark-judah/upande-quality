@@ -40,8 +40,18 @@ export type OfflineOpl = {
   deliveryDate: string | null;
   issuedPct: number;
   openBuckets: number;
+  /** Buckets already issued to the OPL's line. */
+  issuedBuckets: number;
   /** Varieties on the OPL, shown in the list before it is opened. */
   varieties: string[];
+};
+
+/** A bucket already issued to an OPL's line: each variety / length it held. */
+export type IssuedBucket = {
+  bucket: string;
+  issuedOffline: boolean;
+  at: string;
+  contents: { variety: string; stemLength: string; stems: number }[];
 };
 
 export type OfflineBucket = {
@@ -53,6 +63,8 @@ export type OfflineBucket = {
   onShelf: boolean;
   /** A remote-transfer bucket on a trolley or truck, not arrived yet. */
   inTransit: boolean;
+  /** Already issued through Issue Offline: listed (marked) but nothing to do. */
+  issuedOffline: boolean;
 };
 
 export type ReplacementCandidate = {
@@ -186,7 +198,22 @@ export const karenShelfOperationsRepository = {
       deliveryDate: r.delivery_date ?? null,
       issuedPct: typeof r.issued_pct === 'number' ? r.issued_pct : 0,
       openBuckets: typeof r.open_buckets === 'number' ? r.open_buckets : 0,
+      issuedBuckets: typeof r.issued_buckets === 'number' ? r.issued_buckets : 0,
       varieties: Array.isArray(r.varieties) ? r.varieties : [],
+    }));
+  },
+
+  async fetchIssuedBuckets(oplName: string): Promise<IssuedBucket[]> {
+    const rows = await karenShelfOperationsApi.fetchIssuedBuckets(oplName);
+    return rows.map((r) => ({
+      bucket: r.bucket,
+      issuedOffline: !!r.issued_offline,
+      at: r.at ?? '',
+      contents: (r.contents ?? []).map((c) => ({
+        variety: c.variety ?? '',
+        stemLength: c.stem_length ?? '',
+        stems: typeof c.stems === 'number' ? c.stems : 0,
+      })),
     }));
   },
 
@@ -200,6 +227,7 @@ export const karenShelfOperationsRepository = {
       shelf: r.shelf ?? null,
       onShelf: !!r.on_shelf,
       inTransit: !!r.in_transit,
+      issuedOffline: !!r.issued && !!r.issued_offline,
     }));
   },
 

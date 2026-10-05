@@ -81,6 +81,9 @@ export type RawTrolleyActionResponse = {
     updated?: number;
     missing?: number;
     errors?: { bucket_id?: string; error?: string }[];
+    /** setOfflineTrolleyFlags: buckets refused — already on another truck, or
+     *  already arrived / issued at the packhouse. */
+    conflicts?: { bucket?: string; reason?: 'on_truck' | 'already_arrived' | string; truck?: string | null }[];
   };
 };
 
@@ -481,6 +484,9 @@ export const karenBucketRequestsApi = {
     flag: 'loaded' | 'transit';
     /** Vehicle name to stamp onto each row's custom_transit_truck (loaded only). */
     truck?: string;
+    /** A trolley scan flagged as it happens: the bucket stays on its farm shelf
+     *  (Load to truck takes it off). */
+    keep_shelf?: 1;
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',

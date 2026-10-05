@@ -27,6 +27,11 @@ type Props = {
    *  removes the popping/jumping behavior on Android. Set true if the
    *  screen also expects manual typed input. */
   showSoftKeyboard?: boolean;
+  /** Handle the camera button yourself (e.g. a camera above a bottom sheet,
+   *  InlineCamera) instead of opening the full-screen camera, which leaves the page. */
+  onCameraPress?: () => void;
+  /** With onCameraPress: the camera is showing — the button reads ✕ to close it. */
+  cameraOpen?: boolean;
 };
 
 const DEBOUNCE_MS = 300;
@@ -42,6 +47,8 @@ export const ScanField = forwardRef<ScanFieldHandle, Props>(function ScanField(
     editable = true,
     stickyFocus = false,
     showSoftKeyboard = false,
+    onCameraPress,
+    cameraOpen = false,
   },
   ref,
 ) {
@@ -118,6 +125,10 @@ export const ScanField = forwardRef<ScanFieldHandle, Props>(function ScanField(
   };
 
   const openCamera = async () => {
+    if (onCameraPress) {
+      onCameraPress();
+      return;
+    }
     navigatingAwayRef.current = true;
     cameraResultCallback = (code: string) => {
       navigatingAwayRef.current = false;
@@ -146,7 +157,7 @@ export const ScanField = forwardRef<ScanFieldHandle, Props>(function ScanField(
         style={styles.input}
       />
       <Pressable onPress={openCamera} style={styles.cameraBtn} disabled={!editable}>
-        <MaterialCommunityIcons name="camera-outline" size={22} color={COLORS.bg} />
+        <MaterialCommunityIcons name={cameraOpen ? 'close' : 'camera-outline'} size={22} color={COLORS.bg} />
       </Pressable>
     </View>
   );

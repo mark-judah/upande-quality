@@ -160,6 +160,13 @@ function OrderCard({ g }: { g: TransferGroup }) {
     <Card>
       <View style={s.hd}>
         <View style={{ flex: 1, minWidth: 0 }}>
+          {/* Its place in the schedule: shelved at the hub in sequence, like it moves. */}
+          <View style={s.seqRow}>
+            <Text style={[s.seqChip, !g.schedule && s.seqChipNone]}>
+              {g.schedule ? `${g.team || 'Team'} #${g.schedule}` : 'Not scheduled'}
+            </Text>
+            {g.shelveNext ? <Text style={s.nextChip}>Shelve next</Text> : null}
+          </View>
           <Text style={s.order} numberOfLines={1}>
             {g.orderName}
           </Text>
@@ -256,6 +263,28 @@ const s = StyleSheet.create({
   },
   dateValue: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: COLORS.text, marginTop: 2 },
   hd: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  seqRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  seqChip: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.xs,
+    color: COLORS.text,
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  seqChipNone: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  nextChip: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.xs,
+    color: '#fff',
+    backgroundColor: GREEN,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
   order: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: borderRadius.full },
