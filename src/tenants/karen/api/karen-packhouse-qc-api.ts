@@ -175,8 +175,9 @@ export type RawPackhouseFormData = {
   /** All Active Specifications, for the "pick a spec before browsing
    *  orders" filter — not affected by any request params. */
   specifications_list?: RawSpecificationListItem[];
-  /** Count of active OPLs (today + yesterday) per Specification name, via
-   *  the same custom_line FK chain the order filter uses. Drives the
+  /** Count of today's OPLs (created today, or delivering today) per
+   *  Specification name, matched on customer + approved variety + length —
+   *  the same match that picks the orders listed for a spec. Drives the
    *  "has orders" tick in the spec picker. Not affected by request params. */
   spec_order_counts?: Record<string, number>;
   /** Full detail for a directly picked/overridden spec — independent of
