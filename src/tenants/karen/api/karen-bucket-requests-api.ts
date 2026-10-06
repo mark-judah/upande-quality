@@ -170,6 +170,8 @@ export type RawPlannedTripsResponse = {
     schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number }>;
     /** Live state of this farm's buckets per OPL the app sent in `opls`. */
     opl_states?: Record<string, 'waiting' | 'loaded' | 'transit' | 'arrived' | string>;
+    /** 1: load in any order; 0: each team's orders in schedule order. */
+    allow_out_of_sequence?: number;
   };
 };
 

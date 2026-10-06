@@ -879,6 +879,34 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
   return { ok: true, oplName: row.opl_name, oplComplete, bucketId, rowId: row.id, pliId: row.pick_list_item_id };
 }
 
+/** The team's earlier order (same delivery day) that still has buckets here to load:
+ *  a team loads its schedule in order, #2 only once #1 is all on trolleys. Null when
+ *  the bucket's order may be loaded now. */
+export async function sequenceBlock(
+  bucketId: string,
+): Promise<{ team: string; sequence: number; waitsFor: number; left: number } | null> {
+  const d = await db();
+  const [fc, fa] = farmCond();
+  const cur = await d.getFirstAsync<{ team: string; sequence: number; dd: string | null }>(
+    `SELECT s.team, s.sequence, o.delivery_date AS dd FROM bucket b
+     JOIN opl_schedule s ON s.opl_name = b.opl_name AND s.scheduled = 1
+     LEFT JOIN opl o ON o.opl_name = b.opl_name
+     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND ${fc}
+     ORDER BY s.sequence ASC LIMIT 1`,
+    [bucketId.trim().toLowerCase(), ...fa],
+  );
+  if (!cur || !cur.team || cur.sequence <= 1) return null;
+  const earlier = await d.getFirstAsync<{ sequence: number; left: number }>(
+    `SELECT s.sequence, COUNT(*) AS "left" FROM opl_schedule s
+     JOIN bucket b ON b.opl_name = s.opl_name AND b.scanned = 0 AND ${fc}
+     LEFT JOIN opl o ON o.opl_name = s.opl_name
+     WHERE s.team = ? AND s.scheduled = 1 AND s.sequence < ? AND COALESCE(o.delivery_date, '') = COALESCE(?, '')
+     GROUP BY s.sequence ORDER BY s.sequence ASC LIMIT 1`,
+    [...fa, cur.team, cur.sequence, cur.dd],
+  );
+  return earlier ? { team: cur.team, sequence: cur.sequence, waitsFor: earlier.sequence, left: earlier.left } : null;
+}
+
 /** Undo a trolley scan (the server refused it: the bucket already went out). */
 export async function unscanBucket(rowId: number): Promise<void> {
   const d = await db();

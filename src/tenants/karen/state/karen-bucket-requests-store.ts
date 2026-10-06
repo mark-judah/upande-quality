@@ -29,6 +29,8 @@ type State = {
   plannedTrips: PlannedTrip[];
   /** Packhouse Schedule slot per OPL, for orders scheduled but not yet on a trip. */
   schedules: OplSchedule[];
+  /** Production Settings lets the farm load orders out of schedule order (off by default). */
+  allowOutOfSequence: boolean;
   reqCount: number;
   trolleyCount: number;
   /** Buckets scanned onto trolleys of all requested (the Trolley tab's x/n). */
@@ -183,6 +185,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   vehicles: [],
   plannedTrips: [],
   schedules: [],
+  allowOutOfSequence: false,
   reqCount: 0,
   trolleyCount: 0,
   scannedBuckets: 0,
@@ -254,7 +257,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (__DEV__) console.warn('[bucket-requests] refresh failed:', e);
       return;
     }
-    const [requests, trolley, inTransit, vehicles, allTrips, schedules, deliveryDates] = lists;
+    const [allRequests, trolley, inTransit, vehicles, allTrips, schedules, deliveryDates] = lists;
+    // Only orders on the Packhouse Schedule are worked here (an ASAP replacement too).
+    const scheduled = new Set(schedules.filter((sc) => sc.scheduled).map((sc) => sc.oplName));
+    const requests = allRequests
+      .map((g) => ({ ...g, opls: g.opls.filter((o) => scheduled.has(o.oplName) || o.asap > 0) }))
+      .filter((g) => g.opls.length > 0);
     // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
     const dd = get().deliveryDate;
     const plannedTrips = dd
@@ -344,6 +352,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         if (trips.kind === 'ok') {
           await db.replacePlannedTrips(trips.trips);
           await db.replaceSchedules(trips.schedules);
+          set({ allowOutOfSequence: trips.allowOutOfSequence });
           await db.applyServerStates(trips.oplStates);
           await prune(items, trips.known);
         }
@@ -379,6 +388,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       }
       await db.replacePlannedTrips(trips.trips);
       await db.replaceSchedules(trips.schedules);
+      set({ allowOutOfSequence: trips.allowOutOfSequence });
       await db.applyServerStates(trips.oplStates);
       await get().refresh();
       set({ loadingTrips: false });
@@ -414,6 +424,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (trips.kind === 'ok') {
         await db.replacePlannedTrips(trips.trips);
         await db.replaceSchedules(trips.schedules);
+        set({ allowOutOfSequence: trips.allowOutOfSequence });
         await db.applyServerStates(trips.oplStates);
         if (alloc.kind === 'ok') await prune(alloc.items, trips.known);
       }
@@ -440,6 +451,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     if (!id) return { ok: false, message: 'Not a bucket QR code.' };
     const trolley = get().activeTrolleyId;
     if (!trolley) return { ok: false, message: 'Scan a trolley first.' };
+    if (!get().allowOutOfSequence) {
+      const blk = await db.sequenceBlock(id).catch(() => null);
+      if (blk) {
+        return {
+          ok: false,
+          message: `${blk.team}: load #${blk.waitsFor} first — ${blk.left} bucket${blk.left === 1 ? '' : 's'} of it still here. #${blk.sequence} waits.`,
+        };
+      }
+    }
     let res: ScanResult;
     try {
       res = await db.scanBucket(id, trolley);

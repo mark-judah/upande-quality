@@ -212,6 +212,8 @@ export type FetchPlannedTripsOutcome =
       oplStates: Record<string, OplServerState>;
       /** Device orders the server still has rows for at this farm; null when it didn't say. */
       known: string[] | null;
+      /** Production Settings lets the farm load orders out of schedule order. */
+      allowOutOfSequence: boolean;
     }
   | { kind: 'error'; message: string };
 
@@ -430,6 +432,7 @@ export const karenBucketRequestsRepository = {
           ),
         ) as Record<string, OplServerState>,
         known: m.opl_states ? Object.keys(m.opl_states) : null,
+        allowOutOfSequence: !!m.allow_out_of_sequence,
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
