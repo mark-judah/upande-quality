@@ -34,43 +34,50 @@ const BoxRow = memo(function BoxRow({
 }) {
   const hasPhoto = !!box.photoUri;
   return (
-    <View style={s.boxRow}>
-      <Text style={s.boxLabel} numberOfLines={1}>Box {index + 1}</Text>
-      <View style={s.tempField}>
-        <TextInput
-          value={box.temp}
-          onChangeText={(t) => onChangeTemp(controlPoint, index, t)}
-          keyboardType="numbers-and-punctuation"
-          placeholder="—"
-          placeholderTextColor={COLORS.textMuted}
-          style={s.tempInput}
-        />
-        <Text style={s.unit}>°C</Text>
-      </View>
+    <View>
+      <View style={s.boxRow}>
+        <Text style={s.boxLabel} numberOfLines={1}>Box {index + 1}</Text>
+        <View style={s.tempField}>
+          <TextInput
+            value={box.temp}
+            onChangeText={(t) => onChangeTemp(controlPoint, index, t)}
+            keyboardType="numbers-and-punctuation"
+            placeholder="—"
+            placeholderTextColor={COLORS.textMuted}
+            style={s.tempInput}
+          />
+          <Text style={s.unit}>°C</Text>
+        </View>
 
-      <Pressable
-        onPress={() => onCapture(controlPoint, index)}
-        style={[s.photoBtn, hasPhoto && s.photoBtnFilled]}
-        accessibilityLabel={hasPhoto ? `Retake box ${index + 1} photo` : `Capture box ${index + 1} photo`}
-      >
-        {hasPhoto ? (
-          <>
-            <Image source={{ uri: box.photoUri as string }} style={s.thumb} />
-            {box.uploading ? (
-              <View style={s.thumbOverlay}>
-                <Spinner inline />
-              </View>
-            ) : null}
-            {box.uploadError ? (
-              <View style={[s.thumbOverlay, s.thumbOverlayError]}>
-                <Ionicons name="alert" size={16} color="#FFFFFF" />
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <Ionicons name="camera-outline" size={20} color={COLORS.textMuted} />
-        )}
-      </Pressable>
+        <Pressable
+          onPress={() => onCapture(controlPoint, index)}
+          style={[s.photoBtn, hasPhoto && s.photoBtnFilled]}
+          accessibilityLabel={hasPhoto ? `Retake box ${index + 1} photo` : `Capture box ${index + 1} photo`}
+        >
+          {hasPhoto ? (
+            <>
+              <Image source={{ uri: box.photoUri as string }} style={s.thumb} />
+              {box.uploading ? (
+                <View style={s.thumbOverlay}>
+                  <Spinner inline />
+                </View>
+              ) : null}
+              {box.uploadError ? (
+                <View style={[s.thumbOverlay, s.thumbOverlayError]}>
+                  <Ionicons name="alert" size={16} color="#FFFFFF" />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Ionicons name="camera-outline" size={20} color={COLORS.textMuted} />
+          )}
+        </Pressable>
+      </View>
+      {box.uploadError ? (
+        <Text style={s.uploadError} numberOfLines={3}>
+          Photo not saved: {box.uploadError} Tap the photo to retake it.
+        </Text>
+      ) : null}
     </View>
   );
 });
@@ -238,4 +245,10 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   thumbOverlayError: { backgroundColor: 'rgba(220,38,38,0.85)' },
+  uploadError: {
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
+    color: COLORS.danger,
+    marginTop: 4,
+  },
 });

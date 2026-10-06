@@ -9,7 +9,7 @@ let client: AxiosInstance | null = null;
  *  triggers exactly ONE re-login; each awaits the same result then retries. */
 let reauthInFlight: Promise<boolean> | null = null;
 
-function reauthOnce(): Promise<boolean> {
+export function reauthOnce(): Promise<boolean> {
   if (!reauthInFlight) {
     reauthInFlight = (async () => {
       try {
@@ -33,15 +33,18 @@ function reauthOnce(): Promise<boolean> {
  *  permission denial. Frappe returns 403 (request downgraded to Guest) with a
  *  `session_expired` flag on an expired sid — NOT 401 — so we must key on that
  *  flag, or we'd both miss real expiries and loop on legitimate 403s. */
-function isSessionExpired(err: AxiosError): boolean {
-  const res = err.response;
-  if (!res) return false;
-  if (res.status === 401) return true;
-  if (res.status === 403) {
-    const body = res.data as { session_expired?: unknown; exc_type?: string } | null;
-    return !!(body && (body.session_expired || body.exc_type === 'AuthenticationError'));
+export function isSessionExpiredResponse(status: number, body: unknown): boolean {
+  if (status === 401) return true;
+  if (status === 403) {
+    const b = body as { session_expired?: unknown; exc_type?: string } | null;
+    return !!(b && (b.session_expired || b.exc_type === 'AuthenticationError'));
   }
   return false;
+}
+
+function isSessionExpired(err: AxiosError): boolean {
+  const res = err.response;
+  return !!res && isSessionExpiredResponse(res.status, res.data);
 }
 
 type RetryableConfig = AxiosRequestConfig & { _reauthRetry?: boolean };
