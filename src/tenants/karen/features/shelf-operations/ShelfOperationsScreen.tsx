@@ -185,13 +185,8 @@ export function KarenShelfOperationsScreen({
     if (mode === 'stock-take') {
       initStockTake();
       loadColdStores(userFarm);
-    } else if (mode === 'issue-offline') {
-      // Issuing works on tomorrow's deliveries only: a date left from yesterday
-      // moves on to the new tomorrow (which loads its OPLs).
-      setOplFarm(userFarm);
-      if (oplDeliveryDate !== localDay(1)) setOplDeliveryDate(localDay(1));
-      else loadOpls();
     }
+    // Shelf Operations' Issue Offline needs no OPL: a reason and the bucket.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -281,7 +276,7 @@ export function KarenShelfOperationsScreen({
             {userFarm || 'All farms'}
           </Text>
         </View>
-        {mode === 'issue-offline' ? (
+        {mode === 'issue-offline' && only ? (
           <View style={s.teamSelect}>
             <Dropdown
               compact
@@ -426,6 +421,29 @@ export function KarenShelfOperationsScreen({
 
           {lastTransferOutcome ? <TransferOutcomeCard outcome={lastTransferOutcome} /> : null}
         </>
+      ) : !only ? (
+        // Shelf Operations' Issue Offline: no OPL -- the bucket just comes off its shelf.
+        <Card title="Issue offline">
+          <TextInput
+            style={s.reasonInput}
+            placeholder="Reason"
+            placeholderTextColor={COLORS.textMuted}
+            value={openReason}
+            onChangeText={setOpenReason}
+            onBlur={() => {
+              if (openReason.trim()) focusWhenReady(openRef);
+            }}
+            multiline
+            editable={!openBusy}
+          />
+          <ScanField
+            ref={openRef}
+            onScan={onBucketScanWithoutOpl}
+            placeholder={openReason.trim() ? 'Scan bucket QR' : 'Enter a reason first'}
+            editable={!openBusy && !!openReason.trim()}
+          />
+          {openBusy ? <Text style={s.muted}>Issuing…</Text> : null}
+        </Card>
       ) : (
         <>
           <Card title="Order pick list">
@@ -499,30 +517,6 @@ export function KarenShelfOperationsScreen({
               </View>
             ) : null}
           </Card>
-
-          {!only && !opl ? (
-            <Card title="Issue without OPL">
-              <TextInput
-                style={s.reasonInput}
-                placeholder="Reason"
-                placeholderTextColor={COLORS.textMuted}
-                value={openReason}
-                onChangeText={setOpenReason}
-                onBlur={() => {
-                  if (openReason.trim()) focusWhenReady(openRef);
-                }}
-                multiline
-                editable={!openBusy}
-              />
-              <ScanField
-                ref={openRef}
-                onScan={onBucketScanWithoutOpl}
-                placeholder={openReason.trim() ? 'Scan bucket QR' : 'Enter a reason first'}
-                editable={!openBusy && !!openReason.trim()}
-              />
-              {openBusy ? <Text style={s.muted}>Issuing…</Text> : null}
-            </Card>
-          ) : null}
 
           {opl ? (
             <Card title="Allocated bucket that was not issued">
