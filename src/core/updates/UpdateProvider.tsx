@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AppState } from 'react-native';
 import * as Updates from 'expo-updates';
 import {
   autoCheckForApk,
@@ -20,6 +19,7 @@ import {
 import {
   canInstallInApp,
   downloadApk,
+  findDownloadedApk,
   InstallError,
   launchInstaller,
   openInBrowser,
@@ -40,7 +40,9 @@ import {
  * to reach a phone. The Settings "Check for updates" button still works too.
  *
  * The download is started by the user, never automatically: an APK is tens of
- * MB, and phones here are often on metered data. The check itself runs silently
+ * MB, and phones here are often on metered data. A finished download is kept
+ * and the button becomes "Install"; the installer opens on that tap, and a
+ * dismissed installer can be reopened without downloading again. The check itself runs silently
  * once a day so the Settings screen already knows the answer when opened.
  */
 
@@ -59,12 +61,15 @@ type UpdateState = {
   checkError: { kind: UpdateErrorKind; message: string } | null;
   downloading: boolean;
   progress: DownloadProgress | null;
+  /** The version whose APK is fully downloaded and waiting to be installed. */
+  downloaded: string | null;
   installError: { kind: InstallErrorKind | null; message: string } | null;
   /** Ask GitHub now, ignoring the daily throttle. */
   refresh: () => Promise<ApkCheck | null>;
-  /** Download the newest APK and open the installer. Resolves true once the
-   *  installer (or the browser fallback) was reached. Pass the result of a
-   *  `refresh()` made in the same tick, before state has caught up. */
+  /** Download the newest APK, or — once it is downloaded — open the installer.
+   *  Resolves true when that step succeeded (or the browser fallback was
+   *  reached). Pass the result of a `refresh()` made in the same tick, before
+   *  state has caught up. */
   install: (target?: ApkCheck | null) => Promise<boolean>;
 };
 
@@ -84,12 +89,12 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [checkError, setCheckError] = useState<UpdateState['checkError']>(null);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
+  const [downloaded, setDownloaded] = useState<string | null>(null);
   const [installError, setInstallError] = useState<UpdateState['installError']>(null);
 
   const busy = useRef(false);
-  /** A finished download waiting for the app to return to the foreground —
-   *  Android 10+ will not open the installer from the background. */
-  const pending = useRef<string | null>(null);
+  /** The finished download, read synchronously by `install`. */
+  const ready = useRef<{ version: string; uri: string } | null>(null);
 
   /* ── OTA: the JS bundle inside the same runtime, applied on opening ───── */
 
@@ -133,6 +138,22 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     if (__DEV__ || !Updates.isEnabled || !isUpdatePending) return;
     applyOtaOnOpen();
   }, [isUpdatePending, applyOtaOnOpen]);
+
+  // An APK downloaded before (in this run or an earlier one) is offered for
+  // install straight away instead of being fetched again.
+  useEffect(() => {
+    const apk = check?.available ? check.apk : null;
+    if (!apk || ready.current?.version === apk.version) return;
+    let cancelled = false;
+    findDownloadedApk(apk.downloadUrl, { fileName: apk.assetName, expectedBytes: apk.sizeBytes }).then((uri) => {
+      if (cancelled || !uri) return;
+      ready.current = { version: apk.version, uri };
+      setDownloaded(apk.version);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [check]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,47 +202,46 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     }
 
     busy.current = true;
-    setDownloading(true);
-    setProgress(null);
     try {
-      const uri = await downloadApk(apk.downloadUrl, {
-        fileName: apk.assetName,
-        expectedBytes: apk.sizeBytes,
-        onProgress: setProgress,
-      });
-      if (AppState.currentState !== 'active') {
-        pending.current = uri;
-        return false;
+      if (ready.current?.version === apk.version) {
+        // Still complete on disk? Otherwise fall through and fetch the rest.
+        const uri = apk.sizeBytes
+          ? await findDownloadedApk(apk.downloadUrl, { fileName: apk.assetName, expectedBytes: apk.sizeBytes })
+          : ready.current.uri;
+        if (uri) {
+          await launchInstaller(uri);
+          return true;
+        }
+        ready.current = null;
+        setDownloaded(null);
       }
-      await launchInstaller(uri);
-      return true;
+
+      setDownloading(true);
+      setProgress(null);
+      try {
+        const uri = await downloadApk(apk.downloadUrl, {
+          fileName: apk.assetName,
+          expectedBytes: apk.sizeBytes,
+          onProgress: setProgress,
+        });
+        ready.current = { version: apk.version, uri };
+        setDownloaded(apk.version);
+        return true;
+      } finally {
+        setDownloading(false);
+        setProgress(null);
+      }
     } catch (err) {
       setInstallError(installErrorFor(err));
       return false;
     } finally {
       busy.current = false;
-      setDownloading(false);
-      setProgress(null);
     }
   }, [check]);
 
-  // Launch a held installer once the app is visible again. Cleared before
-  // launching so a failure is not retried on every foreground event.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active' || !pending.current) return;
-      const uri = pending.current;
-      pending.current = null;
-      launchInstaller(uri).catch((err) => {
-        setInstallError(installErrorFor(err));
-      });
-    });
-    return () => sub.remove();
-  }, []);
-
   const value = useMemo(
-    () => ({ check, checking, checkError, downloading, progress, installError, refresh, install }),
-    [check, checking, checkError, downloading, progress, installError, refresh, install],
+    () => ({ check, checking, checkError, downloading, progress, downloaded, installError, refresh, install }),
+    [check, checking, checkError, downloading, progress, downloaded, installError, refresh, install],
   );
 
   return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;
@@ -236,6 +256,7 @@ export function useApkUpdate(): UpdateState {
       checkError: null,
       downloading: false,
       progress: null,
+      downloaded: null,
       installError: null,
       refresh: async () => null,
       install: async () => false,
