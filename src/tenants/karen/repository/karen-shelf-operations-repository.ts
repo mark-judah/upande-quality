@@ -231,6 +231,14 @@ export const karenShelfOperationsRepository = {
     }));
   },
 
+  /** Issue a bucket out with no OPL (Shelf Operations only). */
+  async issueWithoutOpl(bucketId: string, reason: string): Promise<{ ok: boolean; message: string }> {
+    const raw = await karenShelfOperationsApi.issueWithoutOpl({ bucketId, reason });
+    return raw.status === 'success'
+      ? { ok: true, message: pickMessage(raw, `${bucketId} issued.`) }
+      : { ok: false, message: pickMessage(raw, 'Issue failed.') };
+  },
+
   async issueOffline(args: {
     oplName: string;
     allocatedBucket: string;
