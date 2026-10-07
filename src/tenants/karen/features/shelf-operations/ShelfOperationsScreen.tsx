@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
@@ -40,6 +40,10 @@ export function KarenShelfOperationsScreen({
 }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
+  // Shelf Operations' Issue Offline without an OPL: a reason, then the bucket.
+  const openRef = useRef<ScanFieldHandle>(null);
+  const [openReason, setOpenReason] = useState('');
+  const [openBusy, setOpenBusy] = useState(false);
   const {
     mode: storeMode,
     shelfId,
@@ -226,6 +230,26 @@ export function KarenShelfOperationsScreen({
     }
     bucketRef.current?.clear();
     focusWhenReady(bucketRef);
+  };
+
+  const onBucketScanWithoutOpl = async (raw: string) => {
+    const bucket = karenShelfOperationsRepository.extractBucketIdFromScan(raw);
+    if (!bucket) {
+      showError('Please scan a valid bucket QR code.');
+    } else {
+      setOpenBusy(true);
+      try {
+        const out = await karenShelfOperationsRepository.issueWithoutOpl(bucket, openReason.trim());
+        if (out.ok) showSuccess(out.message);
+        else showError(out.message);
+      } catch (err) {
+        showError(mapAxiosError(err).message);
+      } finally {
+        setOpenBusy(false);
+      }
+    }
+    openRef.current?.clear();
+    focusWhenReady(openRef);
   };
 
   // No success toast per scan, deliberately - this needs to stay fast
@@ -475,6 +499,30 @@ export function KarenShelfOperationsScreen({
               </View>
             ) : null}
           </Card>
+
+          {!only && !opl ? (
+            <Card title="Issue without OPL">
+              <TextInput
+                style={s.reasonInput}
+                placeholder="Reason"
+                placeholderTextColor={COLORS.textMuted}
+                value={openReason}
+                onChangeText={setOpenReason}
+                onBlur={() => {
+                  if (openReason.trim()) focusWhenReady(openRef);
+                }}
+                multiline
+                editable={!openBusy}
+              />
+              <ScanField
+                ref={openRef}
+                onScan={onBucketScanWithoutOpl}
+                placeholder={openReason.trim() ? 'Scan bucket QR' : 'Enter a reason first'}
+                editable={!openBusy && !!openReason.trim()}
+              />
+              {openBusy ? <Text style={s.muted}>Issuing…</Text> : null}
+            </Card>
+          ) : null}
 
           {opl ? (
             <Card title="Allocated bucket that was not issued">
@@ -968,6 +1016,17 @@ const s = StyleSheet.create({
     letterSpacing: 0.4,
   },
   changeLink: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    color: COLORS.text,
+    minHeight: 60,
+    textAlignVertical: 'top',
+    marginBottom: 10,
+  },
   muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
   pickRow: {
     flexDirection: 'row',

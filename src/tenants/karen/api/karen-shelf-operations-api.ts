@@ -134,6 +134,14 @@ export type RawReplacementOptions = {
   history?: RawOfflineHistory[];
 };
 
+/** createOfflineIssuingEntry: a bucket issued out with no OPL. */
+export type RawIssueWithoutOplResponse = {
+  status?: 'success' | 'failed' | 'error' | string;
+  reason?: string;
+  message?: string;
+  payload?: { bucket_id?: string; stems?: number; stock_entry?: string; sales_orders?: string[] };
+};
+
 export type RawIssueOfflineResponse = {
   success?: boolean;
   message?: string;
@@ -220,6 +228,20 @@ export const karenShelfOperationsApi = {
       timeout: 120000,
     });
     return res.message ?? {};
+  },
+
+  /** Issue a bucket out with no OPL: posts Offline Issuing from its shelf stock
+   *  and clears the shelf. The server refuses a bucket allocated to an order. */
+  async issueWithoutOpl(args: { bucketId: string; reason: string }): Promise<RawIssueWithoutOplResponse> {
+    const res = await api<{ data?: RawIssueWithoutOplResponse } | RawIssueWithoutOplResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.createOfflineIssuingEntry',
+      data: { bucket_id: args.bucketId, reason: args.reason },
+      validateStatus: () => true,
+      timeout: 120000,
+    });
+    const unwrapped = res as { data?: RawIssueWithoutOplResponse } & RawIssueWithoutOplResponse;
+    return unwrapped.data ?? unwrapped;
   },
 
   /** Rose varieties, for correcting a wrong-variety bucket. Same lookup as the
