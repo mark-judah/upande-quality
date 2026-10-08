@@ -5,6 +5,7 @@ import {
   type VaselifeCrop,
   type VaselifeCutStage,
   type VaselifeFailureReason,
+  type VaselifeOrderPickList,
   type VaselifeSampleRef,
   type VaselifeVariety,
 } from '@/src/tenants/karen/repository/karen-vaselife-repository';
@@ -77,6 +78,8 @@ type State = {
   failureReasons: VaselifeFailureReason[];
   failureCategories: string[];
   samples: VaselifeSampleRef[];
+  /** Today's Order Pick Lists — the Line Code options. */
+  orderPickLists: VaselifeOrderPickList[];
 
   // ── Sample form ────────────────────────────────────────────────────────────
   scanning: boolean;
@@ -163,6 +166,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   failureReasons: [],
   failureCategories: [],
   samples: [],
+  orderPickLists: [],
 
   scanning: false,
   scanError: null,
@@ -214,6 +218,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       failureReasons: outcome.failureReasons,
       failureCategories: outcome.failureCategories,
       samples: outcome.samples,
+      orderPickLists: outcome.orderPickLists,
     });
   },
 
