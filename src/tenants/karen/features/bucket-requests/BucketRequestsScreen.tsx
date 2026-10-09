@@ -46,7 +46,7 @@ import {
   type TripArrival,
   type ShelvedTrip,
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
-import { isoDay, setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
+import { setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 import { lineColors, type LineColor } from './line-colors';
 
 type Tab = 'requests' | 'trolley' | 'transit' | 'shelved';
@@ -265,12 +265,11 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // A trip the truck has left this farm on is done here until its next run.
   const openTrips = useMemo(() => plannedTrips.filter((t) => !t.yourStopClosed), [plannedTrips]);
 
-  // The farms work on tomorrow's deliveries: one Tomorrow chip, nothing else. A
-  // date left over from yesterday (or "every date") snaps back to tomorrow.
-  const tomorrow = isoDay(1);
+  // Every delivery date: an order shows once it is on a planned trip, and trips are
+  // topped up with later days' orders. A date left over from an older build snaps back.
   useEffect(() => {
-    if (deliveryDate !== tomorrow) setDeliveryDate(tomorrow, userFarm);
-  }, [deliveryDate, tomorrow, userFarm, setDeliveryDate]);
+    if (deliveryDate) setDeliveryDate('', userFarm);
+  }, [deliveryDate, userFarm, setDeliveryDate]);
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
@@ -1371,16 +1370,25 @@ function RequestsTab({
     return best;
   };
   const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
+  // Schedule numbers restart each delivery day: the earlier day's orders come first.
+  const dayOf = (g: OrderGroup) =>
+    g.opls.map((o) => o.deliveryDate).filter(Boolean).sort()[0] || '9999-12-31';
   const sorted = [...groups]
     .sort((a, b) => {
       const byScheduled = Number(isScheduled(b)) - Number(isScheduled(a));
       if (byScheduled) return byScheduled;
+      const byDay = dayOf(a).localeCompare(dayOf(b));
+      if (byDay) return byDay;
       return bySlot(rankOf(a), rankOf(b));
     })
     // An order's picklists in their own schedule order too.
     .map((g) => ({
       ...g,
-      opls: [...g.opls].sort((a, b) => bySlot(slot.get(a.oplName) ?? unslotted, slot.get(b.oplName) ?? unslotted)),
+      opls: [...g.opls].sort(
+        (a, b) =>
+          (a.deliveryDate || '').localeCompare(b.deliveryDate || '') ||
+          bySlot(slot.get(a.oplName) ?? unslotted, slot.get(b.oplName) ?? unslotted),
+      ),
     }));
   // Trips as steps in the order they collect: by day, the run the truck is loading
   // now first, then its later runs.
@@ -1407,6 +1415,8 @@ function RequestsTab({
   // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
   const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
     const customer = g.opls.find((o) => o.customer)?.customer;
+    const day = dayOf(g);
+    const delivery = day === '9999-12-31' ? '' : dateLabel(day);
     const teams = [...new Set(g.opls.map((o) => oplTeam[o.oplName]).filter(Boolean))];
     const dot = g.opls.map((o) => lineColor.byOpl[o.oplName]).find(Boolean);
     const pos = pickPos.get(g.orderName);
@@ -1425,9 +1435,9 @@ function RequestsTab({
           </Text>
           {teams.length ? <TeamChip team={teams.join(', ')} color={dot?.color} fill /> : null}
         </View>
-        {customer ? (
+        {customer || delivery ? (
           <Text style={[s.groupCustomer, dim ? s.groupHdrDim : null]}>
-            {customer}
+            {[customer, delivery].filter(Boolean).join(' · ')}
           </Text>
         ) : null}
         {pos && pickN > 1 && (pos === 1 || pos === pickN) ? (

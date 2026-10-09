@@ -202,7 +202,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   loadingTrips: false,
   syncingOpl: null,
   manualDownloaded: false,
-  deliveryDate: db.isoDay(1),
+  deliveryDate: '',
   deliveryDates: [],
 
   init: async () => {

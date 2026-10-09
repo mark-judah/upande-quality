@@ -33,6 +33,8 @@ export type ReqOpl = {
   orderName: string;
   createdOn: string;
   customer: string;
+  /** Sales Order delivery date (YYYY-MM-DD), '' when unknown. */
+  deliveryDate: string;
   total: number;
   scanned: number;
   /** Unscanned ASAP buckets: the order goes to the top of the list. */
@@ -84,7 +86,7 @@ export function isoDay(addDays = 0): string {
 }
 
 /** Delivery-date filter (YYYY-MM-DD); '' = every date. Opens on tomorrow's orders. */
-let _deliveryDate = isoDay(1);
+let _deliveryDate = '';
 export function setActiveDeliveryDate(date: string): void {
   _deliveryDate = (date || '').trim();
 }
@@ -114,7 +116,7 @@ function farmCond(): [string, string[]] {
 /** One connection for the whole app, kept on globalThis: a hot reload re-runs this
  *  module, and a second openDatabaseAsync left code still holding the old module on a
  *  connection native code had released ("NativeDatabase.prepareAsync … NullPointerException"). */
-type DbCache = { conn: Promise<SQLite.SQLiteDatabase> | null; queue?: Promise<unknown> };
+type DbCache = { conn: Promise<SQLite.SQLiteDatabase> | null; queue?: Promise<unknown>; txq?: Promise<void> };
 const G = globalThis as unknown as { __karenBucketRequestsDb?: DbCache };
 const cache: DbCache = (G.__karenBucketRequestsDb ??= { conn: null });
 // Per module instance, so a hot reload that adds a column still migrates.
@@ -130,8 +132,29 @@ function open(): Promise<SQLite.SQLiteDatabase> {
   return cache.conn;
 }
 
-/** A released native connection: reopen and retry once instead of failing the screen. */
-const isDeadConnection = (e: unknown) => /NullPointerException|has been rejected|database is closed/i.test(String((e as Error)?.message ?? e));
+/** A released native connection: reopen and retry once instead of failing the screen.
+ *  Every native failure reads "Call to function … has been rejected"; only its cause
+ *  says whether the connection is gone. Treating a busy or nested transaction as dead
+ *  opened a second connection while the first still held its transaction. */
+const isDeadConnection = (e: unknown) =>
+  /NullPointerException|database is closed|closed resource/i.test(String((e as Error)?.message ?? e));
+
+/** One transaction at a time. expo-sqlite's withTransactionAsync is not exclusive: a
+ *  download writing OPLs while the background pull saved trips or schedules started a
+ *  second BEGIN inside the first ("NativeDatabase.execAsync has been rejected" —
+ *  cannot start a transaction within a transaction) and the refresh failed. */
+async function tx(d: SQLite.SQLiteDatabase, fn: () => Promise<void>): Promise<void> {
+  const prev = cache.txq ?? Promise.resolve();
+  let release!: () => void;
+  const mine = new Promise<void>((r) => (release = r));
+  cache.txq = prev.then(() => mine);
+  await prev;
+  try {
+    await d.withTransactionAsync(fn);
+  } finally {
+    release();
+  }
+}
 
 function guarded(d: SQLite.SQLiteDatabase, conn: Promise<SQLite.SQLiteDatabase>): SQLite.SQLiteDatabase {
   return new Proxy(d, {
@@ -410,7 +433,7 @@ export async function downloadOpls(
     // one row per bucket — total must count DISTINCT buckets, else scanned can
     // never reach total and the OPL is stuck "incomplete".
     const distinctBuckets = new Set(rows.map((r) => r.bucketId)).size;
-    await d.withTransactionAsync(async () => {
+    await tx(d, async () => {
       await d.runAsync(
         'INSERT INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets, delivery_date) VALUES (?,?,?,?,?,?,?,?,?)',
         [
@@ -487,6 +510,7 @@ type OplRow = {
   order_name: string | null;
   created_on: string | null;
   customer: string | null;
+  delivery_date?: string | null;
   total: number;
   scanned: number;
   last_activity?: string | null;
@@ -501,7 +525,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
   const [dc, da] = dateCond();
   const opls = await d.getAllAsync<OplRow>(
     `
-    SELECT o.opl_name, o.order_name, o.created_on, o.customer,
+    SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.delivery_date,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total,
            o.last_activity AS last_activity,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned,
@@ -526,6 +550,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
       orderName: o.order_name || o.opl_name,
       createdOn: o.created_on || '',
       customer: o.customer || '',
+      deliveryDate: o.delivery_date || '',
       total: o.total,
       scanned: o.scanned,
       asap: o.asap ?? 0,
@@ -628,7 +653,7 @@ export async function pruneOpls(keep: Set<string>): Promise<number> {
   if (!gone.length) return 0;
   const d = await db();
   const [fc, fa] = farmCond();
-  await d.withTransactionAsync(async () => {
+  await tx(d, async () => {
     for (const o of gone) {
       await d.runAsync(`DELETE FROM bucket WHERE opl_name = ? AND ${fc.replace(/\bb\./g, '')}`, [o, ...fa]);
       const left = await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM bucket WHERE opl_name = ?', [o]);
@@ -664,7 +689,7 @@ export async function applyServerStates(states: Record<string, OplServerState>):
     // from the device (and the order once nothing of it is left), so finished
     // transfers don't sit in In Transit forever.
     if (state === 'arrived') {
-      await d.withTransactionAsync(async () => {
+      await tx(d, async () => {
         await d.runAsync(
           `DELETE FROM bucket WHERE id IN (SELECT b.id FROM bucket b WHERE b.opl_name = ? AND ${fc})`,
           [oplName, ...fa],
@@ -702,7 +727,7 @@ export async function applyServerStates(states: Record<string, OplServerState>):
     ) {
       continue;
     }
-    await d.withTransactionAsync(async () => {
+    await tx(d, async () => {
       await d.runAsync(
         `UPDATE bucket SET scanned = 1, scanned_at = COALESCE(scanned_at, ?)
          WHERE id IN (SELECT b.id FROM bucket b WHERE b.opl_name = ? AND b.scanned = 0 AND ${fc})`,
@@ -916,7 +941,7 @@ export async function unscanBucket(rowId: number): Promise<void> {
 /** Replace the cached truck list wholesale (called after each download). */
 export async function replaceVehicles(vehicles: Vehicle[]): Promise<void> {
   const d = await db();
-  await d.withTransactionAsync(async () => {
+  await tx(d, async () => {
     await d.runAsync('DELETE FROM vehicle');
     for (const v of vehicles) {
       if (!v.name) continue;
@@ -943,7 +968,7 @@ export async function listVehicles(): Promise<Vehicle[]> {
 export async function replacePlannedTrips(trips: PlannedTrip[]): Promise<void> {
   const d = await db();
   const now = new Date().toISOString();
-  await d.withTransactionAsync(async () => {
+  await tx(d, async () => {
     await d.runAsync('DELETE FROM planned_trip');
     for (let i = 0; i < trips.length; i++) {
       const t = trips[i];
@@ -958,7 +983,7 @@ export async function replacePlannedTrips(trips: PlannedTrip[]): Promise<void> {
 
 export async function replaceSchedules(schedules: OplSchedule[]): Promise<void> {
   const d = await db();
-  await d.withTransactionAsync(async () => {
+  await tx(d, async () => {
     await d.runAsync('DELETE FROM opl_schedule');
     for (const sc of schedules) {
       if (!sc.oplName) continue;
