@@ -33,6 +33,7 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   shelving: 'albums-outline',
   'shelf-operations': 'repeat-outline',
   'issue-offline': 'exit-outline',
+  'bucket-count': 'cube-outline',
   'bucket-requests': 'cart-outline',
   'bucket-transfers': 'car-outline',
   'solution-mixing': 'flask-outline',

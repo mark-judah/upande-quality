@@ -36,6 +36,7 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   'http://192.168.1.71:8000': 'Karen',
   'http://172.16.32.240:8000': 'Karen',
   'http://192.168.1.150:8000': 'Karen',
+  'https://misc-partnership-leader-pendant.trycloudflare.com ': 'Karen'
 };
 
 /** Host (and port) only: the app works out http or https itself, so the

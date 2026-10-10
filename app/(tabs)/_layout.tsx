@@ -97,6 +97,7 @@ export default function TabLayout() {
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
       <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', href: null }} />
+      <Tabs.Screen name="bucket-count" options={{ title: 'Bucket Count', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
       <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', href: null }} />

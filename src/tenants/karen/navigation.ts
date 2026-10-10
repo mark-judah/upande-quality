@@ -9,6 +9,7 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Shelving',           route: 'shelving',           icon: 'albums-outline' },
   { label: 'Shelf Operations',   route: 'shelf-operations',   icon: 'repeat-outline' },
   { label: 'Issue Offline',      route: 'issue-offline',      icon: 'exit-outline' },
+  { label: 'Bucket Count',       route: 'bucket-count',       icon: 'cube-outline' },
   { label: 'Bucket Requests',    route: 'bucket-requests',    icon: 'cart-outline' },
   { label: 'Bucket Transfers',   route: 'bucket-transfers',   icon: 'car-outline' },
   { label: 'Solution Mixing',    route: 'solution-mixing',    icon: 'flask-outline' },

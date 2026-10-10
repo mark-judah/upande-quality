@@ -30,15 +30,18 @@ async function answers(base: string): Promise<boolean> {
 }
 
 /**
- * The site's base URL for whatever was typed: nobody has to know or type http
- * or https. https is tried first, then http; the first that answers is used,
- * and https when neither does (the sign-in then reports the network error).
- * A scheme typed anyway is ignored -- both are still tried.
+ * The site's base URL for whatever was typed. An explicit scheme is a
+ * deliberate choice (a local dev server that only ever speaks http, say) and
+ * is honoured exactly as typed -- no auto-upgrade to https, no probing.
+ * Nobody has to know or type http/https either, though: with no scheme at
+ * all, https is tried first, then http, the first that answers is used, and
+ * https when neither does (the sign-in then reports the network error).
  */
 export async function probeBaseUrl(rawUrl: string): Promise<string> {
-  const host = rawUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const https = `https://${host}`;
-  const http = `http://${host}`;
+  const trimmed = rawUrl.trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const https = `https://${trimmed}`;
+  const http = `http://${trimmed}`;
   if (await answers(https)) return https;
   if (await answers(http)) return http;
   return https;
