@@ -6,6 +6,8 @@ import {
   type RawOfflineBucket,
   type RawOfflineOpl,
   type RawStockTakeSyncResponse,
+  type RawShelfClearItem,
+  type RawShelfClearResponse,
 } from '../api/karen-shelf-operations-api';
 import type { StockTakeSyncResult } from '../offline/karen-stock-take-db';
 
@@ -122,6 +124,25 @@ export type StockTakeSyncFailure = { kind: 'failure'; reason: string; message: s
 export type StockTakeSyncError = { kind: 'error'; message: string };
 
 export type StockTakeSyncOutcome = StockTakeSyncSuccess | StockTakeSyncFailure | StockTakeSyncError;
+
+/** One bucket found on a shelf while clearing it (Shelf Clearer role only). */
+export type ShelfClearItem = {
+  name: string;
+  bucketId: string;
+  variety: string;
+  stemQty: number;
+  stemLength: string;
+  farm: string;
+  greenhouse: string;
+  warehouse: string;
+  harvestDate: string;
+  cutStage: string;
+};
+
+export type ShelfClearOutcome =
+  | { kind: 'success'; shelf: string; items: ShelfClearItem[]; cleared: string | null; message: string }
+  | { kind: 'not_found'; message: string }
+  | { kind: 'error'; message: string };
 
 function pickMessage(raw: { message?: string }, fallback: string): string {
   return raw.message?.trim() || fallback;
@@ -344,4 +365,51 @@ export const karenShelfOperationsRepository = {
     const res = await karenShelfOperationsApi.fetchColdStores(farm);
     return (res.message ?? []).map((c) => c.name).filter(Boolean);
   },
+
+  /** Scan a shelf for Clear Shelf: its current buckets, each tagged with its
+   *  own Shelf Item row name so a specific one can be cleared unambiguously
+   *  (the same bucket can legitimately appear more than once on a shelf). */
+  async scanShelfForClearing(shelf: string): Promise<ShelfClearOutcome> {
+    const raw = await karenShelfOperationsApi.getShelfItemsForClearing(shelf);
+    return mapShelfClearOutcome(raw, 'Shelf not found.');
+  },
+
+  /** Remove one bucket row from its shelf (not the shelf itself) and log it
+   *  to the Shelving Log as "Shelf Cleared". Returns the shelf's remaining
+   *  contents so the screen can refresh its list from the response. */
+  async clearShelfItem(shelfItemName: string): Promise<ShelfClearOutcome> {
+    const raw = await karenShelfOperationsApi.clearShelfItem(shelfItemName);
+    return mapShelfClearOutcome(raw, 'Item not found.');
+  },
 };
+
+function mapShelfClearItems(items?: RawShelfClearItem[]): ShelfClearItem[] {
+  return (items ?? []).map((i) => ({
+    name: i.name ?? '',
+    bucketId: i.bucket_id ?? '',
+    variety: i.variety ?? '',
+    stemQty: typeof i.stem_qty === 'number' ? i.stem_qty : 0,
+    stemLength: i.stem_length ?? '',
+    farm: i.farm ?? '',
+    greenhouse: i.greenhouse ?? '',
+    warehouse: i.warehouse ?? '',
+    harvestDate: i.harvest_date ?? '',
+    cutStage: i.cut_stage ?? '',
+  }));
+}
+
+function mapShelfClearOutcome(raw: RawShelfClearResponse, notFoundFallback: string): ShelfClearOutcome {
+  if (raw.status === 'success') {
+    return {
+      kind: 'success',
+      shelf: raw.shelf ?? '',
+      items: mapShelfClearItems(raw.items),
+      cleared: raw.cleared ?? null,
+      message: pickMessage(raw, 'Done.'),
+    };
+  }
+  if (raw.status === 'not_found') {
+    return { kind: 'not_found', message: pickMessage(raw, notFoundFallback) };
+  }
+  return { kind: 'error', message: pickMessage(raw, 'Something went wrong.') };
+}

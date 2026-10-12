@@ -6,6 +6,7 @@ import {
   type OfflineBucket,
   type OfflineOpl,
   type SubstituteOptions,
+  type ShelfClearItem,
 } from '../repository/karen-shelf-operations-repository';
 import type { IssueOfflineReason } from '../api/karen-shelf-operations-api';
 import { mapAxiosError } from '@/src/core/api/client';
@@ -25,7 +26,7 @@ async function rememberedOpl(date: string): Promise<string | null> {
   }
 }
 
-export type ShelfOperationsMode = 'transfer' | 'issue-offline' | 'stock-take';
+export type ShelfOperationsMode = 'transfer' | 'issue-offline' | 'stock-take' | 'clear-shelf';
 
 /** How many locally-queued scans go up in one sync request. Keeps each
  * request's doc.save() fast and bounded regardless of how many thousand
@@ -79,6 +80,17 @@ type State = {
   stockTakeSyncProgress: { done: number; total: number } | null;
   stockTakeSyncError: string | null;
 
+  // Clear Shelf mode (Shelf Clearer role only, gated in the UI and again on
+  // the server): scan a shelf, see its current buckets, remove one row at a
+  // time. Never deletes the Shelf itself, and every removal is logged.
+  clearShelfId: string | null;
+  clearShelfItems: ShelfClearItem[];
+  clearShelfLoading: boolean;
+  clearShelfError: string | null;
+  /** Set only while that specific row's clear request is in flight, so only
+   *  its own button shows a busy state. */
+  clearingItemName: string | null;
+
   setMode: (mode: ShelfOperationsMode) => void;
   /** Switch the mode only, keeping what each mode had picked: the single-tab page
    *  taking the store over / handing it back (also around the camera scanner, which
@@ -107,6 +119,9 @@ type State = {
   scanStockTakeBucket: (rawBucket: string) => Promise<{ ok: boolean; message?: string }>;
   refreshStockTakeScans: () => Promise<void>;
   syncStockTake: (farm: string) => Promise<void>;
+  scanShelfForClearing: (raw: string) => Promise<{ ok: boolean; message?: string }>;
+  clearShelfItemRow: (name: string) => Promise<{ ok: boolean; message?: string }>;
+  resetClearShelfScan: () => void;
   reset: () => void;
 };
 
@@ -136,12 +151,23 @@ const ISSUE_OFFLINE_RESET = {
   lastOfflineOutcome: null,
 } satisfies Partial<State>;
 
+/** Everything Clear Shelf keeps for one shelf; cleared on mode change or a
+ *  fresh shelf scan. */
+const CLEAR_SHELF_RESET = {
+  clearShelfId: null,
+  clearShelfItems: [],
+  clearShelfLoading: false,
+  clearShelfError: null,
+  clearingItemName: null,
+} satisfies Partial<State>;
+
 export const useKarenShelfOperationsStore = create<State>((set, get) => ({
   mode: 'transfer',
   shelfId: null,
   loading: false,
   lastTransferOutcome: null,
   ...ISSUE_OFFLINE_RESET,
+  ...CLEAR_SHELF_RESET,
   opls: [],
   oplsLoading: false,
   oplDeliveryDate: localDay(1),
@@ -167,6 +193,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       shelfId: null,
       lastTransferOutcome: null,
       ...ISSUE_OFFLINE_RESET,
+      ...CLEAR_SHELF_RESET,
       coldstore: null,
       stockTakeScans: [],
       stockTakePending: 0,
@@ -479,6 +506,48 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
     }
   },
 
+  scanShelfForClearing: async (raw) => {
+    const shelfId = karenShelfOperationsRepository.extractShelfIdFromScan(raw);
+    if (!shelfId) {
+      return { ok: false, message: 'Please scan a valid shelf QR code.' };
+    }
+    set({ ...CLEAR_SHELF_RESET, clearShelfId: shelfId, clearShelfLoading: true });
+    try {
+      const outcome = await karenShelfOperationsRepository.scanShelfForClearing(shelfId);
+      // A slow answer for a shelf the operator has since moved off is dropped.
+      if (get().clearShelfId !== shelfId) return { ok: true };
+      if (outcome.kind === 'success') {
+        set({ clearShelfItems: outcome.items, clearShelfLoading: false, clearShelfError: null });
+        return { ok: true };
+      }
+      set({ clearShelfLoading: false, clearShelfError: outcome.message });
+      return { ok: false, message: outcome.message };
+    } catch (err) {
+      const message = mapAxiosError(err).message;
+      if (get().clearShelfId === shelfId) set({ clearShelfLoading: false, clearShelfError: message });
+      return { ok: false, message };
+    }
+  },
+
+  clearShelfItemRow: async (name) => {
+    set({ clearingItemName: name, clearShelfError: null });
+    try {
+      const outcome = await karenShelfOperationsRepository.clearShelfItem(name);
+      if (outcome.kind === 'success') {
+        set({ clearShelfItems: outcome.items, clearingItemName: null });
+        return { ok: true };
+      }
+      set({ clearingItemName: null, clearShelfError: outcome.message });
+      return { ok: false, message: outcome.message };
+    } catch (err) {
+      const message = mapAxiosError(err).message;
+      set({ clearingItemName: null, clearShelfError: message });
+      return { ok: false, message };
+    }
+  },
+
+  resetClearShelfScan: () => set({ ...CLEAR_SHELF_RESET }),
+
   reset: () =>
     set({
       mode: 'transfer',
@@ -486,6 +555,7 @@ export const useKarenShelfOperationsStore = create<State>((set, get) => ({
       loading: false,
       lastTransferOutcome: null,
       ...ISSUE_OFFLINE_RESET,
+      ...CLEAR_SHELF_RESET,
       oplDeliveryDate: localDay(1),
   oplFarm: '',
       oplTeam: '',

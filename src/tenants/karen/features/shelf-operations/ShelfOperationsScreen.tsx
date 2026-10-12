@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
@@ -16,13 +16,19 @@ import {
 } from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
+import { useAuthStore } from '@/src/core/auth/store';
 import {
   localDay,
   useKarenShelfOperationsStore,
   type ShelfOperationsMode,
 } from '@/src/tenants/karen/state/karen-shelf-operations-store';
+import type { ShelfClearItem } from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
+
+/** The Clear Shelf tab only renders in the mode row for a user holding this
+ *  role; the endpoints enforce it again server-side. */
+const SHELF_CLEARER_ROLE = 'Shelf Clearer';
 import type { StockTakeScanRow } from '@/src/tenants/karen/offline/karen-stock-take-db';
-import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
+import { COLORS, borderRadius, fontFamily, scaleFont, spacing } from '@/src/core/theme';
 import { Skeleton } from '@/src/core/ui/Skeleton';
 
 /** Group / filter label for an OPL allocated without a packing team. */
@@ -40,6 +46,8 @@ export function KarenShelfOperationsScreen({
 }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
   const bucketRef = useRef<ScanFieldHandle>(null);
+  const clearShelfScanRef = useRef<ScanFieldHandle>(null);
+  const canClearShelf = useAuthStore((s) => s.hasRole(SHELF_CLEARER_ROLE));
   // Shelf Operations' Issue Offline without an OPL: a reason, then the bucket.
   const openRef = useRef<ScanFieldHandle>(null);
   const [openReason, setOpenReason] = useState('');
@@ -74,6 +82,11 @@ export function KarenShelfOperationsScreen({
     stockTakeSyncing,
     stockTakeSyncProgress,
     stockTakeSyncError,
+    clearShelfId,
+    clearShelfItems,
+    clearShelfLoading,
+    clearShelfError,
+    clearingItemName,
     setMode,
     handOver,
     setShelfFromScan,
@@ -95,6 +108,9 @@ export function KarenShelfOperationsScreen({
     setColdstore,
     scanStockTakeBucket,
     syncStockTake,
+    scanShelfForClearing,
+    clearShelfItemRow,
+    resetClearShelfScan,
     reset,
   } = useKarenShelfOperationsStore();
   const { showSuccess, showError } = useToast();
@@ -205,6 +221,24 @@ export function KarenShelfOperationsScreen({
     }
   };
 
+  const onClearShelfScan = async (raw: string) => {
+    const result = await scanShelfForClearing(raw);
+    if (!result.ok) {
+      showError(result.message ?? 'Invalid shelf QR.');
+      clearShelfScanRef.current?.clear();
+      focusWhenReady(clearShelfScanRef);
+    }
+  };
+
+  const onClearItem = async (item: ShelfClearItem) => {
+    const result = await clearShelfItemRow(item.name);
+    if (result.ok) {
+      showSuccess(`${item.bucketId} removed from the shelf.`);
+    } else {
+      showError(result.message ?? 'Could not clear this item.');
+    }
+  };
+
   const onBucketScanTransfer = async (raw: string) => {
     const outcome = await submitTransfer(raw);
     if (outcome.kind === 'success') {
@@ -268,7 +302,10 @@ export function KarenShelfOperationsScreen({
   };
 
   return (
-    <Screen title={only === 'issue-offline' ? 'Issue Offline' : 'Shelf Operations'} scroll={mode !== 'stock-take'}>
+    <Screen
+      title={only === 'issue-offline' ? 'Issue Offline' : 'Shelf Operations'}
+      scroll={mode !== 'stock-take' && mode !== 'clear-shelf'}
+    >
       <View style={s.farmBanner}>
         <View style={s.farmBannerFarm}>
           <MaterialCommunityIcons name="map-marker" size={18} color={COLORS.textMuted} />
@@ -299,15 +336,39 @@ export function KarenShelfOperationsScreen({
       </View>
 
       {only ? null : (
-        <View style={s.modeRow}>
-          <ModeButton label="Transfer" active={mode === 'transfer'} onPress={() => switchMode('transfer')} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.modeRow}
+          style={s.modeRowScroll}
+        >
+          <ModeButton
+            label="Transfer"
+            active={mode === 'transfer'}
+            onPress={() => switchMode('transfer')}
+            fill={false}
+          />
           <ModeButton
             label="Issue Offline"
             active={mode === 'issue-offline'}
             onPress={() => switchMode('issue-offline')}
+            fill={false}
           />
-          <ModeButton label="Stock Take" active={mode === 'stock-take'} onPress={() => switchMode('stock-take')} />
-        </View>
+          <ModeButton
+            label="Stock Take"
+            active={mode === 'stock-take'}
+            onPress={() => switchMode('stock-take')}
+            fill={false}
+          />
+          {canClearShelf ? (
+            <ModeButton
+              label="Clear Shelf"
+              active={mode === 'clear-shelf'}
+              onPress={() => switchMode('clear-shelf')}
+              fill={false}
+            />
+          ) : null}
+        </ScrollView>
       )}
 
       {mode === 'stock-take' ? (
@@ -420,6 +481,58 @@ export function KarenShelfOperationsScreen({
           </Card>
 
           {lastTransferOutcome ? <TransferOutcomeCard outcome={lastTransferOutcome} /> : null}
+        </>
+      ) : mode === 'clear-shelf' ? (
+        <>
+          <Card title="Shelf">
+            <ScanField
+              ref={clearShelfScanRef}
+              onScan={onClearShelfScan}
+              autoFocus={!clearShelfId}
+              placeholder="Scan shelf QR"
+              value={clearShelfId ?? undefined}
+              editable={!clearShelfLoading}
+            />
+            {clearShelfId ? (
+              <View style={s.shelfStatusRow}>
+                <Text style={s.shelfStatusLabel} numberOfLines={2}>
+                  {clearShelfLoading
+                    ? 'Scanning…'
+                    : `${clearShelfItems.length} bucket${clearShelfItems.length === 1 ? '' : 's'} on ${clearShelfId}`}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    resetClearShelfScan();
+                    clearShelfScanRef.current?.clear();
+                    focusWhenReady(clearShelfScanRef);
+                  }}
+                  hitSlop={8}
+                >
+                  <Text style={s.changeLink}>Change shelf</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {clearShelfError ? <Alert tone="danger">{clearShelfError}</Alert> : null}
+          </Card>
+
+          {clearShelfId && !clearShelfLoading ? (
+            <FlatList<ShelfClearItem>
+              style={s.flex}
+              data={clearShelfItems}
+              keyExtractor={(item) => item.name}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={s.muted}>Nothing left on this shelf.</Text>
+              }
+              renderItem={({ item }) => (
+                <ClearShelfItemRow
+                  item={item}
+                  busy={clearingItemName === item.name}
+                  onClear={() => onClearItem(item)}
+                />
+              )}
+            />
+          ) : null}
         </>
       ) : !only ? (
         // Shelf Operations' Issue Offline: no OPL -- the bucket just comes off its shelf.
@@ -802,14 +915,22 @@ function ModeButton({
   label,
   active,
   onPress,
+  fill = true,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  /** Stretch to share the row equally (the default, matching every existing
+   *  2-3-choice toggle). The top, scrollable tab row opts out (`fill={false}`)
+   *  so each pill sizes to its own label instead of being squeezed as tabs
+   *  are added. */
+  fill?: boolean;
 }) {
   return (
-    <Pressable style={[s.modeButton, active && s.modeButtonActive]} onPress={onPress}>
-      <Text style={[s.modeButtonLabel, active && s.modeButtonLabelActive]}>{label}</Text>
+    <Pressable style={[s.modeButton, fill && s.modeButtonFill, active && s.modeButtonActive]} onPress={onPress}>
+      <Text style={[s.modeButtonLabel, active && s.modeButtonLabelActive]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -912,6 +1033,35 @@ function StockTakeScanRowView({ row }: { row: StockTakeScanRow }) {
   );
 }
 
+function ClearShelfItemRow({
+  item,
+  busy,
+  onClear,
+}: {
+  item: ShelfClearItem;
+  busy: boolean;
+  onClear: () => void;
+}) {
+  const detail = [item.variety, item.stemLength, `${item.stemQty} stems`].filter(Boolean).join(' · ');
+  return (
+    <View style={s.stockTakeRow}>
+      <View style={s.stockTakeHeaderRow}>
+        <Text style={s.stockTakeBucketId}>{item.bucketId}</Text>
+        <Button
+          label="Remove"
+          onPress={onClear}
+          loading={busy}
+          disabled={busy}
+          variant="outline"
+          color={COLORS.danger}
+          size="sm"
+        />
+      </View>
+      <Text style={s.stockTakeDetail}>{detail || '—'}</Text>
+    </View>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.detailRow}>
@@ -937,7 +1087,8 @@ const s = StyleSheet.create({
   farmBannerFarm: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
   teamSelect: { width: 170, maxWidth: '55%', marginLeft: 12 },
-  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  modeRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  modeRowScroll: { flexGrow: 0 },
   noMargin: { marginBottom: 0 },
   noTopMargin: { marginTop: 0 },
   sheetLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, marginBottom: 6 },
@@ -982,15 +1133,18 @@ const s = StyleSheet.create({
   pickedVar: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text, marginTop: 2 },
   filterLabel: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginBottom: 6 },
   modeButton: {
-    flex: 1,
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderRadius: 8,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: COLORS.border,
-    alignItems: 'center',
   },
+  /** The handful of fixed, equal-choice toggles (delivery date, "can't issue
+   *  it?" reason) share the row evenly; the scrollable top tab row opts out
+   *  so a pill sizes to its own label instead of shrinking as tabs are added. */
+  modeButtonFill: { flex: 1 },
   modeButtonActive: { backgroundColor: COLORS.text, borderColor: COLORS.text },
   modeButtonLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text, textAlign: 'center' },
   modeButtonLabelActive: { color: COLORS.surface },

@@ -36,6 +36,27 @@ export type RawStockTakeSyncResponse = {
 
 export type RawColdStore = { name: string };
 
+export type RawShelfClearItem = {
+  name?: string;
+  bucket_id?: string;
+  variety?: string;
+  stem_qty?: number;
+  stem_length?: string;
+  farm?: string;
+  greenhouse?: string;
+  warehouse?: string;
+  harvest_date?: string;
+  cut_stage?: string;
+};
+
+export type RawShelfClearResponse = {
+  status?: 'success' | 'not_found' | 'error' | string;
+  message?: string;
+  shelf?: string;
+  items?: RawShelfClearItem[];
+  cleared?: string;
+};
+
 export type TransferReason =
   | 'bucket_id_not_null'
   | 'to_shelf_id_not_null'
@@ -326,6 +347,32 @@ export const karenShelfOperationsApi = {
       validateStatus: () => true,
     });
     const unwrapped = res as { data?: RawStockTakeSyncResponse } & RawStockTakeSyncResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
+  /** Clear Shelf (Shelf Clearer role only) — scan a shelf, remove one bucket
+   *  row at a time. Both endpoints are "emergency" Server Scripts on the
+   *  Frappe side (no `upande_quality.mobile.api.` module path), role-gated
+   *  server-side too since the mobile gate alone is never enough. */
+  async getShelfItemsForClearing(shelf: string): Promise<RawShelfClearResponse> {
+    const res = await api<{ data?: RawShelfClearResponse } | RawShelfClearResponse>({
+      method: 'POST',
+      url: '/api/method/getShelfItemsForClearing',
+      data: { shelf },
+      validateStatus: () => true,
+    });
+    const unwrapped = res as { data?: RawShelfClearResponse } & RawShelfClearResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
+  async clearShelfItem(shelfItemName: string): Promise<RawShelfClearResponse> {
+    const res = await api<{ data?: RawShelfClearResponse } | RawShelfClearResponse>({
+      method: 'POST',
+      url: '/api/method/clearShelfItem',
+      data: { shelf_item: shelfItemName },
+      validateStatus: () => true,
+    });
+    const unwrapped = res as { data?: RawShelfClearResponse } & RawShelfClearResponse;
     return unwrapped.data ?? unwrapped;
   },
 };
