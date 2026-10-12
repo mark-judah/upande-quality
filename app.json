@@ -33,10 +33,14 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.REQUEST_INSTALL_PACKAGES"
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "versionCode": 105110
     },
@@ -102,7 +106,7 @@
     "runtimeVersion": "101.1",
     "updates": {
       "enabled": true,
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.1/manifest.json",
+      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
