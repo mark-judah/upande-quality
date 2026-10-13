@@ -60,7 +60,7 @@ type OplTripMap = Record<string, OplTripInfo>;
 
 export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const scanRef = useRef<ScanFieldHandle>(null);
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
   const [tab, setTabState] = useState<Tab>('requests');
   // The bar moves at once (`picked`); the tab's content follows as a transition, so
   // a heavy list never holds up the tap. A tab is mounted the first time it opens and
@@ -425,7 +425,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     setReplacingId(null);
     replaceBusy.current = false;
     if (!found.ok) {
-      showError(found.message);
+      if (found.info) showInfo(found.message);
+      else showError(found.message);
       return;
     }
     // No match still opens the sheet: the bucket can be marked not found there.
@@ -1608,36 +1609,38 @@ function OplCard({
           </View>
         </View>
         {/* Variety and stem length, with Info (replace / not found) on the same line (not beside the
-            shelf and bucket). */}
-        <View style={s.metaReplaceRow}>
-          <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]}>
-            {bucketMeta(b.variety, b.stemLength)}
-            {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
-          </Text>
-          {b.asap && !b.scanned ? (
-            // A quality-issue replacement the packhouse is waiting on: load it first.
-            <View style={s.asapPill}>
-              <Text style={s.asapPillText}>ASAP</Text>
-            </View>
-          ) : null}
-          {!b.scanned ? (
-            <Pressable
-              onPress={() => onReplace(b)}
-              disabled={replacingId !== null}
-              hitSlop={8}
-              style={s.replaceBtn}
-            >
-              {replacingId === b.id ? (
-                <ActivityIndicator size="small" color={COLORS.text} />
-              ) : (
-                <>
-                  <Ionicons name="information-circle-outline" size={14} color={COLORS.text} />
-                  <Text style={s.changeLink}>Info</Text>
-                </>
-              )}
-            </Pressable>
-          ) : null}
-        </View>
+            shelf and bucket). On a trolley already: just the struck-through shelf and bucket. */}
+        {b.scanned && !b.notFound ? null : (
+          <View style={s.metaReplaceRow}>
+            <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]}>
+              {bucketMeta(b.variety, b.stemLength)}
+              {b.notFound ? <Text style={s.bNotFound}>  · not found</Text> : null}
+            </Text>
+            {b.asap && !b.scanned ? (
+              // A quality-issue replacement the packhouse is waiting on: load it first.
+              <View style={s.asapPill}>
+                <Text style={s.asapPillText}>ASAP</Text>
+              </View>
+            ) : null}
+            {!b.scanned ? (
+              <Pressable
+                onPress={() => onReplace(b)}
+                disabled={replacingId !== null}
+                hitSlop={8}
+                style={s.replaceBtn}
+              >
+                {replacingId === b.id ? (
+                  <ActivityIndicator size="small" color={COLORS.text} />
+                ) : (
+                  <>
+                    <Ionicons name="information-circle-outline" size={14} color={COLORS.text} />
+                    <Text style={s.changeLink}>Info</Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1821,7 +1824,7 @@ function TrolleyTab({
   // Loaded onto the truck but not dispatched yet: stays here (the dashboard sends it
   // on its way), so only the orders still on trolleys can be loaded.
   // One button loads every order on the trolley — no button per order.
-  const toLoad = items.filter((o) => !o.loadedToTruck);
+  const toLoad = items.filter((o) => !o.loadedToTruck && o.ownPliIds.length > 0);
   return (
     <>
       {toLoad.length ? (

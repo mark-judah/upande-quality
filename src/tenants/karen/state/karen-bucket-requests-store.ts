@@ -76,7 +76,7 @@ type State = {
     pliId: string,
   ) => Promise<
     | { ok: true; neededQty: number | null; candidates: ReplacementCandidate[] }
-    | { ok: false; message: string }
+    | { ok: false; message: string; info?: boolean }
   >;
   /** `pending`: no reply came back, so the swap may still land server-side. */
   replaceBucket: (
@@ -546,13 +546,18 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   loadAllToTruck: async (opls, truck) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
-    const pliIds = opls.flatMap((o) => o.pliIds);
+    // Only this phone's trolleys: another phone's trolley may not be at this truck.
+    const pliIds = opls.flatMap((o) => o.ownPliIds ?? o.pliIds);
     if (!pliIds.length) return { ok: false, message: 'Nothing to load.' };
     set({ syncingOpl: opls.length === 1 ? opls[0].oplName : '*' });
     try {
       // One action: stamp the truck onto the rows, then send them on their way.
       const loaded = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded', truck });
       if (loaded.kind !== 'ok') return { ok: false, message: loaded.message };
+      // Refused buckets (already on another truck, or at the packhouse) stay where they are.
+      const refused = loaded.conflicts.map((c) =>
+        c.reason === 'on_truck' ? `${c.bucket} is on ${c.truck ?? 'another truck'}` : `${c.bucket} is at the packhouse`,
+      );
       for (const o of opls) await db.markLoadedLocal(o.oplName);
       const transit = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'transit' });
       if (transit.kind !== 'ok') {
@@ -564,7 +569,10 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       for (const o of opls) await db.markInTransitLocal(o.oplName);
       await get().refresh();
       const what = opls.length === 1 ? opls[0].orderName : `${opls.length} orders`;
-      return { ok: true, message: `${what} loaded to ${truck} — in transit.` };
+      return {
+        ok: true,
+        message: `${what} loaded to ${truck} — in transit.${refused.length ? ` Not loaded: ${refused.join('; ')}.` : ''}`,
+      };
     } catch (e) {
       return { ok: false, message: (e as Error)?.message || 'Load failed.' };
     } finally {
@@ -577,6 +585,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
     try {
       const res = await karenBucketRequestsRepository.findBucketReplacement(pliId);
+      if (res.kind === 'info') {
+        // Not missing. On a trolley / truck (another phone loaded it): struck through as
+        // added. Shelved or issued at the packhouse: nothing left to send -- dropped here.
+        if (res.moved === 'issued' || res.moved === 'shelved') await db.removeUnscannedByPli(pliId);
+        else await db.markScannedByPli(pliId);
+        await get().refresh();
+        return { ok: false, info: true, message: res.message };
+      }
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       return { ok: true, neededQty: res.neededQty, candidates: res.candidates };
     } catch (e) {
