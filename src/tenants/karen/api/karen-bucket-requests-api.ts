@@ -32,6 +32,8 @@ export type RawAllocationItem = {
   delivery_date?: string;
   /** 'ASAP': a quality-issue replacement the packhouse needs on the next truck. */
   priority?: string | null;
+  /** 1 once the bucket is on a trolley (scanned on any phone). */
+  loaded_in_trolley?: number;
 };
 
 export type RawAllocationResponse = {
@@ -193,6 +195,8 @@ export type RawBucketReplacementResponse = {
     variety?: string;
     /** Every matching bucket, best first (newer servers only). */
     candidates?: RawReplacementCandidate[];
+    /** status "info": where the bucket went -- issued / shelved / in_transit / loaded_in_trolley. */
+    moved?: string | null;
   };
 };
 
@@ -499,11 +503,12 @@ export const karenBucketRequestsApi = {
   },
 
   /** The matching shelved bucket that would replace a requested one. */
-  findRequestedBucketReplacement(pickListItem: string): Promise<RawBucketReplacementResponse> {
+  findRequestedBucketReplacement(pickListItem: string, farm?: string): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.findRequestedBucketReplacement',
-      data: { data: { pick_list_item: pickListItem } },
+      // farm: this station -- replacements only come from here.
+      data: { data: { pick_list_item: pickListItem, farm: farm || undefined } },
       validateStatus: () => true,
     });
   },
@@ -516,6 +521,7 @@ export const karenBucketRequestsApi = {
     notes?: string,
     /** Wrong variety: what the old bucket really holds, to correct its record. */
     correction?: { variety?: string; stemLength?: string },
+    farm?: string,
   ): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
@@ -528,6 +534,7 @@ export const karenBucketRequestsApi = {
           notes,
           variety: correction?.variety || undefined,
           stem_length: correction?.stemLength || undefined,
+          farm: farm || undefined,
         },
       },
       // The swap posts several stock entries in one transaction; allow it time.

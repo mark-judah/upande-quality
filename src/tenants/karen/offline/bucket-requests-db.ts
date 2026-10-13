@@ -59,6 +59,8 @@ export type TrolleyOpl = {
   arrived: boolean;
   /** Pick List Item names of this OPL's buckets — the sync target. */
   pliIds: string[];
+  /** Only the ones on this phone's trolleys: what this phone may load onto a truck. */
+  ownPliIds: string[];
 };
 
 export type ScanResult =
@@ -77,6 +79,9 @@ export type Vehicle = { name: string; licensePlate: string };
 let _farm = '';
 export function setActiveFarm(farm: string): void {
   _farm = (farm || '').trim();
+}
+export function activeFarm(): string {
+  return _farm;
 }
 /** Local YYYY-MM-DD, `addDays` from today. */
 export function isoDay(addDays = 0): string {
@@ -320,12 +325,34 @@ function mergeBucketRows(rows: AllocationItem[]): AllocationItem[] {
     }
     m.qty += r.qty || 0;
     if (r.asap) m.head.asap = true;
+    if (r.onTrolley) m.head.onTrolley = true;
     if (!m.parts.includes(part)) m.parts.push(part);
   }
   return [...byBucket.values()].map(({ head, qty, parts }) =>
     parts.length > 1
       ? { ...head, qty, varietyLabel: parts.join(' + '), variety: parts.join(' + '), stemLength: '' }
       : { ...head, qty },
+  );
+}
+
+/** Buckets the server already has on a trolley (scanned on another phone) are no
+ *  longer requests here: mark them added. A row only the server marked (no trolley of
+ *  this phone, not on a truck) follows the server back too, when the server takes it
+ *  off the trolley again (e.g. a replacement). */
+async function markOnTrolley(d: SQLite.SQLiteDatabase, oplName: string, rows: AllocationItem[], now: string) {
+  if (!rows.some((r) => r.onTrolley !== undefined)) return; // older server: no trolley state sent
+  const loaded = [...new Set(rows.filter((r) => r.onTrolley).map((r) => r.bucketId.toUpperCase()))];
+  await d.runAsync(
+    `UPDATE bucket SET scanned = 0, scanned_at = NULL
+     WHERE opl_name = ? AND scanned = 1 AND trolley_id IS NULL AND not_found = 0 AND truck_loaded = 0
+       AND UPPER(bucket_id) NOT IN (${['', ...loaded].map(() => '?').join(',')})`,
+    [oplName, '', ...loaded],
+  );
+  if (!loaded.length) return;
+  await d.runAsync(
+    `UPDATE bucket SET scanned = 1, scanned_at = COALESCE(scanned_at, ?)
+     WHERE opl_name = ? AND scanned = 0 AND not_found = 0 AND UPPER(bucket_id) IN (${loaded.map(() => '?').join(',')})`,
+    [now, oplName, ...loaded],
   );
 }
 
@@ -352,6 +379,9 @@ export async function downloadOpls(
       [oplName],
     );
     if (existing && existing.c > 0) {
+      // Follow the server's trolley state first, so a bucket it took off a trolley
+      // (replaced) is unscanned again before the replacement is followed below.
+      await markOnTrolley(d, oplName, rows, now);
       // Already on device: backfill the source farm on rows downloaded before it
       // existed, and follow a server-side bucket replacement on unscanned rows.
       for (const r of rows) {
@@ -424,6 +454,7 @@ export async function downloadOpls(
           [oplName, farm, ...keep],
         );
       }
+      await markOnTrolley(d, oplName, rows, now);
       refreshedOpls.push(oplName);
       continue;
     }
@@ -435,7 +466,7 @@ export async function downloadOpls(
     const distinctBuckets = new Set(rows.map((r) => r.bucketId)).size;
     await tx(d, async () => {
       await d.runAsync(
-        'INSERT INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets, delivery_date) VALUES (?,?,?,?,?,?,?,?,?)',
+        'INSERT OR IGNORE INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets, delivery_date) VALUES (?,?,?,?,?,?,?,?,?)',
         [
           oplName,
           head.orderName || oplName,
@@ -466,6 +497,7 @@ export async function downloadOpls(
         );
       }
     });
+    await markOnTrolley(d, oplName, rows, now);
     insertedOpls.push(oplName);
   }
   return { inserted: insertedOpls.length, skipped: refreshedOpls.length, insertedOpls, refreshedOpls };
@@ -608,6 +640,16 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
     const pliIds = Array.from(
       new Set(brows.filter((b) => b.not_found !== 1).map((b) => b.pick_list_item_id).filter((p): p is string => !!p)),
     );
+    // Buckets another phone put on its trolley (server-marked, no trolley here) are that
+    // phone's to load: its trolley may not be at this truck.
+    const ownPliIds = Array.from(
+      new Set(
+        brows
+          .filter((b) => b.not_found !== 1 && !!b.trolley_id)
+          .map((b) => b.pick_list_item_id)
+          .filter((p): p is string => !!p),
+      ),
+    );
     out.push({
       oplName: o.opl_name,
       orderName: o.order_name || o.opl_name,
@@ -615,6 +657,7 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
       customer: o.customer || '',
       trolleys,
       buckets: brows.map(mapBucketRow),
+      ownPliIds,
       loadedToTruck: o.loaded_to_truck === 1,
       inTransit: o.in_transit === 1,
       arrived: o.arrived === 1,
@@ -743,6 +786,22 @@ export async function applyServerStates(states: Record<string, OplServerState>):
     changed++;
   }
   return changed;
+}
+
+/** The server says this requested bucket is already on its way (trolley / truck):
+ *  count it as added. */
+export async function markScannedByPli(pliId: string): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    'UPDATE bucket SET scanned = 1, scanned_at = COALESCE(scanned_at, ?) WHERE pick_list_item_id = ? AND scanned = 0 AND not_found = 0',
+    [new Date().toISOString(), pliId],
+  );
+}
+
+/** The requested bucket was shelved / issued at the packhouse: not a request any more. */
+export async function removeUnscannedByPli(pliId: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM bucket WHERE pick_list_item_id = ? AND scanned = 0 AND not_found = 0', [pliId]);
 }
 
 /** Point a downloaded bucket row at its server-side replacement. */

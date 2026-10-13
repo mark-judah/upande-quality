@@ -8,6 +8,7 @@ import {
   type RawPlannedTripStop,
   type RawReplacementCandidate,
 } from '../api/karen-bucket-requests-api';
+import { activeFarm } from '../offline/bucket-requests-db';
 
 /** Pick-list row as the UI consumes it (snake_case → camelCase, with a stable
  *  per-row key). */
@@ -35,6 +36,9 @@ export type AllocationItem = {
   pickListItemId: string;
   /** A quality-issue replacement found during packing: load it first. */
   asap: boolean;
+  /** Already on a trolley on the server (this phone or another one); undefined from
+   *  servers that don't send it. */
+  onTrolley?: boolean;
 };
 
 export type SavedTrolleyBucket = {
@@ -266,6 +270,7 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     pickListItemId: r.pick_list_item_id ?? '',
     farm: r.farm || (r.warehouse ?? '').split(' ')[0] || '',
     asap: r.priority === 'ASAP',
+    onTrolley: r.loaded_in_trolley == null ? undefined : Number(r.loaded_in_trolley) === 1,
   };
 }
 
@@ -565,10 +570,13 @@ export const karenBucketRequestsRepository = {
     pickListItem: string,
   ): Promise<
     | { kind: 'ok'; neededQty: number | null; candidates: ReplacementCandidate[] }
+    | { kind: 'info'; message: string; moved: string }
     | { kind: 'error'; message: string }
   > {
-    const raw = await karenBucketRequestsApi.findRequestedBucketReplacement(pickListItem);
+    const raw = await karenBucketRequestsApi.findRequestedBucketReplacement(pickListItem, activeFarm());
     const m = raw.message ?? {};
+    // Not missing: on a trolley / truck, shelved or issued -- where it is, not an error.
+    if (m.status === 'info') return { kind: 'info', message: m.message ?? '', moved: m.moved ?? '' };
     if (m.status === 'success' && m.found && m.new_bucket) {
       const toCandidate = (c: RawReplacementCandidate): ReplacementCandidate => ({
         bucketId: c.new_bucket ?? '',
@@ -768,7 +776,14 @@ export const karenBucketRequestsRepository = {
     | { kind: 'ok'; newBucket: string; shelf: string; stemLength: string; message: string }
     | { kind: 'error'; message: string }
   > {
-    const raw = await karenBucketRequestsApi.replaceRequestedBucket(pickListItem, newBucketId, reason, notes, correction);
+    const raw = await karenBucketRequestsApi.replaceRequestedBucket(
+      pickListItem,
+      newBucketId,
+      reason,
+      notes,
+      correction,
+      activeFarm(),
+    );
     const m = raw.message ?? {};
     if (m.status === 'success' && m.new_bucket) {
       return {
