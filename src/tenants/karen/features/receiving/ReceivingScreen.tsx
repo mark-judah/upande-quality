@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
@@ -79,6 +79,14 @@ export function KarenReceivingScreen() {
   const dismissStalePopup = useCallback(() => {
     setStalePopup(null);
     focusWhenReady(scanRef);
+  }, []);
+
+  /** Closes either popup without refocusing the scan field (we're leaving the
+   *  screen) — clearing the received popup also cancels its auto-hide timer. */
+  const openEditDetails = useCallback((bucketId: string) => {
+    setReceivedPopup(null);
+    setStalePopup(null);
+    router.push(`/edit-details?bucket=${encodeURIComponent(bucketId)}&t=${Date.now()}` as never);
   }, []);
 
   const handleConfirmReceive = async () => {
@@ -161,10 +169,11 @@ export function KarenReceivingScreen() {
         </Pressable>
       ) : null}
 
-      <ReceivedPopup outcome={receivedPopup} onDismiss={dismissPopup} />
+      <ReceivedPopup outcome={receivedPopup} onDismiss={dismissPopup} onEdit={openEditDetails} />
       <StaleHarvestPopup
         outcome={stalePopup}
         onDismiss={dismissStalePopup}
+        onEdit={openEditDetails}
         onConfirm={handleConfirmReceive}
         confirming={confirming}
       />
@@ -175,9 +184,11 @@ export function KarenReceivingScreen() {
 function ReceivedPopup({
   outcome,
   onDismiss,
+  onEdit,
 }: {
   outcome: Extract<ReceivingOutcome, { kind: 'received' }> | null;
   onDismiss: () => void;
+  onEdit: (bucketId: string) => void;
 }) {
   // Auto-hide after 1.7s so the operator can keep scanning without tapping
   // "Next bucket". Manual dismiss (tap/button) still works and clears the timer.
@@ -194,7 +205,17 @@ function ReceivedPopup({
       icon={{ name: 'checkmark-circle', tone: 'success' }}
       title="Bucket received"
       subtitle={outcome?.bucketId}
-      actions={<Button label="Next bucket" onPress={onDismiss} style={{ flex: 1 }} />}
+      actions={
+        <>
+          <Button
+            label="Edit details"
+            variant="outline"
+            onPress={() => outcome && onEdit(outcome.bucketId)}
+            style={{ flex: 1 }}
+          />
+          <Button label="Next bucket" onPress={onDismiss} style={{ flex: 1 }} />
+        </>
+      }
     >
       {outcome ? (
         <DialogList>
@@ -219,11 +240,13 @@ function ReceivedPopup({
 function StaleHarvestPopup({
   outcome,
   onDismiss,
+  onEdit,
   onConfirm,
   confirming,
 }: {
   outcome: Extract<ReceivingOutcome, { kind: 'already_received' } | { kind: 'no_harvest_on_date' }> | null;
   onDismiss: () => void;
+  onEdit: (bucketId: string) => void;
   onConfirm: () => void;
   confirming: boolean;
 }) {
@@ -244,7 +267,15 @@ function StaleHarvestPopup({
             <Button label="Receive anyway" onPress={onConfirm} loading={confirming} style={{ flex: 1 }} />
           </>
         ) : (
-          <Button label="OK" onPress={onDismiss} style={{ flex: 1 }} />
+          <>
+            <Button
+              label="Edit details"
+              variant="outline"
+              onPress={() => outcome && onEdit(outcome.bucketId)}
+              style={{ flex: 1 }}
+            />
+            <Button label="OK" onPress={onDismiss} style={{ flex: 1 }} />
+          </>
         )
       }
     >

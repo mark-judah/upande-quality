@@ -179,6 +179,13 @@ export function SideMenu({
               </View>
 
               <View style={s.nav}>
+                <Pressable
+                  style={({ pressed }) => [s.navItem, pressed && s.navItemPressed]}
+                  onPress={() => go('')}
+                >
+                  <Ionicons name="home-outline" size={20} color={COLORS.textSecondary} />
+                  <Text style={s.navLabel}>Home</Text>
+                </Pressable>
                 {items.length === 0 ? (
                   <Text style={s.empty}>No screens configured for this tenant.</Text>
                 ) : (

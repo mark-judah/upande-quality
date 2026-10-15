@@ -47,6 +47,8 @@ type Props = {
   /** Small inline field (a header or banner): no label above it — `label` only
    *  titles the picker sheet. */
   compact?: boolean;
+  /** Just the value as text: no box, border or chevron (e.g. a header filter). */
+  plain?: boolean;
   onChange: (value: string) => void;
 };
 
@@ -59,6 +61,7 @@ export function Dropdown({
   searchable = true,
   disabled,
   compact,
+  plain,
   onChange,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -79,7 +82,7 @@ export function Dropdown({
       {label && !compact ? <Text style={s.label}>{label}</Text> : null}
       <Pressable
         onPress={() => !disabled && setOpen(true)}
-        style={[s.field, compact && s.fieldCompact, disabled && s.fieldDisabled]}
+        style={plain ? s.fieldPlain : [s.field, compact && s.fieldCompact, disabled && s.fieldDisabled]}
       >
         {iconName ? (
           <MaterialCommunityIcons
@@ -94,18 +97,21 @@ export function Dropdown({
             s.value,
             compact && s.valueCompact,
             !selected && s.placeholder,
-            !iconName && { paddingLeft: compact ? spacing.sm : spacing.md },
+            !iconName && !plain && { paddingLeft: compact ? spacing.sm : spacing.md },
+            plain && s.valuePlain,
           ]}
           numberOfLines={1}
         >
           {selected ? <OptionLabel option={selected} /> : placeholder ?? 'Select…'}
         </Text>
-        <Ionicons
-          name="chevron-down"
-          size={compact ? 14 : 18}
-          color={COLORS.textMuted}
-          style={{ marginRight: compact ? spacing.sm : spacing.md }}
-        />
+        {plain ? null : (
+          <Ionicons
+            name="chevron-down"
+            size={compact ? 14 : 18}
+            color={COLORS.textMuted}
+            style={{ marginRight: compact ? spacing.sm : spacing.md }}
+          />
+        )}
       </Pressable>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent>
@@ -208,6 +214,8 @@ const s = StyleSheet.create({
     minHeight: 48,
   },
   fieldDisabled: { opacity: 0.55 },
+  fieldPlain: { flexDirection: 'row', alignItems: 'center' },
+  valuePlain: { paddingVertical: 0 },
   value: {
     flex: 1,
     fontFamily: fontFamily.regular,
