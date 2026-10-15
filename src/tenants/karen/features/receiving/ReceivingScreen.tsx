@@ -282,6 +282,7 @@ function StaleHarvestPopup({
       {outcome ? (
         <DialogList>
           <DialogRow label="Variety" value={outcome.details.variety} />
+          <DialogRow label="Stem length" value={outcome.details.stemLength} />
           <DialogRow label="Greenhouse" value={outcome.details.greenhouse} />
           <DialogRow label="Farm" value={outcome.details.farm} />
           <DialogRow label="Harvested" value={outcome.details.harvestDate} />
