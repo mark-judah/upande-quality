@@ -34,6 +34,10 @@ export type RawAllocationItem = {
   priority?: string | null;
   /** 1 once the bucket is on a trolley (scanned on any phone). */
   loaded_in_trolley?: number;
+  /** The variety's colour (hex) from the Variety Tree. */
+  variety_color?: string | null;
+  /** 0: allocated at this farm but on no truck trip yet (not loadable); older servers omit it. */
+  scheduled?: number;
 };
 
 export type RawAllocationResponse = {
@@ -114,6 +118,8 @@ export type RawPlannedTripStop = {
   planned?: number;
   total?: number;
   awaiting?: number;
+  /** Only on a trolley at the farm (staging), not on the truck yet. */
+  trolley?: number;
   loaded?: number;
   transit?: number;
   shelved?: number;
@@ -151,6 +157,9 @@ export type RawPlannedTrip = {
   run_chain?: string;
   /** Route time window, "06:00–18:00". */
   window?: string;
+  /** When the trip was planned / scheduled (full and released), "YYYY-MM-DD HH:MM:SS". */
+  created_at?: string;
+  scheduled_at?: string;
   /** current = the run the truck is loading now; later = waits for an earlier run. */
   run_state?: string;
   /** The run it waits for (run_state later). */
@@ -172,8 +181,10 @@ export type RawPlannedTripsResponse = {
     schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number }>;
     /** Live state of this farm's buckets per OPL the app sent in `opls`. */
     opl_states?: Record<string, 'waiting' | 'loaded' | 'transit' | 'arrived' | string>;
-    /** 1: load in any order; 0: each team's orders in schedule order. */
-    allow_out_of_sequence?: number;
+    /** 1: orders waiting here but on no trip yet are sent too (scheduled 0). */
+    show_unscheduled?: number;
+    /** 1: a trip's buckets are listed per order (varieties grouped under it). */
+    group_by_order?: number;
   };
 };
 
@@ -256,6 +267,11 @@ export type RawShelvedTrip = {
   buckets?: {
     bucket?: string;
     opl?: string;
+    /** What the bucket holds for its order (newer servers). */
+    variety?: string;
+    stem_length?: string;
+    stems?: number;
+    variety_color?: string;
     order_name?: string;
     customer?: string;
     shelved?: boolean;
@@ -493,6 +509,9 @@ export const karenBucketRequestsApi = {
     /** A trolley scan flagged as it happens: the bucket stays on its farm shelf
      *  (Load to truck takes it off). */
     keep_shelf?: 1;
+    /** The trip the attendant has open: a bucket of an order on another trip is
+     *  refused (conflict reason other_trip, truck = the trip it is on). */
+    trip?: string;
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
