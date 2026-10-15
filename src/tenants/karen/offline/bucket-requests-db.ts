@@ -25,6 +25,10 @@ export type ReqBucket = {
   pliId: string | null;
   /** A quality-issue replacement the packhouse needs on the next truck. */
   asap: boolean;
+  /** On a truck trip planned to this farm; false = waiting here, not loadable yet. */
+  scheduled: boolean;
+  /** The variety's colour (hex) from the Variety Tree; '' when none is set. */
+  varietyColor?: string;
 };
 
 /** An OPL with its buckets + scan progress. */
@@ -39,6 +43,8 @@ export type ReqOpl = {
   scanned: number;
   /** Unscanned ASAP buckets: the order goes to the top of the list. */
   asap: number;
+  /** Any of its buckets here is on a truck trip; false = shown greyed under Not Scheduled. */
+  scheduled: boolean;
   buckets: ReqBucket[];
 };
 
@@ -65,7 +71,7 @@ export type TrolleyOpl = {
 
 export type ScanResult =
   | { ok: true; oplName: string; oplComplete: boolean; bucketId: string; rowId: number; pliId: string | null }
-  | { ok: false; reason: 'not_found' | 'already'; message: string };
+  | { ok: false; reason: 'not_found' | 'already' | 'not_scheduled'; message: string };
 
 /** A dispatch/collection truck, cached offline so the Load-to-truck picker
  *  works without connectivity. `name` is the Vehicle docname (= license plate). */
@@ -288,6 +294,14 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   if (!bcols.some((c) => c.name === 'truck_transit')) {
     await addColumn(d, 'ALTER TABLE bucket ADD COLUMN truck_transit INTEGER NOT NULL DEFAULT 0');
   }
+  // 0 = allocated here but on no truck trip yet: listed greyed, never loadable.
+  if (!bcols.some((c) => c.name === 'scheduled')) {
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 1');
+  }
+  // The variety's colour (Variety Tree: Item colour), for the per-variety lists.
+  if (!bcols.some((c) => c.name === 'color')) {
+    await addColumn(d, 'ALTER TABLE bucket ADD COLUMN color TEXT');
+  }
   // Once: carry the old order-level truck state onto the buckets, so orders already
   // loaded / in transit stay there. Only for orders whose buckets on this device are
   // all one farm's — a two-farm order is left to the server's per-farm state (the
@@ -325,6 +339,7 @@ function mergeBucketRows(rows: AllocationItem[]): AllocationItem[] {
     }
     m.qty += r.qty || 0;
     if (r.asap) m.head.asap = true;
+    if (r.scheduled) m.head.scheduled = true;
     if (r.onTrolley) m.head.onTrolley = true;
     if (!m.parts.includes(part)) m.parts.push(part);
   }
@@ -412,7 +427,7 @@ export async function downloadOpls(
           `UPDATE bucket SET qty = ?, variety = ?, stem_length = ?,
              shelf = CASE WHEN scanned = 0 AND ? <> '' THEN ? ELSE shelf END,
              pick_list_item_id = COALESCE(NULLIF(?, ''), pick_list_item_id),
-             priority = ?
+             priority = ?, scheduled = ?, color = COALESCE(NULLIF(?, ''), color)
            WHERE opl_name = ? AND UPPER(bucket_id) = ?`,
           [
             r.qty || 0,
@@ -422,12 +437,14 @@ export async function downloadOpls(
             r.shelfLocation || '',
             r.pickListItemId || '',
             r.asap ? 'ASAP' : null,
+            r.scheduled ? 1 : 0,
+            r.varietyColor || '',
             oplName,
             r.bucketId.toUpperCase(),
           ],
         );
         await d.runAsync(
-          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,0)',
+          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scheduled, color, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)',
           [
             oplName,
             r.bucketId,
@@ -439,6 +456,8 @@ export async function downloadOpls(
             r.uom || '',
             r.pickListItemId || '',
             r.asap ? 'ASAP' : null,
+            r.scheduled ? 1 : 0,
+            r.varietyColor || null,
           ],
         );
       }
@@ -481,7 +500,7 @@ export async function downloadOpls(
       );
       for (const r of mergeBucketRows(rows)) {
         await d.runAsync(
-          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,0)',
+          'INSERT OR IGNORE INTO bucket (opl_name, bucket_id, variety, shelf, farm, stem_length, qty, uom, pick_list_item_id, priority, scheduled, color, scanned) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,0)',
           [
             oplName,
             r.bucketId,
@@ -493,6 +512,8 @@ export async function downloadOpls(
             r.uom || '',
             r.pickListItemId || '',
             r.asap ? 'ASAP' : null,
+            r.scheduled ? 1 : 0,
+            r.varietyColor || null,
           ],
         );
       }
@@ -517,6 +538,8 @@ type BucketRow = {
   trolley_id: string | null;
   pick_list_item_id: string | null;
   priority?: string | null;
+  scheduled?: number | null;
+  color?: string | null;
 };
 
 function mapBucketRow(r: BucketRow): ReqBucket {
@@ -534,6 +557,8 @@ function mapBucketRow(r: BucketRow): ReqBucket {
     trolleyId: r.trolley_id || null,
     pliId: r.pick_list_item_id || null,
     asap: r.priority === 'ASAP',
+    scheduled: r.scheduled !== 0,
+    varietyColor: r.color || '',
   };
 }
 
@@ -586,8 +611,10 @@ export async function listRequests(): Promise<OrderGroup[]> {
       total: o.total,
       scanned: o.scanned,
       asap: o.asap ?? 0,
+      scheduled: false,
       buckets: brows.map(mapBucketRow),
     };
+    opl.scheduled = !opl.buckets.length || opl.buckets.some((b) => b.scheduled);
     const g = groups.get(opl.orderName);
     if (g) g.opls.push(opl);
     else groups.set(opl.orderName, { orderName: opl.orderName, opls: [opl] });
@@ -858,7 +885,8 @@ export async function markInTransitLocal(oplName: string): Promise<void> {
  *  (the Trolley tab's "scanned/requested"). */
 /** `onTrip`: the picklists on a planned trip. When given, only those count, plus any
  *  already moving (scanned or on a truck) — the same picklists the Requests tab lists. */
-export async function counts(onTrip?: Set<string>): Promise<{
+/** `only`: count these picklists and nothing else (one trip's view). */
+export async function counts(onTrip?: Set<string>, only?: Set<string>): Promise<{
   requests: number;
   trolley: number;
   inTransit: number;
@@ -878,16 +906,22 @@ export async function counts(onTrip?: Set<string>): Promise<{
     scanned: number;
     on_truck: number;
     in_transit: number;
+    unscheduled: number;
   }>(
     `
     SELECT o.opl_name, (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total, ${truckState(fc)},
       (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned,
-      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.truck_transit = 1 AND ${fc}) AS on_truck
+      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.truck_transit = 1 AND ${fc}) AS on_truck,
+      (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scheduled = 0 AND ${fc}) AS unscheduled
     FROM opl o
     WHERE EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AND ${dc}`,
-    [...fa, ...fa, ...fa, ...fa, ...fa, ...fa, ...da],
+    [...fa, ...fa, ...fa, ...fa, ...fa, ...fa, ...fa, ...da],
   );
-  const rows = onTrip ? all.filter((r) => onTrip.has(r.opl_name) || r.scanned > 0 || r.in_transit === 1) : all;
+  // An order on no truck trip yet (every bucket unscheduled) is not requested yet.
+  const rows = all
+    .filter((r) => !(r.total > 0 && r.unscheduled >= r.total))
+    .filter((r) => !onTrip || onTrip.has(r.opl_name) || r.scanned > 0 || r.in_transit === 1)
+    .filter((r) => !only || only.has(r.opl_name));
   let requests = 0;
   let trolley = 0;
   let inTransit = 0;
@@ -912,6 +946,40 @@ export async function counts(onTrip?: Set<string>): Promise<{
     else if (r.in_transit === 1) inTransit++;
     else trolley++;
   }
+  // Bucket totals once per physical bucket: a bucket filling two orders has a row on
+  // each, but it is one bucket on the shelf, the trolley and the truck.
+  if (rows.length) {
+    const opls = rows.map((r) => r.opl_name);
+    const inTrolleyStage = rows.filter((r) => r.in_transit !== 1).map((r) => r.opl_name);
+    const ph = (n: number) => Array(n).fill('?').join(',');
+    const one = await d.getFirstAsync<{ all_b: number; added_b: number; transit_b: number }>(
+      `SELECT COUNT(DISTINCT UPPER(b.bucket_id)) AS all_b,
+              COUNT(DISTINCT CASE WHEN b.scanned = 1 THEN UPPER(b.bucket_id) END) AS added_b,
+              COUNT(DISTINCT CASE WHEN b.truck_transit = 1 THEN UPPER(b.bucket_id) END) AS transit_b
+       FROM bucket b WHERE b.opl_name IN (${ph(opls.length)}) AND ${fc}`,
+      [...opls, ...fa],
+    );
+    if (one) {
+      allBuckets = one.all_b;
+      addedBuckets = one.added_b;
+      transitBuckets = one.transit_b;
+    }
+    if (inTrolleyStage.length) {
+      const st = await d.getFirstAsync<{ total_b: number; scanned_b: number }>(
+        `SELECT COUNT(DISTINCT UPPER(b.bucket_id)) AS total_b,
+                COUNT(DISTINCT CASE WHEN b.scanned = 1 THEN UPPER(b.bucket_id) END) AS scanned_b
+         FROM bucket b WHERE b.opl_name IN (${ph(inTrolleyStage.length)}) AND ${fc}`,
+        [...inTrolleyStage, ...fa],
+      );
+      if (st) {
+        totalBuckets = st.total_b;
+        scannedBuckets = st.scanned_b;
+      }
+    } else {
+      totalBuckets = 0;
+      scannedBuckets = 0;
+    }
+  }
   return { requests, trolley, inTransit, scannedBuckets, totalBuckets, allBuckets, addedBuckets, transitBuckets };
 }
 
@@ -923,15 +991,21 @@ export async function upsertTrolley(trolleyId: string): Promise<void> {
   ]);
 }
 
-export async function scanBucket(bucketId: string, trolleyId: string): Promise<ScanResult> {
+/** `onlyOpls`: the picklists the bucket may be scanned for (the selected trip's), so a
+ *  bucket two orders request lands on the one this trip carries. */
+export async function scanBucket(bucketId: string, trolleyId: string, onlyOpls?: string[]): Promise<ScanResult> {
   const d = await db();
   const lc = bucketId.trim().toLowerCase();
   const [fc, fa] = farmCond();
+  const oc = onlyOpls?.length ? ` AND b.opl_name IN (${onlyOpls.map(() => '?').join(', ')})` : '';
   const row = await d.getFirstAsync<{ id: number; opl_name: string; pick_list_item_id: string | null }>(
-    `SELECT b.id, b.opl_name, b.pick_list_item_id FROM bucket b WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND ${fc} LIMIT 1`,
-    [lc, ...fa],
+    `SELECT b.id, b.opl_name, b.pick_list_item_id FROM bucket b
+     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 1 AND ${fc}${oc} LIMIT 1`,
+    [lc, ...fa, ...(onlyOpls?.length ? onlyOpls : [])],
   );
   if (!row) {
+    const waiting = await notScheduledOrder(bucketId);
+    if (waiting) return { ok: false, reason: 'not_scheduled', message: notScheduledMessage(bucketId) };
     const already = await d.getFirstAsync<{ trolley_id: string | null }>(
       `SELECT b.trolley_id FROM bucket b WHERE LOWER(b.bucket_id) = ? AND b.scanned = 1 AND ${fc} LIMIT 1`,
       [lc, ...fa],
@@ -963,32 +1037,59 @@ export async function scanBucket(bucketId: string, trolleyId: string): Promise<S
   return { ok: true, oplName: row.opl_name, oplComplete, bucketId, rowId: row.id, pliId: row.pick_list_item_id };
 }
 
-/** The team's earlier order (same delivery day) that still has buckets here to load:
- *  a team loads its schedule in order, #2 only once #1 is all on trolleys. Null when
- *  the bucket's order may be loaded now. */
-export async function sequenceBlock(
-  bucketId: string,
-): Promise<{ team: string; sequence: number; waitsFor: number; left: number } | null> {
+/** A picklist row a bucket (or a trolley) is for: its order, and whether it is an ASAP
+ *  replacement (that follows its order's trip). */
+export type BucketOrderRef = { oplName: string; orderName: string; asap: boolean };
+
+/** The picklists still waiting for this bucket here (unscanned, on a truck trip). */
+export async function bucketOrders(bucketId: string): Promise<BucketOrderRef[]> {
   const d = await db();
   const [fc, fa] = farmCond();
-  const cur = await d.getFirstAsync<{ team: string; sequence: number; dd: string | null }>(
-    `SELECT s.team, s.sequence, o.delivery_date AS dd FROM bucket b
-     JOIN opl_schedule s ON s.opl_name = b.opl_name AND s.scheduled = 1
-     LEFT JOIN opl o ON o.opl_name = b.opl_name
-     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND ${fc}
-     ORDER BY s.sequence ASC LIMIT 1`,
+  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; priority: string | null }>(
+    `SELECT b.opl_name, o.order_name, b.priority FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
+     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 1 AND ${fc}
+     ORDER BY b.id ASC`,
     [bucketId.trim().toLowerCase(), ...fa],
   );
-  if (!cur || !cur.team || cur.sequence <= 1) return null;
-  const earlier = await d.getFirstAsync<{ sequence: number; left: number }>(
-    `SELECT s.sequence, COUNT(*) AS "left" FROM opl_schedule s
-     JOIN bucket b ON b.opl_name = s.opl_name AND b.scanned = 0 AND ${fc}
-     LEFT JOIN opl o ON o.opl_name = s.opl_name
-     WHERE s.team = ? AND s.scheduled = 1 AND s.sequence < ? AND COALESCE(o.delivery_date, '') = COALESCE(?, '')
-     GROUP BY s.sequence ORDER BY s.sequence ASC LIMIT 1`,
-    [...fa, cur.team, cur.sequence, cur.dd],
+  return rows.map((r) => ({ oplName: r.opl_name, orderName: r.order_name || r.opl_name, asap: r.priority === 'ASAP' }));
+}
+
+/** The picklists of the buckets on a trolley right now (scanned here, not on a truck yet). */
+export async function trolleyOrders(trolleyId: string): Promise<BucketOrderRef[]> {
+  const d = await db();
+  const [fc, fa] = farmCond();
+  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; asap: number }>(
+    `SELECT b.opl_name, o.order_name, MAX(CASE WHEN b.priority = 'ASAP' THEN 1 ELSE 0 END) AS asap
+     FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
+     WHERE b.trolley_id = ? AND b.scanned = 1 AND b.not_found = 0 AND b.truck_loaded = 0 AND b.truck_transit = 0
+       AND ${fc}
+     GROUP BY b.opl_name, o.order_name`,
+    [trolleyId, ...fa],
   );
-  return earlier ? { team: cur.team, sequence: cur.sequence, waitsFor: earlier.sequence, left: earlier.left } : null;
+  return rows.map((r) => ({ oplName: r.opl_name, orderName: r.order_name || r.opl_name, asap: r.asap === 1 }));
+}
+
+/** The order a scanned bucket waits for when it is only requested by orders on no truck
+ *  trip yet (nothing loadable matches it); null otherwise. */
+export async function notScheduledOrder(bucketId: string): Promise<string | null> {
+  const d = await db();
+  const [fc, fa] = farmCond();
+  const lc = bucketId.trim().toLowerCase();
+  const loadable = await d.getFirstAsync<{ id: number }>(
+    `SELECT b.id FROM bucket b WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 1 AND ${fc} LIMIT 1`,
+    [lc, ...fa],
+  );
+  if (loadable) return null;
+  const row = await d.getFirstAsync<{ order_name: string | null; opl_name: string }>(
+    `SELECT o.order_name, b.opl_name FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
+     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 0 AND ${fc} LIMIT 1`,
+    [lc, ...fa],
+  );
+  return row ? row.order_name || row.opl_name : null;
+}
+
+export function notScheduledMessage(bucketId: string): string {
+  return `${bucketId.toUpperCase()} is not on this trip — it is not scheduled yet.`;
 }
 
 /** Undo a trolley scan (the server refused it: the bucket already went out). */

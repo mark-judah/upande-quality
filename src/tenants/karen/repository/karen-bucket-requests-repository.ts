@@ -39,6 +39,10 @@ export type AllocationItem = {
   /** Already on a trolley on the server (this phone or another one); undefined from
    *  servers that don't send it. */
   onTrolley?: boolean;
+  /** On a truck trip planned to this farm; false = waiting here, not loadable yet. */
+  scheduled: boolean;
+  /** The variety's colour (hex) from the Variety Tree; '' when none is set. */
+  varietyColor: string;
 };
 
 export type SavedTrolleyBucket = {
@@ -86,6 +90,8 @@ export type PlannedTripStop = {
   planned: number;
   total: number;
   awaiting: number;
+  /** Only on a trolley at the farm (staging). */
+  trolley: number;
   loaded: number;
   transit: number;
   shelved: number;
@@ -134,6 +140,9 @@ export type PlannedTrip = {
   runs: number;
   runChain: string;
   window: string;
+  /** When the trip was planned, and when it was scheduled ('' = not yet). */
+  createdAt: string;
+  scheduledAt: string;
   /** The truck is loading this run now (else it waits for run `afterRun` to come back). */
   current: boolean;
   afterRun: number;
@@ -196,6 +205,10 @@ export type ShelvedTrip = {
   buckets: {
     bucketId: string;
     opl: string;
+    variety: string;
+    stemLength: string;
+    stems: number;
+    varietyColor: string;
     orderName: string;
     customer: string;
     shelved: boolean;
@@ -216,8 +229,10 @@ export type FetchPlannedTripsOutcome =
       oplStates: Record<string, OplServerState>;
       /** Device orders the server still has rows for at this farm; null when it didn't say. */
       known: string[] | null;
-      /** Production Settings lets the farm load orders out of schedule order. */
-      allowOutOfSequence: boolean;
+      /** Production Settings lists orders not on a trip yet (greyed); true when not said. */
+      showUnscheduled: boolean;
+      /** Production Settings lists a trip's buckets per order instead of per variety. */
+      groupByOrder: boolean;
     }
   | { kind: 'error'; message: string };
 
@@ -271,6 +286,8 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     farm: r.farm || (r.warehouse ?? '').split(' ')[0] || '',
     asap: r.priority === 'ASAP',
     onTrolley: r.loaded_in_trolley == null ? undefined : Number(r.loaded_in_trolley) === 1,
+    varietyColor: r.variety_color || '',
+    scheduled: r.scheduled == null ? true : Number(r.scheduled) !== 0,
   };
 }
 
@@ -308,6 +325,7 @@ function mapPlannedTripStop(r: RawPlannedTripStop): PlannedTripStop {
     planned: num(r.planned),
     total: num(r.total),
     awaiting: num(r.awaiting),
+    trolley: num(r.trolley),
     loaded: num(r.loaded),
     transit: num(r.transit),
     shelved: num(r.shelved),
@@ -336,6 +354,8 @@ function mapPlannedTrip(r: RawPlannedTrip): PlannedTrip {
     runs: num(r.runs),
     runChain: r.run_chain ?? '',
     window: r.window ?? '',
+    createdAt: r.created_at ?? '',
+    scheduledAt: r.scheduled_at ?? '',
     current: (r.run_state ?? 'current') !== 'later',
     afterRun: num(r.after_run),
     yourStopClosed: !!r.your_stop_closed,
@@ -437,7 +457,8 @@ export const karenBucketRequestsRepository = {
           ),
         ) as Record<string, OplServerState>,
         known: m.opl_states ? Object.keys(m.opl_states) : null,
-        allowOutOfSequence: !!m.allow_out_of_sequence,
+        showUnscheduled: m.show_unscheduled == null ? true : !!m.show_unscheduled,
+        groupByOrder: !!m.group_by_order,
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
@@ -518,6 +539,7 @@ export const karenBucketRequestsRepository = {
     flag: 'loaded' | 'transit';
     truck?: string;
     keepShelf?: boolean;
+    trip?: string;
   }): Promise<
     | {
         kind: 'ok';
@@ -531,6 +553,7 @@ export const karenBucketRequestsRepository = {
       flag: args.flag,
       ...(args.truck ? { truck: args.truck } : {}),
       ...(args.keepShelf ? { keep_shelf: 1 as const } : {}),
+      ...(args.trip ? { trip: args.trip } : {}),
     });
     const m = raw.message ?? {};
     if (m.status === 'success') {
@@ -691,6 +714,10 @@ export const karenBucketRequestsRepository = {
         buckets: (t.buckets ?? []).map((b) => ({
           bucketId: b.bucket ?? '',
           opl: b.opl ?? '',
+          variety: b.variety ?? '',
+          stemLength: b.stem_length ?? '',
+          stems: Number(b.stems) || 0,
+          varietyColor: b.variety_color ?? '',
           orderName: b.order_name ?? b.opl ?? '',
           customer: b.customer ?? '',
           shelved: !!b.shelved,
