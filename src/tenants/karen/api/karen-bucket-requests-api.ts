@@ -105,9 +105,13 @@ export type RawPlannedTripOrder = {
   stems?: number;
   /** This order's own progress at the farm (transfer buckets / on trolley / in transit / shelved). */
   total?: number;
+  /** On a trolley at the farm, not on a truck yet. */
+  trolley?: number;
   loaded?: number;
   transit?: number;
   shelved?: number;
+  /** Shared buckets travelling with another order on this trip. */
+  riding?: number;
 };
 
 /** One stop (farm) on a trip's collection route, with its live loading status. */

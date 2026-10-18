@@ -17,16 +17,29 @@ import {
   type BucketIssueInfo,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
-import type { BucketOrderRef, OrderGroup, TrolleyOpl, ScanResult, Vehicle } from '../offline/bucket-requests-db';
+import type {
+  BucketOrderRef,
+  OrderGroup,
+  ReqBucket,
+  TrolleyOpl,
+  ScanResult,
+  Vehicle,
+} from '../offline/bucket-requests-db';
+
+type Counts = Awaited<ReturnType<typeof db.counts>>;
 
 /** Bucket counts of one trip's picklists (the scan page's tabs once a trip is open). */
 export type TripCounts = Pick<
-  Awaited<ReturnType<typeof db.counts>>,
+  Counts,
   'scannedBuckets' | 'totalBuckets' | 'allBuckets' | 'addedBuckets' | 'transitBuckets' | 'requests'
 >;
 
 type State = {
   ready: boolean;
+  /** The device's saved trips / requests have been read: until then nothing is known. */
+  hydrated: boolean;
+  /** A pull from the server finished (or there was nothing to pull: offline / no farm). */
+  synced: boolean;
   error: string | null;
   requests: OrderGroup[];
   /** Orders waiting at this farm but on no truck trip yet: listed greyed, not loadable. */
@@ -174,14 +187,201 @@ export function onTrip(trip: PlannedTrip, ref: BucketOrderRef, trips: PlannedTri
   return !t || t.tripId === trip.tripId;
 }
 
+/** The order runs collect in, the server's (trip_bucket_shares): by day, then run. */
+function byDriveOrder(a: PlannedTrip, b: PlannedTrip): number {
+  return (
+    (a.tripDate || '').localeCompare(b.tripDate || '') ||
+    Number(!a.run) - Number(!b.run) ||
+    (a.run || 0) - (b.run || 0) ||
+    a.tripId.localeCompare(b.tripId)
+  );
+}
+
+/** The open runs planning picklist `opl` here, in the order they collect. */
+function oplRuns(trips: PlannedTrip[], opl: string): PlannedTrip[] {
+  return trips.filter((t) => !t.yourStopClosed && hasOpl(t, opl)).sort(byDriveOrder);
+}
+
+const orderOn = (t: PlannedTrip, opl: string) => (t.orders ?? []).find((o) => o.opl === opl);
+const onTruckOf = (o: ReturnType<typeof orderOn>) => (o ? (o.loaded || 0) + (o.transit || 0) + (o.shelved || 0) : 0);
+
+/** How many of `held` (an order's buckets on trolleys here) count on `trip`. An order
+ *  split over runs fills the earliest first, each up to its planned buckets less what is
+ *  already on its truck, and the last run takes any surplus: the server's rule, so the
+ *  app and the Bucket Logistics dashboard count each bucket on the same one trip. */
+export function heldOnTrip(trips: PlannedTrip[], trip: PlannedTrip, opl: string, held: number): number {
+  const runs = oplRuns(trips, opl);
+  if (runs.length < 2) return held;
+  let left = held;
+  for (let i = 0; i < runs.length; i++) {
+    const o = orderOn(runs[i], opl);
+    const take = i === runs.length - 1 ? left : Math.min(left, Math.max(0, (o?.buckets || 0) - onTruckOf(o)));
+    if (runs[i].tripId === trip.tripId) return take;
+    left -= take;
+  }
+  return 0;
+}
+
+/** The earlier run that takes an order's buckets before `trip`: it plans the order here
+ *  too and its share still waits on the shelf. `unsynced`: buckets of the order on
+ *  trolleys here the server has not counted yet. Null = `trip` is the run to fill. */
+export function earlierRunFirst(
+  trips: PlannedTrip[],
+  trip: PlannedTrip,
+  opl: string,
+  unsynced: number,
+): PlannedTrip | null {
+  let extra = unsynced;
+  for (const t of oplRuns(trips, opl)) {
+    if (t.tripId === trip.tripId) return null;
+    const o = orderOn(t, opl);
+    const waiting = Math.max(0, (o?.total || 0) - (o?.trolley || 0) - onTruckOf(o));
+    const covered = Math.min(waiting, extra);
+    extra -= covered;
+    if (waiting > covered) return t;
+  }
+  return null;
+}
+
+/** The trip that took over `was` after a re-plan: the same truck's same run that day
+ *  (a run-less truck: its only open trip that day). */
+function successorTrip(was: PlannedTrip | undefined, trips: PlannedTrip[]): PlannedTrip | null {
+  if (!was?.vehicle) return null;
+  const same = trips.filter(
+    (t) => t.vehicle === was.vehicle && t.tripDate === was.tripDate && t.run === was.run && !t.yourStopClosed,
+  );
+  return same.length === 1 ? same[0] : null;
+}
+
 const refOf = (o: { oplName: string; orderName: string; buckets: { asap: boolean }[] }): BucketOrderRef => ({
   oplName: o.oplName,
   orderName: o.orderName,
   asap: o.buckets.some((b) => b.asap),
 });
 
+/** A picklist as the lists hold it: this farm's buckets of it for the date on screen. */
+type Listed = { oplName: string; orderName: string; buckets: ReqBucket[] };
 
+const bucketKeys = (rows: Listed[], keep: (b: ReqBucket) => boolean = () => true) =>
+  new Set(rows.flatMap((o) => o.buckets.filter(keep).map((b) => b.bucketId.toUpperCase()))).size;
 
+/** db.counts worked out from the lists already in memory (every picklist with a bucket
+ *  here is on exactly one of Requests / Trolley / In Transit, with all its buckets). */
+function countLists(listed: Listed[], onTrip?: Set<string>, only?: Set<string>): Counts {
+  const rows = listed
+    .map((o) => {
+      const live = o.buckets.filter((b) => !b.notFound);
+      return {
+        o,
+        total: o.buckets.length,
+        scanned: o.buckets.filter((b) => b.scanned).length,
+        inTransit: live.length > 0 && live.every((b) => b.truckTransit),
+        unscheduled: o.buckets.filter((b) => !b.scheduled).length,
+      };
+    })
+    // An order on no truck trip yet (every bucket unscheduled) is not requested yet.
+    .filter((r) => r.total > 0 && r.unscheduled < r.total)
+    .filter((r) => !onTrip || onTrip.has(r.o.oplName) || r.scanned > 0 || r.inTransit)
+    .filter((r) => !only || only.has(r.o.oplName));
+  let requests = 0;
+  let trolley = 0;
+  let inTransit = 0;
+  for (const r of rows) {
+    if (r.scanned < r.total) requests++;
+    else if (r.inTransit) inTransit++;
+    else trolley++;
+  }
+  // Each physical bucket once: a bucket filling two orders has a row on each.
+  const all = rows.map((r) => r.o);
+  const stage = rows.filter((r) => !r.inTransit).map((r) => r.o);
+  return {
+    requests,
+    trolley,
+    inTransit,
+    allBuckets: bucketKeys(all),
+    addedBuckets: bucketKeys(all, (b) => b.scanned),
+    transitBuckets: bucketKeys(all, (b) => !!b.truckTransit),
+    totalBuckets: bucketKeys(stage),
+    scannedBuckets: bucketKeys(stage, (b) => b.scanned),
+  };
+}
+
+/** db.oplBucketCounts on the lists in memory: per picklist its buckets once each,
+ *  leaving out the ones `sharedWith`'s other picklists also hold. */
+function oplCounts(
+  listed: Listed[],
+  opls: string[],
+  sharedWith: string[],
+): Map<string, { total: number; scanned: number; held: number }> {
+  const byOpl = new Map(listed.map((o) => [o.oplName, o]));
+  const out = new Map<string, { total: number; scanned: number; held: number }>();
+  for (const op of opls) {
+    const own = byOpl.get(op);
+    if (!own) continue;
+    const others = new Set(
+      sharedWith
+        .filter((x) => x !== op)
+        .flatMap((x) => (byOpl.get(x)?.buckets ?? []).map((b) => b.bucketId.toUpperCase())),
+    );
+    const mine = { ...own, buckets: own.buckets.filter((b) => !others.has(b.bucketId.toUpperCase())) };
+    if (!mine.buckets.length) continue;
+    out.set(op, {
+      total: bucketKeys([mine]),
+      scanned: bucketKeys([mine], (b) => b.scanned),
+      held: bucketKeys([mine], (b) => b.scanned && !b.notFound && !b.truckLoaded && !b.truckTransit),
+    });
+  }
+  return out;
+}
+
+/** The open trip's picklists and counts, from the lists in memory: what the scan page
+ *  shows the moment a trip is opened, and what each refresh confirms. */
+function tripView(
+  trip: PlannedTrip,
+  trips: PlannedTrip[],
+  requests: OrderGroup[],
+  trolley: TrolleyOpl[],
+  inTransit: TrolleyOpl[],
+): { tripOpls: string[]; tripCounts: Counts } {
+  const listed: Listed[] = [...requests.flatMap((g) => g.opls), ...trolley, ...inTransit];
+  const tripOpls = [...new Set(listed.filter((o) => onTrip(trip, refOf(o), trips)).map((o) => o.oplName))];
+  let tc = countLists(listed, undefined, new Set(tripOpls));
+  // An order split over runs: this trip counts only its share of the order.
+  const split = tripOpls.filter((op) => oplRuns(trips, op).length > 1);
+  if (split.length) {
+    // A bucket shared with another order on this trip counts once, on that order.
+    const per = oplCounts(listed, split, tripOpls);
+    for (const op of split) {
+      const c = per.get(op);
+      if (!c) continue;
+      const o = orderOn(trip, op);
+      const total = o?.buckets || 0;
+      const scanned = Math.min(total, onTruckOf(o) + heldOnTrip(trips, trip, op, c.held));
+      tc = {
+        ...tc,
+        totalBuckets: Math.max(0, tc.totalBuckets - c.total + total),
+        scannedBuckets: Math.max(0, tc.scannedBuckets - c.scanned + scanned),
+        allBuckets: Math.max(0, tc.allBuckets - c.total + total),
+        addedBuckets: Math.max(0, tc.addedBuckets - c.scanned + scanned),
+      };
+    }
+  }
+  return { tripOpls, tripCounts: tc };
+}
+
+/** Same data, field by field (plain JSON-like values). */
+function same(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    return a.length === bb.length && a.every((v, i) => same(v, bb[i]));
+  }
+  const ka = Object.keys(a);
+  const ob = b as Record<string, unknown>;
+  return ka.length === Object.keys(ob).length && ka.every((k) => same((a as Record<string, unknown>)[k], ob[k]));
+}
 
 /** A trip seen for one delivery date: its orders for that date, and this farm's stop
  *  counted from those orders only — a stop can hold several days' orders, and the
@@ -212,6 +412,21 @@ function forDate(t: PlannedTrip, orders: PlannedTrip['orders']): PlannedTrip {
   return { ...t, orders, stops, farmBuckets: planned };
 }
 
+const TILE_KEYS = [
+  'reqCount',
+  'trolleyCount',
+  'scannedBuckets',
+  'totalBuckets',
+  'allBuckets',
+  'addedBuckets',
+  'transitBuckets',
+  'inTransitCount',
+] as const;
+/** The saved tile counts (db.saveTiles) as store fields. */
+function pickTiles(t: Record<string, number>): Partial<Record<(typeof TILE_KEYS)[number], number>> {
+  return Object.fromEntries(TILE_KEYS.filter((k) => typeof t[k] === 'number').map((k) => [k, t[k]]));
+}
+
 /** Wipe the offline store when it holds another server's data (see db.matchServer). */
 async function matchServer(): Promise<void> {
   const url = await storage.get(StorageKeys.instanceUrl).catch(() => null);
@@ -225,8 +440,24 @@ async function prune(items: { oplName: string }[], known: string[] | null): Prom
   await db.pruneOpls(new Set([...items.map((i) => i.oplName), ...known]));
 }
 
-export const useKarenBucketRequestsStore = create<State>((set, get) => ({
+export const useKarenBucketRequestsStore = create<State>((set, get) => {
+  /** set() with only what changed: unchanged data keeps its old reference, and nothing
+   *  changed = no update at all, so a sync that brings nothing new never re-renders. */
+  const patch = (next: Partial<State>) => {
+    const cur = get();
+    const diff: Partial<State> = {};
+    let n = 0;
+    for (const k of Object.keys(next) as (keyof State)[]) {
+      if (same(cur[k], next[k])) continue;
+      (diff as Record<string, unknown>)[k] = next[k];
+      n++;
+    }
+    if (n) set(diff);
+  };
+  return {
   ready: false,
+  hydrated: false,
+  synced: false,
   error: null,
   requests: [],
   notScheduled: [],
@@ -266,6 +497,23 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       await matchServer();
       const downloaded = await storage.get(StorageKeys.bucketRequestsDownloaded).catch(() => null);
       set({ ready: true, error: null, manualDownloaded: downloaded === '1' });
+      // The saved trips first (one quick read), so the Trips page opens on them at once;
+      // the full lists and counts follow.
+      if (!get().hydrated) {
+        const [trips, schedules, tiles] = await Promise.all([
+          db.listPlannedTrips(),
+          db.listSchedules(),
+          db.loadTiles(),
+        ]).catch(() => [[] as PlannedTrip[], [] as OplSchedule[], null] as const);
+        if (!get().hydrated && trips.length) {
+          set({
+            plannedTrips: [...trips],
+            schedules: [...schedules],
+            tripsCount: trips.length,
+            ...(tiles ? pickTiles(tiles) : {}),
+          });
+        }
+      }
       await get().refresh();
       await get().refreshOnline();
     } catch (e) {
@@ -334,6 +582,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
+    // The server keeps a trip's name when it re-plans; should a trip still be replaced
+    // (an older server), follow the same truck run under its new name instead of
+    // dropping its requests.
+    const replaced = sel && !trip ? successorTrip(get().plannedTrips.find((t) => t.tripId === sel), plannedTrips) : null;
+    if (sel && replaced) {
+      if (trolleyTrip === sel) trolleyTrip = replaced.tripId;
+      if (loadedTrips.delete(sel)) loadedTrips.add(replaced.tripId);
+      trip = replaced;
+    }
     let notice: string | null = null;
     if (sel && (!trip || trip.yourStopClosed)) {
       const was = trip ?? get().plannedTrips.find((t) => t.tripId === sel);
@@ -345,28 +602,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         : `${was ? tripTitle(was) : `Trip ${sel}`} is no longer planned for this farm.`;
       trip = null;
     }
-    const openTrip = trip;
-    const tripOpls = openTrip
-      ? [
-          ...new Set(
-            [...requests.flatMap((g) => g.opls), ...trolley, ...inTransit]
-              .filter((o) => onTrip(openTrip, refOf(o), plannedTrips))
-              .map((o) => o.oplName),
-          ),
-        ]
-      : [];
+    const view = trip ? tripView(trip, plannedTrips, requests, trolley, inTransit) : null;
     // Counts cover the same picklists the Requests tab lists: the ones on an open trip.
-    let c: Awaited<ReturnType<typeof db.counts>>;
-    let tc: TripCounts | null = null;
-    try {
-      c = await db.counts(
-        new Set(plannedTrips.filter((t) => !t.yourStopClosed).flatMap((t) => (t.orders ?? []).map((o) => o.opl))),
-      );
-      if (trip) tc = await db.counts(undefined, new Set(tripOpls));
-    } catch (e) {
-      if (__DEV__) console.warn('[bucket-requests] counts failed:', e);
-      return;
-    }
+    const c = countLists(
+      [...allRequests.flatMap((g) => g.opls), ...trolley, ...inTransit],
+      new Set(plannedTrips.filter((t) => !t.yourStopClosed).flatMap((t) => (t.orders ?? []).map((o) => o.opl))),
+    );
     // A trip opened or closed while this refresh ran: its own refresh sets the trip view.
     const sameTrip = get().selectedTripId === sel;
     // Dates to filter by: the orders on the device, plus the ones on planned trips.
@@ -376,7 +617,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         ...allTrips.flatMap((t) => (t.orders ?? []).map((o) => o.deliveryDate).filter(Boolean)),
       ]),
     ].sort();
-    set({
+    patch({
+      hydrated: true,
       deliveryDates: dates,
       requests,
       notScheduled,
@@ -396,28 +638,50 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       tripsCount: plannedTrips.length,
       ...(sameTrip
         ? {
-            selectedTripId: trip ? sel : null,
-            tripOpls,
-            tripCounts: tc,
+            selectedTripId: trip ? trip.tripId : null,
+            tripOpls: view?.tripOpls ?? [],
+            tripCounts: view?.tripCounts ?? null,
             ...(notice ? { tripNotice: { at: Date.now(), message: notice } } : {}),
           }
         : {}),
     });
+    const tiles: Record<string, number> = {
+      reqCount: c.requests,
+      trolleyCount: c.trolley,
+      scannedBuckets: c.scannedBuckets,
+      totalBuckets: c.totalBuckets,
+      allBuckets: c.allBuckets,
+      addedBuckets: c.addedBuckets,
+      transitBuckets: c.transitBuckets,
+      inTransitCount: c.inTransit,
+    };
+    db.saveTiles(tiles).catch(() => {});
   },
 
   selectTrip: async (tripId) => {
     // Another trip's buckets go on another trolley: opening it asks for a trolley again.
     const trolley = tripId && tripId !== trolleyTrip ? { activeTrolleyId: null } : {};
-    set({ selectedTripId: tripId, tripOpls: [], tripCounts: null, tripNotice: null, ...trolley });
+    // The trip page opens on what is already in memory, in this same update; the
+    // refresh after it only changes what the device has changed since.
+    const st = get();
+    const trip = tripId ? st.plannedTrips.find((t) => t.tripId === tripId && !t.yourStopClosed) : undefined;
+    const view = trip ? tripView(trip, st.plannedTrips, st.requests, st.trolley, st.inTransit) : null;
+    set({
+      selectedTripId: tripId,
+      tripOpls: view?.tripOpls ?? [],
+      tripCounts: view?.tripCounts ?? null,
+      tripNotice: null,
+      ...trolley,
+    });
     await get().refresh();
   },
 
   refreshOnline: async () => {
     try {
       const s = await Network.getNetworkStateAsync();
-      set({ online: !!s.isConnected && s.isInternetReachable !== false });
+      patch({ online: !!s.isConnected && s.isInternetReachable !== false });
     } catch {
-      set({ online: false });
+      patch({ online: false });
     }
   },
 
@@ -457,7 +721,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         if (trips.kind === 'ok') {
           await db.replacePlannedTrips(trips.trips);
           await db.replaceSchedules(trips.schedules);
-          set({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+          patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
           await db.applyServerStates(trips.oplStates);
           await prune(items, trips.known);
         }
@@ -465,6 +729,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         /* keep the cached plan */
       }
       await get().refresh();
+      set({ synced: true });
       // Any download that brought picklists down (new or refreshed) offers clearing;
       // a run that found none leaves the flag as it was.
       if (res.insertedOpls.length + res.refreshedOpls.length > 0) {
@@ -493,7 +758,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       }
       await db.replacePlannedTrips(trips.trips);
       await db.replaceSchedules(trips.schedules);
-      set({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+      patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
       await db.applyServerStates(trips.oplStates);
       await get().refresh();
       set({ loadingTrips: false });
@@ -506,7 +771,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
 
   sync: async (farm) => {
     db.setActiveFarm(farm);
-    if (syncing || !farm) return;
+    if (!farm) {
+      set({ synced: true });
+      return;
+    }
+    if (syncing) return;
     syncing = true;
     try {
       await get().refreshOnline();
@@ -529,7 +798,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       if (trips.kind === 'ok') {
         await db.replacePlannedTrips(trips.trips);
         await db.replaceSchedules(trips.schedules);
-        set({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+        patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
         await db.applyServerStates(trips.oplStates);
         if (alloc.kind === 'ok') await prune(alloc.items, trips.known);
       }
@@ -538,6 +807,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       /* background pull: keep what is on screen */
     } finally {
       syncing = false;
+      // A download in progress settles it itself.
+      if (!get().downloading && !get().synced) set({ synced: true });
     }
   },
 
@@ -583,7 +854,23 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
             : db.notScheduledMessage(id),
         };
       }
-      only = mine.map((r) => r.oplName);
+      // An order split over runs loads its earlier run first: a bucket of it counts on
+      // this trip only once the earlier run's share is on trolleys (as the server counts).
+      const per = await db.oplBucketCounts(mine.map((r) => r.oplName)).catch(() => new Map<string, { held: number }>());
+      const first = mine.map((r) => {
+        if (r.asap) return null;
+        const known = oplRuns(trips, r.oplName).reduce((n, t) => n + (orderOn(t, r.oplName)?.trolley || 0), 0);
+        return earlierRunFirst(trips, trip, r.oplName, Math.max(0, (per.get(r.oplName)?.held ?? 0) - known));
+      });
+      const free = mine.filter((_, i) => !first[i]);
+      if (!free.length) {
+        const run = first.find((t): t is PlannedTrip => !!t)!;
+        return {
+          ok: false,
+          message: `${id.toUpperCase()} goes on ${tripTitle(run)} first — ${mine[0].orderName} fills that trip before ${tripTitle(trip)}.`,
+        };
+      }
+      only = free.map((r) => r.oplName);
       const held = await db.trolleyOrders(trolley).catch(() => [] as BucketOrderRef[]);
       const foreign = held.find((r) => !onTrip(trip, r, trips));
       if (foreign) {
@@ -602,15 +889,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
       // never leave it as an unhandled rejection.
       return { ok: false, message: (e as Error)?.message || 'Could not save the scan — scan it again.' };
     }
-    if (res.ok && res.pliId && get().online) {
+    if (res.ok && res.pliIds.length && get().online) {
       // Online: flag it on the trolley on the server too (the same flag the offline
       // sync sends later), so it can't also be issued offline at the packhouse — in the
       // background, so the scan never waits on the network. A bucket already issued /
       // arrived there is refused: the scan is undone and `scanRefusal` says why.
-      const { pliId, rowId, bucketId } = res;
+      const { pliIds, rowIds, bucketId } = res;
       karenBucketRequestsRepository
         .setOfflineTrolleyFlags({
-          pliIds: [pliId],
+          pliIds,
           flag: 'loaded',
           keepShelf: true,
           trip: get().selectedTripId ?? undefined,
@@ -618,13 +905,15 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         .then(async (flag) => {
           const clash = flag.kind === 'ok' ? flag.conflicts[0] : null;
           if (!clash) return;
-          await db.unscanBucket(rowId).catch(() => {});
+          await db.unscanBucket(rowIds).catch(() => {});
           set({
             scanRefusal: {
               at: Date.now(),
               message:
                 clash.reason === 'trip_left'
                   ? `${bucketId.toUpperCase()} not added — ${clash.truck ?? 'this truck'} is already in transit.`
+                  : clash.reason === 'earlier_trip'
+                  ? `${bucketId.toUpperCase()} goes on ${clash.truck ?? 'the earlier trip'} first — taken off the trolley.`
                   : clash.reason === 'other_trip'
                   ? `${bucketId.toUpperCase()} is not on this trip — ${clash.truck ? `it is on ${clash.truck}` : 'it is not scheduled yet'}.`
                   : clash.reason === 'on_truck'
@@ -847,7 +1136,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     if (!get().online) return { ok: false, message: 'Connect to the internet to see shelved buckets.' };
     // The delivery date on screen, like Requests: only that day's orders' buckets.
     const date = get().deliveryDate;
-    set({ loadingShelved: true });
+    // The list on screen stays as it is while it re-pulls: loading only shows an empty one.
+    if (!get().shelvedTrips.length) set({ loadingShelved: true });
     try {
       const res = await karenBucketRequestsRepository.fetchShelvedBuckets(farm, date || undefined);
       // A slow answer for a date the operator has since moved off is dropped.
@@ -856,7 +1146,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         set({ loadingShelved: false });
         return { ok: false, message: res.message };
       }
-      set({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: res.hub });
+      patch({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: res.hub });
       // Remembered, so Bucket Requests stays off Home and the menu at the hub.
       if (res.hub) setTransferHub(res.hub);
       return { ok: true };
@@ -875,7 +1165,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
         if (action !== 'status') await get().tripArrival(tripId, farm, 'status');
         return { ok: false, message: res.message };
       }
-      set({ arrivals: { ...get().arrivals, [tripId]: res.arrival } });
+      if (!same(get().arrivals[tripId], res.arrival)) set({ arrivals: { ...get().arrivals, [tripId]: res.arrival } });
       if (action === 'complete' && res.arrival.tripStatus === 'Received') {
         // Over: it leaves In Transit and shows as received under Completed.
         await get().loadCompletedTrips(farm);
@@ -898,10 +1188,10 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
   loadCompletedTrips: async (farm) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to see completed trips.' };
-    set({ loadingCompleted: true });
+    patch({ loadingCompleted: true });
     try {
       const res = await karenBucketRequestsRepository.fetchCompletedTrips(farm);
-      set({ loadingCompleted: false, ...(res.kind === 'ok' ? { completedTrips: res.trips } : {}) });
+      patch({ loadingCompleted: false, ...(res.kind === 'ok' ? { completedTrips: res.trips } : {}) });
       return res.kind === 'ok' ? { ok: true } : { ok: false, message: res.message };
     } catch (e) {
       set({ loadingCompleted: false });
@@ -931,7 +1221,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => ({
     set({ activeTrolleyId: null, manualDownloaded: false, selectedTripId: null });
     await get().refresh();
   },
-}));
+  };
+});
 
 export type { OrderGroup, TrolleyOpl };
 export type {

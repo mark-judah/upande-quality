@@ -1,11 +1,21 @@
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import {
   ActivityIndicator,
   AppState,
   BackHandler,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,12 +35,14 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { showDialog } from '@/src/core/ui/DialogHost';
 import { useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
+import { useShallow } from 'zustand/react/shallow';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenBucketRequestsStore,
   onTrip as oplOnTrip,
+  heldOnTrip,
   type OrderGroup,
   type TrolleyOpl,
   type PlannedTrip,
@@ -50,6 +62,7 @@ import {
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import { setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
 import { lineColors, type LineColor } from './line-colors';
+import { CardList, FadeIn, useStableCallback, type CardItem } from './CardList';
 
 type Tab = 'requests' | 'trolley' | 'transit' | 'shelved';
 
@@ -100,6 +113,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
 
   const {
     ready,
+    hydrated,
+    synced,
     error,
     requests,
     notScheduled,
@@ -146,19 +161,83 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     tripArrival,
     shelvedTrips,
     shelvedHub,
-    loadingShelved,
     loadShelvedBuckets,
-  } = useKarenBucketRequestsStore();
+  } = useKarenBucketRequestsStore(
+    // Only what this screen reads: an update to anything else does not re-render it.
+    useShallow((st) => ({
+      ready: st.ready,
+      hydrated: st.hydrated,
+      synced: st.synced,
+      error: st.error,
+      requests: st.requests,
+      notScheduled: st.notScheduled,
+      trolley: st.trolley,
+      inTransit: st.inTransit,
+      vehicles: st.vehicles,
+      plannedTrips: st.plannedTrips,
+      schedules: st.schedules,
+      reqCount: st.reqCount,
+      scannedBuckets: st.scannedBuckets,
+      totalBuckets: st.totalBuckets,
+      allBuckets: st.allBuckets,
+      addedBuckets: st.addedBuckets,
+      transitBuckets: st.transitBuckets,
+      activeTrolleyId: st.activeTrolleyId,
+      selectedTripId: st.selectedTripId,
+      tripOpls: st.tripOpls,
+      tripCounts: st.tripCounts,
+      selectTrip: st.selectTrip,
+      online: st.online,
+      downloading: st.downloading,
+      loadingTrips: st.loadingTrips,
+      syncingOpl: st.syncingOpl,
+      init: st.init,
+      refresh: st.refresh,
+      download: st.download,
+      loadPlannedTrips: st.loadPlannedTrips,
+      sync: st.sync,
+      setTrolleyFromScan: st.setTrolleyFromScan,
+      clearActiveTrolley: st.clearActiveTrolley,
+      scanBucketFromScan: st.scanBucketFromScan,
+      loadAllToTruck: st.loadAllToTruck,
+      findReplacement: st.findReplacement,
+      replaceBucket: st.replaceBucket,
+      markNotFound: st.markNotFound,
+      bucketIssueInfo: st.bucketIssueInfo,
+      markIssued: st.markIssued,
+      closeStop: st.closeStop,
+      deliveryDate: st.deliveryDate,
+      setDeliveryDate: st.setDeliveryDate,
+      completedTrips: st.completedTrips,
+      loadCompletedTrips: st.loadCompletedTrips,
+      arrivals: st.arrivals,
+      tripArrival: st.tripArrival,
+      shelvedTrips: st.shelvedTrips,
+      shelvedHub: st.shelvedHub,
+      loadShelvedBuckets: st.loadShelvedBuckets,
+    })),
+  );
+
+  // Skeletons only while nothing is on screen yet: the saved list not read, or the first
+  // pull (or a download) still running. Saved content always shows as it is.
+  const firstLoad = !hydrated || !synced || downloading || loadingTrips;
 
   // Shelved: the selected delivery date's buckets, pulled with the screen (its tab
   // shows the count), again when the date or tab changes, and on pull-to-refresh.
   // Not on every tab switch: opening Shelved re-pulls only once the last pull is older
   // than the sync interval (pull-to-refresh always pulls).
   const shelvedAt = useRef(0);
+  // The first pull of the shelved buckets and of the trips on the road has come back:
+  // until then an empty Shelved / Transit / History list shows skeletons, after it the
+  // empty state (a later background pull never brings the skeletons back).
+  const [shelvedPulled, setShelvedPulled] = useState(false);
+  const [transitPulled, setTransitPulled] = useState(false);
   useEffect(() => {
     if (!online || !userFarm) return;
     shelvedAt.current = Date.now();
-    loadShelvedBuckets(userFarm).catch(() => {});
+    loadShelvedBuckets(userFarm)
+      .catch(() => {})
+      .finally(() => setShelvedPulled(true));
   }, [deliveryDate, online, userFarm, loadShelvedBuckets]);
   useEffect(() => {
     if (tab !== 'shelved' || !online || !userFarm || Date.now() - shelvedAt.current < SYNC_INTERVAL_MS) return;
@@ -176,19 +255,65 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // A History trip opened from the Trips page: the buckets it carried (read only).
   const [historyTripId, setHistoryTripId] = useState<string | null>(null);
   const scope = useMemo(() => (selectedTrip ? new Set(tripOpls) : null), [selectedTrip, tripOpls]);
+  // An order on this trip only for a bucket it shares with another of the trip's orders
+  // (one bucket, several orders): only those buckets show under it here.
+  const ridingOnly = useMemo(
+    () => new Set((selectedTrip?.orders ?? []).filter((o) => !o.buckets && o.riding > 0).map((o) => o.opl)),
+    [selectedTrip],
+  );
+  const sharedIds = useMemo(() => {
+    if (!scope || !ridingOnly.size) return null;
+    const ids = new Set<string>();
+    const add = (o: { oplName: string; buckets: ReqBucket[] }) => {
+      if (scope.has(o.oplName) && !ridingOnly.has(o.oplName)) for (const b of o.buckets) ids.add(b.bucketId.toUpperCase());
+    };
+    for (const g of requests) g.opls.forEach(add);
+    [...trolley, ...inTransit].forEach(add);
+    return ids;
+  }, [scope, ridingOnly, requests, trolley, inTransit]);
   const tRequests = useMemo(
     () =>
       scope
         ? requests
-            .map((g) => ({ ...g, opls: g.opls.filter((o) => scope.has(o.oplName)) }))
+            .map((g) => ({
+              ...g,
+              opls: g.opls
+                .filter((o) => scope.has(o.oplName))
+                .map((o) => {
+                  if (!sharedIds || !ridingOnly.has(o.oplName)) return o;
+                  const buckets = o.buckets.filter((b) => sharedIds.has(b.bucketId.toUpperCase()));
+                  return { ...o, buckets, total: buckets.length, scanned: buckets.filter((b) => b.scanned).length };
+                })
+                .filter((o) => o.buckets.length),
+            }))
             .filter((g) => g.opls.length)
         : requests,
-    [requests, scope],
+    [requests, scope, sharedIds, ridingOnly],
   );
-  const tTrolley = useMemo(() => (scope ? trolley.filter((o) => scope.has(o.oplName)) : trolley), [trolley, scope]);
+  const onlyShared = useCallback(
+    (list: TrolleyOpl[]) =>
+      list
+        .map((o) => {
+          if (!sharedIds || !ridingOnly.has(o.oplName)) return o;
+          const buckets = o.buckets.filter((b) => sharedIds.has(b.bucketId.toUpperCase()));
+          const ids = new Set(buckets.map((b) => b.pliId).filter(Boolean));
+          return {
+            ...o,
+            buckets,
+            pliIds: o.pliIds.filter((p) => ids.has(p)),
+            ownPliIds: o.ownPliIds.filter((p) => ids.has(p)),
+          };
+        })
+        .filter((o) => o.buckets.length),
+    [sharedIds, ridingOnly],
+  );
+  const tTrolley = useMemo(
+    () => (scope ? onlyShared(trolley.filter((o) => scope.has(o.oplName))) : trolley),
+    [trolley, scope, onlyShared],
+  );
   const tInTransit = useMemo(
-    () => (scope ? inTransit.filter((o) => scope.has(o.oplName)) : inTransit),
-    [inTransit, scope],
+    () => (scope ? onlyShared(inTransit.filter((o) => scope.has(o.oplName))) : inTransit),
+    [inTransit, scope, onlyShared],
   );
   const tShelvedTrips = useMemo(
     () => (selectedTrip ? shelvedTrips.filter((t) => t.tripId === selectedTrip.tripId) : shelvedTrips),
@@ -202,9 +327,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const shelvedAll = useMemo(() => shelvedOf(shelvedTrips), [shelvedTrips]);
   const shelvedCount = useMemo(() => shelvedOf(tShelvedTrips), [tShelvedTrips]);
   // The open trip's bucket counts (zero until its first count comes back).
-  const k = selectedTrip
-    ? (tripCounts ?? { allBuckets: 0, addedBuckets: 0, transitBuckets: 0, scannedBuckets: 0, totalBuckets: 0, requests: 0 })
-    : { allBuckets, addedBuckets, transitBuckets, scannedBuckets, totalBuckets, requests: reqCount };
+  const k = useMemo(
+    () =>
+      selectedTrip
+        ? (tripCounts ?? NO_COUNTS)
+        : { allBuckets, addedBuckets, transitBuckets, scannedBuckets, totalBuckets, requests: reqCount },
+    [selectedTrip, tripCounts, allBuckets, addedBuckets, transitBuckets, scannedBuckets, totalBuckets, reqCount],
+  );
   const requestedTotal = Math.max(k.allBuckets, shelvedCount.done);
 
   // In Transit: this farm's trips on the road (dispatched, not received yet), with
@@ -229,6 +358,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       transitAt.current = Date.now();
       return loadCompletedTrips(userFarm)
         .then(() => {
+          setTransitPulled(true);
           if (!live) return;
           for (const t of useKarenBucketRequestsStore.getState().completedTrips) {
             if (t.status === 'Dispatched') tripArrival(t.tripId, userFarm, 'status').catch(() => {});
@@ -253,16 +383,18 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // opening it and every SYNC_INTERVAL while it is up.
   useEffect(() => {
     if (selectedTrip || !online || !userFarm) return;
-    loadCompletedTrips(userFarm).catch(() => {});
+    loadCompletedTrips(userFarm)
+      .catch(() => {})
+      .finally(() => setTransitPulled(true));
     const timer = setInterval(() => loadCompletedTrips(userFarm).catch(() => {}), SYNC_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [selectedTrip, online, userFarm, loadCompletedTrips]);
-  const onArrival = async (tripId: string, action: 'status' | 'arrive' | 'complete') => {
+  const onArrival = useStableCallback(async (tripId: string, action: 'status' | 'arrive' | 'complete') => {
     const r = await tripArrival(tripId, userFarm, action);
     if (!r.ok) showError(r.message);
     else if (r.message) showSuccess(r.message);
     return r.ok;
-  };
+  });
 
   // Every bucket already on a trolley (or beyond), for "Added to trolley": the
   // requests' scanned ones plus every bucket of the orders on trolleys / trucks.
@@ -349,8 +481,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return m;
   }, [plannedTrips, schedules]);
 
-  // OPL -> its packing line's colour (same palette on every tab).
-  const oplLine = useMemo(() => lineColors(schedules).byOpl, [schedules]);
 
   // OPL -> "Team A #1" (schedule slot) or just the team stamped at allocation.
   const oplTeam = useMemo(() => {
@@ -396,19 +526,22 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   }, [activeTrolleyId, selectedTripId]);
 
   // Back to the Trips page: from Not Scheduled, or from a trip's scan page.
-  const goBack = useCallback(() => {
+  const [tripStatus, setTripStatus] = useState<string | null>(null);
+  // Taps change the page in this same render: the store's follow-up refresh is not awaited.
+  const goBack = useStableCallback(() => {
     if (historyTripId) setHistoryTripId(null);
     else if (showWaiting) setShowWaiting(false);
     else if (selectedTripId) {
       setScanStatus(null);
-      selectTrip(null);
+      void selectTrip(null);
     }
-  }, [historyTripId, showWaiting, selectedTripId, selectTrip]);
-  const openTrip = (tripId: string) => {
+  });
+  const openTrip = useStableCallback((tripId: string) => {
     setScanStatus(null);
     setTripStatus(null);
-    selectTrip(tripId);
-  };
+    void selectTrip(tripId);
+  });
+  const openWaiting = useCallback(() => setShowWaiting(true), []);
   // Android back steps back to the Trips page before it leaves the screen.
   useFocusEffect(
     useCallback(() => {
@@ -422,7 +555,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   );
 
   // The open trip left the plan or closed: the store went back to Trips; say why.
-  const [tripStatus, setTripStatus] = useState<string | null>(null);
   useEffect(
     () =>
       useKarenBucketRequestsStore.subscribe((st, prev) => {
@@ -483,10 +615,10 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // "Load to truck" loads onto the truck each order is PLANNED on (its Bucket Request
   // Trip on the Remote Transfers dashboard) — no vehicle list to pick from. An order
   // with no planned trip can't be loaded until it is planned.
-  const onLoad = (opls: TrolleyOpl[]) => {
+  const onLoad = useStableCallback((opls: TrolleyOpl[]) => {
     // Orders without a planned trip are offered too: the farm picks the truck that came.
     setLoadConfirm(planLoads(opls, plannedTrips, selectedTrip));
-  };
+  });
   const onConfirmLoad = async (groups: PlannedLoad[]) => {
     setLoadConfirm(null);
     if (!groups.length) return;
@@ -513,7 +645,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
   };
 
-  const onReplace = async (b: ReqBucket) => {
+  const onReplace = useStableCallback(async (b: ReqBucket) => {
     if (!b.pliId) {
       showError('Download the picklist again to replace this bucket.');
       return;
@@ -532,7 +664,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     }
     // No match still opens the sheet: the bucket can be marked not found there.
     setReplacePick({ bucket: b, pliId, neededQty: found.neededQty, candidates: found.candidates });
-  };
+  });
 
   // Every change from the Info modal is confirmed first: none can be undone here.
   const confirm = (title: string, message: string, label: string, run: () => void) =>
@@ -649,7 +781,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     else showError(r.message);
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useStableCallback(async () => {
     setRefreshing(true);
     try {
       // On the Trips page and the Requests tab a pull also re-pulls the live plan (when online).
@@ -660,7 +792,136 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     } finally {
       setRefreshing(false);
     }
-  };
+  });
+
+  // Everything the pages below hand to their (memoised) lists, kept stable across
+  // renders so a scan, a banner or a sync re-renders only what it changed.
+  const refreshControl = useMemo(
+    () => <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.text} />,
+    [refreshing, onRefresh],
+  );
+  const listsFor = useDeferredValue(selectedTripId);
+  const shelvedLoading = online && !shelvedPulled;
+  const transitLoading = online && !transitPulled;
+  const oneTrip = useMemo(() => (selectedTrip ? [selectedTrip] : []), [selectedTrip]);
+  const waitingSorted = useMemo(() => sortWaiting(notScheduled), [notScheduled]);
+  const waitingN = useMemo(() => waitingBuckets(notScheduled), [notScheduled]);
+  const tripsTotals = useMemo(
+    () => ({
+      requested: Math.max(allBuckets, shelvedAll.done),
+      trolley: addedBuckets,
+      transit: transitBuckets,
+      shelved: shelvedAll.done,
+    }),
+    [allBuckets, addedBuckets, transitBuckets, shelvedAll.done],
+  );
+  const phoneTrolley = useMemo(
+    () => tTrolley.reduce((n, o) => n + o.buckets.filter((b) => b.scanned && !b.notFound).length, 0),
+    [tTrolley],
+  );
+  const segOptions = useMemo(
+    () => [
+      // Every count is BUCKETS, out of the same total — the buckets requested —
+      // and a stage counts a bucket once it has reached it (on a trolley ⊇ on a
+      // truck ⊇ shelved). The shelving list can hold buckets the device no longer
+      // lists (a closed stop), so the total never reads below what's shelved.
+      { value: 'requests' as Tab, label: 'Requests', count: requestedTotal },
+      { value: 'trolley' as Tab, label: 'Trolley', count: `${k.addedBuckets}/${requestedTotal}` },
+      { value: 'transit' as Tab, label: 'Transit', count: `${k.transitBuckets}/${requestedTotal}` },
+      { value: 'shelved' as Tab, label: 'Shelved', count: `${shelvedCount.done}/${requestedTotal}` },
+    ],
+    [requestedTotal, k.addedBuckets, k.transitBuckets, shelvedCount.done],
+  );
+  const onSegment = useCallback((v: string) => setTab(v as Tab), [setTab]);
+  // The scan result, at the top of the open tab's list.
+  const banner = useMemo(
+    () =>
+      scanStatus ? (
+        <View style={[s.statusBanner, scanStatus.ok ? s.statusOk : s.statusErr]}>
+          <Ionicons
+            name={scanStatus.ok ? 'checkmark-circle' : 'alert-circle'}
+            size={18}
+            color={scanStatus.ok ? (COLORS.success ?? '#12B76A') : (COLORS.danger ?? '#EF4444')}
+          />
+          <Text
+            style={[s.statusText, { color: scanStatus.ok ? (COLORS.success ?? '#067647') : (COLORS.danger ?? '#B42318') }]}
+            numberOfLines={2}
+          >
+            {scanStatus.message}
+          </Text>
+        </View>
+      ) : null,
+    [scanStatus],
+  );
+  // The same summary of the day's OPLs at the end of Requests, Trolley and In Transit.
+  const summary = useMemo(
+    () => (
+      <Card title="Summary of this trip">
+        <StageSummary icon="cart-outline" label="Added to trolley" done={k.addedBuckets} total={k.allBuckets} items={addedList} />
+        <StageSummary
+          icon="car-outline"
+          label="Loaded and in transit"
+          done={transitList.length}
+          total={k.allBuckets}
+          items={transitList}
+        />
+        <StageSummary
+          icon="checkmark-done-outline"
+          label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
+          done={shelvedCount.done}
+          total={shelvedCount.total || k.allBuckets}
+          items={shelvedList}
+        />
+      </Card>
+    ),
+    [k.addedBuckets, k.allBuckets, addedList, transitList, shelvedHub, shelvedCount, shelvedList],
+  );
+  // A History trip opened from the Trips page: the buckets it carried, each with where
+  // it is now (read only).
+  const history = useMemo(() => {
+    if (!historyTripId) return null;
+    const h = completedTrips.find((t) => t.tripId === historyTripId);
+    const sh = shelvedTrips.find((t) => t.tripId === historyTripId);
+    // Variety, length and colour from the phone's own copy of the bucket (by order).
+    const local = new Map<string, ReqBucket>();
+    for (const o of [...requests.flatMap((g) => g.opls), ...trolley, ...inTransit])
+      for (const b of o.buckets) local.set(`${o.oplName}|${b.bucketId.toUpperCase()}`, b);
+    const rows: ListRow[] = (sh?.buckets ?? []).map((x, i) => {
+      const b = local.get(`${x.opl}|${x.bucketId.toUpperCase()}`);
+      return {
+        b: {
+          ...(b ?? {
+            id: -1 - i,
+            variety: x.variety,
+            farm: userFarm,
+            stemLength: x.stemLength,
+            qty: x.stems,
+            uom: 'Stems',
+            scanned: true,
+            notFound: false,
+            trolleyId: null,
+            pliId: null,
+            asap: false,
+            scheduled: true,
+          }),
+          id: b ? b.id : -1 - i,
+          // The server's record of what went on this trip wins over the phone's copy.
+          variety: x.variety || b?.variety || '',
+          stemLength: x.stemLength || b?.stemLength || '',
+          qty: x.stems || b?.qty || 0,
+          uom: x.stems ? 'Stems' : b?.uom || '',
+          varietyColor: x.varietyColor || b?.varietyColor || '',
+          bucketId: x.bucketId,
+          shelf: x.shelved ? x.shelf : b?.shelf || '',
+        },
+        orderName: x.orderName || x.opl,
+        onTruck: !x.shelved,
+      };
+    });
+    const title = h ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}` : sh?.vehicle || 'Trip';
+    const shelvedN = (sh?.buckets ?? []).filter((x) => x.shelved).length;
+    return { h, rows, title, shelvedN };
+  }, [historyTripId, completedTrips, shelvedTrips, requests, trolley, inTransit, userFarm]);
 
   if (!ready && error) {
     return (
@@ -727,50 +988,10 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const offlineNote = !online ? (
     <Text style={s.offline}>Offline — you can still scan; downloads need internet.</Text>
   ) : null;
-  const refreshControl = <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.text} />;
 
   // A History trip: the buckets it carried, each with where it is now (read only).
-  if (historyTripId) {
-    const h = completedTrips.find((t) => t.tripId === historyTripId);
-    const sh = shelvedTrips.find((t) => t.tripId === historyTripId);
-    // Variety, length and colour from the phone's own copy of the bucket (by order).
-    const local = new Map<string, ReqBucket>();
-    for (const o of [...requests.flatMap((g) => g.opls), ...trolley, ...inTransit])
-      for (const b of o.buckets) local.set(`${o.oplName}|${b.bucketId.toUpperCase()}`, b);
-    const rows: ListRow[] = (sh?.buckets ?? []).map((x, i) => {
-      const b = local.get(`${x.opl}|${x.bucketId.toUpperCase()}`);
-      return {
-        b: {
-          ...(b ?? {
-            id: -1 - i,
-            variety: x.variety,
-            farm: userFarm,
-            stemLength: x.stemLength,
-            qty: x.stems,
-            uom: 'Stems',
-            scanned: true,
-            notFound: false,
-            trolleyId: null,
-            pliId: null,
-            asap: false,
-            scheduled: true,
-          }),
-          id: b ? b.id : -1 - i,
-          // The server's record of what went on this trip wins over the phone's copy.
-          variety: x.variety || b?.variety || '',
-          stemLength: x.stemLength || b?.stemLength || '',
-          qty: x.stems || b?.qty || 0,
-          uom: x.stems ? 'Stems' : b?.uom || '',
-          varietyColor: x.varietyColor || b?.varietyColor || '',
-          bucketId: x.bucketId,
-          shelf: x.shelved ? x.shelf : b?.shelf || '',
-        },
-        orderName: x.orderName || x.opl,
-        onTruck: !x.shelved,
-      };
-    });
-    const title = h ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}` : sh?.vehicle || 'Trip';
-    const shelvedN = (sh?.buckets ?? []).filter((x) => x.shelved).length;
+  if (history) {
+    const { h, rows, title, shelvedN } = history;
     return (
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
@@ -785,18 +1006,21 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
             .join(' · ')}
           onBack={goBack}
         />
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
-          {rows.length ? (
-            <TrolleyVarieties rows={rows} hub={shelvedHub} />
-          ) : (
+        <VarietyList
+          rows={rows}
+          hub={shelvedHub}
+          history
+          loading={shelvedLoading}
+          refreshControl={refreshControl}
+          empty={
             <Card>
               <View style={s.empty}>
                 <Ionicons name="cube-outline" size={26} color={COLORS.textMuted} />
                 <Text style={s.emptyTitle}>{online ? 'No buckets recorded on this trip' : 'Connect to see this trip\'s buckets'}</Text>
               </View>
             </Card>
-          )}
-        </ScrollView>
+          }
+        />
       </Screen>
     );
   }
@@ -806,19 +1030,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return (
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
-        <PageBar title={`Not Scheduled (${waitingBuckets(notScheduled)}bkts)`} sub="On no truck yet" onBack={goBack} />
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
-          {notScheduled.length ? (
-            <NotScheduledVarieties groups={sortWaiting(notScheduled)} />
-          ) : (
-            <Card>
-              <View style={s.empty}>
-                <Ionicons name="checkmark-done-outline" size={26} color={COLORS.textMuted} />
-                <Text style={s.emptyTitle}>Every order is on a truck</Text>
-              </View>
-            </Card>
-          )}
-        </ScrollView>
+        <PageBar title={`Not Scheduled (${waitingN}bkts)`} sub="On no truck yet" onBack={goBack} />
+        <NotScheduledList groups={waitingSorted} refreshControl={refreshControl} />
       </Screen>
     );
   }
@@ -828,39 +1041,35 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     return (
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false} refreshControl={refreshControl}>
-          {tripStatus ? <Alert tone="warn">{tripStatus}</Alert> : null}
-          <TripsPage
-            farm={userFarm}
-            hub={shelvedHub}
-            trips={plannedTrips}
-            schedules={schedules}
-            requests={requests}
-            trolley={trolley}
-            notScheduled={notScheduled}
-            history={completedTrips}
-            historyBuckets={shelvedTrips}
-            onOpenHistory={(id) => setHistoryTripId(id)}
-            loading={downloading || loadingTrips}
-            totals={{
-              requested: Math.max(allBuckets, shelvedAll.done),
-              trolley: addedBuckets,
-              transit: transitBuckets,
-              shelved: shelvedAll.done,
-            }}
-            onOpen={openTrip}
-            onOpenWaiting={() => setShowWaiting(true)}
-          />
-        </ScrollView>
+        <TripsPage
+          farm={userFarm}
+          hub={shelvedHub}
+          trips={plannedTrips}
+          requests={requests}
+          trolley={trolley}
+          notScheduled={notScheduled}
+          waitingN={waitingN}
+          history={completedTrips}
+          historyBuckets={shelvedTrips}
+          onOpenHistory={setHistoryTripId}
+          loading={firstLoad}
+          notice={tripStatus}
+          totals={tripsTotals}
+          onOpen={openTrip}
+          onOpenWaiting={openWaiting}
+          refreshControl={refreshControl}
+        />
       </Screen>
     );
   }
 
-  const st = tripState(
-    selectedTrip,
-    shelvedHub,
-    tTrolley.reduce((n, o) => n + o.buckets.filter((b) => b.scanned && !b.notFound).length, 0),
-  );
+  const st = tripState(selectedTrip, shelvedHub, phoneTrolley);
+  // A trip just opened paints its bar, scan field and tabs first; its lists follow
+  // in the next (interruptible) render.
+  const listsReady = listsFor === selectedTrip.tripId;
+  // The tab on screen: the one tapped once its list is mounted; a tab opened for the
+  // first time shows skeletons until its list's first cards are drawn.
+  const shownTab: Tab | null = listsReady && opened.includes(picked) ? picked : null;
   return (
     <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
       {/* Fixed above the list: the trip, the scan field and the farm badge on its edge
@@ -931,148 +1140,89 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       </View>
       {/* Tabs, fixed under the scan card (only the list below scrolls). Short
           names with the count underneath fit any width, a ~320dp scanner included. */}
-      <Segmented
-        radius={10}
-        value={picked}
-        onChange={(v) => setTab(v as Tab)}
-        options={[
-          // Every count is BUCKETS, out of the same total — the buckets requested —
-          // and a stage counts a bucket once it has reached it (on a trolley ⊇ on a
-          // truck ⊇ shelved). The shelving list can hold buckets the device no longer
-          // lists (a closed stop), so the total never reads below what's shelved.
-          { value: 'requests', label: 'Requests', count: requestedTotal },
-          { value: 'trolley', label: 'Trolley', count: `${k.addedBuckets}/${requestedTotal}` },
-          { value: 'transit', label: 'Transit', count: `${k.transitBuckets}/${requestedTotal}` },
-          { value: 'shelved', label: 'Shelved', count: `${shelvedCount.done}/${requestedTotal}` },
-        ]}
-      />
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.text} />
-        }
-      >
-        {scanStatus ? (
-          <View style={[s.statusBanner, scanStatus.ok ? s.statusOk : s.statusErr]}>
-            <Ionicons
-              name={scanStatus.ok ? 'checkmark-circle' : 'alert-circle'}
-              size={18}
-              color={scanStatus.ok ? (COLORS.success ?? '#12B76A') : (COLORS.danger ?? '#EF4444')}
-            />
-            <Text
-              style={[
-                s.statusText,
-                { color: scanStatus.ok ? (COLORS.success ?? '#067647') : (COLORS.danger ?? '#B42318') },
-              ]}
-              numberOfLines={2}
-            >
-              {scanStatus.message}
-            </Text>
-          </View>
-        ) : null}
+      <Segmented radius={10} value={picked} onChange={onSegment} options={segOptions} />
 
-
-        {/* Lazily mounted, then kept: a hidden tab keeps its rendered list. */}
-        {opened.includes('requests') ? (
-          <View style={tab === 'requests' ? undefined : s.tabHidden}>
-            <Frozen active={tab === 'requests'}>
+      {/* Lazily mounted, then kept: a hidden tab keeps its rendered list and skips
+          re-rendering until it is shown again. Each tab is its own list. */}
+      {shownTab ? null : (
+        <View style={s.tabShown}>
+          <SkeletonCards cards={2} />
+        </View>
+      )}
+      {listsReady && opened.includes('requests') ? (
+        <FadeIn style={shownTab === 'requests' ? s.tabShown : s.tabHidden}>
+          <Frozen active={shownTab === 'requests'}>
             <RequestsTab
               farm={userFarm}
               hub={shelvedHub}
               groups={tRequests}
-              notScheduled={[]}
+              notScheduled={NO_GROUPS}
               schedules={schedules}
               plannedTrips={plannedTrips}
-              trips={[selectedTrip]}
+              trips={oneTrip}
               scope={scope ?? undefined}
               oplTrip={oplTrip}
               oplTeam={oplTeam}
-              oplLine={oplLine}
-              online={online}
-              loading={downloading || loadingTrips}
+              loading={firstLoad}
               replacingId={replacingId}
               onReplace={onReplace}
+              header={banner}
+              footer={summary}
+              refreshControl={refreshControl}
             />
-            </Frozen>
-          </View>
-        ) : null}
-        {opened.includes('trolley') ? (
-          <View style={tab === 'trolley' ? undefined : s.tabHidden}>
-            <Frozen active={tab === 'trolley'}>
+          </Frozen>
+        </FadeIn>
+      ) : null}
+      {listsReady && opened.includes('trolley') ? (
+        <FadeIn style={shownTab === 'trolley' ? s.tabShown : s.tabHidden}>
+          <Frozen active={shownTab === 'trolley'}>
             <TrolleyTab
               items={tTrolley}
-              allScanned={k.requests === 0}
               syncingOpl={syncingOpl}
-              oplTeam={oplTeam}
-              oplLine={oplLine}
               onLoad={onLoad}
               scanned={k.scannedBuckets}
               total={k.totalBuckets}
+              header={banner}
+              footer={summary}
+              refreshControl={refreshControl}
             />
-            </Frozen>
-          </View>
-        ) : null}
-        {opened.includes('shelved') ? (
-          <View style={tab === 'shelved' ? undefined : s.tabHidden}>
-            <Frozen active={tab === 'shelved'}>
+          </Frozen>
+        </FadeIn>
+      ) : null}
+      {listsReady && opened.includes('shelved') ? (
+        <FadeIn style={shownTab === 'shelved' ? s.tabShown : s.tabHidden}>
+          <Frozen active={shownTab === 'shelved'}>
             <ShelvedTab
               trips={tShelvedTrips}
               hub={shelvedHub}
-              loading={loadingShelved}
+              loading={shelvedLoading}
               online={online}
               day={deliveryDate ? dateLabel(deliveryDate) : ''}
+              header={banner}
+              refreshControl={refreshControl}
             />
-            </Frozen>
-          </View>
-        ) : null}
-        {opened.includes('transit') ? (
-          <View style={tab === 'transit' ? undefined : s.tabHidden}>
-            <Frozen active={tab === 'transit'}>
+          </Frozen>
+        </FadeIn>
+      ) : null}
+      {listsReady && opened.includes('transit') ? (
+        <FadeIn style={shownTab === 'transit' ? s.tabShown : s.tabHidden}>
+          <Frozen active={shownTab === 'transit'}>
             <InTransitTab
               hub={shelvedHub}
               items={tInTransit}
-              oplTeam={oplTeam}
-              oplLine={oplLine}
               trips={roadTrips}
               arrivals={arrivals}
               deliveryDate={deliveryDate}
               online={online}
-              loading={loadingTrips}
+              loading={transitLoading}
               onArrival={onArrival}
+              header={banner}
+              footer={summary}
+              refreshControl={refreshControl}
             />
-            </Frozen>
-          </View>
-        ) : null}
-
-        {/* The same summary of the day's OPLs at the end of Requests, Trolley and In Transit. */}
-        {tab !== 'shelved' ? (
-          <Card title="Summary of this trip">
-            <StageSummary
-              icon="cart-outline"
-              label="Added to trolley"
-              done={k.addedBuckets}
-              total={k.allBuckets}
-              items={addedList}
-            />
-            <StageSummary
-              icon="car-outline"
-              label="Loaded and in transit"
-              done={transitList.length}
-              total={k.allBuckets}
-              items={transitList}
-            />
-            <StageSummary
-              icon="checkmark-done-outline"
-              label={`Shelved at ${shelvedHub || 'Kapkolia'}`}
-              done={shelvedCount.done}
-              total={shelvedCount.total || k.allBuckets}
-              items={shelvedList}
-            />
-          </Card>
-        ) : null}
-      </ScrollView>
+          </Frozen>
+        </FadeIn>
+      ) : null}
 
       <LoadConfirm
         loads={loadConfirm}
@@ -1092,6 +1242,9 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     </Screen>
   );
 }
+
+const NO_COUNTS = { allBuckets: 0, addedBuckets: 0, transitBuckets: 0, scannedBuckets: 0, totalBuckets: 0, requests: 0 };
+const NO_GROUPS: OrderGroup[] = [];
 
 /** A hidden tab skips re-rendering (a scan refreshes every list); it renders again,
  *  with the latest data, the moment it is shown. */
@@ -1139,9 +1292,6 @@ function planLoads(opls: TrolleyOpl[], trips: PlannedTrip[], pref?: PlannedTrip 
   return [...byTrip.values()];
 }
 
-/** Distinct buckets of an order (a bucket spans several pick rows, one per box). */
-const bucketCount = (o: TrolleyOpl) => new Set(o.buckets.map((b) => b.bucketId)).size;
-
 /** Confirms loading onto the planned truck(s): each order with its buckets, and a
  *  "Change truck" for when the planned pick-up truck isn't the one that came. */
 function LoadConfirm({
@@ -1173,7 +1323,7 @@ function LoadConfirm({
   }
 
   const plate = (name: string) => vehicles.find((v) => v.name === name)?.licensePlate || name;
-  const total = draft.reduce((n, g) => n + g.opls.reduce((m, o) => m + bucketCount(o), 0), 0);
+  const total = useMemo(() => loadBucketCount(draft.flatMap((g) => g.opls)), [draft]);
   const taken = new Set(draft.map((g) => g.vehicle));
   const q = query.trim().toLowerCase();
   const choices = vehicles.filter(
@@ -1210,10 +1360,10 @@ function LoadConfirm({
         <>
           <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
           <Button
-            label={trucks.length === 1 ? `Load ${total} to ${trucks[0]}` : `Load ${total}`}
+            label={`Load ${plural(total, 'bucket')} to ${trucks.length === 1 ? trucks[0] : 'truck'}`}
             iconLeft="car-outline"
             onPress={() => onConfirm(draft)}
-            disabled={!online || !!changing || !draft.length || draft.some((g) => !g.vehicle)}
+            disabled={!online || !!changing || !total || draft.some((g) => !g.vehicle)}
             style={{ flex: 2 }}
           />
         </>
@@ -1281,7 +1431,7 @@ function LoadConfirm({
                 </Text>
               </View>
               <Text style={s.loadOrderCount}>
-                {bucketCount(o)} bkt
+                {loadBucketCount([o])} bkt
               </Text>
             </View>
           ))}
@@ -1553,7 +1703,7 @@ function ReplacePicker({
 /** Picklists to scan, under the planned trip that collects them (trip header with the
  *  truck, this farm's stop and "Truck leaving"), then the orders not on a trip yet —
  *  one list, so trips and requests are not two places to look. */
-function RequestsTab({
+const RequestsTab = memo(function RequestsTab({
   farm,
   hub,
   groups,
@@ -1563,12 +1713,13 @@ function RequestsTab({
   trips,
   oplTrip,
   oplTeam,
-  oplLine,
-  online,
   loading,
   replacingId,
   onReplace,
   scope,
+  header,
+  footer,
+  refreshControl,
 }: {
   /** This station's farm and the packhouse it sends to: an order's trip reads "farm → hub". */
   farm: string;
@@ -1582,133 +1733,179 @@ function RequestsTab({
   trips: PlannedTrip[];
   oplTrip: OplTripMap;
   oplTeam: Record<string, string>;
-  oplLine: Record<string, LineColor>;
-  online: boolean;
   /** A download or trip-plan pull is running: skeletons while the list is empty. */
   loading: boolean;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
   /** One trip open: its picklists (ASAP replacements following their order included). */
   scope?: Set<string>;
+  header?: ReactElement | null;
+  footer?: ReactElement | null;
+  refreshControl?: ReactElement;
 }) {
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
   const groupByOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
 
-  // Not on a truck yet: what is coming, by delivery day, below everything loadable.
-  const waiting = notScheduled.length ? (
-    <View>
-      <Text style={s.sectionHdr}>Not Scheduled ({waitingBuckets(notScheduled)}bkts)</Text>
-      <NotScheduledVarieties groups={sortWaiting(notScheduled)} />
-    </View>
-  ) : null;
-
-  if (!trips.length) {
-    if (loading && !waiting) return <SkeletonCards />;
-    return (
-      <>
-        <Card>
-          <View style={s.empty}>
-            <Ionicons name="download-outline" size={26} color={COLORS.textMuted} />
-            <Text style={s.emptyTitle}>No new Scheduled Requests</Text>
-          </View>
-        </Card>
-        {waiting}
-      </>
-    );
-  }
-
-  // Shown in sequence steps, as transfers move: every team's #1, then every team's
-  // #2 … (Team A #1, Team B #1, … Team A #2 …); orders only on a trip follow in trip
-  // order; unscheduled ones sink to the bottom (greyed).
-  const isScheduled = (g: OrderGroup) => g.opls.some((o) => !!oplTrip[o.oplName]);
-  const slot = new Map<string, [string, number]>();
-  for (const sc of schedules) {
-    if (sc.scheduled) slot.set(sc.oplName, [sc.team || '~', sc.sequence || Number.MAX_SAFE_INTEGER]);
-  }
-  plannedTrips.forEach((t, ti) =>
-    (t.orders ?? []).forEach((o, oi) => {
-      if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', 1_000_000 + ti * 1000 + oi]);
-    }),
-  );
-  // Step (schedule #) first, then team.
-  const bySlot = (ra: [string, number], rb: [string, number]) =>
-    ra[1] !== rb[1] ? ra[1] - rb[1] : ra[0] === rb[0] ? 0 : ra[0] < rb[0] ? -1 : 1;
-  const rankOf = (g: OrderGroup): [string, number] => {
-    let best: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
-    for (const o of g.opls) {
-      const r = slot.get(o.oplName);
-      if (r && bySlot(r, best) < 0) best = r;
+  // Order and grouping: worked out once per change of the lists, not on every render.
+  const plan = useMemo(() => {
+    // Shown in sequence steps, as transfers move: every team's #1, then every team's
+    // #2 … (Team A #1, Team B #1, … Team A #2 …); orders only on a trip follow in trip
+    // order; unscheduled ones sink to the bottom (greyed).
+    const isScheduled = (g: OrderGroup) => g.opls.some((o) => !!oplTrip[o.oplName]);
+    const slot = new Map<string, [string, number]>();
+    for (const sc of schedules) {
+      if (sc.scheduled) slot.set(sc.oplName, [sc.team || '~', sc.sequence || Number.MAX_SAFE_INTEGER]);
     }
-    return best;
-  };
-  const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
-  // Schedule numbers restart each delivery day: the earlier day's orders come first.
-  const dayOf = (g: OrderGroup) =>
-    g.opls.map((o) => o.deliveryDate).filter(Boolean).sort()[0] || '9999-12-31';
-  const sorted = [...groups]
-    .sort((a, b) => {
-      const byScheduled = Number(isScheduled(b)) - Number(isScheduled(a));
-      if (byScheduled) return byScheduled;
-      const byDay = dayOf(a).localeCompare(dayOf(b));
-      if (byDay) return byDay;
-      return bySlot(rankOf(a), rankOf(b));
-    })
-    // An order's picklists in their own schedule order too.
-    .map((g) => ({
-      ...g,
-      opls: [...g.opls].sort(
-        (a, b) =>
-          (a.deliveryDate || '').localeCompare(b.deliveryDate || '') ||
-          bySlot(slot.get(a.oplName) ?? unslotted, slot.get(b.oplName) ?? unslotted),
-      ),
-    }));
-  // Trips as steps in the order they collect: by day, the run the truck is loading
-  // now first, then its later runs.
-  const steps = [...trips].sort(
-    (a, b) =>
-      (a.tripDate || '').localeCompare(b.tripDate || '') ||
-      Number(b.current) - Number(a.current) ||
-      (a.run || 0) - (b.run || 0) ||
-      (a.vehicle || '').localeCompare(b.vehicle || ''),
-  );
-  // Each open trip with its orders' picklists still to scan; an order split over two
-  // trips shows its picklists under each. What is left goes below the trips.
-  const tripOf = new Map<string, string>();
-  for (const t of steps) for (const o of t.orders ?? []) if (o.opl && !tripOf.has(o.opl)) tripOf.set(o.opl, t.tripId);
-  const onTrip = (tripId: string) =>
-    sorted
+    plannedTrips.forEach((t, ti) =>
+      (t.orders ?? []).forEach((o, oi) => {
+        if (o.opl && !slot.has(o.opl)) slot.set(o.opl, ['~~', 1_000_000 + ti * 1000 + oi]);
+      }),
+    );
+    // Step (schedule #) first, then team.
+    const bySlot = (ra: [string, number], rb: [string, number]) =>
+      ra[1] !== rb[1] ? ra[1] - rb[1] : ra[0] === rb[0] ? 0 : ra[0] < rb[0] ? -1 : 1;
+    const rankOf = (g: OrderGroup): [string, number] => {
+      let best: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
+      for (const o of g.opls) {
+        const r = slot.get(o.oplName);
+        if (r && bySlot(r, best) < 0) best = r;
+      }
+      return best;
+    };
+    const unslotted: [string, number] = ['~~~', Number.MAX_SAFE_INTEGER];
+    // Schedule numbers restart each delivery day: the earlier day's orders come first.
+    const dayOf = (g: OrderGroup) =>
+      g.opls.map((o) => o.deliveryDate).filter(Boolean).sort()[0] || '9999-12-31';
+    const sorted = [...groups]
+      .sort((a, b) => {
+        const byScheduled = Number(isScheduled(b)) - Number(isScheduled(a));
+        if (byScheduled) return byScheduled;
+        const byDay = dayOf(a).localeCompare(dayOf(b));
+        if (byDay) return byDay;
+        return bySlot(rankOf(a), rankOf(b));
+      })
+      // An order's picklists in their own schedule order too.
       .map((g) => ({
         ...g,
-        opls: g.opls.filter((o) => (scope ? scope.has(o.oplName) : tripOf.get(o.oplName) === tripId)),
-      }))
-      .filter((g) => g.opls.length);
-  // Picking order across every trip as listed (every team's #1, then #2 …): the
-  // number on each order.
-  const pickPos = new Map<string, number>();
-  for (const t of steps) for (const g of onTrip(t.tripId)) if (!pickPos.has(g.orderName)) pickPos.set(g.orderName, pickPos.size + 1);
-  // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
-  const renderGroup = (g: OrderGroup, dim: boolean, inTrip = false) => {
-    const pos = pickPos.get(g.orderName);
-    // Just the pick number and the order name: customer, day and team stay on the
-    // picklist data (scans still flag the right picklist) but are not shown.
-    const head = (
-      <View>
-        <View style={s.groupLine}>
-          {pos ? (
-            <View style={[s.pickBadge, pos === 1 ? s.pickBadgeFirst : null]}>
-              <Text style={[s.pickBadgeText, pos === 1 ? s.pickBadgeTextFirst : null]}>{pos}</Text>
-            </View>
-          ) : null}
-          <Text style={[s.groupHdr, s.groupNames, dim ? s.groupHdrDim : null]}>
-            {g.orderName}
-          </Text>
-        </View>
-      </View>
+        opls: [...g.opls].sort(
+          (a, b) =>
+            (a.deliveryDate || '').localeCompare(b.deliveryDate || '') ||
+            bySlot(slot.get(a.oplName) ?? unslotted, slot.get(b.oplName) ?? unslotted),
+        ),
+      }));
+    // Trips as steps in the order they collect: by day, the run the truck is loading
+    // now first, then its later runs.
+    const steps = [...trips].sort(
+      (a, b) =>
+        (a.tripDate || '').localeCompare(b.tripDate || '') ||
+        Number(b.current) - Number(a.current) ||
+        (a.run || 0) - (b.run || 0) ||
+        (a.vehicle || '').localeCompare(b.vehicle || ''),
     );
-    if (inTrip) {
+    // Each open trip with its orders' picklists still to scan; an order split over two
+    // trips shows its picklists under each. What is left goes below the trips.
+    const tripOf = new Map<string, string>();
+    for (const t of steps) for (const o of t.orders ?? []) if (o.opl && !tripOf.has(o.opl)) tripOf.set(o.opl, t.tripId);
+    const byTrip = new Map(
+      steps.map((t) => [
+        t.tripId,
+        sorted
+          .map((g) => ({
+            ...g,
+            opls: g.opls.filter((o) => (scope ? scope.has(o.oplName) : tripOf.get(o.oplName) === t.tripId)),
+          }))
+          .filter((g) => g.opls.length),
+      ]),
+    );
+    // Picking order across every trip as listed (every team's #1, then #2 …): the
+    // number on each order.
+    const pickPos = new Map<string, number>();
+    for (const t of steps)
+      for (const g of byTrip.get(t.tripId) ?? []) if (!pickPos.has(g.orderName)) pickPos.set(g.orderName, pickPos.size + 1);
+    return { steps, byTrip, pickPos };
+  }, [groups, schedules, plannedTrips, trips, oplTrip, scope]);
+
+  // A trip opened from the Trips page: its bar already names it -- just its orders.
+  // Grouped by variety; the order rides on each row ("43cm(ORDER)"), in pick order.
+  const sections = useMemo(() => {
+    if (!scope) return [];
+    const rows: ListRow[] = plan.steps.flatMap((t) =>
+      (plan.byTrip.get(t.tripId) ?? []).flatMap((g) => g.opls.flatMap((o) => o.buckets.map((b) => ({ b, orderName: g.orderName })))),
+    );
+    return listSections(rows, groupByOrder, (o) => plan.pickPos.get(o) ?? Number.MAX_SAFE_INTEGER);
+  }, [scope, plan, groupByOrder]);
+
+  const waitingSorted = useMemo(() => sortWaiting(notScheduled), [notScheduled]);
+  const items = useMemo((): CardItem[] => {
+    // Not on a truck yet: what is coming, by delivery day, below everything loadable.
+    const waiting: CardItem[] = notScheduled.length
+      ? [
+          {
+            key: 'waiting-hdr',
+            render: () => <Text style={s.sectionHdr}>Not Scheduled ({waitingBuckets(notScheduled)}bkts)</Text>,
+          },
+          ...notScheduledCards(waitingSorted, groupByOrder),
+        ]
+      : [];
+
+    if (!trips.length) {
+      if (loading && !waiting.length) return [{ key: 'skeleton', render: () => <SkeletonCards /> }];
+      return [
+        {
+          key: 'empty',
+          render: () => (
+            <Card>
+              <View style={s.empty}>
+                <Ionicons name="download-outline" size={26} color={COLORS.textMuted} />
+                <Text style={s.emptyTitle}>No new Scheduled Requests</Text>
+              </View>
+            </Card>
+          ),
+        },
+        ...waiting,
+      ];
+    }
+
+    if (scope) {
+      return [
+        ...(sections.length
+          ? sections.map((sec) => ({
+              key: `v-${sec.key}`,
+              render: () => (
+                <VarietyCard section={sec} byOrder={groupByOrder} replacingId={replacingId} onReplace={onReplace} />
+              ),
+            }))
+          : [
+              {
+                key: 'all-scanned',
+                render: () => (
+                  <Card>
+                    <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
+                  </Card>
+                ),
+              },
+            ]),
+        ...waiting,
+      ];
+    }
+
+    // Only picklists on a trip are listed: one not on a trip yet appears once it is planned.
+    const renderGroup = (g: OrderGroup) => {
+      const pos = plan.pickPos.get(g.orderName);
+      // Just the pick number and the order name: customer, day and team stay on the
+      // picklist data (scans still flag the right picklist) but are not shown.
       return (
         <View key={g.orderName} style={s.groupInTrip}>
-          {head}
+          <View>
+            <View style={s.groupLine}>
+              {pos ? (
+                <View style={[s.pickBadge, pos === 1 ? s.pickBadgeFirst : null]}>
+                  <Text style={[s.pickBadgeText, pos === 1 ? s.pickBadgeTextFirst : null]}>{pos}</Text>
+                </View>
+              ) : null}
+              <Text style={[s.groupHdr, s.groupNames]}>{g.orderName}</Text>
+            </View>
+          </View>
           {g.opls.map((o) => (
             <OplCard
               key={o.oplName}
@@ -1723,86 +1920,43 @@ function RequestsTab({
           ))}
         </View>
       );
-    }
-    return (
-      <View key={g.orderName}>
-        {head}
-        {g.opls.map((o) => (
-          <OplCard
-            key={o.oplName}
-            opl={o}
-            trip={oplTrip[o.oplName]}
-            team={oplTeam[o.oplName]}
-            line={lineColor.byOpl[o.oplName]}
-            replacingId={replacingId}
-            onReplace={onReplace}
-          />
-        ))}
-      </View>
-    );
-  };
-
-  // A trip opened from the Trips page: its bar already names it -- just its orders.
-  // Grouped by variety; the order rides on each row ("43cm(ORDER)"), in pick order.
-  if (scope) {
-    const tripGroups = steps.flatMap((t) => onTrip(t.tripId));
-    const rows: ListRow[] = tripGroups.flatMap((g) => g.opls.flatMap((o) => o.buckets.map((b) => ({ b, orderName: g.orderName }))));
-    const sections = listSections(rows, groupByOrder, (o) => pickPos.get(o) ?? Number.MAX_SAFE_INTEGER);
-    return (
-      <>
-        {sections.length ? (
-          sections.map((sec) => (
-            <VarietyCard
-              key={sec.key}
-              section={sec}
-              byOrder={groupByOrder}
-              replacingId={replacingId}
-              onReplace={onReplace}
-            />
-          ))
-        ) : (
-          <Card>
-            <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
-          </Card>
-        )}
-        {waiting}
-      </>
-    );
-  }
-
-  return (
-    <>
-
-      {steps.map((t, i) => {
-        const tripGroups = onTrip(t.tripId);
-        return (
-          <View key={t.tripId} style={s.step}>
-            <View style={[s.stepBody, !t.current ? s.stepBodyLater : null]}>
-              {/* One card per trip: the trip, then its picklists still to scan. */}
-              <TripCard
-                trip={t}
-                route={farm ? `${farm} → ${hub || 'Kapkolia'}` : undefined}
-                scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
-                scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
-              >
-                {tripGroups.length ? (
-                  tripGroups.map((g) => renderGroup(g, false, true))
-                ) : (
-                  <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
-                )}
-              </TripCard>
+    };
+    return [
+      ...plan.steps.map((t, i) => ({
+        key: `trip-${t.tripId}`,
+        render: () => {
+          const tripGroups = plan.byTrip.get(t.tripId) ?? [];
+          return (
+            <View style={s.step}>
+              <View style={[s.stepBody, !t.current ? s.stepBodyLater : null]}>
+                {/* One card per trip: the trip, then its picklists still to scan. */}
+                <TripCard
+                  trip={t}
+                  route={farm ? `${farm} → ${hub || 'Kapkolia'}` : undefined}
+                  scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
+                  scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
+                >
+                  {tripGroups.length ? (
+                    tripGroups.map(renderGroup)
+                  ) : (
+                    <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
+                  )}
+                </TripCard>
+              </View>
+              {/* The trip's number, floating on the card's top-left corner. */}
+              <View style={[s.stepDot, s.stepDotFloat, t.current ? s.stepDotCurrent : null]} pointerEvents="none">
+                <Text style={[s.stepNum, t.current ? s.stepNumCurrent : null]}>{i + 1}</Text>
+              </View>
             </View>
-            {/* The trip's number, floating on the card's top-left corner. */}
-            <View style={[s.stepDot, s.stepDotFloat, t.current ? s.stepDotCurrent : null]} pointerEvents="none">
-              <Text style={[s.stepNum, t.current ? s.stepNumCurrent : null]}>{i + 1}</Text>
-            </View>
-          </View>
-        );
-      })}
-      {waiting}
-    </>
-  );
-}
+          );
+        },
+      })),
+      ...waiting,
+    ];
+  }, [notScheduled, waitingSorted, groupByOrder, trips, loading, scope, sections, replacingId, onReplace, plan, oplTrip, oplTeam, lineColor, farm, hub]);
+
+  return <CardList items={items} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
+});
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -1908,299 +2062,392 @@ function PageBar({
 /** The first page: this farm's trips, with what they carry from here, to open one and
  *  load it. Open trips in collection order (by day, the run loading now first, then
  *  later runs); closed ones below, muted; Not Scheduled orders last, read-only. */
-function TripsPage({
+const TripsPage = memo(function TripsPage({
   farm,
   hub,
   trips,
-  schedules,
   requests,
   trolley,
   notScheduled,
+  waitingN,
   history,
   historyBuckets,
   loading,
+  notice,
   totals,
   onOpen,
   onOpenWaiting,
   onOpenHistory,
+  refreshControl,
 }: {
   farm: string;
   hub: string;
   trips: PlannedTrip[];
-  schedules: OplSchedule[];
   requests: OrderGroup[];
   trolley: TrolleyOpl[];
   notScheduled: OrderGroup[];
+  /** Buckets waiting in the Not Scheduled orders. */
+  waitingN: number;
   /** This farm's trips already dispatched (on the road or at the hub): History. */
   history: CompletedTrip[];
   /** Per dispatched trip, this farm's buckets of the orders on screen (tomorrow's). */
   historyBuckets: ShelvedTrip[];
   loading: boolean;
+  /** Why the app came back here by itself (the open trip left the plan / closed). */
+  notice: string | null;
   totals: { requested: number; trolley: number; transit: number; shelved: number };
   onOpen: (tripId: string) => void;
   onOpenWaiting: () => void;
   onOpenHistory: (tripId: string) => void;
+  refreshControl?: ReactElement;
 }) {
-  const order = (a: PlannedTrip, b: PlannedTrip) =>
-    (a.tripDate || '').localeCompare(b.tripDate || '') ||
-    Number(b.current) - Number(a.current) ||
-    (a.run || 0) - (b.run || 0) ||
-    (a.vehicle || '').localeCompare(b.vehicle || '');
-  const open = trips.filter((t) => !t.yourStopClosed).sort(order);
-  const closed = trips.filter((t) => t.yourStopClosed).sort(order);
-  // Today's history only: trips of today, or that left here today.
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  // Only trips that carried this farm's buckets for the delivery date on screen; their
-  // counts come from those buckets alone (earlier days' orders on the truck excluded).
-  const carried = new Map(historyBuckets.map((t) => [t.tripId, t]));
-  const past = history
-    .filter((t) => (t.tripDate === today || (t.leftAt || '').slice(0, 10) === today) && carried.has(t.tripId))
-    .sort((a, b) => (b.leftAt || b.tripDate || '').localeCompare(a.leftAt || a.tripDate || ''));
-  const closedOnly = closed.filter((t) => t.tripDate === today && !history.some((h) => h.tripId === t.tripId));
-  // Buckets on this phone's trolleys, not on a truck yet: per trip, beside its progress.
-  const held = [...requests.flatMap((g) => g.opls), ...trolley.filter((o) => !o.loadedToTruck)];
-  const onTrolley = (t: PlannedTrip) =>
-    held
-      .filter((o) => oplOnTrip(t, { oplName: o.oplName, orderName: o.orderName, asap: o.buckets.some((b) => b.asap) }, trips))
-      .reduce((n, o) => n + o.buckets.filter((b) => b.scanned && !b.notFound).length, 0);
-  const waitingN = waitingBuckets(notScheduled);
+  const items = useMemo((): CardItem[] => {
+    const order = (a: PlannedTrip, b: PlannedTrip) =>
+      (a.tripDate || '').localeCompare(b.tripDate || '') ||
+      Number(b.current) - Number(a.current) ||
+      (a.run || 0) - (b.run || 0) ||
+      (a.vehicle || '').localeCompare(b.vehicle || '');
+    const open = trips.filter((t) => !t.yourStopClosed).sort(order);
+    const closed = trips.filter((t) => t.yourStopClosed).sort(order);
+    // Today's history only: trips of today, or that left here today.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Only trips that carried this farm's buckets for the delivery date on screen; their
+    // counts come from those buckets alone (earlier days' orders on the truck excluded).
+    const carried = new Map(historyBuckets.map((t) => [t.tripId, t]));
+    const past = history
+      .filter((t) => (t.tripDate === today || (t.leftAt || '').slice(0, 10) === today) && carried.has(t.tripId))
+      .sort((a, b) => (b.leftAt || b.tripDate || '').localeCompare(a.leftAt || a.tripDate || ''));
+    const closedOnly = closed.filter((t) => t.tripDate === today && !history.some((h) => h.tripId === t.tripId));
+    // Buckets on this phone's trolleys, not on a truck yet: per trip, beside its progress.
+    const held = [...requests.flatMap((g) => g.opls), ...trolley.filter((o) => !o.loadedToTruck)];
+    const onTrolley = (t: PlannedTrip) =>
+      held
+        .filter((o) => oplOnTrip(t, { oplName: o.oplName, orderName: o.orderName, asap: o.buckets.some((b) => b.asap) }, trips))
+        // An order split over runs: only this run's share of its trolley buckets.
+        .reduce((n, o) => n + heldOnTrip(trips, t, o.oplName, o.buckets.filter((b) => b.scanned && !b.notFound).length), 0);
 
-  const row = (t: PlannedTrip) => {
-    const stop = (t.stops ?? []).find((st) => st.isYou);
-    const total = stop ? stop.total || stop.planned : t.farmBuckets;
-    const loaded = stop ? stop.loaded + stop.transit + stop.shelved : t.loadedBuckets;
-    const trolleyN = t.yourStopClosed ? 0 : onTrolley(t);
-    const state = tripState(t, hub, trolleyN);
-    const done = state.tone === 'done';
-    return (
-      <Pressable
-        key={t.tripId}
-        onPress={() => onOpen(t.tripId)}
-        disabled={t.yourStopClosed}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${tripName(t)}`}
-        style={({ pressed }) => [done && s.tripRowDone, pressed && s.tripRowPressed]}
-      >
+    const row = (t: PlannedTrip): CardItem => {
+      const stop = (t.stops ?? []).find((st) => st.isYou);
+      const total = stop ? stop.total || stop.planned : t.farmBuckets;
+      const loaded = stop ? stop.loaded + stop.transit + stop.shelved : t.loadedBuckets;
+      const trolleyN = t.yourStopClosed ? 0 : onTrolley(t);
+      const state = tripState(t, hub, trolleyN);
+      return {
+        key: `trip-${t.tripId}`,
+        render: () => (
+          <TripRow trip={t} farm={farm} hub={hub} state={state} loaded={loaded} total={total} trolleyN={trolleyN} onOpen={onOpen} />
+        ),
+      };
+    };
+
+    const out: CardItem[] = [];
+    if (notice) out.push({ key: 'notice', render: () => <Alert tone="warn">{notice}</Alert> });
+    out.push({
+      key: 'totals',
+      render: () => (
         <Card>
           <View style={s.tripHead}>
-            <View style={s.tripTruck}>
-              <Ionicons name="car" size={16} color={done ? COLORS.textMuted : COLORS.text} />
-              <Text style={s.tripTruckText} numberOfLines={1}>
-                {tripName(t)}
-              </Text>
-            </View>
-            <StatePill state={state} />
-          </View>
-          <Text style={s.tripRoute} numberOfLines={1}>
-            {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
-          </Text>
-          {t.createdAt ? (
-            <Text style={s.oplMeta} numberOfLines={1}>
-              Created {dateTimeLabel(t.createdAt)}
-            </Text>
-          ) : null}
-          {t.scheduledAt ? (
-            <Text style={s.oplMeta} numberOfLines={1}>
-              Scheduled {dateTimeLabel(t.scheduledAt)}
-            </Text>
-          ) : null}
-          <View style={s.yourStopScan}>
-            <Text style={s.oplMeta}>
-              {loaded}/{total} bucket{total === 1 ? '' : 's'} on the truck
-              {trolleyN ? ` · ${trolleyN} on trolleys` : ''}
+            <Text style={s.routeLabel}>{farm}</Text>
+            <Text style={s.summaryCount}>
+              {open.length} open
+              {closed.length ? ` · ${closed.length} closed` : ''}
             </Text>
           </View>
-          <ProgressBar value={total ? Math.min(1, loaded / total) : 0} />
-          <View style={s.tripFoot}>
-            <View style={s.metaGrow} />
-            {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
-          </View>
-        </Card>
-      </Pressable>
-    );
-  };
-
-  return (
-    <>
-      <Card>
-        <View style={s.tripHead}>
-          <Text style={s.routeLabel}>{farm}</Text>
-          <Text style={s.summaryCount}>
-            {open.length} open
-            {closed.length ? ` · ${closed.length} closed` : ''}
-          </Text>
-        </View>
-        <View style={s.statRow}>
-          {[
-            { label: 'Requested', value: totals.requested },
-            { label: 'On trolley', value: totals.trolley },
-            { label: 'In transit', value: totals.transit },
-            { label: 'Shelved', value: totals.shelved },
-          ].map((x) => (
-            <View key={x.label} style={s.statTile}>
-              <Text style={s.statValue}>{x.value}</Text>
-              <Text style={s.statLabel} numberOfLines={1}>
-                {x.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Card>
-
-      {!trips.length ? (
-        loading ? (
-          <SkeletonCards cards={2} />
-        ) : (
-          <Card>
-            <View style={s.empty}>
-              <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
-              <Text style={s.emptyTitle}>No new Scheduled Requests</Text>
-            </View>
-          </Card>
-        )
-      ) : null}
-      {open.map(row)}
-
-      {notScheduled.length ? (
-        <Pressable
-          onPress={onOpenWaiting}
-          accessibilityRole="button"
-          accessibilityLabel="Open Not Scheduled orders"
-          style={({ pressed }) => [s.notSched, pressed && s.tripRowPressed]}
-        >
-          <Card>
-            <View style={s.tripHead}>
-              <View style={s.tripTruck}>
-                <Ionicons name="time-outline" size={16} color={COLORS.textMuted} />
-                <Text style={[s.tripTruckText, s.notSchedText]} numberOfLines={1}>
-                  Not Scheduled ({waitingN}bkts)
+          <View style={s.statRow}>
+            {[
+              { label: 'Requested', value: totals.requested },
+              { label: 'On trolley', value: totals.trolley },
+              { label: 'In transit', value: totals.transit },
+              { label: 'Shelved', value: totals.shelved },
+            ].map((x) => (
+              <View key={x.label} style={s.statTile}>
+                <Text style={s.statValue}>{x.value}</Text>
+                <Text style={s.statLabel} numberOfLines={1}>
+                  {x.label}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-            </View>
-            <Text style={s.oplMeta}>
-              {plural(waitingN, 'bucket')} · not loadable yet
-            </Text>
-          </Card>
-        </Pressable>
-      ) : null}
-
-      {/* History: the trips already dispatched from here (newest first), then any
-          other trip whose stop here is closed. Read only. */}
-      {past.length || closedOnly.length ? <Text style={s.sectionHdr}>History</Text> : null}
-      {past.map((t) => {
-        const arrived = t.status === 'Received' || t.arrived;
-        const st: TripStateUi = arrived
-          ? { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' }
-          : { label: 'In transit', tone: 'done', color: '#1d4ed8' };
-        return (
-          <View key={t.tripId} style={s.tripRowDone}>
+            ))}
+          </View>
+        </Card>
+      ),
+    });
+    if (!trips.length) {
+      out.push(
+        loading
+          ? { key: 'skeleton', render: () => <SkeletonCards cards={2} /> }
+          : {
+              key: 'empty',
+              render: () => (
+                <Card>
+                  <View style={s.empty}>
+                    <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
+                    <Text style={s.emptyTitle}>No new Scheduled Requests</Text>
+                  </View>
+                </Card>
+              ),
+            },
+      );
+    }
+    out.push(...open.map(row));
+    if (notScheduled.length) {
+      out.push({
+        key: 'not-scheduled',
+        render: () => (
+          <Pressable
+            onPress={onOpenWaiting}
+            accessibilityRole="button"
+            accessibilityLabel="Open Not Scheduled orders"
+            style={({ pressed }) => [s.notSched, pressed && s.tripRowPressed]}
+          >
             <Card>
               <View style={s.tripHead}>
                 <View style={s.tripTruck}>
-                  <Ionicons name="car" size={16} color={COLORS.textMuted} />
-                  <Text style={s.tripTruckText} numberOfLines={1}>
-                    {`${t.vehicle || 'Truck'}${t.run ? ` · Trip ${t.run}` : ''}`}
+                  <Ionicons name="time-outline" size={16} color={COLORS.text} />
+                  <Text style={[s.tripTruckText, s.notSchedText]} numberOfLines={1}>
+                    Not Scheduled ({waitingN}bkts)
                   </Text>
                 </View>
-                <StatePill state={st} />
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
               </View>
-              <Text style={s.tripRoute} numberOfLines={1}>
-                {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
-              </Text>
-              {t.leftAt ? (
-                <Text style={s.oplMeta} numberOfLines={1}>
-                  Left {dateTimeLabel(t.leftAt)}
-                </Text>
-              ) : null}
-              <Text style={s.oplMeta} numberOfLines={1}>
-                {(() => {
-                  const c = carried.get(t.tripId);
-                  const n = c ? c.buckets.length : 0;
-                  const sh = c ? c.buckets.filter((b) => b.shelved).length : 0;
-                  return `${n} bucket${n === 1 ? '' : 's'} · ${sh} shelved at ${hub || 'Kapkolia'}`;
-                })()}
-              </Text>
-              <Pressable
-                onPress={() => onOpenHistory(t.tripId)}
-                style={s.historyBtn}
-                accessibilityRole="button"
-                accessibilityLabel={`Buckets on ${t.vehicle} trip ${t.run}`}
-              >
-                <Ionicons name="cube-outline" size={14} color={COLORS.text} />
-                <Text style={s.changeLink}>View buckets</Text>
-                <Ionicons name="chevron-forward" size={14} color={COLORS.text} />
-              </Pressable>
+              <Text style={s.oplMeta}>{plural(waitingN, 'bucket')} · not loadable yet</Text>
             </Card>
-          </View>
-        );
-      })}
-      {closedOnly.map(row)}
-    </>
-  );
-}
+          </Pressable>
+        ),
+      });
+    }
+    // History: the trips already dispatched from here (newest first), then any other
+    // trip whose stop here is closed. Read only.
+    if (past.length || closedOnly.length) out.push({ key: 'history-hdr', render: () => <Text style={s.sectionHdr}>History</Text> });
+    out.push(
+      ...past.map((t) => ({
+        key: `past-${t.tripId}`,
+        render: () => <PastTripRow trip={t} farm={farm} hub={hub} carried={carried.get(t.tripId)} onOpenHistory={onOpenHistory} />,
+      })),
+    );
+    out.push(...closedOnly.map(row));
+    return out;
+  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, notice, totals, onOpen, onOpenWaiting, onOpenHistory]);
 
-/** An order waiting at this farm on no truck trip yet: greyed, its requested buckets
- *  listed but nothing to scan or replace. */
-/** Orders on no truck trip yet, grouped like a trip's requests: one greyed card per
- *  variety, each bucket "43cm(ORDER)" -- listed to see what is coming, nothing to scan. */
-function NotScheduledVarieties({ groups }: { groups: OrderGroup[] }) {
-  const byOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
+  return <CardList items={items} refreshControl={refreshControl} />;
+});
+
+/** One open (or closed) trip on the Trips page: tap to open its scan page. */
+const TripRow = memo(function TripRow({
+  trip: t,
+  farm,
+  hub,
+  state,
+  loaded,
+  total,
+  trolleyN,
+  onOpen,
+}: {
+  trip: PlannedTrip;
+  farm: string;
+  hub: string;
+  state: TripStateUi;
+  loaded: number;
+  total: number;
+  trolleyN: number;
+  onOpen: (tripId: string) => void;
+}) {
+  const done = state.tone === 'done';
+  return (
+    <Pressable
+      onPress={() => onOpen(t.tripId)}
+      disabled={t.yourStopClosed}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${tripName(t)}`}
+      style={({ pressed }) => [done && s.tripRowDone, pressed && s.tripRowPressed]}
+    >
+      <Card>
+        <View style={s.tripHead}>
+          <View style={s.tripTruck}>
+            <Ionicons name="car" size={16} color={done ? COLORS.textMuted : COLORS.text} />
+            <Text style={s.tripTruckText} numberOfLines={1}>
+              {tripName(t)}
+            </Text>
+          </View>
+          <StatePill state={state} />
+        </View>
+        <Text style={s.tripRoute} numberOfLines={1}>
+          {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
+        </Text>
+        {t.createdAt ? (
+          <Text style={s.oplMeta} numberOfLines={1}>
+            Created {dateTimeLabel(t.createdAt)}
+          </Text>
+        ) : null}
+        {t.scheduledAt ? (
+          <Text style={s.oplMeta} numberOfLines={1}>
+            Scheduled {dateTimeLabel(t.scheduledAt)}
+          </Text>
+        ) : null}
+        <View style={s.yourStopScan}>
+          <Text style={s.oplMeta}>
+            {loaded}/{total} bucket{total === 1 ? '' : 's'} on the truck
+            {trolleyN ? ` · ${trolleyN} on trolleys` : ''}
+          </Text>
+        </View>
+        <ProgressBar value={total ? Math.min(1, loaded / total) : 0} />
+        <View style={s.tripFoot}>
+          <View style={s.metaGrow} />
+          {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
+        </View>
+      </Card>
+    </Pressable>
+  );
+});
+
+/** A trip already dispatched from here (History): read only, its buckets on tap. */
+const PastTripRow = memo(function PastTripRow({
+  trip: t,
+  farm,
+  hub,
+  carried: c,
+  onOpenHistory,
+}: {
+  trip: CompletedTrip;
+  farm: string;
+  hub: string;
+  carried?: ShelvedTrip;
+  onOpenHistory: (tripId: string) => void;
+}) {
+  const arrived = t.status === 'Received' || t.arrived;
+  const st: TripStateUi = arrived
+    ? { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' }
+    : { label: 'In transit', tone: 'done', color: '#1d4ed8' };
+  const n = c ? c.buckets.length : 0;
+  const sh = c ? c.buckets.filter((b) => b.shelved).length : 0;
+  return (
+    <View style={s.tripRowDone}>
+      <Card>
+        <View style={s.tripHead}>
+          <View style={s.tripTruck}>
+            <Ionicons name="car" size={16} color={COLORS.textMuted} />
+            <Text style={s.tripTruckText} numberOfLines={1}>
+              {`${t.vehicle || 'Truck'}${t.run ? ` · Trip ${t.run}` : ''}`}
+            </Text>
+          </View>
+          <StatePill state={st} />
+        </View>
+        <Text style={s.tripRoute} numberOfLines={1}>
+          {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
+        </Text>
+        {t.leftAt ? (
+          <Text style={s.oplMeta} numberOfLines={1}>
+            Left {dateTimeLabel(t.leftAt)}
+          </Text>
+        ) : null}
+        <Text style={s.oplMeta} numberOfLines={1}>
+          {`${n} bucket${n === 1 ? '' : 's'} · ${sh} shelved at ${hub || 'Kapkolia'}`}
+        </Text>
+        <Pressable
+          onPress={() => onOpenHistory(t.tripId)}
+          style={s.historyBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Buckets on ${t.vehicle} trip ${t.run}`}
+        >
+          <Ionicons name="cube-outline" size={14} color={COLORS.text} />
+          <Text style={s.changeLink}>View buckets</Text>
+          <Ionicons name="chevron-forward" size={14} color={COLORS.text} />
+        </Pressable>
+      </Card>
+    </View>
+  );
+});
+
+/** Orders on no truck trip yet, grouped like a trip's requests: one card per variety,
+ *  each bucket "43cm(ORDER)" -- listed to see what is coming, nothing to scan. */
+function notScheduledCards(groups: OrderGroup[], byOrder: boolean): CardItem[] {
   const rows: ListRow[] = groups.flatMap((g) =>
     g.opls.flatMap((o) => o.buckets.filter((b) => !b.scanned && !b.notFound).map((b) => ({ b, orderName: g.orderName }))),
   );
+  return listSections(rows, byOrder).map((sec) => ({
+    key: `ns-${sec.key}`,
+    render: () => <NotScheduledCard section={sec} byOrder={byOrder} />,
+  }));
+}
+
+/** The Not Scheduled page: those orders' buckets, read only. */
+const NotScheduledList = memo(function NotScheduledList({
+  groups,
+  refreshControl,
+}: {
+  groups: OrderGroup[];
+  refreshControl?: ReactElement;
+}) {
+  const byOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
+  const items = useMemo(() => {
+    const cards = notScheduledCards(groups, byOrder);
+    return cards.length
+      ? cards
+      : [
+          {
+            key: 'empty',
+            render: () => (
+              <Card>
+                <View style={s.empty}>
+                  <Ionicons name="checkmark-done-outline" size={26} color={COLORS.textMuted} />
+                  <Text style={s.emptyTitle}>Every order is on a truck</Text>
+                </View>
+              </Card>
+            ),
+          },
+        ];
+  }, [groups, byOrder]);
+  return <CardList items={items} refreshControl={refreshControl} />;
+});
+
+const NotScheduledCard = memo(function NotScheduledCard({ section: sec, byOrder }: { section: ListSection; byOrder: boolean }) {
   return (
-    <>
-      {listSections(rows, byOrder).map((sec) => (
-        <View key={sec.key} style={s.notSched}>
-          <Card>
-            <View style={s.groupLine}>
-              {sec.color ? <View style={[s.varDot, { backgroundColor: sec.color }]} /> : null}
-              <Text style={[s.groupHdr, s.groupNames, s.groupHdrDim, s.notSchedHdr]} numberOfLines={1}>
-                {sec.title}
-              </Text>
-              <Text style={[s.oplMeta, s.notSchedText]}>{sec.rows.length}</Text>
-            </View>
-            <View style={s.divider} />
-            {sec.rows.map((r, i, list) => {
-              const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
-              const color = r.b.varietyColor || sec.color;
-              return (
-                <View key={r.b.id}>
-                  {newVariety ? <VarietySubHead row={r} dim /> : null}
-                  <View
-                    style={[
-                      s.bRow,
-                      i > 0 && !newVariety && s.bRowSep,
-                      color ? [s.varStripe, { borderLeftColor: color }] : null,
-                    ]}
-                  >
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={s.shelfBucketRow}>
-                        <View style={s.idCol}>
-                          <Text style={[s.bShelfLead, s.notSchedText]}>{(r.b.shelf || 'none').toUpperCase()}</Text>
-                          <Text style={s.idWord}>SHELF</Text>
-                        </View>
-                        <View style={[s.idCol, s.idColRight]}>
-                          <Text style={[s.bIdRight, s.notSchedText]}>
-                            {r.b.bucketId.toUpperCase()} ({bucketStems(r.b.qty, r.b.uom)})
-                          </Text>
-                          <Text style={s.idWord}>BUCKET</Text>
-                        </View>
-                      </View>
-                      <Text style={[s.bMeta, s.notSchedText]}>{listMeta(r, byOrder)}</Text>
+    <View style={s.notSched}>
+      <Card>
+        <View style={s.groupLine}>
+          {sec.color ? <View style={[s.varDot, { backgroundColor: sec.color }]} /> : null}
+          <Text style={[s.groupHdr, s.groupNames, s.notSchedHdr]} numberOfLines={1}>
+            {sec.title}
+          </Text>
+          <Text style={[s.oplMeta, s.notSchedText]}>{sec.rows.length}</Text>
+        </View>
+        <View style={s.divider} />
+        {sec.rows.map((r, i, list) => {
+          const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
+          const color = r.b.varietyColor || sec.color;
+          return (
+            <View key={r.b.id}>
+              {newVariety ? <VarietySubHead row={r} dim /> : null}
+              <View
+                style={[
+                  s.bRow,
+                  i > 0 && !newVariety && s.bRowSep,
+                  color ? [s.varStripe, { borderLeftColor: color }] : null,
+                ]}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={s.shelfBucketRow}>
+                    <View style={s.idCol}>
+                      <Text style={[s.bShelfLead, s.notSchedText]}>{(r.b.shelf || 'none').toUpperCase()}</Text>
+                      <Text style={s.idWord}>SHELF</Text>
+                    </View>
+                    <View style={[s.idCol, s.idColRight]}>
+                      <Text style={[s.bIdRight, s.notSchedText]}>
+                        {r.b.bucketId.toUpperCase()} ({bucketStems(r.b.qty, r.b.uom)})
+                      </Text>
+                      <Text style={s.idWord}>BUCKET</Text>
                     </View>
                   </View>
+                  <Text style={[s.bMeta, s.notSchedText]}>{listMeta(r, byOrder)}</Text>
                 </View>
-              );
-            })}
-          </Card>
-        </View>
-      ))}
-    </>
+              </View>
+            </View>
+          );
+        })}
+      </Card>
+    </View>
   );
-}
+}, (a, b) => a.byOrder === b.byOrder && sameSection(a.section, b.section));
 
 /** Bucket meta line: "Variety · 40cm", omitting any empty part. A bare numeric
  *  stem length gets a "cm" suffix; anything else is shown as-is. Shelf renders as
@@ -2248,7 +2495,7 @@ function bucketMeta(variety: string, stemLength: string): string {
 
 /** One requested bucket: shelf and bucket id, then `meta` (variety · length, or in a
  *  variety group "43cm (ORDER)"), its ASAP pill and the Info (replace / not found) button. */
-function BucketRow({
+const BucketRow = memo(function BucketRow({
   b,
   first,
   meta,
@@ -2325,10 +2572,38 @@ function BucketRow({
       </View>
     </View>
   );
-}
+}, (a, b) =>
+  a.first === b.first &&
+  a.meta === b.meta &&
+  a.color === b.color &&
+  a.onReplace === b.onReplace &&
+  // Only the row being replaced cares which one is.
+  (a.replacingId === b.replacingId || (a.replacingId !== a.b.id && b.replacingId !== b.b.id && (a.replacingId === null) === (b.replacingId === null))) &&
+  sameBucket(a.b, b.b));
 
 type ListRow = { b: ReqBucket; orderName: string; onTruck?: boolean };
 type ListSection = { key: string; title: string; color?: string; rows: ListRow[] };
+
+/** Same bucket, field by field: a sync rebuilds every row from the database, so a row
+ *  only re-renders when something it shows changed. */
+function sameBucket(a: ReqBucket, b: ReqBucket): boolean {
+  if (a === b) return true;
+  const ka = Object.keys(a) as (keyof ReqBucket)[];
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) if (a[k] !== b[k]) return false;
+  return true;
+}
+
+function sameSection(a: ListSection, b: ListSection): boolean {
+  if (a === b) return true;
+  if (a.key !== b.key || a.title !== b.title || a.color !== b.color || a.rows.length !== b.rows.length) return false;
+  for (let i = 0; i < a.rows.length; i++) {
+    const x = a.rows[i];
+    const y = b.rows[i];
+    if (x.orderName !== y.orderName || x.onTruck !== y.onTruck || !sameBucket(x.b, y.b)) return false;
+  }
+  return true;
+}
 
 /** A list's buckets in cards: per variety (each row "43cm(ORDER)"), or -- Production
  *  Settings > Group App Bucket Requests by Order -- per order, its varieties grouped
@@ -2380,7 +2655,7 @@ function VarietySubHead({ row, dim }: { row: ListRow; dim?: boolean }) {
 /** A trip's requested buckets for one variety: each row "43cm (ORDER)", the scanned
  *  ones folded away under a green "N scanned" line. Scans still flag each bucket's own
  *  picklist -- only the grouping on screen changes. */
-function VarietyCard({
+const VarietyCard = memo(function VarietyCard({
   section,
   byOrder,
   replacingId,
@@ -2437,9 +2712,10 @@ function VarietyCard({
       {showScanned ? done.map(row) : null}
     </Card>
   );
-}
+}, (a, b) =>
+  a.byOrder === b.byOrder && a.replacingId === b.replacingId && a.onReplace === b.onReplace && sameSection(a.section, b.section));
 
-function OplCard({
+const OplCard = memo(function OplCard({
   opl,
   trip,
   team,
@@ -2541,87 +2817,171 @@ function OplCard({
     </Wrap>
     </View>
   );
-}
+});
 
-/** The Trolley tab's buckets by variety, like a trip's requests: one card per
- *  variety (its Variety Tree colour), each bucket "43cm(ORDER)"; a bucket already on
- *  the truck says so. */
-function TrolleyVarieties({ items, rows: given, hub }: { items?: TrolleyOpl[]; rows?: ListRow[]; hub?: string }) {
-  const byOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
-  // `rows`: a History trip's buckets (onTruck = not shelved at the hub yet).
-  const rows: ListRow[] =
-    given ??
-    (items ?? []).flatMap((o) =>
-      o.buckets.filter((b) => !b.notFound).map((b) => ({ b, orderName: o.orderName, onTruck: !!o.loadedToTruck })),
-    );
-  return (
-    <>
-      {listSections(rows, byOrder).map((sec) => (
-        <Card key={sec.key}>
-          <View style={s.groupLine}>
-            {sec.color ? <View style={[s.varDot, { backgroundColor: sec.color }]} /> : null}
-            <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
-              {sec.title}
-            </Text>
-            <Text style={s.oplMeta}>{sec.rows.length}</Text>
-          </View>
-          <View style={s.divider} />
-          {sec.rows.map((r, i, list) => {
-            const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
-            const color = r.b.varietyColor || sec.color;
-            return (
-              <View key={r.b.id}>
-                {newVariety ? <VarietySubHead row={r} /> : null}
-                <View
-                  style={[s.bRow, i > 0 && !newVariety && s.bRowSep, color ? [s.varStripe, { borderLeftColor: color }] : null]}
-                >
-                  <Ionicons
-                    name={r.onTruck ? 'car' : 'checkmark-circle'}
-                    size={16}
-                    color={r.onTruck ? COLORS.text : (COLORS.success ?? '#12B76A')}
-                  />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={s.bId} numberOfLines={1}>
-                      {r.b.bucketId.toUpperCase()} ({bucketStems(r.b.qty, r.b.uom)})
-                    </Text>
-                    <Text style={s.bMeta} numberOfLines={1}>
-                      {listMeta(r, byOrder)}
-                      {r.onTruck ? '  · on truck' : given ? `  · shelved${r.b.shelf ? ` ${r.b.shelf}` : ''} at ${hub || 'Kapkolia'}` : ''}
-                    </Text>
-                  </View>
+/** One variety (or order) card of trolley buckets: each bucket "43cm(ORDER)"; a bucket
+ *  already on the truck says so (a History trip's: where it is shelved at the hub). */
+const TrolleyCard = memo(
+  function TrolleyCard({
+    section: sec,
+    byOrder,
+    hub,
+    history,
+  }: {
+    section: ListSection;
+    byOrder: boolean;
+    hub?: string;
+    history?: boolean;
+  }) {
+    return (
+      <Card>
+        <View style={s.groupLine}>
+          {sec.color ? <View style={[s.varDot, { backgroundColor: sec.color }]} /> : null}
+          <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
+            {sec.title}
+          </Text>
+          <Text style={s.oplMeta}>{sec.rows.length}</Text>
+        </View>
+        <View style={s.divider} />
+        {sec.rows.map((r, i, list) => {
+          const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
+          const color = r.b.varietyColor || sec.color;
+          return (
+            <View key={r.b.id}>
+              {newVariety ? <VarietySubHead row={r} /> : null}
+              <View
+                style={[s.bRow, i > 0 && !newVariety && s.bRowSep, color ? [s.varStripe, { borderLeftColor: color }] : null]}
+              >
+                <Ionicons
+                  name={r.onTruck ? 'car' : 'checkmark-circle'}
+                  size={16}
+                  color={r.onTruck ? COLORS.text : (COLORS.success ?? '#12B76A')}
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={s.bId} numberOfLines={1}>
+                    {r.b.bucketId.toUpperCase()} ({bucketStems(r.b.qty, r.b.uom)})
+                  </Text>
+                  <Text style={s.bMeta} numberOfLines={1}>
+                    {listMeta(r, byOrder)}
+                    {r.onTruck ? '  · on truck' : history ? `  · shelved${r.b.shelf ? ` ${r.b.shelf}` : ''} at ${hub || 'Kapkolia'}` : ''}
+                  </Text>
                 </View>
               </View>
-            );
-          })}
-        </Card>
-      ))}
-    </>
-  );
+            </View>
+          );
+        })}
+      </Card>
+    );
+  },
+  (a, b) => a.byOrder === b.byOrder && a.hub === b.hub && a.history === b.history && sameSection(a.section, b.section),
+);
+
+/** Buckets by variety in a list (the Trolley tab, a History trip): `lead` cards first,
+ *  `empty` when there is no bucket. */
+const VarietyList = memo(function VarietyList({
+  rows,
+  hub,
+  history,
+  lead,
+  empty,
+  loading,
+  header,
+  footer,
+  refreshControl,
+}: {
+  rows: ListRow[];
+  /** Nothing pulled yet: skeletons instead of the empty card. */
+  loading?: boolean;
+  hub?: string;
+  /** A History trip's buckets (onTruck = not shelved at the hub yet). */
+  history?: boolean;
+  lead?: CardItem[];
+  empty?: ReactElement;
+  header?: ReactElement | null;
+  footer?: ReactElement | null;
+  refreshControl?: ReactElement;
+}) {
+  const byOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
+  const items = useMemo((): CardItem[] => {
+    const cards = listSections(rows, byOrder).map((sec) => ({
+      key: `v-${sec.key}`,
+      render: () => <TrolleyCard section={sec} byOrder={byOrder} hub={hub} history={history} />,
+    }));
+    if (!cards.length && loading) return [{ key: 'skeleton', render: () => <SkeletonCards cards={2} /> }];
+    return [...(lead ?? []), ...(cards.length || !empty ? cards : [{ key: 'empty', render: () => empty }])];
+  }, [rows, byOrder, hub, history, lead, empty, loading]);
+  return <CardList items={items} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
+});
+
+/** The buckets "Load to truck" sends: this phone's trolley rows of the orders (as the
+ *  store's load does), a bucket shared by several orders counted once. */
+function loadBucketCount(opls: TrolleyOpl[]): number {
+  const ids = new Set<string>();
+  for (const o of opls) {
+    const own = new Set(o.ownPliIds ?? o.pliIds);
+    for (const b of o.buckets) if (!b.notFound && b.pliId && own.has(b.pliId)) ids.add(b.bucketId.toUpperCase());
+  }
+  return ids.size;
 }
 
-function TrolleyTab({
+const TrolleyTab = memo(function TrolleyTab({
   items,
   syncingOpl,
-  oplTeam,
-  oplLine,
   onLoad,
   scanned,
   total,
+  header,
+  footer,
+  refreshControl,
 }: {
   items: TrolleyOpl[];
-  /** Every requested bucket is on a trolley. */
-  allScanned: boolean;
   syncingOpl: string | null;
-  oplTeam: Record<string, string>;
-  oplLine: Record<string, LineColor>;
   onLoad: (opls: TrolleyOpl[]) => void;
   /** The tab's count: buckets on trolleys of those requested (not yet on a truck). */
   scanned: number;
   total: number;
+  header?: ReactElement | null;
+  footer?: ReactElement | null;
+  refreshControl?: ReactElement;
 }) {
-  if (!items.length) {
-    // An order is listed here once every one of its buckets is on a trolley.
-    return (
+  // Loaded onto the truck but not dispatched yet: stays here (the dashboard sends it
+  // on its way), so only the orders still on trolleys can be loaded.
+  // One button loads every order on the trolley — no button per order.
+  const toLoad = useMemo(() => items.filter((o) => !o.loadedToTruck && o.ownPliIds.length > 0), [items]);
+  const loadN = useMemo(() => loadBucketCount(toLoad), [toLoad]);
+  const rows = useMemo(
+    () =>
+      items.flatMap((o) =>
+        o.buckets.filter((b) => !b.notFound).map((b) => ({ b, orderName: o.orderName, onTruck: !!o.loadedToTruck })),
+      ),
+    [items],
+  );
+  const busy = !!syncingOpl;
+  const lead = useMemo(
+    (): CardItem[] =>
+      loadN
+        ? [
+            {
+              key: 'load',
+              render: () => (
+                <Card>
+                  <Button
+                    label={`Load ${plural(loadN, 'bucket')} to truck`}
+                    iconLeft="car-outline"
+                    loading={busy}
+                    disabled={busy}
+                    onPress={() => onLoad(toLoad)}
+                  />
+                </Card>
+              ),
+            },
+          ]
+        : [],
+    [loadN, busy, onLoad, toLoad],
+  );
+  // An order is listed here once every one of its buckets is on a trolley.
+  const empty = useMemo(
+    () => (
       <Card>
         <View style={s.empty}>
           <Ionicons name="cart-outline" size={26} color={COLORS.textMuted} />
@@ -2634,47 +2994,69 @@ function TrolleyTab({
           ) : null}
         </View>
       </Card>
-    );
-  }
-  // Loaded onto the truck but not dispatched yet: stays here (the dashboard sends it
-  // on its way), so only the orders still on trolleys can be loaded.
-  // One button loads every order on the trolley — no button per order.
-  const toLoad = items.filter((o) => !o.loadedToTruck && o.ownPliIds.length > 0);
-  return (
-    <>
-      {toLoad.length ? (
-        <Card>
-          <Button
-            label="Load to truck"
-            iconLeft="car-outline"
-            loading={!!syncingOpl}
-            disabled={!!syncingOpl}
-            onPress={() => onLoad(toLoad)}
-          />
-        </Card>
-      ) : null}
-      <TrolleyVarieties items={items} />
-    </>
+    ),
+    [scanned, total],
   );
-}
+  return (
+    <VarietyList
+      rows={rows}
+      lead={lead}
+      empty={empty}
+      header={header}
+      footer={footer}
+      refreshControl={refreshControl}
+    />
+  );
+});
 
-function InTransitTab({
+/** In Transit: one order's buckets on a truck. */
+const TransitOrder = memo(function TransitOrder({ opl: o }: { opl: TrolleyOpl }) {
+  return (
+    <View style={s.groupInTrip}>
+      {/* Team, order name, customer, then the OPL and its buckets. */}
+      <View style={s.groupLine}>
+        <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
+          {o.orderName}
+        </Text>
+      </View>
+      <Text style={s.transitOpl} numberOfLines={1}>
+        {o.oplName}
+      </Text>
+      {o.buckets
+        .filter((b) => !b.notFound)
+        .map((b, i) => (
+          <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
+            <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={s.bShelfLead} numberOfLines={1}>
+                {b.bucketId.toUpperCase()} ({bucketStems(b.qty, b.uom)})
+              </Text>
+              <Text style={s.bMeta} numberOfLines={1}>
+                {bucketMeta(b.variety, b.stemLength)}
+              </Text>
+            </View>
+          </View>
+        ))}
+    </View>
+  );
+});
+
+const InTransitTab = memo(function InTransitTab({
   hub,
   items,
-  oplTeam,
-  oplLine,
   trips,
   arrivals,
   deliveryDate,
   online,
   loading,
   onArrival,
+  header,
+  footer,
+  refreshControl,
 }: {
   /** The transfer hub (Kapkolia). */
   hub: string;
   items: TrolleyOpl[];
-  oplTeam: Record<string, string>;
-  oplLine: Record<string, LineColor>;
   /** This farm's trips on the road (dispatched, not received). */
   trips: CompletedTrip[];
   arrivals: Record<string, TripArrival>;
@@ -2683,103 +3065,179 @@ function InTransitTab({
   /** Trip plan is being pulled: skeletons while nothing is shown yet. */
   loading: boolean;
   onArrival: (tripId: string, action: 'status' | 'arrive' | 'complete') => Promise<boolean>;
+  header?: ReactElement | null;
+  footer?: ReactElement | null;
+  refreshControl?: ReactElement;
 }) {
-  // Grouped per truck: each truck's card lists its own orders and buckets, then its
-  // "arrived" button. Picklists whose truck isn't known yet get a card of their own.
-  const orderRows = (opls: TrolleyOpl[]) =>
-    opls.map((o) => (
-      <View key={o.oplName} style={s.groupInTrip}>
-        {/* Team, order name, customer, then the OPL and its buckets. */}
-        <View style={s.groupLine}>
-          <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
-            {o.orderName}
-          </Text>
-        </View>
-        <Text style={s.transitOpl} numberOfLines={1}>
-          {o.oplName}
-        </Text>
-        {o.buckets
-          .filter((b) => !b.notFound)
-          .map((b, i) => (
-            <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
-              <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.bShelfLead} numberOfLines={1}>
-                  {b.bucketId.toUpperCase()} ({bucketStems(b.qty, b.uom)})
-                </Text>
-                <Text style={s.bMeta} numberOfLines={1}>
-                  {bucketMeta(b.variety, b.stemLength)}
+  const cards = useMemo((): CardItem[] => {
+    if (!items.length && !trips.length) {
+      if (loading) return [{ key: 'skeleton', render: () => <SkeletonCards cards={2} /> }];
+      return [
+        {
+          key: 'empty',
+          render: () => (
+            <Card>
+              <View style={s.empty}>
+                <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
+                <Text style={s.emptyTitle}>Nothing in transit</Text>
+              </View>
+            </Card>
+          ),
+        },
+      ];
+    }
+    // Grouped per truck: each truck's card lists its own orders and buckets, then its
+    // "arrived" button. Picklists whose truck isn't known yet get a card of their own.
+    const orderRows = (opls: TrolleyOpl[]) => opls.map((o) => <TransitOrder key={o.oplName} opl={o} />);
+    const onTruck = new Set<string>();
+    // Trucks still on the road first, the one that left earliest on top; trucks that
+    // have arrived at Kapkolia after them.
+    const ordered = [...trips].sort((a, b) => {
+      const aIn = a.arrived || hasArrived(arrivals[a.tripId]) ? 1 : 0;
+      const bIn = b.arrived || hasArrived(arrivals[b.tripId]) ? 1 : 0;
+      return aIn - bIn || (a.leftAt || '').localeCompare(b.leftAt || '') || a.tripId.localeCompare(b.tripId);
+    });
+    const out: CardItem[] = ordered.map((t) => {
+      const mine = items.filter((o) => (t.orders ?? []).some((x) => x.opl === o.oplName));
+      mine.forEach((o) => onTruck.add(o.oplName));
+      return {
+        key: `trip-${t.tripId}`,
+        render: () => (
+          <TripArrivalCard
+            trip={t}
+            arrival={arrivals[t.tripId]}
+            deliveryDate={deliveryDate}
+            online={online}
+            onArrival={onArrival}
+            hubName={hub}
+          >
+            {orderRows(mine)}
+          </TripArrivalCard>
+        ),
+      };
+    });
+    const noTruck = items.filter((o) => !onTruck.has(o.oplName));
+    if (noTruck.length) {
+      out.push({
+        key: 'no-truck',
+        render: () => (
+          <Card>
+            <View style={s.tripHead}>
+              <View style={s.tripTruck}>
+                <Ionicons name="car" size={16} color={COLORS.textMuted} />
+                <Text style={s.tripTruckText} numberOfLines={1}>
+                  Truck not recorded
                 </Text>
               </View>
             </View>
-          ))}
-      </View>
-    ));
-  const onTruck = new Set<string>();
-  // Trucks still on the road first, the one that left earliest on top; trucks that
-  // have arrived at Kapkolia after them.
-  const ordered = [...trips].sort((a, b) => {
-    const aIn = a.arrived || hasArrived(arrivals[a.tripId]) ? 1 : 0;
-    const bIn = b.arrived || hasArrived(arrivals[b.tripId]) ? 1 : 0;
-    return aIn - bIn || (a.leftAt || '').localeCompare(b.leftAt || '') || a.tripId.localeCompare(b.tripId);
-  });
-  const tripCards = ordered.map((t) => {
-    const mine = items.filter((o) => (t.orders ?? []).some((x) => x.opl === o.oplName));
-    mine.forEach((o) => onTruck.add(o.oplName));
-    return (
-      <TripArrivalCard
-        key={t.tripId}
-        trip={t}
-        arrival={arrivals[t.tripId]}
-        deliveryDate={deliveryDate}
-        online={online}
-        onArrival={onArrival}
-        hubName={hub}
-      >
-        {orderRows(mine)}
-      </TripArrivalCard>
-    );
-  });
-  const noTruck = items.filter((o) => !onTruck.has(o.oplName));
-  if (!items.length && !trips.length) {
-    if (loading) return <SkeletonCards cards={2} />;
-    return (
-      <Card>
-        <View style={s.empty}>
-          <Ionicons name="car-outline" size={26} color={COLORS.textMuted} />
-          <Text style={s.emptyTitle}>Nothing in transit</Text>
-        </View>
-      </Card>
-    );
+            {orderRows(noTruck)}
+          </Card>
+        ),
+      });
+    }
+    return out;
+  }, [items, trips, arrivals, deliveryDate, online, loading, onArrival, hub]);
+  return <CardList items={cards} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
+});
+
+/** A truck's buckets grouped by order (and its customer), in the order they come. */
+function shelvedByOrder(rows: ShelvedTrip['buckets']) {
+  const groups: { orderName: string; customer: string; buckets: ShelvedTrip['buckets'] }[] = [];
+  const at = new Map<string, (typeof groups)[number]>();
+  for (const b of rows) {
+    let g = at.get(b.orderName);
+    if (!g) {
+      g = { orderName: b.orderName, customer: b.customer, buckets: [] };
+      at.set(b.orderName, g);
+      groups.push(g);
+    }
+    g.buckets.push(b);
   }
-  return (
-    <>
-      {tripCards}
-      {noTruck.length ? (
-        <Card>
-          <View style={s.tripHead}>
-            <View style={s.tripTruck}>
-              <Ionicons name="car" size={16} color={COLORS.textMuted} />
-              <Text style={s.tripTruckText} numberOfLines={1}>
-                Truck not recorded
-              </Text>
-            </View>
-          </View>
-          {orderRows(noTruck)}
-        </Card>
-      ) : null}
-    </>
-  );
+  return groups;
 }
+
+const shelvedTime = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
+
+/** One dispatched truck on the Shelved tab: its buckets (shelved or not) per order. */
+const ShelvedTripCard = memo(function ShelvedTripCard({ trip: t, rows }: { trip: ShelvedTrip; rows: ShelvedTrip['buckets'] }) {
+  const done = t.shelved === t.total;
+  return (
+    <Card>
+      <View style={s.tripHead}>
+        <View style={s.tripTruck}>
+          <Ionicons name="car" size={16} color={COLORS.text} />
+          <Text style={s.tripTruckText} numberOfLines={1}>
+            {t.vehicle || 'Truck'}
+          </Text>
+        </View>
+        <View style={[s.tripPill, done ? s.tripPillConfirmed : s.tripPillDraft]}>
+          <Text style={[s.tripPillText, done ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
+            {done ? 'All shelved' : `${t.shelved}/${t.total} shelved`}
+          </Text>
+        </View>
+      </View>
+      <Text style={s.tripMeta} numberOfLines={1}>
+        {[
+          t.tripId,
+          t.dispatchedAt ? `left ${shelvedTime(t.dispatchedAt)}` : '',
+          t.arrivedAt ? `arrived ${shelvedTime(t.arrivedAt)}` : '',
+          t.status === 'Received' ? 'received' : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {/* Per order (customer under it), then that order's buckets. */}
+      {shelvedByOrder(rows).map((g) => (
+        <View key={`${t.tripId}-${g.orderName}`} style={s.groupInTrip}>
+          <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
+            {g.orderName}
+          </Text>
+          {g.buckets.map((b) => (
+            <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
+              <Ionicons
+                name={b.shelved ? 'checkmark-circle' : 'time-outline'}
+                size={18}
+                color={b.shelved ? COLORS.text : COLORS.warn}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.bId} numberOfLines={1}>
+                  {b.bucketId.toUpperCase()}
+                </Text>
+              </View>
+              <View style={s.shelvedWhere}>
+                {b.shelved ? (
+                  // Shelved: its shelf in a green pill.
+                  <View style={s.shelvedPill}>
+                    <Ionicons name="checkmark" size={12} color={SHELVED_GREEN} />
+                    <Text style={s.shelvedPillText} numberOfLines={1}>
+                      {b.shelf || 'Shelved'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[s.shelvedState, s.shelvedStateWaiting]} numberOfLines={1}>
+                    Not shelved
+                  </Text>
+                )}
+                {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{shelvedTime(b.shelvedAt)}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </Card>
+  );
+});
 
 /** After transit: did this farm's dispatched buckets get shelved at the hub? One card
  *  per recent trip, buckets still waiting first, then shelved ones with shelf and time. */
-function ShelvedTab({
+const ShelvedTab = memo(function ShelvedTab({
   trips,
   hub,
   loading,
   online,
   day,
+  header,
+  refreshControl,
 }: {
   trips: ShelvedTrip[];
   hub: string;
@@ -2787,164 +3245,101 @@ function ShelvedTab({
   online: boolean;
   /** Selected delivery date ("Tomorrow", "Today", "Fri 3 Oct"); '' = every date. */
   day: string;
+  header?: ReactElement | null;
+  refreshControl?: ReactElement;
 }) {
   // Two tabs: Shelved / Not shelved. Opens on Not shelved while anything waits.
   const [view, setView] = useState<'shelved' | 'waiting' | null>(null);
   const where = hub || 'Kapkolia';
-  const time = (iso: string) => (iso ? `${iso.slice(5, 10).split('-').reverse().join('/')} ${iso.slice(11, 16)}` : '');
-
-  if (!trips.length) {
-    if (loading && online) return <SkeletonCards cards={2} rows={4} />;
-    return (
-      <Card>
-        <View style={s.empty}>
-          <Ionicons name="file-tray-full-outline" size={26} color={COLORS.textMuted} />
-          <Text style={s.emptyTitle}>
-            {loading
-              ? 'Loading…'
-              : !online
-                ? 'Connect to see shelved buckets'
-                : day
-                  ? `No buckets dispatched for ${day.toLowerCase() === 'today' || day.toLowerCase() === 'tomorrow' ? day.toLowerCase() : day}'s orders yet`
-                  : 'No dispatched buckets yet'}
-          </Text>
-        </View>
-      </Card>
-    );
-  }
-
-  // A truck's buckets grouped by order (and its customer), in the order they come.
-  const byOrder = (rows: ShelvedTrip['buckets']) => {
-    const groups: { orderName: string; customer: string; buckets: ShelvedTrip['buckets'] }[] = [];
-    for (const b of rows) {
-      let g = groups.find((x) => x.orderName === b.orderName);
-      if (!g) groups.push((g = { orderName: b.orderName, customer: b.customer, buckets: [] }));
-      g.buckets.push(b);
-    }
-    return groups;
-  };
   const total = trips.reduce((n, t) => n + t.total, 0);
   const shelved = trips.reduce((n, t) => n + t.shelved, 0);
   const waiting = total - shelved;
   const tab = view ?? (waiting ? 'waiting' : 'shelved');
-  const rowsOf = (t: ShelvedTrip) => t.buckets.filter((b) => (tab === 'shelved' ? b.shelved : !b.shelved));
-  const anyRows = trips.some((t) => rowsOf(t).length);
-  return (
-    <>
-      <Card>
-        <View style={s.arrivalRow}>
-          <Text style={[s.routeLabel, s.arrivalLabel]} numberOfLines={1}>
-            Shelved at {where}
-          </Text>
-          <Text style={s.arrivalCount}>
-            {shelved} / {total}
-          </Text>
-        </View>
-        <ProgressBar value={total ? shelved / total : 0} />
-        <View style={s.reasonRow}>
-          {[
-            { on: tab === 'shelved', label: `Shelved (${shelved})`, press: () => setView('shelved') },
-            { on: tab === 'waiting', label: `Not shelved (${waiting})`, press: () => setView('waiting') },
-          ].map((c) => (
-            <Pressable key={c.label} onPress={c.press} style={[s.reasonChip, c.on && s.reasonChipOn]}>
-              <Text style={[s.reasonText, c.on && s.reasonTextOn]}>{c.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </Card>
 
-      {!anyRows ? (
-        <Card>
-          <View style={s.empty}>
-            <Ionicons
-              name={tab === 'waiting' ? 'checkmark-done-outline' : 'file-tray-outline'}
-              size={26}
-              color={COLORS.textMuted}
-            />
-            <Text style={s.emptyTitle}>
-              {tab === 'waiting' ? 'Every bucket is shelved' : 'No bucket shelved yet'}
-            </Text>
-          </View>
-        </Card>
-      ) : null}
-
-      {trips.map((t) => {
-        const rows = rowsOf(t);
-        if (!rows.length) return null;
-        const done = t.shelved === t.total;
-        return (
-          <Card key={t.tripId}>
-            <View style={s.tripHead}>
-              <View style={s.tripTruck}>
-                <Ionicons name="car" size={16} color={COLORS.text} />
-                <Text style={s.tripTruckText} numberOfLines={1}>
-                  {t.vehicle || 'Truck'}
+  const items = useMemo((): CardItem[] => {
+    if (!trips.length) {
+      if (loading && online) return [{ key: 'skeleton', render: () => <SkeletonCards cards={2} rows={4} /> }];
+      return [
+        {
+          key: 'empty',
+          render: () => (
+            <Card>
+              <View style={s.empty}>
+                <Ionicons name="file-tray-full-outline" size={26} color={COLORS.textMuted} />
+                <Text style={s.emptyTitle}>
+                  {loading
+                    ? 'Loading…'
+                    : !online
+                      ? 'Connect to see shelved buckets'
+                      : day
+                        ? `No buckets dispatched for ${day.toLowerCase() === 'today' || day.toLowerCase() === 'tomorrow' ? day.toLowerCase() : day}'s orders yet`
+                        : 'No dispatched buckets yet'}
                 </Text>
               </View>
-              <View style={[s.tripPill, done ? s.tripPillConfirmed : s.tripPillDraft]}>
-                <Text style={[s.tripPillText, done ? s.tripPillTextConfirmed : s.tripPillTextDraft]}>
-                  {done ? 'All shelved' : `${t.shelved}/${t.total} shelved`}
-                </Text>
-              </View>
+            </Card>
+          ),
+        },
+      ];
+    }
+    const perTrip = trips
+      .map((t) => ({ t, rows: t.buckets.filter((b) => (tab === 'shelved' ? b.shelved : !b.shelved)) }))
+      .filter((x) => x.rows.length);
+    const out: CardItem[] = [
+      {
+        key: 'head',
+        render: () => (
+          <Card>
+            <View style={s.arrivalRow}>
+              <Text style={[s.routeLabel, s.arrivalLabel]} numberOfLines={1}>
+                Shelved at {where}
+              </Text>
+              <Text style={s.arrivalCount}>
+                {shelved} / {total}
+              </Text>
             </View>
-            <Text style={s.tripMeta} numberOfLines={1}>
+            <ProgressBar value={total ? shelved / total : 0} />
+            <View style={s.reasonRow}>
               {[
-                t.tripId,
-                t.dispatchedAt ? `left ${time(t.dispatchedAt)}` : '',
-                t.arrivedAt ? `arrived ${time(t.arrivedAt)}` : '',
-                t.status === 'Received' ? 'received' : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-            {/* Per order (customer under it), then that order's buckets. */}
-            {byOrder(rows).map((g) => (
-              <View key={`${t.tripId}-${g.orderName}`} style={s.groupInTrip}>
-                <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
-                  {g.orderName}
-                </Text>
-                {g.buckets.map((b) => (
-                  <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
-                    <Ionicons
-                      name={b.shelved ? 'checkmark-circle' : 'time-outline'}
-                      size={18}
-                      color={b.shelved ? COLORS.text : COLORS.warn}
-                    />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={s.bId} numberOfLines={1}>
-                        {b.bucketId.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={s.shelvedWhere}>
-                      {b.shelved ? (
-                        // Shelved: its shelf in a green pill.
-                        <View style={s.shelvedPill}>
-                          <Ionicons name="checkmark" size={12} color={SHELVED_GREEN} />
-                          <Text style={s.shelvedPillText} numberOfLines={1}>
-                            {b.shelf || 'Shelved'}
-                          </Text>
-                        </View>
-                      ) : (
-                        <Text style={[s.shelvedState, s.shelvedStateWaiting]} numberOfLines={1}>
-                          Not shelved
-                        </Text>
-                      )}
-                      {b.shelved && b.shelvedAt ? <Text style={s.bMeta}>{time(b.shelvedAt)}</Text> : null}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ))}
+                { on: tab === 'shelved', label: `Shelved (${shelved})`, press: () => setView('shelved') },
+                { on: tab === 'waiting', label: `Not shelved (${waiting})`, press: () => setView('waiting') },
+              ].map((c) => (
+                <Pressable key={c.label} onPress={c.press} style={[s.reasonChip, c.on && s.reasonChipOn]}>
+                  <Text style={[s.reasonText, c.on && s.reasonTextOn]}>{c.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </Card>
-        );
-      })}
-    </>
-  );
-}
+        ),
+      },
+    ];
+    if (!perTrip.length) {
+      out.push({
+        key: 'none',
+        render: () => (
+          <Card>
+            <View style={s.empty}>
+              <Ionicons
+                name={tab === 'waiting' ? 'checkmark-done-outline' : 'file-tray-outline'}
+                size={26}
+                color={COLORS.textMuted}
+              />
+              <Text style={s.emptyTitle}>{tab === 'waiting' ? 'Every bucket is shelved' : 'No bucket shelved yet'}</Text>
+            </View>
+          </Card>
+        ),
+      });
+    }
+    for (const { t, rows } of perTrip) {
+      out.push({ key: `${tab}-${t.tripId}`, render: () => <ShelvedTripCard trip={t} rows={rows} /> });
+    }
+    return out;
+  }, [trips, loading, online, day, tab, where, shelved, total, waiting]);
+  return <CardList items={items} header={header} refreshControl={refreshControl} />;
+});
 
 /** A trip on the road to the hub: confirm the truck arrived, watch its buckets get
  *  shelved there, then complete the trip — only once every bucket is shelved. */
-function TripArrivalCard({
+const TripArrivalCard = memo(function TripArrivalCard({
   trip,
   arrival,
   deliveryDate,
@@ -3091,7 +3486,7 @@ function TripArrivalCard({
       />
     </Card>
   );
-}
+});
 
 /** Upcoming planned trips coming to collect from this farm — so the attendant
  *  can pre-stage trolleys before the truck arrives. */
@@ -3182,7 +3577,7 @@ function TripCard({
 }
 
 /** A tab's closing line: how many requested buckets have finished this stage. */
-function StageSummary({
+const StageSummary = memo(function StageSummary({
   icon,
   label,
   done,
@@ -3243,7 +3638,7 @@ function StageSummary({
         : null}
     </View>
   );
-}
+});
 
 /** Text and border of the "shelved" pill: a darker green that reads on its pale fill. */
 const SHELVED_GREEN = '#067647';
@@ -3267,6 +3662,7 @@ const s = StyleSheet.create({
   pickTag: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: 2 },
   pickTagFirst: { color: COLORS.success ?? '#067647' },
   tabHidden: { display: 'none' },
+  tabShown: { flex: 1 },
   // Trips page and the bar over a trip's scan page.
   pageBar: {
     flexDirection: 'row',
@@ -3476,9 +3872,9 @@ const s = StyleSheet.create({
   },
   dimmed: { opacity: 0.5 },
   // Not Scheduled orders: faded, grey text, no accents.
-  notSched: { opacity: 0.45 },
+  notSched: {},
   notSchedHdr: { marginTop: 0, marginLeft: 0 },
-  notSchedText: { color: COLORS.textMuted },
+  notSchedText: { color: COLORS.text },
   lineDot: { width: 10, height: 10, borderRadius: 5 },
   oplTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: spacing.xs },
   oplTag: {
