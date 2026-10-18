@@ -89,7 +89,13 @@ export type RawTrolleyActionResponse = {
     errors?: { bucket_id?: string; error?: string }[];
     /** setOfflineTrolleyFlags: buckets refused — already on another truck, or
      *  already arrived / issued at the packhouse. */
-    conflicts?: { bucket?: string; reason?: 'on_truck' | 'already_arrived' | string; truck?: string | null }[];
+    conflicts?: {
+      bucket?: string;
+      reason?: 'on_truck' | 'already_arrived' | string;
+      truck?: string | null;
+      /** other_trip: an earlier run of the order fills first (`truck` is that run). */
+      earlier?: 0 | 1;
+    }[];
   };
 };
 
@@ -105,9 +111,13 @@ export type RawPlannedTripOrder = {
   stems?: number;
   /** This order's own progress at the farm (transfer buckets / on trolley / in transit / shelved). */
   total?: number;
+  /** On a trolley at the farm, not on a truck yet. */
+  trolley?: number;
   loaded?: number;
   transit?: number;
   shelved?: number;
+  /** Shared buckets travelling with another order on this trip. */
+  riding?: number;
 };
 
 /** One stop (farm) on a trip's collection route, with its live loading status. */

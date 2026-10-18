@@ -73,11 +73,17 @@ export type PlannedTripOrder = {
   varieties: string;
   buckets: number;
   stems: number;
-  /** This order's own progress at the farm. */
+  /** This order's own progress at the farm, on this trip: the buckets that count on it
+   *  (an order split over two runs fills the earlier run first). */
   total: number;
+  trolley: number;
   loaded: number;
   transit: number;
   shelved: number;
+  /** Buckets of it travelling with another order on this trip (one bucket several orders
+   *  share): listed under both, counted once. Absent from an older server, whose `total`
+   *  is the order's whole portion at the farm on every trip. */
+  riding?: number;
 };
 
 export type StopStatus = 'waiting' | 'loading' | 'ready' | 'transit' | 'done';
@@ -306,9 +312,11 @@ function mapPlannedTripOrder(r: RawPlannedTripOrder): PlannedTripOrder {
     buckets: num(r.buckets),
     stems: num(r.stems),
     total: num(r.total),
+    trolley: num(r.trolley),
     loaded: num(r.loaded),
     transit: num(r.transit),
     shelved: num(r.shelved),
+    ...(r.riding == null ? {} : { riding: num(r.riding) }),
   };
 }
 
@@ -424,7 +432,9 @@ export const karenBucketRequestsRepository = {
 
   async fetchAllocations(farm: string, fromDate?: string, toDate?: string): Promise<FetchAllocationsOutcome> {
     const raw = await karenBucketRequestsApi.fetchAllocatedBuckets(farm, fromDate, toDate);
-    if (raw.http_status_code && raw.http_status_code >= 400) {
+    if ((raw.http_status_code && raw.http_status_code >= 400) || !Array.isArray(raw.data)) {
+      // No list in the reply (a server error page, an expired session): not "nothing
+      // waiting" -- the saved requests stay, nothing is pruned.
       return {
         kind: 'error',
         message: raw.error || raw.message || 'Failed to load pick list.',
@@ -544,7 +554,7 @@ export const karenBucketRequestsRepository = {
     | {
         kind: 'ok';
         updated: number;
-        conflicts: { bucket: string; reason: string; truck: string | null }[];
+        conflicts: { bucket: string; reason: string; truck: string | null; earlier: boolean }[];
       }
     | { kind: 'error'; message: string }
   > {
@@ -564,6 +574,7 @@ export const karenBucketRequestsRepository = {
           bucket: c.bucket ?? '',
           reason: c.reason ?? '',
           truck: c.truck ?? null,
+          earlier: !!c.earlier,
         })),
       };
     }
