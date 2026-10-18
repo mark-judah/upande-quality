@@ -231,8 +231,11 @@ export function earlierRunFirst(
   opl: string,
   unsynced: number,
 ): PlannedTrip | null {
+  const runs = oplRuns(trips, opl);
+  // An older server sends the whole portion as each run's total: leave it to the server.
+  if (runs.some((t) => orderOn(t, opl)?.riding === undefined)) return null;
   let extra = unsynced;
-  for (const t of oplRuns(trips, opl)) {
+  for (const t of runs) {
     if (t.tripId === trip.tripId) return null;
     const o = orderOn(t, opl);
     const waiting = Math.max(0, (o?.total || 0) - (o?.trolley || 0) - onTruckOf(o));
@@ -558,6 +561,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       // A local-database hiccup (e.g. the connection released by a reload) must
       // not surface as an error: keep what is on screen; the next refresh retries.
       if (__DEV__) console.warn('[bucket-requests] refresh failed:', e);
+      // The first read failing still ends the first load (empty, not a skeleton forever).
+      if (!get().hydrated) set({ hydrated: true });
       return;
     }
     const [allRequests, trolley, inTransit, vehicles, allTrips, schedules, deliveryDates] = lists;
@@ -701,7 +706,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
         ? await karenBucketRequestsRepository.fetchAllocations(farm, date, date)
         : await karenBucketRequestsRepository.fetchAllocations(farm);
       if (outcome.kind === 'error') {
-        set({ downloading: false });
+        set({ downloading: false, synced: true });
         return { ok: false, message: outcome.message };
       }
       const items = outcome.items;
@@ -740,7 +745,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       }
       return { ok: true, message: 'Downloaded successfully.' };
     } catch (e) {
-      set({ downloading: false });
+      set({ downloading: false, synced: true });
       return { ok: false, message: (e as Error)?.message || 'Download failed.' };
     }
   },
@@ -894,7 +899,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       // sync sends later), so it can't also be issued offline at the packhouse — in the
       // background, so the scan never waits on the network. A bucket already issued /
       // arrived there is refused: the scan is undone and `scanRefusal` says why.
-      const { pliIds, rowIds, bucketId } = res;
+      const { pliIds, rowIds, rowPliIds, bucketId } = res;
       karenBucketRequestsRepository
         .setOfflineTrolleyFlags({
           pliIds,
@@ -903,16 +908,24 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
           trip: get().selectedTripId ?? undefined,
         })
         .then(async (flag) => {
-          const clash = flag.kind === 'ok' ? flag.conflicts[0] : null;
+          const clashes = flag.kind === 'ok' ? flag.conflicts : [];
+          const clash = clashes[0];
           if (!clash) return;
-          await db.unscanBucket(rowIds).catch(() => {});
+          // Only the refused rows come off the trolley: an older server refuses a shared
+          // bucket's row for an order on another trip alone and keeps this trip's row
+          // (the first). A conflict names the pick row, or else the bucket once per row.
+          const byPli = rowIds.filter((_, i) => clashes.some((c) => c.bucket === rowPliIds[i]));
+          const rest = rowIds.filter((r) => !byPli.includes(r));
+          const lc = bucketId.trim().toLowerCase();
+          const n = clashes.filter((c) => c.bucket.trim().toLowerCase() === lc).length;
+          await db.unscanBucket([...byPli, ...rest.slice(Math.max(0, rest.length - n))]).catch(() => {});
           set({
             scanRefusal: {
               at: Date.now(),
               message:
                 clash.reason === 'trip_left'
                   ? `${bucketId.toUpperCase()} not added — ${clash.truck ?? 'this truck'} is already in transit.`
-                  : clash.reason === 'earlier_trip'
+                  : clash.earlier
                   ? `${bucketId.toUpperCase()} goes on ${clash.truck ?? 'the earlier trip'} first — taken off the trolley.`
                   : clash.reason === 'other_trip'
                   ? `${bucketId.toUpperCase()} is not on this trip — ${clash.truck ? `it is on ${clash.truck}` : 'it is not scheduled yet'}.`

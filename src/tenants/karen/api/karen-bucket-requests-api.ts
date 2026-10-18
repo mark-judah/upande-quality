@@ -89,7 +89,13 @@ export type RawTrolleyActionResponse = {
     errors?: { bucket_id?: string; error?: string }[];
     /** setOfflineTrolleyFlags: buckets refused — already on another truck, or
      *  already arrived / issued at the packhouse. */
-    conflicts?: { bucket?: string; reason?: 'on_truck' | 'already_arrived' | string; truck?: string | null }[];
+    conflicts?: {
+      bucket?: string;
+      reason?: 'on_truck' | 'already_arrived' | string;
+      truck?: string | null;
+      /** other_trip: an earlier run of the order fills first (`truck` is that run). */
+      earlier?: 0 | 1;
+    }[];
   };
 };
 

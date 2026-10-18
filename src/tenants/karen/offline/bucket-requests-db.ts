@@ -83,6 +83,8 @@ export type ScanResult =
       /** Every row the scan put on the trolley: a bucket several orders take stems from is
        *  one bucket, so its rows on all of them go on together. */
       rowIds: number[];
+      /** The pick row id of each of `rowIds`, in the same order. */
+      rowPliIds: (string | null)[];
       pliIds: string[];
     }
   | { ok: false; reason: 'not_found' | 'already' | 'not_scheduled'; message: string };
@@ -376,8 +378,11 @@ async function markOnTrolley(d: SQLite.SQLiteDatabase, oplName: string, rows: Al
   // A bucket the server sends back as waiting at the farm is not on a truck: a load
   // recorded here that the server no longer has (undone, corrected, reset) is dropped,
   // so the phone stops showing it in Transit. Truck loads only happen online, so this
-  // never drops a scan still waiting to sync.
-  const waiting = [...new Set(rows.filter((r) => r.onTrolley === false).map((r) => r.bucketId.toUpperCase()))];
+  // never drops a scan still waiting to sync. A bucket with a box row on the trolley
+  // and another not is on it.
+  const waiting = [
+    ...new Set(rows.filter((r) => r.onTrolley === false).map((r) => r.bucketId.toUpperCase())),
+  ].filter((b) => !loaded.includes(b));
   if (waiting.length) {
     await d.runAsync(
       `UPDATE bucket SET scanned = 0, scanned_at = NULL, trolley_id = NULL, truck_loaded = 0, truck_transit = 0
@@ -1103,7 +1108,7 @@ export async function scanBucket(bucketId: string, trolleyId: string, onlyOpls?:
   // together (the order the trip carries first).
   const rows = await d.getAllAsync<{ id: number; opl_name: string; pick_list_item_id: string | null }>(
     `SELECT b.id, b.opl_name, b.pick_list_item_id FROM bucket b
-     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.not_found = 0 AND ${fc}
+     WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 1 AND b.not_found = 0 AND ${fc}
      ORDER BY (b.id = ?) DESC, b.id ASC`,
     [lc, ...fa, row.id],
   );
@@ -1134,6 +1139,7 @@ export async function scanBucket(bucketId: string, trolleyId: string, onlyOpls?:
     rowId: row.id,
     pliId: row.pick_list_item_id,
     rowIds: rowIds.length ? rowIds : [row.id],
+    rowPliIds: rowIds.length ? rows.map((r) => r.pick_list_item_id) : [row.pick_list_item_id],
     pliIds: [...new Set(rows.map((r) => r.pick_list_item_id).filter((p): p is string => !!p))],
   };
 }

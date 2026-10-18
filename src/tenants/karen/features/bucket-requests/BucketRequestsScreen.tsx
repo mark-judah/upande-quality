@@ -258,7 +258,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // An order on this trip only for a bucket it shares with another of the trip's orders
   // (one bucket, several orders): only those buckets show under it here.
   const ridingOnly = useMemo(
-    () => new Set((selectedTrip?.orders ?? []).filter((o) => !o.buckets && o.riding > 0).map((o) => o.opl)),
+    () => new Set((selectedTrip?.orders ?? []).filter((o) => !o.buckets && (o.riding ?? 0) > 0).map((o) => o.opl)),
     [selectedTrip],
   );
   const sharedIds = useMemo(() => {

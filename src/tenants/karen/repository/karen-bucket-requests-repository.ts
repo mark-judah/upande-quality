@@ -81,8 +81,9 @@ export type PlannedTripOrder = {
   transit: number;
   shelved: number;
   /** Buckets of it travelling with another order on this trip (one bucket several orders
-   *  share): listed under both, counted once. */
-  riding: number;
+   *  share): listed under both, counted once. Absent from an older server, whose `total`
+   *  is the order's whole portion at the farm on every trip. */
+  riding?: number;
 };
 
 export type StopStatus = 'waiting' | 'loading' | 'ready' | 'transit' | 'done';
@@ -315,7 +316,7 @@ function mapPlannedTripOrder(r: RawPlannedTripOrder): PlannedTripOrder {
     loaded: num(r.loaded),
     transit: num(r.transit),
     shelved: num(r.shelved),
-    riding: num(r.riding),
+    ...(r.riding == null ? {} : { riding: num(r.riding) }),
   };
 }
 
@@ -553,7 +554,7 @@ export const karenBucketRequestsRepository = {
     | {
         kind: 'ok';
         updated: number;
-        conflicts: { bucket: string; reason: string; truck: string | null }[];
+        conflicts: { bucket: string; reason: string; truck: string | null; earlier: boolean }[];
       }
     | { kind: 'error'; message: string }
   > {
@@ -573,6 +574,7 @@ export const karenBucketRequestsRepository = {
           bucket: c.bucket ?? '',
           reason: c.reason ?? '',
           truck: c.truck ?? null,
+          earlier: !!c.earlier,
         })),
       };
     }
