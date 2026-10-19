@@ -15,6 +15,8 @@ import {
   type ReplaceReason,
   type ReplaceCorrection,
   type BucketIssueInfo,
+  type FlagConflict,
+  type AllocationItem,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type {
@@ -24,6 +26,8 @@ import type {
   TrolleyOpl,
   ScanResult,
   Vehicle,
+  ReqOpl,
+  PhoneTrolleyRow,
 } from '../offline/bucket-requests-db';
 
 type Counts = Awaited<ReturnType<typeof db.counts>>;
@@ -40,6 +44,9 @@ type State = {
   hydrated: boolean;
   /** A pull from the server finished (or there was nothing to pull: offline / no farm). */
   synced: boolean;
+  /** The device holds saved trips / picklists (read first thing on open; null = not
+   *  read yet): a reopened page shows them instead of skeletons while it pulls. */
+  savedData: boolean | null;
   error: string | null;
   requests: OrderGroup[];
   /** Orders waiting at this farm but on no truck trip yet: listed greyed, not loadable. */
@@ -157,6 +164,11 @@ let trolleyTrip: string | null = null;
 /** Trips this phone loaded onto a truck: when one leaves the plan (dispatched), the app
  *  goes back to Trips without a "no longer planned" notice. */
 const loadedTrips = new Set<string>();
+/** Bucket rows whose live scan flag call is still on its way: the sync leaves them alone. */
+const flagInFlight = new Set<number>();
+/** Trolleys used on this phone (upper-cased): a typed trolley id while a trolley is
+ *  active must name one of them, else it is taken for a bucket typed in. */
+const knownTrolleys = new Set<string>();
 
 const hasOpl = (t: PlannedTrip, opl: string) => (t.orders ?? []).some((o) => o.opl === opl);
 const hasOrder = (t: PlannedTrip, orderName: string) => (t.orders ?? []).some((o) => o.orderName === orderName);
@@ -215,11 +227,26 @@ export function heldOnTrip(trips: PlannedTrip[], trip: PlannedTrip, opl: string,
   let left = held;
   for (let i = 0; i < runs.length; i++) {
     const o = orderOn(runs[i], opl);
-    const take = i === runs.length - 1 ? left : Math.min(left, Math.max(0, (o?.buckets || 0) - onTruckOf(o)));
+    // Its share on that run as the server counts it (on_trip), else its planned buckets.
+    const share = o?.onTrip ?? (o?.buckets || 0);
+    const take = i === runs.length - 1 ? left : Math.min(left, Math.max(0, share - onTruckOf(o)));
     if (runs[i].tripId === trip.tripId) return take;
     left -= take;
   }
   return 0;
+}
+
+/** The orders on `trip` only for a bucket they share with another of its orders (the
+ *  server's rider: riding and nothing counted of its own on this trip). */
+export function ridingOnlyOpls(trip: PlannedTrip | null | undefined): Set<string> {
+  return new Set(
+    (trip?.orders ?? []).filter((o) => !(o.onTrip ?? o.total) && (o.riding ?? 0) > 0).map((o) => o.opl),
+  );
+}
+
+/** This farm's buckets on a trip, as its card and the dashboard count them. */
+export function stopBuckets(stop: { buckets?: number; total: number; planned: number }): number {
+  return stop.buckets ?? (stop.total || stop.planned);
 }
 
 /** The earlier run that takes an order's buckets before `trip`: it plans the order here
@@ -271,6 +298,11 @@ const bucketKeys = (rows: Listed[], keep: (b: ReqBucket) => boolean = () => true
 /** db.counts worked out from the lists already in memory (every picklist with a bucket
  *  here is on exactly one of Requests / Trolley / In Transit, with all its buckets). */
 function countLists(listed: Listed[], onTrip?: Set<string>, only?: Set<string>): Counts {
+  // An order on no truck trip whose buckets are on trolleys (another phone scanned them):
+  // listed under Not Scheduled, and its buckets count on the On trolley tile.
+  const waitingHeld = only
+    ? []
+    : listed.filter((o) => o.buckets.length > 0 && o.buckets.every((b) => !b.scheduled) && o.buckets.some((b) => b.scanned));
   const rows = listed
     .map((o) => {
       const live = o.buckets.filter((b) => !b.notFound);
@@ -301,8 +333,16 @@ function countLists(listed: Listed[], onTrip?: Set<string>, only?: Set<string>):
     requests,
     trolley,
     inTransit,
-    allBuckets: bucketKeys(all),
-    addedBuckets: bucketKeys(all, (b) => b.scanned),
+    // Their buckets count once: requested and on a trolley (Not Scheduled's count leaves
+    // them out), so the Trolley tab never reads more added than requested.
+    allBuckets: new Set([
+      ...all.flatMap((o) => o.buckets.map((b) => b.bucketId.toUpperCase())),
+      ...waitingHeld.flatMap((o) => o.buckets.filter((b) => b.scanned && !b.notFound).map((b) => b.bucketId.toUpperCase())),
+    ]).size,
+    addedBuckets: new Set([
+      ...all.flatMap((o) => o.buckets.filter((b) => b.scanned).map((b) => b.bucketId.toUpperCase())),
+      ...waitingHeld.flatMap((o) => o.buckets.filter((b) => b.scanned && !b.notFound).map((b) => b.bucketId.toUpperCase())),
+    ]).size,
     transitBuckets: bucketKeys(all, (b) => !!b.truckTransit),
     totalBuckets: bucketKeys(stage),
     scannedBuckets: bucketKeys(stage, (b) => b.scanned),
@@ -351,7 +391,60 @@ function tripView(
   let tc = countLists(listed, undefined, new Set(tripOpls));
   // An order split over runs: this trip counts only its share of the order.
   const split = tripOpls.filter((op) => oplRuns(trips, op).length > 1);
-  if (split.length) {
+  const orders = trip.orders ?? [];
+  if (orders.length && orders.every((o) => o.onTrip != null)) {
+    // The server counts each order's buckets on this trip (on_trip: the trip card and
+    // the dashboard show their sum), a bucket two orders share once and an order split
+    // over runs by its share here. The scan page shows the same: those figures, plus
+    // this phone's trolley buckets the server has not counted yet, each bucket once.
+    const byOpl = new Map(listed.map((o) => [o.oplName, o]));
+    const key = (b: ReqBucket) => b.bucketId.toUpperCase();
+    const isHeld = (b: ReqBucket) => b.scanned && !b.notFound && !b.truckLoaded && !b.truckTransit;
+    const used = new Set<string>();
+    let total = 0;
+    let added = 0;
+    let stageTotal = 0;
+    let stageAdded = 0;
+    for (const o of orders) {
+      const want = o.onTrip ?? 0;
+      const onTruck = Math.min(want, onTruckOf(o));
+      const keys = [...new Set((byOpl.get(o.opl)?.buckets ?? []).filter(isHeld).map(key))];
+      // An order split over runs: only this run's share of its trolley buckets.
+      const share = heldOnTrip(trips, trip, o.opl, keys.length);
+      let room = want - onTruck;
+      let held = 0;
+      for (const k of keys.slice(0, share)) {
+        if (room <= 0) break;
+        if (used.has(k)) continue;
+        used.add(k);
+        room--;
+        held++;
+      }
+      total += want;
+      added += onTruck + held;
+      if (onTruck < want) {
+        stageTotal += want;
+        stageAdded += onTruck + held;
+      }
+    }
+    // Picklists riding with the trip that the server does not list on it (an ASAP
+    // replacement following its order): their buckets here, once each.
+    const listedOn = new Set(orders.map((o) => o.opl));
+    const extra = tripOpls.filter((op) => !listedOn.has(op)).map((op) => byOpl.get(op)).filter((o): o is Listed => !!o);
+    const counted = new Set(orders.flatMap((o) => (byOpl.get(o.opl)?.buckets ?? []).map(key)));
+    const extraIds = new Set(extra.flatMap((o) => o.buckets.filter((b) => !b.notFound).map(key)).filter((k) => !counted.has(k)));
+    const extraAdded = new Set(
+      extra.flatMap((o) => o.buckets.filter((b) => b.scanned && !b.notFound).map(key)).filter((k) => extraIds.has(k)),
+    ).size;
+    tc = {
+      ...tc,
+      allBuckets: total + extraIds.size,
+      addedBuckets: added + extraAdded,
+      totalBuckets: stageTotal + extraIds.size,
+      scannedBuckets: stageAdded + extraAdded,
+    };
+  } else if (split.length) {
+    // An older server (no on_trip): its planned buckets per order.
     // A bucket shared with another order on this trip counts once, on that order.
     const per = oplCounts(listed, split, tripOpls);
     for (const op of split) {
@@ -386,33 +479,183 @@ function same(a: unknown, b: unknown): boolean {
   return ka.length === Object.keys(ob).length && ka.every((k) => same((a as Record<string, unknown>)[k], ob[k]));
 }
 
-/** A trip seen for one delivery date: its orders for that date, and this farm's stop
- *  counted from those orders only — a stop can hold several days' orders, and the
- *  whole stop (2/26) used to show beside the 2 buckets requested for the day. */
-function forDate(t: PlannedTrip, orders: PlannedTrip['orders']): PlannedTrip {
-  const sum = (k: 'buckets' | 'total' | 'loaded' | 'transit' | 'shelved') =>
-    orders.reduce((n, o) => n + (o[k] || 0), 0);
-  const planned = sum('buckets');
-  const total = sum('total');
-  const loaded = sum('loaded');
-  const transit = sum('transit');
-  const shelved = sum('shelved');
-  const stops = (t.stops ?? []).map((st) => {
-    if (!st.isYou) return st;
-    // Same rules as the server's stop status, on this date's orders.
-    const status: typeof st.status =
-      total > 0 && shelved === total
-        ? 'done'
-        : total > 0 && transit + shelved === total
-          ? 'transit'
-          : total > 0 && loaded + transit + shelved === total
-            ? 'ready'
-            : loaded + transit + shelved > 0
-              ? 'loading'
-              : 'waiting';
-    return { ...st, planned, total, loaded, transit, shelved, awaiting: Math.max(0, total - loaded - transit - shelved), doneCount: loaded + transit + shelved, status };
-  });
-  return { ...t, orders, stops, farmBuckets: planned };
+/** Not Scheduled: orders on no truck trip yet -- waiting ones, and ones whose buckets are
+ *  all on trolleys already (another phone scanned them): they are on no trip, so no
+ *  tile or trip lists them otherwise and they vanished from a new device. */
+export function waitingGroups(requests: OrderGroup[], trolley: TrolleyOpl[]): OrderGroup[] {
+  const groups = new Map<string, OrderGroup>();
+  const add = (o: ReqOpl) => {
+    const g = groups.get(o.orderName);
+    if (g) g.opls.push(o);
+    else groups.set(o.orderName, { orderName: o.orderName, opls: [o] });
+  };
+  for (const g of requests) for (const o of g.opls) if (!o.scheduled) add(o);
+  for (const o of trolley) {
+    if (!o.buckets.length || o.buckets.some((b) => b.scheduled) || o.loadedToTruck) continue;
+    add({
+      oplName: o.oplName,
+      orderName: o.orderName,
+      createdOn: o.createdOn,
+      customer: o.customer,
+      deliveryDate: '',
+      total: o.buckets.length,
+      scanned: o.buckets.filter((b) => b.scanned).length,
+      asap: 0,
+      scheduled: false,
+      buckets: o.buckets,
+    });
+  }
+  return [...groups.values()];
+}
+
+const listedAny = (requests: OrderGroup[], trolley: TrolleyOpl[], inTransit: TrolleyOpl[]) =>
+  requests.length > 0 || trolley.length > 0 || inTransit.length > 0;
+
+/** A row sent to setOfflineTrolleyFlags: its pick row and bucket. */
+export type SentRow = { pliId: string; bucketId: string };
+
+/** Which sent pick rows the server flagged and which it refused. A newer server lists
+ *  the rows it flagged (and names each refused one); an older one names only refused
+ *  buckets (or its not-scheduled ones), so every row of such a bucket counts refused. */
+export function splitFlagResult(
+  sent: SentRow[],
+  res: { accepted: string[] | null; conflicts: FlagConflict[]; notScheduled: string[] },
+): { accepted: string[]; refused: string[] } {
+  const plis = [...new Set(sent.map((r) => r.pliId))];
+  if (res.accepted) {
+    const ok = new Set(res.accepted);
+    return { accepted: plis.filter((p) => ok.has(p)), refused: plis.filter((p) => !ok.has(p)) };
+  }
+  const byPli = new Set(res.conflicts.map((c) => c.pli).filter((p): p is string => !!p));
+  const names = new Set(
+    [...res.conflicts.map((c) => c.bucket), ...res.notScheduled].map((b) => b.trim().toUpperCase()).filter(Boolean),
+  );
+  const refused = new Set(
+    sent
+      .filter((r) => byPli.has(r.pliId) || names.has(r.bucketId.trim().toUpperCase()) || names.has(r.pliId.toUpperCase()))
+      .map((r) => r.pliId),
+  );
+  return { accepted: plis.filter((p) => !refused.has(p)), refused: [...refused] };
+}
+
+/** Why a bucket was not loaded, for the Load to truck message. */
+function conflictText(c: FlagConflict): string {
+  return c.reason === 'trip_left'
+    ? `${c.bucket}: ${c.truck ?? 'the truck'} is already in transit`
+    : c.reason === 'other_trip'
+      ? `${c.bucket} is not on this trip — ${c.truck ? `it is on ${c.truck}` : 'it is not scheduled yet'}`
+      : c.reason === 'on_truck'
+        ? `${c.bucket} is on ${c.truck ?? 'another truck'}`
+        : c.reason === 'not_loaded'
+          ? `${c.bucket} is not on the truck`
+          : `${c.bucket} is at the packhouse`;
+}
+
+/** A trolley scan the server refused, as the scan page says it. */
+function refusalText(bucketId: string, c: FlagConflict): string {
+  const id = bucketId.toUpperCase();
+  return c.reason === 'trip_left'
+    ? `${id} not added — ${c.truck ?? 'this truck'} is already in transit.`
+    : c.earlier
+      ? `${id} goes on ${c.truck ?? 'the earlier trip'} first — taken off the trolley.`
+      : c.reason === 'other_trip'
+        ? `${id} is not on this trip — ${c.truck ? `it is on ${c.truck}` : 'it is not scheduled yet'}.`
+        : c.reason === 'on_truck'
+          ? `${id} is already on ${c.truck ?? 'another truck'} — taken off the trolley.`
+          : c.reason === 'not_loaded'
+            ? `${id} is not on the truck yet — load it to the truck first.`
+            : `${id} was already issued / shelved at the packhouse — taken off the trolley.`;
+}
+
+/** Offline scans, and scans whose flag failed, reach the server only through this: the
+ *  sync sends each bucket on this phone's trolleys the server still has off a trolley
+ *  (`onTrolley === false` in the download) as a trolley scan, for the trip it was
+ *  scanned for. Refused ones come off the trolley as a live scan's would -- except a
+ *  refusal for the trip (trip_left / other_trip): the saved plan may be stale, so those
+ *  stay on, marked not synced, and are listed in `retry` to send again once the plan is
+ *  fresh. A failed send is marked not synced and tried again on the next sync. Rows in
+ *  `skip` (a live scan's flag still on its way) are left alone. */
+export async function sendPendingScans(
+  items: AllocationItem[],
+  trips: PlannedTrip[],
+  rows: PhoneTrolleyRow[],
+  io: {
+    flags: typeof karenBucketRequestsRepository.setOfflineTrolleyFlags;
+    setFlagSync: typeof db.setFlagSync;
+    unscan: typeof db.unscanBucket;
+  },
+  opts: { skip?: Set<number>; only?: Set<number>; replan?: boolean } = {},
+): Promise<{ refusal: string | null; retry: number[] }> {
+  const none = { refusal: null, retry: [] as number[] };
+  if (!items.some((i) => i.onTrolley !== undefined)) return none; // older server: no trolley state
+  const key = (opl: string, bucket: string) => `${opl}|${bucket.trim().toUpperCase()}`;
+  const on = new Set<string>();
+  const off = new Set<string>();
+  for (const it of items) {
+    if (it.onTrolley === true) on.add(key(it.oplName, it.bucketId));
+    else if (it.onTrolley === false) off.add(key(it.oplName, it.bucketId));
+  }
+  const pending = rows.filter((r) => r.flagSync !== 0 && !opts.skip?.has(r.id) && (!opts.only || opts.only.has(r.id)));
+  const confirmed = pending.filter((r) => on.has(key(r.oplName, r.bucketId)));
+  await io.setFlagSync(confirmed.map((r) => r.id), 0);
+  const send = pending.filter((r) => r.pliId && !on.has(key(r.oplName, r.bucketId)) && off.has(key(r.oplName, r.bucketId)));
+  const byTrip = new Map<string, PhoneTrolleyRow[]>();
+  for (const r of send) {
+    // The trip it was scanned for; a re-check after a trip refusal (or a scan saved
+    // before the trip was recorded) takes the plan's trip for its order.
+    const planned = tripForOrder(trips, { oplName: r.oplName, orderName: r.orderName, asap: r.asap })?.tripId ?? '';
+    const k = opts.replan ? planned || r.scanTrip : r.scanTrip || planned;
+    byTrip.set(k, [...(byTrip.get(k) ?? []), r]);
+  }
+  let refusal: string | null = null;
+  const retry: number[] = [];
+  for (const [trip, group] of byTrip) {
+    const ids = group.map((r) => r.id);
+    try {
+      const res = await io.flags({
+        pliIds: [...new Set(group.map((r) => r.pliId as string))],
+        flag: 'loaded',
+        keepShelf: true,
+        ...(trip ? { trip } : {}),
+      });
+      if (res.kind !== 'ok') {
+        await io.setFlagSync(ids, 2);
+        continue;
+      }
+      const sent = group.map((r) => ({ pliId: r.pliId as string, bucketId: r.bucketId }));
+      const out = new Set(splitFlagResult(sent, res).refused);
+      const conflictOf = (r: PhoneTrolleyRow) =>
+        res.conflicts.find((x) => x.pli === r.pliId) ??
+        res.conflicts.find((x) => !x.pli && x.bucket.trim().toUpperCase() === r.bucketId.trim().toUpperCase());
+      const refusedRows = group.filter((r) => out.has(r.pliId as string));
+      const forTrip = refusedRows.filter((r) => {
+        const reason = conflictOf(r)?.reason;
+        return reason === 'trip_left' || reason === 'other_trip';
+      });
+      const gone = refusedRows.filter((r) => !forTrip.includes(r));
+      await io.setFlagSync(forTrip.map((r) => r.id), 2);
+      retry.push(...forTrip.map((r) => r.id));
+      await io.unscan(gone.map((r) => r.id));
+      await io.setFlagSync(group.filter((r) => !out.has(r.pliId as string)).map((r) => r.id), 0);
+      const first = gone[0];
+      if (first && !refusal) {
+        const c = conflictOf(first);
+        const waiting = res.notScheduled.some(
+          (b) => b.trim().toUpperCase() === first.bucketId.trim().toUpperCase() || b === first.pliId,
+        );
+        refusal =
+          (c
+            ? refusalText(first.bucketId, c)
+            : waiting
+              ? `${first.bucketId.toUpperCase()} is not on a truck trip yet — taken off the trolley.`
+              : `${first.bucketId.toUpperCase()} is no longer requested (not found or replaced) — taken off the trolley.`) +
+          (gone.length > 1 ? ` (${gone.length} buckets taken off)` : '');
+      }
+    } catch {
+      await io.setFlagSync(ids, 2);
+    }
+  }
+  return { refusal, retry };
 }
 
 const TILE_KEYS = [
@@ -461,6 +704,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   ready: false,
   hydrated: false,
   synced: false,
+  savedData: null,
   error: null,
   requests: [],
   notScheduled: [],
@@ -503,11 +747,13 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       // The saved trips first (one quick read), so the Trips page opens on them at once;
       // the full lists and counts follow.
       if (!get().hydrated) {
-        const [trips, schedules, tiles] = await Promise.all([
+        const [trips, schedules, tiles, hasReq] = await Promise.all([
           db.listPlannedTrips(),
           db.listSchedules(),
           db.loadTiles(),
-        ]).catch(() => [[] as PlannedTrip[], [] as OplSchedule[], null] as const);
+          db.hasSavedRequests(),
+        ]).catch(() => [[] as PlannedTrip[], [] as OplSchedule[], null, false] as const);
+        if (get().savedData === null) set({ savedData: trips.length > 0 || hasReq });
         if (!get().hydrated && trips.length) {
           set({
             plannedTrips: [...trips],
@@ -529,7 +775,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     // Shelved belongs to the old date: clear it until the new date's list loads.
     set({ deliveryDate: date, shelvedTrips: [] });
     await get().refresh();
-    // A date outside the usual download window (today .. day after tomorrow): fetch
+    // A date outside the usual download window (today .. tomorrow): fetch
     // that date's orders now so choosing it shows them.
     if (!date || !farm) return;
     await get().refreshOnline();
@@ -566,24 +812,17 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       return;
     }
     const [allRequests, trolley, inTransit, vehicles, allTrips, schedules, deliveryDates] = lists;
+    for (const t of await db.listTrolleyIds().catch(() => [] as string[])) knownTrolleys.add(t);
     // Only orders on the Packhouse Schedule are worked here (an ASAP replacement too);
     // an order on no truck trip yet is only listed, under Not Scheduled.
     const scheduled = new Set(schedules.filter((sc) => sc.scheduled).map((sc) => sc.oplName));
     const requests = allRequests
       .map((g) => ({ ...g, opls: g.opls.filter((o) => o.scheduled && (scheduled.has(o.oplName) || o.asap > 0)) }))
       .filter((g) => g.opls.length > 0);
-    const notScheduled = get().showUnscheduled
-      ? allRequests
-          .map((g) => ({ ...g, opls: g.opls.filter((o) => !o.scheduled) }))
-          .filter((g) => g.opls.length > 0)
-      : [];
-    // Trips follow the delivery-date filter too: keep the ones carrying an order for it.
-    const dd = get().deliveryDate;
-    const plannedTrips = dd
-      ? allTrips
-          .map((t) => forDate(t, (t.orders ?? []).filter((o) => !o.deliveryDate || o.deliveryDate === dd)))
-          .filter((t) => t.orders.length > 0)
-      : allTrips;
+    const notScheduled = get().showUnscheduled ? waitingGroups(allRequests, trolley) : [];
+    // Trips are shown whole, as the server counts them (the screen lists every delivery
+    // date: a truck carries several days' orders).
+    const plannedTrips = allTrips;
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
@@ -624,6 +863,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     ].sort();
     patch({
       hydrated: true,
+      ...(get().savedData === null ? { savedData: allTrips.length > 0 || listedAny(allRequests, trolley, inTransit) } : {}),
       deliveryDates: dates,
       requests,
       notScheduled,
@@ -700,7 +940,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     try {
       // Only the delivery date on screen: choosing tomorrow downloads tomorrow's
       // picklists and nothing of today's (the server's default window would mix
-      // today .. day after tomorrow). No date chosen = that default window.
+      // today .. tomorrow). No date chosen = that default window.
       const date = get().deliveryDate;
       const outcome = date
         ? await karenBucketRequestsRepository.fetchAllocations(farm, date, date)
@@ -799,7 +1039,40 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       } catch {
         /* keep the cached trucks */
       }
+      // Scans made offline (or whose flag failed) go up now, before the trip plan is
+      // pulled, so the plan already counts them on their trolleys.
+      const io = {
+        flags: (a: Parameters<typeof karenBucketRequestsRepository.setOfflineTrolleyFlags>[0]) =>
+          karenBucketRequestsRepository.setOfflineTrolleyFlags(a),
+        setFlagSync: db.setFlagSync,
+        unscan: db.unscanBucket,
+      };
+      let retry: number[] = [];
+      if (alloc.kind === 'ok') {
+        try {
+          const r = await sendPendingScans(alloc.items, await db.listPlannedTrips(), await db.phoneTrolleyRows(), io, {
+            skip: flagInFlight,
+          });
+          retry = r.retry;
+          if (r.refusal) set({ scanRefusal: { at: Date.now(), message: r.refusal } });
+        } catch {
+          /* tried again on the next sync */
+        }
+      }
       const trips = await karenBucketRequestsRepository.fetchPlannedTrips(farm, await db.listOplNames());
+      if (trips.kind === 'ok' && retry.length && alloc.kind === 'ok') {
+        // Refused for the trip on the saved plan: send them again on the fresh plan's trip.
+        try {
+          const r = await sendPendingScans(alloc.items, trips.trips, await db.phoneTrolleyRows(), io, {
+            skip: flagInFlight,
+            only: new Set(retry),
+            replan: true,
+          });
+          if (r.refusal) set({ scanRefusal: { at: Date.now(), message: r.refusal } });
+        } catch {
+          /* tried again on the next sync */
+        }
+      }
       if (trips.kind === 'ok') {
         await db.replacePlannedTrips(trips.trips);
         await db.replaceSchedules(trips.schedules);
@@ -819,7 +1092,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
 
   setTrolleyFromScan: (raw) => {
     const id = karenBucketRequestsRepository.extractTrolleyIdFromScan(raw);
-    if (!id) return { ok: false, message: 'Not a trolley QR code.' };
+    if (!id) return { ok: false, message: get().activeTrolleyId ? 'Not a bucket QR code.' : 'Not a trolley QR code.' };
+    // Typed text (no QR) while a trolley is active is a bucket typed in, unless it names
+    // a trolley this phone already uses: never start a new trolley from it.
+    const typed = !raw.trim().startsWith('{');
+    if (typed && get().activeTrolleyId && !knownTrolleys.has(id.toUpperCase())) {
+      return { ok: false, message: 'Not a bucket QR code.' };
+    }
+    knownTrolleys.add(id.toUpperCase());
     set({ activeTrolleyId: id });
     trolleyTrip = get().selectedTripId;
     db.upsertTrolley(id).catch(() => {});
@@ -888,7 +1168,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
     let res: ScanResult;
     try {
-      res = await db.scanBucket(id, trolley, only);
+      res = await db.scanBucket(id, trolley, only, get().selectedTripId ?? undefined);
     } catch (e) {
       // A local-database hiccup (e.g. the connection released by a reload): report it,
       // never leave it as an unhandled rejection.
@@ -900,6 +1180,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       // background, so the scan never waits on the network. A bucket already issued /
       // arrived there is refused: the scan is undone and `scanRefusal` says why.
       const { pliIds, rowIds, rowPliIds, bucketId } = res;
+      for (const r of rowIds) flagInFlight.add(r);
       karenBucketRequestsRepository
         .setOfflineTrolleyFlags({
           pliIds,
@@ -908,36 +1189,78 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
           trip: get().selectedTripId ?? undefined,
         })
         .then(async (flag) => {
-          const clashes = flag.kind === 'ok' ? flag.conflicts : [];
+          if (flag.kind !== 'ok') {
+            // Refused as a whole (server error, expired session): the scan stays, marked
+            // not synced; the sync sends it again.
+            await db.setFlagSync(rowIds, 2).catch(() => {});
+            await get().refresh();
+            return;
+          }
+          const clashes = flag.conflicts;
           const clash = clashes[0];
-          if (!clash) return;
-          // Only the refused rows come off the trolley: an older server refuses a shared
-          // bucket's row for an order on another trip alone and keeps this trip's row
-          // (the first). A conflict names the pick row, or else the bucket once per row.
-          const byPli = rowIds.filter((_, i) => clashes.some((c) => c.bucket === rowPliIds[i]));
-          const rest = rowIds.filter((r) => !byPli.includes(r));
-          const lc = bucketId.trim().toLowerCase();
-          const n = clashes.filter((c) => c.bucket.trim().toLowerCase() === lc).length;
-          await db.unscanBucket([...byPli, ...rest.slice(Math.max(0, rest.length - n))]).catch(() => {});
-          set({
-            scanRefusal: {
-              at: Date.now(),
-              message:
-                clash.reason === 'trip_left'
-                  ? `${bucketId.toUpperCase()} not added — ${clash.truck ?? 'this truck'} is already in transit.`
-                  : clash.earlier
-                  ? `${bucketId.toUpperCase()} goes on ${clash.truck ?? 'the earlier trip'} first — taken off the trolley.`
-                  : clash.reason === 'other_trip'
-                  ? `${bucketId.toUpperCase()} is not on this trip — ${clash.truck ? `it is on ${clash.truck}` : 'it is not scheduled yet'}.`
-                  : clash.reason === 'on_truck'
-                    ? `${bucketId} is already on ${clash.truck ?? 'another truck'} — taken off the trolley.`
-                    : `${bucketId} was already issued / shelved at the packhouse — taken off the trolley.`,
-            },
-          });
+          if (flag.accepted) {
+            // A newer server lists the rows it flagged: only those are synced. A refused row
+            // (a conflict) or one of an order on no truck trip comes off the trolley; one
+            // it skipped without a reason (not found / replaced there) stays, not synced.
+            const sent = rowIds.map((_, i) => ({ pliId: rowPliIds[i] ?? '', bucketId }));
+            const took = new Set(splitFlagResult(sent.filter((r) => r.pliId), flag).accepted);
+            const lc = bucketId.trim().toUpperCase();
+            const waiting = flag.notScheduled.some((b) => b.trim().toUpperCase() === lc);
+            const ok: number[] = [];
+            const gone: number[] = [];
+            const skipped: number[] = [];
+            rowIds.forEach((r, i) => {
+              const pli = rowPliIds[i];
+              if (!pli) return; // never sent: left for the sync
+              if (took.has(pli)) ok.push(r);
+              else if (clashes.some((c) => c.pli === pli) || waiting) gone.push(r);
+              else skipped.push(r);
+            });
+            await db.setFlagSync(ok, 0).catch(() => {});
+            await db.unscanBucket(gone).catch(() => {});
+            await db.setFlagSync(skipped, 2).catch(() => {});
+            const id = bucketId.toUpperCase();
+            const message = clash
+              ? refusalText(bucketId, clash)
+              : gone.length && waiting
+                ? `${id} is not on a truck trip yet — taken off the trolley.`
+                : skipped.length
+                  ? `${id} is no longer requested (not found or replaced) — not synced.`
+                  : null;
+            if (message) set({ scanRefusal: { at: Date.now(), message } });
+            await get().refresh();
+            return;
+          }
+          let gone: number[];
+          if (clashes.some((c) => c.pli)) {
+            // A newer server names each refused pick row.
+            gone = rowIds.filter((_, i) => clashes.some((c) => c.pli && c.pli === rowPliIds[i]));
+          } else {
+            // Only the refused rows come off the trolley: an older server refuses a shared
+            // bucket's row for an order on another trip alone and keeps this trip's row
+            // (the first). A conflict names the pick row, or else the bucket once per row.
+            const byPli = rowIds.filter((_, i) => clashes.some((c) => c.bucket === rowPliIds[i]));
+            const rest = rowIds.filter((r) => !byPli.includes(r));
+            const lc = bucketId.trim().toLowerCase();
+            const n = clashes.filter((c) => c.bucket.trim().toLowerCase() === lc).length;
+            gone = [...byPli, ...rest.slice(Math.max(0, rest.length - n))];
+          }
+          await db.unscanBucket(gone).catch(() => {});
+          await db.setFlagSync(rowIds.filter((r) => !gone.includes(r)), 0).catch(() => {});
+          if (!clash) {
+            await get().refresh();
+            return;
+          }
+          set({ scanRefusal: { at: Date.now(), message: refusalText(bucketId, clash) } });
           await get().refresh();
         })
-        .catch(() => {
-          // No answer: keep the scan; the sync flags it later.
+        .catch(async () => {
+          // No answer: keep the scan, marked not synced; the sync flags it later.
+          await db.setFlagSync(rowIds, 2).catch(() => {});
+          await get().refresh();
+        })
+        .finally(() => {
+          for (const r of rowIds) flagInFlight.delete(r);
         });
     }
     await get().refresh();
@@ -963,7 +1286,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
         set({ syncingOpl: null });
         return { ok: false, message: res.message };
       }
-      await db.markLoadedLocal(oplName);
+      // Only the rows the server took (pliIds name pick rows; an older server refuses by bucket).
+      await db.markLoadedByPli(splitFlagResult(pliIds.map((p) => ({ pliId: p, bucketId: '' })), res).accepted);
       set({ syncingOpl: null });
       await get().refresh();
       return { ok: true, message: 'Loaded to truck.' };
@@ -987,7 +1311,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
         set({ syncingOpl: null });
         return { ok: false, message: res.message };
       }
-      await db.markInTransitLocal(oplName);
+      await db.markInTransitByPli(splitFlagResult(pliIds.map((p) => ({ pliId: p, bucketId: '' })), res).accepted);
       set({ syncingOpl: null });
       await get().refresh();
       return { ok: true, message: 'Marked in transit.' };
@@ -1004,33 +1328,53 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     const pliIds = opls.flatMap((o) => o.ownPliIds ?? o.pliIds);
     if (!pliIds.length) return { ok: false, message: 'Nothing to load.' };
     set({ syncingOpl: opls.length === 1 ? opls[0].oplName : '*' });
-    // Loading it may dispatch the trip (last stop loaded) mid-way: no notice for that.
     const sel = get().selectedTripId;
-    if (sel) loadedTrips.add(sel);
+    // Each sent pick row with its bucket: refusals name buckets on an older server.
+    const want = new Set(pliIds);
+    const sent: SentRow[] = [];
+    for (const o of opls) {
+      for (const b of o.buckets) if (b.pliId && want.has(b.pliId)) sent.push({ pliId: b.pliId, bucketId: b.bucketId });
+    }
+    for (const p of pliIds) if (!sent.some((r) => r.pliId === p)) sent.push({ pliId: p, bucketId: '' });
     try {
       // One action: stamp the truck onto the rows, then send them on their way.
       const trip = sel ?? undefined;
       const loaded = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'loaded', truck, trip });
       if (loaded.kind !== 'ok') return { ok: false, message: loaded.message };
-      // Refused buckets (already on another truck, or at the packhouse) stay where they are.
-      const refused = loaded.conflicts.map((c) =>
-        c.reason === 'trip_left'
-          ? `${c.bucket}: ${c.truck ?? 'the truck'} is already in transit`
-          : c.reason === 'other_trip'
-          ? `${c.bucket} is not on this trip — ${c.truck ? `it is on ${c.truck}` : 'it is not scheduled yet'}`
-          : c.reason === 'on_truck'
-            ? `${c.bucket} is on ${c.truck ?? 'another truck'}`
-            : `${c.bucket} is at the packhouse`,
-      );
-      for (const o of opls) await db.markLoadedLocal(o.oplName);
-      const transit = await karenBucketRequestsRepository.setOfflineTrolleyFlags({ pliIds, flag: 'transit', trip });
+      // Refused buckets (already on another truck, the truck already left, at the
+      // packhouse) stay where they are: only the rows the server took go on.
+      const refused = loaded.conflicts.map(conflictText);
+      const onTruck = splitFlagResult(sent, loaded).accepted;
+      if (!onTruck.length) {
+        await get().refresh();
+        return { ok: false, message: `Nothing loaded to ${truck}${refused.length ? `: ${refused.join('; ')}` : ''}.` };
+      }
+      // Loading it may dispatch the trip (last stop loaded) mid-way: no notice for that.
+      if (sel) loadedTrips.add(sel);
+      await db.markLoadedByPli(onTruck);
+      const transit = await karenBucketRequestsRepository.setOfflineTrolleyFlags({
+        pliIds: onTruck,
+        flag: 'transit',
+        truck,
+        trip,
+      });
       if (transit.kind !== 'ok') {
         await get().refresh();
         return { ok: false, message: `Loaded to ${truck}, but not marked in transit: ${transit.message}` };
       }
+      const moving = splitFlagResult(
+        sent.filter((r) => onTruck.includes(r.pliId)),
+        transit,
+      ).accepted;
+      refused.push(...transit.conflicts.map(conflictText));
       // On the truck = in transit for the farm: the order moves to the In Transit tab
       // now, not only once the trip is dispatched.
-      for (const o of opls) await db.markInTransitLocal(o.oplName);
+      await db.markInTransitByPli(moving);
+      if (!moving.length) {
+        loadedTrips.delete(sel ?? '');
+        await get().refresh();
+        return { ok: false, message: `Loaded to ${truck}, but not marked in transit: ${refused.join('; ')}.` };
+      }
       // Loaded: back to the Trips page. The trip may now be dispatched (last stop loaded)
       // and leave the plan -- that is the point, not a "no longer planned" notice.
       set({ selectedTripId: null, tripOpls: [], tripCounts: null, tripNotice: null, activeTrolleyId: null });

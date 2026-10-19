@@ -87,11 +87,17 @@ export type RawTrolleyActionResponse = {
     updated?: number;
     missing?: number;
     errors?: { bucket_id?: string; error?: string }[];
+    /** setOfflineTrolleyFlags: the pick rows it flagged (newer servers). */
+    accepted?: string[];
+    /** setOfflineTrolleyFlags: buckets of orders on no truck trip, left unflagged. */
+    not_scheduled?: string[];
     /** setOfflineTrolleyFlags: buckets refused — already on another truck, or
      *  already arrived / issued at the packhouse. */
     conflicts?: {
+      /** The refused pick row (newer servers). */
+      pli?: string;
       bucket?: string;
-      reason?: 'on_truck' | 'already_arrived' | string;
+      reason?: 'on_truck' | 'already_arrived' | 'trip_left' | 'other_trip' | 'not_loaded' | string;
       truck?: string | null;
       /** other_trip: an earlier run of the order fills first (`truck` is that run). */
       earlier?: 0 | 1;
@@ -118,6 +124,8 @@ export type RawPlannedTripOrder = {
   shelved?: number;
   /** Shared buckets travelling with another order on this trip. */
   riding?: number;
+  /** Its buckets on this trip as every surface counts them: total, else planned. */
+  on_trip?: number;
 };
 
 /** One stop (farm) on a trip's collection route, with its live loading status. */
@@ -126,6 +134,8 @@ export type RawPlannedTripStop = {
   stop?: number;
   is_you?: number;
   planned?: number;
+  /** The stop's buckets on this trip as every surface counts them: total, else planned. */
+  buckets?: number;
   total?: number;
   awaiting?: number;
   /** Only on a trolley at the farm (staging), not on the truck yet. */
@@ -313,7 +323,7 @@ export const karenBucketRequestsApi = {
   /** Pull every bucket currently awaiting transfer for `farm`, plus the
    *  vehicle list the operator can later load each trolley into. */
   /** `fromDate`/`toDate` (YYYY-MM-DD) pick the delivery window; the server defaults to
-   *  today .. day after tomorrow. */
+   *  today .. tomorrow. */
   fetchAllocatedBuckets(farm: string, fromDate?: string, toDate?: string): Promise<RawAllocationResponse> {
     return api<RawAllocationResponse>({
       method: 'POST',
@@ -514,7 +524,7 @@ export const karenBucketRequestsApi = {
   setOfflineTrolleyFlags(payload: {
     pli_ids: string[];
     flag: 'loaded' | 'transit';
-    /** Vehicle name to stamp onto each row's custom_transit_truck (loaded only). */
+    /** Vehicle name to stamp onto each row's transit_truck; on transit, rows on another truck are refused. */
     truck?: string;
     /** A trolley scan flagged as it happens: the bucket stays on its farm shelf
      *  (Load to truck takes it off). */
