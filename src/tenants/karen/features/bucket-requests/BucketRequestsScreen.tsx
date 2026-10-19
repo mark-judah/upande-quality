@@ -43,6 +43,8 @@ import {
   useKarenBucketRequestsStore,
   onTrip as oplOnTrip,
   heldOnTrip,
+  ridingOnlyOpls,
+  stopBuckets,
   type OrderGroup,
   type TrolleyOpl,
   type PlannedTrip,
@@ -115,6 +117,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     ready,
     hydrated,
     synced,
+    savedData,
     error,
     requests,
     notScheduled,
@@ -168,6 +171,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       ready: st.ready,
       hydrated: st.hydrated,
       synced: st.synced,
+      savedData: st.savedData,
       error: st.error,
       requests: st.requests,
       notScheduled: st.notScheduled,
@@ -218,9 +222,15 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     })),
   );
 
-  // Skeletons only while nothing is on screen yet: the saved list not read, or the first
-  // pull (or a download) still running. Saved content always shows as it is.
-  const firstLoad = !hydrated || !synced || downloading || loadingTrips;
+  // Skeletons only when the device has nothing saved to show and a pull (or download)
+  // is running. Saved trips / requests show at once and update in place as pulls land;
+  // while the saved lists are still being read (a moment) neither skeletons nor an
+  // empty state show.
+  const hasData =
+    plannedTrips.length > 0 || requests.length > 0 || notScheduled.length > 0 || trolley.length > 0 || inTransit.length > 0;
+  const fetching = !synced || downloading || loadingTrips;
+  const firstLoad = hydrated ? fetching && !hasData : savedData === false;
+  const settling = !hydrated && savedData !== false;
 
   // Shelved: the selected delivery date's buckets, pulled with the screen (its tab
   // shows the count), again when the date or tab changes, and on pull-to-refresh.
@@ -258,7 +268,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // An order on this trip only for a bucket it shares with another of the trip's orders
   // (one bucket, several orders): only those buckets show under it here.
   const ridingOnly = useMemo(
-    () => new Set((selectedTrip?.orders ?? []).filter((o) => !o.buckets && (o.riding ?? 0) > 0).map((o) => o.opl)),
+    () => ridingOnlyOpls(selectedTrip),
     [selectedTrip],
   );
   const sharedIds = useMemo(() => {
@@ -705,7 +715,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     for (const t of plannedTrips) {
       const stop = (t.stops ?? []).find((st) => st.isYou);
       if (!stop || t.yourStopClosed || !t.current || autoClosed.current.has(t.tripId)) continue;
-      const forStop = stop.total || stop.planned;
+      // The same figure as the trip card.
+      const forStop = stopBuckets(stop);
       const onTruck = stop.loaded + stop.transit + stop.shelved;
       if (forStop <= 0 || onTruck < forStop) continue;
       autoClosed.current.add(t.tripId);
@@ -1053,6 +1064,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           historyBuckets={shelvedTrips}
           onOpenHistory={setHistoryTripId}
           loading={firstLoad}
+          settling={settling}
           notice={tripStatus}
           totals={tripsTotals}
           onOpen={openTrip}
@@ -1336,7 +1348,6 @@ function LoadConfirm({
     setChanging(null);
     setQuery('');
   };
-  const trucks = draft.map((g) => plate(g.vehicle));
 
   return (
     <Dialog
@@ -1360,7 +1371,8 @@ function LoadConfirm({
         <>
           <Button label="Cancel" variant="outline" onPress={onClose} style={{ flex: 1 }} />
           <Button
-            label={`Load ${plural(total, 'bucket')} to ${trucks.length === 1 ? trucks[0] : 'truck'}`}
+            // The truck is named on the card above: "Load 21 buckets" fits on one line.
+            label={`Load ${plural(total, 'bucket')}`}
             iconLeft="car-outline"
             onPress={() => onConfirm(draft)}
             disabled={!online || !!changing || !total || draft.some((g) => !g.vehicle)}
@@ -1960,10 +1972,15 @@ const RequestsTab = memo(function RequestsTab({
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Buckets still waiting in Not Scheduled orders (what their cards list). */
+/** A Not Scheduled order's buckets its cards list: waiting on the shelf, or already on
+ *  a trolley (another phone scanned it; the order is on no truck trip yet). */
+const waitingRow = (b: ReqBucket) => !b.notFound && !b.truckLoaded && !b.truckTransit;
+
+/** Buckets still waiting on the shelf in Not Scheduled orders. The ones already on a
+ *  trolley are listed too, but counted on the On trolley tile, not here. */
 function waitingBuckets(groups: OrderGroup[]): number {
   return groups.reduce(
-    (n, g) => n + g.opls.reduce((m, o) => m + o.buckets.filter((b) => !b.scanned && !b.notFound).length, 0),
+    (n, g) => n + g.opls.reduce((m, o) => m + o.buckets.filter((b) => waitingRow(b) && !b.scanned).length, 0),
     0,
   );
 }
@@ -2045,11 +2062,11 @@ function PageBar({
         <Text style={s.backText}>Trips</Text>
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.pageBarTitle} numberOfLines={1}>
+        <Text style={s.pageBarTitle} numberOfLines={2}>
           {title}
         </Text>
         {sub ? (
-          <Text style={s.tripMeta} numberOfLines={1}>
+          <Text style={s.tripMeta} numberOfLines={2}>
             {sub}
           </Text>
         ) : null}
@@ -2073,6 +2090,7 @@ const TripsPage = memo(function TripsPage({
   history,
   historyBuckets,
   loading,
+  settling,
   notice,
   totals,
   onOpen,
@@ -2093,6 +2111,8 @@ const TripsPage = memo(function TripsPage({
   /** Per dispatched trip, this farm's buckets of the orders on screen (tomorrow's). */
   historyBuckets: ShelvedTrip[];
   loading: boolean;
+  /** The saved lists are still being read: no skeletons, no empty state yet. */
+  settling?: boolean;
   /** Why the app came back here by itself (the open trip left the plan / closed). */
   notice: string | null;
   totals: { requested: number; trolley: number; transit: number; shelved: number };
@@ -2129,7 +2149,7 @@ const TripsPage = memo(function TripsPage({
 
     const row = (t: PlannedTrip): CardItem => {
       const stop = (t.stops ?? []).find((st) => st.isYou);
-      const total = stop ? stop.total || stop.planned : t.farmBuckets;
+      const total = stop ? stopBuckets(stop) : t.farmBuckets;
       const loaded = stop ? stop.loaded + stop.transit + stop.shelved : t.loadedBuckets;
       const trolleyN = t.yourStopClosed ? 0 : onTrolley(t);
       const state = tripState(t, hub, trolleyN);
@@ -2172,7 +2192,7 @@ const TripsPage = memo(function TripsPage({
         </Card>
       ),
     });
-    if (!trips.length) {
+    if (!trips.length && !settling) {
       out.push(
         loading
           ? { key: 'skeleton', render: () => <SkeletonCards cards={2} /> }
@@ -2227,7 +2247,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, notice, totals, onOpen, onOpenWaiting, onOpenHistory]);
+  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, totals, onOpen, onOpenWaiting, onOpenHistory]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2362,7 +2382,7 @@ const PastTripRow = memo(function PastTripRow({
  *  each bucket "43cm(ORDER)" -- listed to see what is coming, nothing to scan. */
 function notScheduledCards(groups: OrderGroup[], byOrder: boolean): CardItem[] {
   const rows: ListRow[] = groups.flatMap((g) =>
-    g.opls.flatMap((o) => o.buckets.filter((b) => !b.scanned && !b.notFound).map((b) => ({ b, orderName: g.orderName }))),
+    g.opls.flatMap((o) => o.buckets.filter(waitingRow).map((b) => ({ b, orderName: g.orderName }))),
   );
   return listSections(rows, byOrder).map((sec) => ({
     key: `ns-${sec.key}`,
@@ -2438,7 +2458,15 @@ const NotScheduledCard = memo(function NotScheduledCard({ section: sec, byOrder 
                       <Text style={s.idWord}>BUCKET</Text>
                     </View>
                   </View>
-                  <Text style={[s.bMeta, s.notSchedText]}>{listMeta(r, byOrder)}</Text>
+                  <Text style={[s.bMeta, s.notSchedText]}>
+                    {listMeta(r, byOrder)}
+                    {r.b.scanned ? (
+                      <Text style={s.onTrolleyMark}>
+                        {`  · on trolley${r.b.trolleyId ? ` ${r.b.trolleyId.toUpperCase()}` : ''}`}
+                      </Text>
+                    ) : null}
+                    {r.b.notSynced ? <Text style={s.notSyncedMark}>  · not synced</Text> : null}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -2538,7 +2566,9 @@ const BucketRow = memo(function BucketRow({
         </View>
         {/* Variety and stem length, with Info (replace / not found) on the same line (not beside the
             shelf and bucket). On a trolley already: just the struck-through shelf and bucket. */}
-        {b.scanned && !b.notFound ? null : (
+        {b.scanned && !b.notFound ? (
+          b.notSynced ? <Text style={s.notSyncedMark}>not synced</Text> : null
+        ) : (
           <View style={s.metaReplaceRow}>
             <Text style={[s.bMeta, s.metaGrow, b.scanned && s.bDone]}>
               {meta}
@@ -2864,6 +2894,7 @@ const TrolleyCard = memo(
                   <Text style={s.bMeta} numberOfLines={1}>
                     {listMeta(r, byOrder)}
                     {r.onTruck ? '  · on truck' : history ? `  · shelved${r.b.shelf ? ` ${r.b.shelf}` : ''} at ${hub || 'Kapkolia'}` : ''}
+                    {r.b.notSynced && !r.onTruck ? <Text style={s.notSyncedMark}>  · not synced</Text> : null}
                   </Text>
                 </View>
               </View>
@@ -3774,6 +3805,10 @@ const s = StyleSheet.create({
     marginVertical: spacing.sm,
   },
   bNotFound: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.danger },
+  // A scan the server has not taken yet (offline, or its flag failed): sent on the next sync.
+  notSyncedMark: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.warn },
+  // A Not Scheduled bucket another phone already put on a trolley.
+  onTrolleyMark: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: SHELVED_GREEN },
   asapPill: {
     paddingHorizontal: 6,
     paddingVertical: 1,

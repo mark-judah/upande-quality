@@ -84,6 +84,8 @@ export type PlannedTripOrder = {
    *  share): listed under both, counted once. Absent from an older server, whose `total`
    *  is the order's whole portion at the farm on every trip. */
   riding?: number;
+  /** Its buckets on this trip, as the dashboard and the packhouse app count them. */
+  onTrip?: number;
 };
 
 export type StopStatus = 'waiting' | 'loading' | 'ready' | 'transit' | 'done';
@@ -94,6 +96,8 @@ export type PlannedTripStop = {
   stop: number;
   isYou: boolean;
   planned: number;
+  /** The stop's buckets on this trip, as the dashboard and the packhouse app count them. */
+  buckets?: number;
   total: number;
   awaiting: number;
   /** Only on a trolley at the farm (staging). */
@@ -317,6 +321,7 @@ function mapPlannedTripOrder(r: RawPlannedTripOrder): PlannedTripOrder {
     transit: num(r.transit),
     shelved: num(r.shelved),
     ...(r.riding == null ? {} : { riding: num(r.riding) }),
+    ...(r.on_trip == null ? {} : { onTrip: num(r.on_trip) }),
   };
 }
 
@@ -331,6 +336,7 @@ function mapPlannedTripStop(r: RawPlannedTripStop): PlannedTripStop {
     stop: num(r.stop),
     isYou: !!r.is_you,
     planned: num(r.planned),
+    ...(r.buckets == null ? {} : { buckets: num(r.buckets) }),
     total: num(r.total),
     awaiting: num(r.awaiting),
     trolley: num(r.trolley),
@@ -393,11 +399,20 @@ function mapTrolley(r: RawSavedTrolley): SavedTrolley {
   };
 }
 
+/** A row setOfflineTrolleyFlags refused: `pli` names the pick row (newer servers),
+ *  else only `bucket` (the bucket id, or the row name when it has none). */
+export type FlagConflict = { pli: string | null; bucket: string; reason: string; truck: string | null; earlier: boolean };
+
+/** A trolley id typed in: one word of letters, digits, '-' / '_' (PW-TROLLEY-01). */
+const BARE_TROLLEY = /^[A-Za-z0-9][A-Za-z0-9_-]{1,39}$/;
+
 export const karenBucketRequestsRepository = {
-  /** Trolley QR shape: `{"<trolley_id>": "trolley"}`. */
+  /** Trolley QR shape: `{"<trolley_id>": "trolley"}`, or the trolley id typed in. */
   extractTrolleyIdFromScan(raw: string): string | null {
     const text = raw.trim();
-    if (!text.startsWith('{') || !text.endsWith('}')) return null;
+    if (!text.startsWith('{') || !text.endsWith('}')) {
+      return BARE_TROLLEY.test(text) ? text.toUpperCase() : null;
+    }
     try {
       const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object') {
@@ -554,7 +569,12 @@ export const karenBucketRequestsRepository = {
     | {
         kind: 'ok';
         updated: number;
-        conflicts: { bucket: string; reason: string; truck: string | null; earlier: boolean }[];
+        conflicts: FlagConflict[];
+        /** The pick rows the server flagged; null from an older server (refusals then
+         *  name only the bucket). */
+        accepted: string[] | null;
+        /** Buckets of orders on no truck trip, left unflagged. */
+        notScheduled: string[];
       }
     | { kind: 'error'; message: string }
   > {
@@ -570,7 +590,10 @@ export const karenBucketRequestsRepository = {
       return {
         kind: 'ok',
         updated: m.updated ?? 0,
+        accepted: Array.isArray(m.accepted) ? m.accepted : null,
+        notScheduled: Array.isArray(m.not_scheduled) ? m.not_scheduled : [],
         conflicts: (m.conflicts ?? []).map((c) => ({
+          pli: c.pli || null,
           bucket: c.bucket ?? '',
           reason: c.reason ?? '',
           truck: c.truck ?? null,
