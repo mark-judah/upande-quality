@@ -11,6 +11,7 @@ import {
   type ShelvedTrip,
   type OplSchedule,
   type PlannedTrip,
+  type PlannedTripStop,
   type ReplacementCandidate,
   type ReplaceReason,
   type ReplaceCorrection,
@@ -135,7 +136,7 @@ type State = {
   markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
-  closeStop: (tripId: string, farm: string, reason?: string) => Promise<{ ok: boolean; message: string }>;
+  closeStop: (tripId: string, farm: string, reason?: string, complete?: boolean) => Promise<{ ok: boolean; message: string }>;
   /** Trips the truck has left this farm on (Completed page). */
   completedTrips: CompletedTrip[];
   loadingCompleted: boolean;
@@ -245,6 +246,11 @@ export function ridingOnlyOpls(trip: PlannedTrip | null | undefined): Set<string
 }
 
 /** This farm's buckets on a trip, as its card and the dashboard count them. */
+/** Every bucket planned at this stop is on the truck: the server's flag, else the counts. */
+export function stopReady(stop: PlannedTripStop): boolean {
+  return stop.ready ?? (stopBuckets(stop) > 0 && stop.loaded + stop.transit + stop.shelved >= stopBuckets(stop));
+}
+
 export function stopBuckets(stop: { buckets?: number; total: number; planned: number }): number {
   return stop.buckets ?? (stop.total || stop.planned);
 }
@@ -1467,11 +1473,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  closeStop: async (tripId, farm, reason) => {
+  closeStop: async (tripId, farm, reason, complete) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {
-      const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason });
+      const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason, complete });
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await get().loadPlannedTrips(farm);
       return { ok: true, message: res.message };
