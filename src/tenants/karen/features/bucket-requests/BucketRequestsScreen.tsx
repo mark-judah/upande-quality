@@ -706,26 +706,43 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     else showError(r.message);
   };
 
-  // The stop closes by itself (no "truck leaving" button): once every bucket this
-  // farm has for the truck's current trip is on it, the truck has its load here.
-  // Once per trip per screen; a failed close is tried again on the next update.
-  const autoClosed = useRef(new Set<string>());
-  useEffect(() => {
-    if (!online || !userFarm) return;
-    for (const t of plannedTrips) {
+  // The farm sends the truck once every bucket planned here is on it: the last stop
+  // puts the trip in transit to the packhouse, an earlier one sends it to the next farm.
+  const [sendingTrip, setSendingTrip] = useState<string | null>(null);
+  const onSendTrip = useCallback(
+    (t: PlannedTrip) => {
       const stop = (t.stops ?? []).find((st) => st.isYou);
-      if (!stop || t.yourStopClosed || !t.current || autoClosed.current.has(t.tripId)) continue;
-      // The same figure as the trip card.
-      const forStop = stopBuckets(stop);
+      if (!stop || !userFarm) return;
       const onTruck = stop.loaded + stop.transit + stop.shelved;
-      if (forStop <= 0 || onTruck < forStop) continue;
-      autoClosed.current.add(t.tripId);
-      closeStop(t.tripId, userFarm).then((r) => {
-        if (r.ok) showSuccess(r.message || 'All buckets are on the truck — stop closed.');
-        else autoClosed.current.delete(t.tripId);
-      });
-    }
-  }, [plannedTrips, online, userFarm, closeStop, showSuccess]);
+      const stops = t.stops ?? [];
+      const next = stops.filter((st) => st.stop > stop.stop).sort((a, b) => a.stop - b.stop)[0];
+      const free = t.capacity > 0 ? Math.max(0, t.capacity - t.loadedBuckets) : 0;
+      const fill = t.capacity > 0 ? `${t.loadedBuckets} of ${t.capacity} on the truck · ${free} free.` : '';
+      const title = next ? `${t.vehicle} leaving for ${next.farm}?` : `Send ${t.vehicle} to ${hubFarm || 'Kapkolia'}?`;
+      const body = next
+        ? `${onTruck} bucket${onTruck === 1 ? '' : 's'} loaded here. ${fill}`
+        : `${onTruck} bucket${onTruck === 1 ? '' : 's'} go in transit. ${fill}`;
+      showDialog(
+        title,
+        body.trim(),
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: next ? 'Leave' : 'Send',
+            onPress: async () => {
+              setSendingTrip(t.tripId);
+              const r = await closeStop(t.tripId, userFarm);
+              setSendingTrip(null);
+              if (r.ok) showSuccess(r.message);
+              else showError(r.message);
+            },
+          },
+        ],
+        { name: 'car-outline', tone: free > 0 ? 'warn' : 'info' },
+      );
+    },
+    [userFarm, hubFarm, closeStop, showSuccess, showError],
+  );
 
   const onMarkIssued = (line: string) => {
     const pick = replacePick;
@@ -1069,6 +1086,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           totals={tripsTotals}
           onOpen={openTrip}
           onOpenWaiting={openWaiting}
+          onSendTrip={onSendTrip}
+          sendingTrip={sendingTrip}
           refreshControl={refreshControl}
         />
       </Screen>
@@ -1178,6 +1197,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
               loading={firstLoad}
               replacingId={replacingId}
               onReplace={onReplace}
+              onSendTrip={onSendTrip}
+              sendingTrip={sendingTrip}
               header={banner}
               footer={summary}
               refreshControl={refreshControl}
@@ -1728,6 +1749,8 @@ const RequestsTab = memo(function RequestsTab({
   loading,
   replacingId,
   onReplace,
+  onSendTrip,
+  sendingTrip,
   scope,
   header,
   footer,
@@ -1749,6 +1772,8 @@ const RequestsTab = memo(function RequestsTab({
   loading: boolean;
   replacingId: number | null;
   onReplace: (b: ReqBucket) => void;
+  onSendTrip?: (t: PlannedTrip) => void;
+  sendingTrip?: string | null;
   /** One trip open: its picklists (ASAP replacements following their order included). */
   scope?: Set<string>;
   header?: ReactElement | null;
@@ -1944,6 +1969,8 @@ const RequestsTab = memo(function RequestsTab({
                 {/* One card per trip: the trip, then its picklists still to scan. */}
                 <TripCard
                   trip={t}
+                  onSend={onSendTrip ? () => onSendTrip(t) : undefined}
+                  sending={sendingTrip === t.tripId}
                   route={farm ? `${farm} → ${hub || 'Kapkolia'}` : undefined}
                   scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
                   scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
@@ -1965,7 +1992,7 @@ const RequestsTab = memo(function RequestsTab({
       })),
       ...waiting,
     ];
-  }, [notScheduled, waitingSorted, groupByOrder, trips, loading, scope, sections, replacingId, onReplace, plan, oplTrip, oplTeam, lineColor, farm, hub]);
+  }, [notScheduled, waitingSorted, groupByOrder, trips, loading, scope, sections, replacingId, onReplace, plan, oplTrip, oplTeam, lineColor, farm, hub, onSendTrip, sendingTrip]);
 
   return <CardList items={items} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
 });
@@ -2096,6 +2123,8 @@ const TripsPage = memo(function TripsPage({
   onOpen,
   onOpenWaiting,
   onOpenHistory,
+  onSendTrip,
+  sendingTrip,
   refreshControl,
 }: {
   farm: string;
@@ -2119,6 +2148,8 @@ const TripsPage = memo(function TripsPage({
   onOpen: (tripId: string) => void;
   onOpenWaiting: () => void;
   onOpenHistory: (tripId: string) => void;
+  onSendTrip?: (t: PlannedTrip) => void;
+  sendingTrip?: string | null;
   refreshControl?: ReactElement;
 }) {
   const items = useMemo((): CardItem[] => {
@@ -2156,7 +2187,18 @@ const TripsPage = memo(function TripsPage({
       return {
         key: `trip-${t.tripId}`,
         render: () => (
-          <TripRow trip={t} farm={farm} hub={hub} state={state} loaded={loaded} total={total} trolleyN={trolleyN} onOpen={onOpen} />
+          <TripRow
+            trip={t}
+            farm={farm}
+            hub={hub}
+            state={state}
+            loaded={loaded}
+            total={total}
+            trolleyN={trolleyN}
+            onOpen={onOpen}
+            onSend={onSendTrip && t.current && stop && !t.yourStopClosed ? () => onSendTrip(t) : undefined}
+            sending={sendingTrip === t.tripId}
+          />
         ),
       };
     };
@@ -2247,7 +2289,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, totals, onOpen, onOpenWaiting, onOpenHistory]);
+  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, totals, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2262,6 +2304,8 @@ const TripRow = memo(function TripRow({
   total,
   trolleyN,
   onOpen,
+  onSend,
+  sending = false,
 }: {
   trip: PlannedTrip;
   farm: string;
@@ -2271,6 +2315,9 @@ const TripRow = memo(function TripRow({
   total: number;
   trolleyN: number;
   onOpen: (tripId: string) => void;
+  /** Send the truck on from this farm: enabled once every bucket planned here is on it. */
+  onSend?: () => void;
+  sending?: boolean;
 }) {
   const done = state.tone === 'done';
   return (
@@ -2311,6 +2358,16 @@ const TripRow = memo(function TripRow({
           </Text>
         </View>
         <ProgressBar value={total ? Math.min(1, loaded / total) : 0} />
+        {onSend ? (
+          <Button
+            label={(t.stops ?? []).some((st) => st.stop > ((t.stops ?? []).find((x) => x.isYou)?.stop ?? 0)) ? 'Truck leaving' : 'Send to packhouse'}
+            iconLeft="car-outline"
+            onPress={onSend}
+            loading={sending}
+            disabled={!(total > 0 && loaded >= total)}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
         <View style={s.tripFoot}>
           <View style={s.metaGrow} />
           {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
@@ -3539,9 +3596,14 @@ function TripCard({
   route,
   scanned = 0,
   scanTotal = 0,
+  onSend,
+  sending = false,
   children,
 }: {
   trip: PlannedTrip;
+  /** Send the truck on from this farm (enabled once every bucket planned here is on it). */
+  onSend?: () => void;
+  sending?: boolean;
   /** Where this farm's buckets go on the trip ("Chepsito → Kapkolia"): the
    *  heading of this farm's stop section. */
   route?: string;
@@ -3558,6 +3620,10 @@ function TripCard({
   const stopStatus = yourStop?.status === 'waiting' && scanned > 0 ? 'loading' : yourStop?.status;
   const ui = yourStop ? (STOP_UI[stopStatus ?? 'waiting'] ?? STOP_UI.waiting) : null;
   const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
+  const forStop = yourStop ? stopBuckets(yourStop) : 0;
+  const allOnTruck =
+    !!yourStop && forStop > 0 && yourStop.loaded + yourStop.transit + yourStop.shelved >= forStop;
+  const isLastStop = !!yourStop && !(trip.stops ?? []).some((st) => st.stop > yourStop.stop);
   return (
     <Card>
       {/* Truck and trip number first; nothing the farm doesn't act on. */}
@@ -3599,9 +3665,17 @@ function TripCard({
           </View>
         </>
       ) : null}
-      {/* No button: the stop closes by itself once all its buckets are on the truck. */}
       {trip.yourStopClosed ? (
         <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
+      ) : yourStop && trip.current && onSend ? (
+        <Button
+          label={isLastStop ? 'Send to packhouse' : 'Truck leaving'}
+          iconLeft="car-outline"
+          onPress={onSend}
+          loading={sending}
+          disabled={!allOnTruck}
+          style={{ marginTop: spacing.sm }}
+        />
       ) : null}
     </Card>
   );
