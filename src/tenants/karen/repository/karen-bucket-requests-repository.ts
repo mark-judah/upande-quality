@@ -817,6 +817,8 @@ export const karenBucketRequestsRepository = {
     const raw = await karenBucketRequestsApi.closeTripStop({
       name: args.tripId,
       farm: args.farm,
+      // Only once every bucket planned here is on the truck (the server checks).
+      complete: 1,
       ...(args.reason ? { reason: args.reason } : {}),
     });
     const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };

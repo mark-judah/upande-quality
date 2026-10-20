@@ -438,7 +438,7 @@ export const karenBucketRequestsApi = {
   /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
    *  stop, or to the packhouse from the last one. */
   /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */
-  closeTripStop(payload: { name: string; farm: string; reason?: string }): Promise<RawTrolleyActionResponse> {
+  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
