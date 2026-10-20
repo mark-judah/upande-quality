@@ -26,7 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Button } from '@/src/core/ui/Button';
-import { Dialog } from '@/src/core/ui/Dialog';
+import { Dialog, DialogList, DialogRow } from '@/src/core/ui/Dialog';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { karenShelfOperationsRepository } from '@/src/tenants/karen/repository/karen-shelf-operations-repository';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
@@ -45,6 +45,7 @@ import {
   heldOnTrip,
   ridingOnlyOpls,
   stopBuckets,
+  stopReady,
   type OrderGroup,
   type TrolleyOpl,
   type PlannedTrip,
@@ -706,42 +707,24 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     else showError(r.message);
   };
 
-  // The farm sends the truck once every bucket planned here is on it: the last stop
-  // puts the trip in transit to the packhouse, an earlier one sends it to the next farm.
+  // The farm sends the truck from its stop: the last stop puts the trip in transit to
+  // the packhouse, an earlier one sends it on to the next farm. Short (not every bucket
+  // planned here on the truck) needs a reason; the rest go on the truck's next trip.
+  const [sendTrip, setSendTrip] = useState<PlannedTrip | null>(null);
   const [sendingTrip, setSendingTrip] = useState<string | null>(null);
-  const onSendTrip = useCallback(
-    (t: PlannedTrip) => {
-      const stop = (t.stops ?? []).find((st) => st.isYou);
-      if (!stop || !userFarm) return;
-      const onTruck = stop.loaded + stop.transit + stop.shelved;
-      const stops = t.stops ?? [];
-      const next = stops.filter((st) => st.stop > stop.stop).sort((a, b) => a.stop - b.stop)[0];
-      const free = t.capacity > 0 ? Math.max(0, t.capacity - t.loadedBuckets) : 0;
-      const fill = t.capacity > 0 ? `${t.loadedBuckets} of ${t.capacity} on the truck · ${free} free.` : '';
-      const title = next ? `${t.vehicle} leaving for ${next.farm}?` : `Send ${t.vehicle} to ${hubFarm || 'Kapkolia'}?`;
-      const body = next
-        ? `${onTruck} bucket${onTruck === 1 ? '' : 's'} loaded here. ${fill}`
-        : `${onTruck} bucket${onTruck === 1 ? '' : 's'} go in transit. ${fill}`;
-      showDialog(
-        title,
-        body.trim(),
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: next ? 'Leave' : 'Send',
-            onPress: async () => {
-              setSendingTrip(t.tripId);
-              const r = await closeStop(t.tripId, userFarm);
-              setSendingTrip(null);
-              if (r.ok) showSuccess(r.message);
-              else showError(r.message);
-            },
-          },
-        ],
-        { name: 'car-outline', tone: free > 0 ? 'warn' : 'info' },
-      );
+  const onSendTrip = useCallback((t: PlannedTrip) => setSendTrip(t), []);
+  const onConfirmSend = useCallback(
+    async (t: PlannedTrip, reason?: string) => {
+      if (!userFarm) return;
+      setSendingTrip(t.tripId);
+      const r = await closeStop(t.tripId, userFarm, reason, !reason);
+      setSendingTrip(null);
+      if (r.ok) {
+        setSendTrip(null);
+        showSuccess(r.message);
+      } else showError(r.message);
     },
-    [userFarm, hubFarm, closeStop, showSuccess, showError],
+    [userFarm, closeStop, showSuccess, showError],
   );
 
   const onMarkIssued = (line: string) => {
@@ -855,7 +838,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       // lists (a closed stop), so the total never reads below what's shelved.
       { value: 'requests' as Tab, label: 'Requests', count: requestedTotal },
       { value: 'trolley' as Tab, label: 'Trolley', count: `${k.addedBuckets}/${requestedTotal}` },
-      { value: 'transit' as Tab, label: 'Transit', count: `${k.transitBuckets}/${requestedTotal}` },
+      { value: 'transit' as Tab, label: 'Truck', count: `${k.transitBuckets}/${requestedTotal}` },
       { value: 'shelved' as Tab, label: 'Shelved', count: `${shelvedCount.done}/${requestedTotal}` },
     ],
     [requestedTotal, k.addedBuckets, k.transitBuckets, shelvedCount.done],
@@ -888,7 +871,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         <StageSummary icon="cart-outline" label="Added to trolley" done={k.addedBuckets} total={k.allBuckets} items={addedList} />
         <StageSummary
           icon="car-outline"
-          label="Loaded and in transit"
+          label="On the truck"
           done={transitList.length}
           total={k.allBuckets}
           items={transitList}
@@ -1090,6 +1073,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           sendingTrip={sendingTrip}
           refreshControl={refreshControl}
         />
+        <SendTripDialog
+          key={sendTrip?.tripId ?? 'none'}
+          trip={sendTrip}
+          hub={hubFarm}
+          sending={!!sendingTrip}
+          onClose={() => setSendTrip(null)}
+          onSend={onConfirmSend}
+        />
       </Screen>
     );
   }
@@ -1271,6 +1262,14 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         onNotFound={onNotFound}
         issueInfo={() => (replacePick ? bucketIssueInfo(replacePick.pliId) : Promise.resolve(null))}
         onMarkIssued={onMarkIssued}
+      />
+      <SendTripDialog
+        key={sendTrip?.tripId ?? 'none'}
+        trip={sendTrip}
+        hub={hubFarm}
+        sending={!!sendingTrip}
+        onClose={() => setSendTrip(null)}
+        onSend={onConfirmSend}
       />
     </Screen>
   );
@@ -2220,7 +2219,7 @@ const TripsPage = memo(function TripsPage({
             {[
               { label: 'Requested', value: totals.requested },
               { label: 'On trolley', value: totals.trolley },
-              { label: 'In transit', value: totals.transit },
+              { label: 'On truck', value: totals.transit },
               { label: 'Shelved', value: totals.shelved },
             ].map((x) => (
               <View key={x.label} style={s.statTile}>
@@ -2320,60 +2319,65 @@ const TripRow = memo(function TripRow({
   sending?: boolean;
 }) {
   const done = state.tone === 'done';
+  const you = (t.stops ?? []).find((x) => x.isYou);
   return (
-    <Pressable
-      onPress={() => onOpen(t.tripId)}
-      disabled={t.yourStopClosed}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${tripName(t)}`}
-      style={({ pressed }) => [done && s.tripRowDone, pressed && s.tripRowPressed]}
-    >
+    <View style={done ? s.tripRowDone : undefined}>
       <Card>
-        <View style={s.tripHead}>
-          <View style={s.tripTruck}>
-            <Ionicons name="car" size={16} color={done ? COLORS.textMuted : COLORS.text} />
-            <Text style={s.tripTruckText} numberOfLines={1}>
-              {tripName(t)}
+        {/* The card opens the trip; the send button sits outside that tap area. */}
+        <Pressable
+          onPress={() => onOpen(t.tripId)}
+          disabled={t.yourStopClosed}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${tripName(t)}`}
+          style={({ pressed }) => (pressed ? s.tripRowPressed : undefined)}
+        >
+          <View style={s.tripHead}>
+            <View style={s.tripTruck}>
+              <Ionicons name="car" size={16} color={done ? COLORS.textMuted : COLORS.text} />
+              <Text style={s.tripTruckText} numberOfLines={1}>
+                {tripName(t)}
+              </Text>
+            </View>
+            <StatePill state={state} />
+          </View>
+          <Text style={s.tripRoute} numberOfLines={1}>
+            {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
+          </Text>
+          {t.createdAt ? (
+            <Text style={s.oplMeta} numberOfLines={1}>
+              Created {dateTimeLabel(t.createdAt)}
+            </Text>
+          ) : null}
+          {t.scheduledAt ? (
+            <Text style={s.oplMeta} numberOfLines={1}>
+              Scheduled {dateTimeLabel(t.scheduledAt)}
+            </Text>
+          ) : null}
+          <View style={s.yourStopScan}>
+            <Text style={s.oplMeta}>
+              {loaded}/{total} bucket{total === 1 ? '' : 's'} on the truck
+              {trolleyN ? ` · ${trolleyN} on trolleys` : ''}
             </Text>
           </View>
-          <StatePill state={state} />
-        </View>
-        <Text style={s.tripRoute} numberOfLines={1}>
-          {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
-        </Text>
-        {t.createdAt ? (
-          <Text style={s.oplMeta} numberOfLines={1}>
-            Created {dateTimeLabel(t.createdAt)}
-          </Text>
-        ) : null}
-        {t.scheduledAt ? (
-          <Text style={s.oplMeta} numberOfLines={1}>
-            Scheduled {dateTimeLabel(t.scheduledAt)}
-          </Text>
-        ) : null}
-        <View style={s.yourStopScan}>
-          <Text style={s.oplMeta}>
-            {loaded}/{total} bucket{total === 1 ? '' : 's'} on the truck
-            {trolleyN ? ` · ${trolleyN} on trolleys` : ''}
-          </Text>
-        </View>
-        <ProgressBar value={total ? Math.min(1, loaded / total) : 0} />
-        {onSend ? (
+          <ProgressBar value={total ? Math.min(1, loaded / total) : 0} />
+          <View style={s.tripFoot}>
+            <View style={s.metaGrow} />
+            {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
+          </View>
+        </Pressable>
+        {onSend && you ? (
           <Button
-            label={(t.stops ?? []).some((st) => st.stop > ((t.stops ?? []).find((x) => x.isYou)?.stop ?? 0)) ? 'Truck leaving' : 'Send to packhouse'}
+            label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : 'Send to packhouse'}
             iconLeft="car-outline"
+            variant={stopReady(you) ? 'primary' : 'outline'}
             onPress={onSend}
             loading={sending}
-            disabled={!(total > 0 && loaded >= total)}
+            disabled={loaded <= 0}
             style={{ marginTop: spacing.sm }}
           />
         ) : null}
-        <View style={s.tripFoot}>
-          <View style={s.metaGrow} />
-          {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
-        </View>
       </Card>
-    </Pressable>
+    </View>
   );
 });
 
@@ -3620,9 +3624,7 @@ function TripCard({
   const stopStatus = yourStop?.status === 'waiting' && scanned > 0 ? 'loading' : yourStop?.status;
   const ui = yourStop ? (STOP_UI[stopStatus ?? 'waiting'] ?? STOP_UI.waiting) : null;
   const pct = scanTotal > 0 ? Math.round((scanned / scanTotal) * 100) : 0;
-  const forStop = yourStop ? stopBuckets(yourStop) : 0;
-  const allOnTruck =
-    !!yourStop && forStop > 0 && yourStop.loaded + yourStop.transit + yourStop.shelved >= forStop;
+  const onTruck = yourStop ? yourStop.loaded + yourStop.transit + yourStop.shelved : 0;
   const isLastStop = !!yourStop && !(trip.stops ?? []).some((st) => st.stop > yourStop.stop);
   return (
     <Card>
@@ -3671,13 +3673,109 @@ function TripCard({
         <Button
           label={isLastStop ? 'Send to packhouse' : 'Truck leaving'}
           iconLeft="car-outline"
+          variant={yourStop && stopReady(yourStop) ? 'primary' : 'outline'}
           onPress={onSend}
           loading={sending}
-          disabled={!allOnTruck}
+          disabled={onTruck <= 0}
           style={{ marginTop: spacing.sm }}
         />
       ) : null}
     </Card>
+  );
+}
+
+/** Why a farm's stop leaves with fewer buckets than planned (saved on the trip). */
+const SHORT_REASONS = ['Bucket not found', 'Not ready yet', 'Quality reject', 'Truck full', 'Other'] as const;
+type ShortReason = (typeof SHORT_REASONS)[number];
+
+/** Send the truck on from this farm: to the packhouse from the last stop (its buckets go
+ *  in transit), else to the next farm. Short of the plan, it asks why. */
+function SendTripDialog({
+  trip,
+  hub,
+  sending,
+  onClose,
+  onSend,
+}: {
+  trip: PlannedTrip | null;
+  hub: string;
+  sending: boolean;
+  onClose: () => void;
+  onSend: (t: PlannedTrip, reason?: string) => void;
+}) {
+  const [reason, setReason] = useState<ShortReason | null>(null);
+  const [note, setNote] = useState('');
+  const stop = trip ? (trip.stops ?? []).find((st) => st.isYou) : undefined;
+  if (!trip || !stop) return null;
+  const onTruck = stop.loaded + stop.transit + stop.shelved;
+  const forStop = stopBuckets(stop);
+  const short = !stopReady(stop);
+  const missing = Math.max(0, forStop - onTruck);
+  const next = (trip.stops ?? []).filter((st) => st.stop > stop.stop).sort((a, b) => a.stop - b.stop)[0];
+  const reasonText = reason ? [reason === 'Other' ? '' : reason, note.trim()].filter(Boolean).join(' — ') : '';
+  const ready = !short || (!!reason && (reason !== 'Other' || !!note.trim()));
+  return (
+    <Dialog
+      visible
+      onClose={onClose}
+      busy={sending}
+      icon={{ name: 'car-outline', tone: short ? 'warn' : 'info' }}
+      title={next ? `${trip.vehicle} leaving for ${next.farm}?` : `Send ${trip.vehicle} to ${hub || 'Kapkolia'}?`}
+      subtitle={next ? `${onTruck} bucket${onTruck === 1 ? '' : 's'} loaded here.` : `${onTruck} bucket${onTruck === 1 ? '' : 's'} go in transit.`}
+      actions={
+        <>
+          <Button label="Cancel" variant="outline" onPress={onClose} disabled={sending} style={{ flex: 1 }} />
+          <Button
+            label={next ? 'Leave' : 'Send'}
+            iconLeft="car-outline"
+            loading={sending}
+            disabled={!ready}
+            onPress={() => onSend(trip, short ? reasonText : undefined)}
+            style={{ flex: 1 }}
+          />
+        </>
+      }
+    >
+      <DialogList>
+        <DialogRow label="On the truck" value={`${onTruck} bkt`} />
+        <DialogRow label="For this stop" value={`${forStop} bkt`} />
+        {trip.capacity > 0 ? (
+          <DialogRow label="Truck" value={`${trip.loadedBuckets}/${trip.capacity} · ${Math.max(0, trip.capacity - trip.loadedBuckets)} free`} />
+        ) : null}
+      </DialogList>
+      {short ? (
+        <>
+          <Text style={s.leaveNote}>
+            {missing ? `${missing} bucket${missing === 1 ? '' : 's'} not on the truck go on its next trip. ` : ''}Why is it
+            leaving short?
+          </Text>
+          <View style={s.reasonRow}>
+            {SHORT_REASONS.map((r) => (
+              <Pressable
+                key={r}
+                onPress={() => setReason(r)}
+                disabled={sending}
+                style={[s.reasonChip, reason === r && s.reasonChipOn]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: reason === r }}
+              >
+                <Text style={[s.reasonText, reason === r && s.reasonTextOn]}>{r}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder={reason === 'Other' ? 'Say why (required)' : 'Add a note (optional)'}
+            placeholderTextColor={COLORS.textMuted}
+            editable={!sending}
+            multiline
+            maxLength={300}
+            style={s.leaveInput}
+          />
+        </>
+      ) : null}
+    </Dialog>
   );
 }
 
@@ -3871,6 +3969,27 @@ const s = StyleSheet.create({
   arrivalLabel: { flexShrink: 1, marginBottom: 0 },
   arrivalCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   arrivalHint: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
+  leaveNote: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+    color: COLORS.warn,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  leaveInput: {
+    marginTop: spacing.sm,
+    minHeight: 56,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.sm,
+    color: COLORS.text,
+    textAlignVertical: 'top',
+  },
   tripClosed: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
   repNone: {
     fontFamily: fontFamily.regular,

@@ -106,6 +106,8 @@ export type PlannedTripStop = {
   transit: number;
   shelved: number;
   doneCount: number;
+  /** Every bucket planned here is on the truck, by the server's send rule (absent on an older server). */
+  ready?: boolean;
   status: StopStatus;
   /** true = first stop still holding up the run. */
   delaying: boolean;
@@ -344,6 +346,7 @@ function mapPlannedTripStop(r: RawPlannedTripStop): PlannedTripStop {
     transit: num(r.transit),
     shelved: num(r.shelved),
     doneCount: num(r.done_count),
+    ...(r.ready == null ? {} : { ready: !!r.ready }),
     status: asStopStatus(r.status),
     delaying: !!r.delaying,
   };
@@ -813,12 +816,12 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Could not reopen the trip.' };
   },
 
-  async closeTripStop(args: { tripId: string; farm: string; reason?: string }): Promise<SaveTrolleyOutcome> {
+  async closeTripStop(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): Promise<SaveTrolleyOutcome> {
     const raw = await karenBucketRequestsApi.closeTripStop({
       name: args.tripId,
       farm: args.farm,
-      // Only once every bucket planned here is on the truck (the server checks).
-      complete: 1,
+      // Sent as complete: the server refuses it unless every bucket planned here is on.
+      ...(args.complete ? { complete: 1 } : {}),
       ...(args.reason ? { reason: args.reason } : {}),
     });
     const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };

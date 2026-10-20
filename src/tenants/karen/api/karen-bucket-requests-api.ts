@@ -144,6 +144,8 @@ export type RawPlannedTripStop = {
   transit?: number;
   shelved?: number;
   done_count?: number;
+  /** Every bucket planned at this stop is on the truck (the server's send rule). */
+  ready?: number;
   /** waiting | loading | ready | transit | done */
   status?: string;
   /** 1 = first stop still holding up the run (bottleneck). */
