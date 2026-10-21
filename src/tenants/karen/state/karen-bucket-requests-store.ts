@@ -1163,7 +1163,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       }
       only = free.map((r) => r.oplName);
       const held = await db.trolleyOrders(trolley).catch(() => [] as BucketOrderRef[]);
-      const foreign = held.find((r) => !onTrip(trip, r, trips));
+      // A bucket several orders share is on the trolley once: it belongs to this trip
+      // when any of its orders rides on it (the others ride with that one).
+      const mineHeld = new Set(held.filter((r) => onTrip(trip, r, trips)).flatMap((r) => r.buckets ?? []));
+      const foreign = held.find(
+        (r) => !onTrip(trip, r, trips) && (!r.buckets?.length || r.buckets.some((b) => !mineHeld.has(b))),
+      );
       if (foreign) {
         const ft = tripForOrder(trips, foreign);
         return {
