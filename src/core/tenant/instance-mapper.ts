@@ -1,6 +1,7 @@
 export type Tenant = 'Karen' | 'Kikwetu' | 'Xflora' | 'Mona' | 'Tambuzi' | 'Demo';
 
 const URL_TO_TENANT: Record<string, Tenant> = {
+  'http://192.168.100.48:8000': 'Karen',
   'https://kikwetu.upande.com': 'Kikwetu',
   'https://kikwetu-production.jh.frappe.cloud': 'Kikwetu',
   'https://kaitet-group.upande.com': 'Karen',
