@@ -1971,6 +1971,7 @@ const RequestsTab = memo(function RequestsTab({
                   onSend={onSendTrip ? () => onSendTrip(t) : undefined}
                   sending={sendingTrip === t.tripId}
                   route={farm ? `${farm} → ${hub || 'Kapkolia'}` : undefined}
+                  hub={hub}
                   scanned={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.scanned, 0), 0)}
                   scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
                 >
@@ -2367,7 +2368,7 @@ const TripRow = memo(function TripRow({
         </Pressable>
         {onSend && you ? (
           <Button
-            label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : 'Send to packhouse'}
+            label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${hub || 'Kapkolia'}`}
             iconLeft="car-outline"
             variant={stopReady(you) ? 'primary' : 'outline'}
             onPress={onSend}
@@ -3598,6 +3599,7 @@ const STOP_UI: Record<
 function TripCard({
   trip,
   route,
+  hub,
   scanned = 0,
   scanTotal = 0,
   onSend,
@@ -3605,6 +3607,8 @@ function TripCard({
   children,
 }: {
   trip: PlannedTrip;
+  /** The packhouse the trip ends at (the send button names it). */
+  hub?: string;
   /** Send the truck on from this farm (enabled once every bucket planned here is on it). */
   onSend?: () => void;
   sending?: boolean;
@@ -3671,7 +3675,7 @@ function TripCard({
         <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
       ) : yourStop && trip.current && onSend ? (
         <Button
-          label={isLastStop ? 'Send to packhouse' : 'Truck leaving'}
+          label={isLastStop ? `Send to ${hub || 'Kapkolia'}` : 'Truck leaving'}
           iconLeft="car-outline"
           variant={yourStop && stopReady(yourStop) ? 'primary' : 'outline'}
           onPress={onSend}
