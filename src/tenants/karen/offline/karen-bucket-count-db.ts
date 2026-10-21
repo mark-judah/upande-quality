@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 
 /** A locally-queued bucket count scan, plus whatever the server resolved for
  *  it once synced. Scanning writes here instantly (no network) so counting a
@@ -28,9 +29,16 @@ let _db: SQLite.SQLiteDatabase | null = null;
 
 async function db(): Promise<SQLite.SQLiteDatabase> {
   if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync('karen_bucket_count.db');
+  _db = await SQLite.openDatabaseAsync(await instanceDbName('karen_bucket_count.db'));
   return _db;
 }
+
+// The live server changed without a restart: the next open resolves its own file.
+onInstanceDbReset(async () => {
+  const d = _db;
+  _db = null;
+  await d?.closeAsync();
+});
 
 const DDL = `
 PRAGMA journal_mode = WAL;
@@ -180,4 +188,12 @@ export async function applySyncResults(
 export async function clearFarm(farm: string): Promise<void> {
   const d = await db();
   await d.runAsync('DELETE FROM bucket_count_scan WHERE farm = ?', [farm]);
+}
+
+/** Scans of every farm not sent yet. */
+export async function countAllPending(): Promise<number> {
+  const d = await db();
+  await d.execAsync(DDL);
+  const row = await d.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM bucket_count_scan WHERE synced = 0');
+  return row?.c ?? 0;
 }

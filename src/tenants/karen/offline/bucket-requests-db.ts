@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 import type {
   AllocationItem,
   OplSchedule,
@@ -154,13 +155,26 @@ let _migrated: Promise<void> | null = null;
 
 function open(): Promise<SQLite.SQLiteDatabase> {
   if (!cache.conn) {
-    cache.conn = SQLite.openDatabaseAsync('karen_bucket_requests.db').catch((e) => {
-      cache.conn = null;
-      throw e;
-    });
+    // One file per instance: its queued trolley scans only ever go to that server.
+    cache.conn = instanceDbName('karen_bucket_requests.db')
+      .then((name) => SQLite.openDatabaseAsync(name))
+      .catch((e) => {
+        cache.conn = null;
+        throw e;
+      });
   }
   return cache.conn;
 }
+
+// The live server changed without a restart: drop the shared connection (every
+// module copy holds the same one) so the next open resolves that server's file.
+onInstanceDbReset(async () => {
+  const conn = cache.conn;
+  cache.conn = null;
+  _migrated = null;
+  const d = await conn?.catch(() => null);
+  await d?.closeAsync();
+});
 
 /** A released native connection: reopen and retry once instead of failing the screen.
  *  Every native failure reads "Call to function … has been rejected"; only its cause
@@ -1462,4 +1476,11 @@ export async function clearAll(): Promise<void> {
   await d.execAsync(
     'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip; DELETE FROM opl_schedule;',
   );
+}
+
+/** Trolley scans the server has not taken yet (waiting, or refused and to be sent again). */
+export async function countUnsentScans(): Promise<number> {
+  const d = await db();
+  const row = await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM bucket WHERE flag_sync != 0');
+  return row?.n ?? 0;
 }
