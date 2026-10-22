@@ -7,6 +7,7 @@ import {
   type RawPlannedTripOrder,
   type RawPlannedTripStop,
   type RawReplacementCandidate,
+  type RawCloseTripStopMessage,
 } from '../api/karen-bucket-requests-api';
 import { activeFarm } from '../offline/bucket-requests-db';
 
@@ -267,6 +268,50 @@ export type OplSchedule = { oplName: string; team: string; sequence: number; sch
 export type SaveTrolleyOutcome =
   | { kind: 'ok'; message: string }
   | { kind: 'error'; message: string };
+
+/** The truck is under its minimum load: the numbers the server sent back. */
+export type BelowMinimum = { loaded: number; capacity: number; needed: number; pct: number; message: string };
+
+export type CloseTripStopOutcome =
+  | { kind: 'ok'; message: string }
+  | { kind: 'below_minimum'; message: string; belowMinimum: BelowMinimum }
+  | { kind: 'error'; message: string };
+
+/** closeTripStop's body. Resending after `below_minimum` keeps name, farm and complete and
+ *  adds the reason. */
+export function closeTripStopPayload(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): {
+  name: string;
+  farm: string;
+  complete?: number;
+  reason?: string;
+} {
+  const reason = args.reason?.trim();
+  return {
+    name: args.tripId,
+    farm: args.farm,
+    // Sent as complete: the server refuses it unless every bucket planned here is on.
+    ...(args.complete ? { complete: 1 } : {}),
+    ...(reason ? { reason } : {}),
+  };
+}
+
+export function closeTripStopOutcome(m: RawCloseTripStopMessage | undefined): CloseTripStopOutcome {
+  const msg = m ?? {};
+  if (msg.status === 'success') {
+    const where = msg.trip_status === 'Dispatched' ? `dispatched to ${msg.heading_to || 'the packhouse'}` : `heading to ${msg.heading_to}`;
+    return { kind: 'ok', message: `Stop closed — truck ${where}${msg.left_behind ? ` · ${msg.left_behind} left for the next trip` : ''}.` };
+  }
+  if (msg.reason === 'below_minimum') {
+    const message = msg.message || 'The truck is below its minimum load.';
+    return {
+      kind: 'below_minimum',
+      message,
+      belowMinimum: { loaded: num(msg.loaded), capacity: num(msg.capacity), needed: num(msg.needed), pct: num(msg.pct), message },
+    };
+  }
+  // `incomplete` and every other refusal: the server's message.
+  return { kind: 'error', message: msg.message ?? 'Could not close the stop.' };
+}
 
 export type LoadSavedOutcome =
   | { kind: 'ok'; trolleys: SavedTrolley[] }
@@ -816,20 +861,9 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Could not reopen the trip.' };
   },
 
-  async closeTripStop(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): Promise<SaveTrolleyOutcome> {
-    const raw = await karenBucketRequestsApi.closeTripStop({
-      name: args.tripId,
-      farm: args.farm,
-      // Sent as complete: the server refuses it unless every bucket planned here is on.
-      ...(args.complete ? { complete: 1 } : {}),
-      ...(args.reason ? { reason: args.reason } : {}),
-    });
-    const m = (raw.message ?? {}) as { status?: string; message?: string; trip_status?: string; heading_to?: string; left_behind?: number };
-    if (m.status === 'success') {
-      const where = m.trip_status === 'Dispatched' ? `dispatched to ${m.heading_to || 'the packhouse'}` : `heading to ${m.heading_to}`;
-      return { kind: 'ok', message: `Stop closed — truck ${where}${m.left_behind ? ` · ${m.left_behind} left for the next trip` : ''}.` };
-    }
-    return { kind: 'error', message: m.message ?? 'Could not close the stop.' };
+  async closeTripStop(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): Promise<CloseTripStopOutcome> {
+    const raw = await karenBucketRequestsApi.closeTripStop(closeTripStopPayload(args));
+    return closeTripStopOutcome(raw.message);
   },
 
   async replaceBucket(

@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Updates from 'expo-updates';
@@ -14,14 +15,22 @@ import { APP_VERSION } from '@/src/core/version';
  * side is `upande_quality.mobile.mobile_app.register_install`, one register for
  * every Upande mobile app (told apart by `app`, a Mobile App record).
  *
- * Sent: a random install id, platform, brand / model, OS version, app and
- * runtime versions, and whether it is a real device. No IP, location or
- * hardware id — the server records the IP it observes.
+ * Sent: a random install id, a hardware device key, platform, brand / model,
+ * OS version, app and runtime versions, and whether it is a real device. No IP
+ * or location — the server records the IP it observes.
+ *
+ * The device key is the Android ID (`Application.getAndroidId()`, the same id
+ * telemetry sends as `device_id`; null off Android). It keeps one physical
+ * device on one server row however often its install id is re-minted, and
+ * tells apart identical scanners that model and build cannot. There is no
+ * SHA-256 in this app's dependencies, so it is sent raw; the server stores only
+ * SHA-256 hex of "upande-device:" + the id, never the id itself.
  *
  * The install id lives in SecureStore under its own key: signing out only
  * clears `StorageKeys`, so it keeps the same device row; only an uninstall
- * mints a new one. Not the telemetry `device_id` (the Android ID): this is a
- * random id per install.
+ * mints a new one. The server answers with the row the report was filed under
+ * (another install id when the device key matched an older row); that is kept
+ * per server for the Devices screen's "this device".
  *
  * Nothing here is visible: every failure resolves to null.
  */
@@ -32,6 +41,7 @@ const KEY_INSTALL_ID = 'upande_install_id_v1';
 const KEY_LAST_REPORT = 'upande_install_reported_at_v1';
 const KEY_LAST_USER = 'upande_install_reported_user_v1';
 const KEY_LAST_VERSION = 'upande_install_reported_version_v1';
+const KEY_ROW_ID = 'upande_install_row_id_v1';
 
 /** The throttle is per server: each server keeps its own register, so a report
  *  to one says nothing about another. SecureStore keys allow [A-Za-z0-9._-]. */
@@ -42,6 +52,7 @@ async function throttleKeys() {
     report: `${KEY_LAST_REPORT}.${slug}`,
     user: `${KEY_LAST_USER}.${slug}`,
     version: `${KEY_LAST_VERSION}.${slug}`,
+    row: `${KEY_ROW_ID}.${slug}`,
   };
 }
 
@@ -63,6 +74,7 @@ export type InstallFacts = {
   app_version: string;
   runtime_version: string | null;
   is_physical_device: 0 | 1;
+  device_key: string | null;
 };
 
 let loggedOnce = false;
@@ -106,6 +118,16 @@ function runtimeVersion(): string | null {
   return typeof declared === 'string' && declared ? declared : null;
 }
 
+/** The Android ID: the same for every install of this app on one device. Null elsewhere. */
+function deviceKey(): string | null {
+  if (Platform.OS !== 'android') return null;
+  try {
+    return Application.getAndroidId() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** What this device and this build are. */
 export function deviceFacts(): InstallFacts {
   return {
@@ -117,7 +139,17 @@ export function deviceFacts(): InstallFacts {
     app_version: APP_VERSION,
     runtime_version: runtimeVersion(),
     is_physical_device: Device.isDevice ? 1 : 0,
+    device_key: deviceKey(),
   };
+}
+
+/** The server row this device was last filed under on the current server, or null. */
+export async function getRegisteredRowId(): Promise<string | null> {
+  try {
+    return (await storage.get((await throttleKeys()).row)) || null;
+  } catch {
+    return null;
+  }
 }
 
 let reportedLaunchThisProcess = false;
@@ -178,7 +210,7 @@ export function reportInstall({ reason = 'launch', user }: { reason?: InstallRea
       const installId = await getInstallId();
       if (!installId) return null;
 
-      const result = await api({
+      const result = await api<{ message?: { install_id?: string } }>({
         method: 'POST',
         url: ENDPOINT,
         data: { install_id: installId, app: APP_NAME_FOR_REGISTER, reason, ...facts },
@@ -189,6 +221,7 @@ export function reportInstall({ reason = 'launch', user }: { reason?: InstallRea
         storage.set(keys.report, String(now)).catch(() => {}),
         storage.set(keys.version, `${facts.app_version}|${facts.runtime_version ?? ''}`).catch(() => {}),
         account ? storage.set(keys.user, account).catch(() => {}) : null,
+        result?.message?.install_id ? storage.set(keys.row, result.message.install_id).catch(() => {}) : null,
       ]);
       return result;
     } catch (err) {

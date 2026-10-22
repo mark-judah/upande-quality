@@ -18,6 +18,7 @@ import {
   type BucketIssueInfo,
   type FlagConflict,
   type AllocationItem,
+  type BelowMinimum,
 } from '../repository/karen-bucket-requests-repository';
 import * as db from '../offline/bucket-requests-db';
 import type {
@@ -136,7 +137,13 @@ type State = {
   markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
-  closeStop: (tripId: string, farm: string, reason?: string, complete?: boolean) => Promise<{ ok: boolean; message: string }>;
+  /** `belowMinimum`: the truck is under its minimum load; resend with a reason to send anyway. */
+  closeStop: (
+    tripId: string,
+    farm: string,
+    reason?: string,
+    complete?: boolean,
+  ) => Promise<{ ok: boolean; message: string; belowMinimum?: BelowMinimum }>;
   /** Trips the truck has left this farm on (Completed page). */
   completedTrips: CompletedTrip[];
   loadingCompleted: boolean;
@@ -1483,6 +1490,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {
       const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason, complete });
+      if (res.kind === 'below_minimum') return { ok: false, message: res.message, belowMinimum: res.belowMinimum };
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await get().loadPlannedTrips(farm);
       return { ok: true, message: res.message };
@@ -1594,6 +1602,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
 
 export type { OrderGroup, TrolleyOpl };
 export type {
+  BelowMinimum,
   PlannedTrip,
   PlannedTripStop,
   ReplacementCandidate,

@@ -76,6 +76,28 @@ export type RawSavedTrolleysResponse = {
   message?: { status?: string; data?: RawSavedTrolley[]; message?: string };
 };
 
+/** closeTripStop's reply. `reason` names a refusal: `incomplete` (sent as complete but
+ *  not every planned bucket is on), `below_minimum` (truck under its minimum load;
+ *  resending with a non-empty `reason` overrides it and the server records the reason). */
+export type RawCloseTripStopMessage = {
+  status?: 'success' | 'error' | string;
+  message?: string;
+  reason?: 'incomplete' | 'below_minimum' | string;
+  trip_status?: string;
+  heading_to?: string;
+  left_behind?: number;
+  /** below_minimum: buckets on the truck now. */
+  loaded?: number;
+  /** below_minimum: the truck's capacity in buckets. */
+  capacity?: number;
+  /** below_minimum: the bucket count it leaves at without a reason. */
+  needed?: number;
+  /** below_minimum: the minimum load as a percent of capacity (100 unless partial loads are allowed). */
+  pct?: number;
+};
+
+export type RawCloseTripStopResponse = { message?: RawCloseTripStopMessage };
+
 export type RawTrolleyActionResponse = {
   message?: {
     status?: 'success' | 'error' | string;
@@ -440,8 +462,8 @@ export const karenBucketRequestsApi = {
   /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
    *  stop, or to the packhouse from the last one. */
   /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */
-  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number }): Promise<RawTrolleyActionResponse> {
-    return api<RawTrolleyActionResponse>({
+  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number }): Promise<RawCloseTripStopResponse> {
+    return api<RawCloseTripStopResponse>({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
       data: payload,
