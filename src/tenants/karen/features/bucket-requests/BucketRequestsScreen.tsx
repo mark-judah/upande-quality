@@ -715,9 +715,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const [sendingTrip, setSendingTrip] = useState<string | null>(null);
   const onSendTrip = useCallback((t: PlannedTrip) => setSendTrip(t), []);
   // The truck is below its minimum load: "Send anyway" resends the same stop with a reason.
-  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum; reason: string; complete: boolean } | null>(
-    null,
-  );
+  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum } | null>(null);
   const onConfirmSend = useCallback(
     async (t: PlannedTrip, reason?: string) => {
       if (!userFarm) return;
@@ -729,32 +727,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         setSendTrip(null);
         showSuccess(r.message);
       } else if (r.belowMinimum) {
-        // Under the truck's minimum load: ask why before it goes (or it stays here).
         setSendTrip(null);
-        setMinLoad({ trip: t, info: r.belowMinimum, reason: reason ?? '', complete });
+        setMinLoad({ trip: t, info: r.belowMinimum });
       } else showError(r.message);
     },
     [userFarm, closeStop, showSuccess, showError],
   );
-  const onSendAnyway = useCallback(
-    async (reason: string) => {
-      if (!userFarm || !minLoad) return;
-      const { trip, complete } = minLoad;
-      setSendingTrip(trip.tripId);
-      const r = await closeStop(trip.tripId, userFarm, reason, complete);
-      setSendingTrip(null);
-      if (r.ok) {
-        setMinLoad(null);
-        showSuccess(r.message);
-      } else if (r.belowMinimum) {
-        setMinLoad({ trip, info: r.belowMinimum, reason, complete });
-        showError(r.message);
-      } else showError(r.message);
-    },
-    [userFarm, minLoad, closeStop, showSuccess, showError],
-  );
-
-  const onMarkIssued = (line: string) => {
+const onMarkIssued = (line: string) => {
     const pick = replacePick;
     if (!pick) return;
     confirm(
@@ -1111,9 +1090,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         <MinimumLoadDialog
           key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
           prompt={minLoad}
-          sending={!!sendingTrip}
           onClose={() => setMinLoad(null)}
-          onSend={onSendAnyway}
         />
       </Screen>
     );
@@ -1308,9 +1285,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       <MinimumLoadDialog
         key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
         prompt={minLoad}
-        sending={!!sendingTrip}
         onClose={() => setMinLoad(null)}
-        onSend={onSendAnyway}
       />
     </Screen>
   );
@@ -3824,59 +3799,29 @@ function SendTripDialog({
   );
 }
 
-/** The truck is below its minimum load: send anyway with a reason, or keep it here. */
+/** The truck is below its minimum load: inform the driver, no override. */
 function MinimumLoadDialog({
   prompt,
-  sending,
   onClose,
-  onSend,
 }: {
-  prompt: { trip: PlannedTrip; info: BelowMinimum; reason: string } | null;
-  sending: boolean;
+  prompt: { trip: PlannedTrip; info: BelowMinimum } | null;
   onClose: () => void;
-  onSend: (reason: string) => void;
 }) {
-  const [reason, setReason] = useState(prompt?.reason ?? '');
   if (!prompt) return null;
   const { trip, info } = prompt;
   const numbers =
     info.capacity > 0 && info.needed > 0
       ? `${info.loaded} of ${info.capacity} on the truck — it leaves at ${info.needed}`
       : info.message;
-  const ready = !!reason.trim();
   return (
     <Dialog
       visible
       onClose={onClose}
-      busy={sending}
       icon={{ name: 'car-outline', tone: 'warn' }}
-      title={`Send ${trip.vehicle} anyway?`}
+      title={`${trip.vehicle} is not ready`}
       subtitle={numbers}
-      actions={
-        <>
-          <Button label="Cancel" variant="outline" onPress={onClose} disabled={sending} style={{ flex: 1 }} />
-          <Button
-            label="Send anyway"
-            iconLeft="car-outline"
-            loading={sending}
-            disabled={!ready}
-            onPress={() => onSend(reason.trim())}
-            style={{ flex: 1 }}
-          />
-        </>
-      }
-    >
-      <TextInput
-        value={reason}
-        onChangeText={setReason}
-        placeholder="Reason (required)"
-        placeholderTextColor={COLORS.textMuted}
-        editable={!sending}
-        multiline
-        maxLength={300}
-        style={s.leaveInput}
-      />
-    </Dialog>
+      actions={<Button label="OK" onPress={onClose} />}
+    />
   );
 }
 
