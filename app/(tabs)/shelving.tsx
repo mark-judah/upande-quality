@@ -11,7 +11,7 @@ export default function ShelvingRoute() {
   }
 
   return (
-    <RequireStation next="/shelving">
+    <RequireStation next="/shelving" title="Shelving">
       {(station) => <KarenShelvingScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

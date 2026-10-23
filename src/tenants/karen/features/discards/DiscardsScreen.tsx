@@ -3,11 +3,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
+import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenDiscardStore } from '@/src/tenants/karen/state/karen-discard-store';
 import type { DiscardListBucket } from '@/src/tenants/karen/repository/karen-discard-repository';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 const norm = (id: string): string => id.trim().toLowerCase();
 
@@ -77,12 +78,7 @@ export function KarenDiscardsScreen({ userFarm }: { userFarm: string }) {
       {listError ? <Alert tone="danger">{listError}</Alert> : null}
 
       {listLoading && buckets.length === 0 ? (
-        <Card>
-          <View style={s.empty}>
-            <ActivityIndicator color={COLORS.text} />
-            <Text style={s.emptyHint}>Loading discard list…</Text>
-          </View>
-        </Card>
+        <SkeletonCards cards={3} rows={2} />
       ) : null}
 
       {!listLoading && buckets.length === 0 ? (
@@ -140,8 +136,10 @@ function BucketRow({
     .join(' · ');
   return (
     <View style={[s.row, !first && s.rowBorder]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[s.bId, discarded && s.bIdDone]}>{b.bucketId}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[s.bId, discarded && s.bIdDone]} numberOfLines={1}>
+          {b.bucketId}
+        </Text>
         {meta ? (
           <Text style={s.bMeta} numberOfLines={1}>
             {meta}
@@ -175,7 +173,7 @@ function BucketRow({
 }
 
 const s = StyleSheet.create({
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
   shelfBlock: { marginTop: spacing.md },
   shelfHdr: {
     fontFamily: fontFamily.bold,
@@ -186,7 +184,7 @@ const s = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
-  bId: { fontFamily: 'monospace', fontSize: fontSize.sm, color: COLORS.text, fontWeight: '700' },
+  bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bIdDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
   discardBtn: {

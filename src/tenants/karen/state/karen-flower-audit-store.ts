@@ -112,18 +112,20 @@ export const useKarenFlowerAuditStore = create<State>((set, get) => ({
     if (!s.variety) return fail('Pick a variety.');
 
     // A row counts only once every column of this audit carries a number —
-    // a half-filled Head Size row would otherwise save a 0 height.
+    // a half-filled Head Size row would otherwise save a 0 height. Audits with
+    // partialColumns (one column per stem length) accept any filled subset and
+    // send only those, so unaudited lengths stay blank.
     const filled: SamplePayload[] = [];
     for (let i = 0; i < s.rows.length; i++) {
       const row = s.rows[i];
       const nums = audit.columns.map((c) => Number.parseFloat(row.values[c.field] ?? ''));
       if (nums.every((n) => !Number.isFinite(n))) continue; // untouched row
-      if (nums.some((n) => !Number.isFinite(n))) {
+      if (!audit.partialColumns && nums.some((n) => !Number.isFinite(n))) {
         return fail(`Sample ${i + 1} is missing a reading.`);
       }
       const payload: SamplePayload = { sample_number: filled.length + 1 };
       audit.columns.forEach((c, i) => {
-        payload[c.field] = nums[i];
+        if (Number.isFinite(nums[i])) payload[c.field] = nums[i];
       });
       filled.push(payload);
     }

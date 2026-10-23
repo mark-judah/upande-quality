@@ -9,7 +9,7 @@ export default function CleaningRecordRoute() {
     return <PendingScreen feature="Coldroom Cleaning" tenant={tenant} />;
   }
   return (
-    <RequireStation next="/cleaning-record">
+    <RequireStation next="/cleaning-record" title="Coldroom Cleaning">
       {(station) => <KarenCleaningRecordScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

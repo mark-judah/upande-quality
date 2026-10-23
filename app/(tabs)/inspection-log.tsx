@@ -9,7 +9,7 @@ export default function InspectionLogRoute() {
     return <PendingScreen feature="Coldroom Inspection" tenant={tenant} />;
   }
   return (
-    <RequireStation next="/inspection-log">
+    <RequireStation next="/inspection-log" title="Coldroom Inspection">
       {(station) => <KarenInspectionLogScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

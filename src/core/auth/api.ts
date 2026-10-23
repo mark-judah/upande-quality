@@ -14,43 +14,37 @@ export type LoginRawResponse = {
   setCookie: string | null;
 };
 
-export async function probeBaseUrl(rawUrl: string): Promise<string> {
-  const trimmed = rawUrl.trim();
-
-  // If the caller already specified a protocol, trust it without probing.
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed.replace(/\/$/, '');
-  }
-
-  // No protocol supplied. Real public hostnames are ALWAYS HTTPS — never
-  // silently downgrade to cleartext HTTP, which breaks release/standalone
-  // Android builds (the HTTPS HEAD probe can fail/timeout on a cold native
-  // start, and the cleartext POST then throws "Network error"). Only local /
-  // IP / explicit-port dev benches may legitimately be HTTP, so we probe those.
-  const host = trimmed.replace(/\/.*$/, '');
-  const isLocalOrIp =
-    /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host) || // IPv4 (optional port)
-    /:\d+$/.test(host) ||                            // any host:port
-    /^localhost(:\d+)?$/i.test(host) ||
-    /\.local$/i.test(host);
-
-  if (!isLocalOrIp) {
-    return `https://${trimmed}`;
-  }
-
-  // Local / IP / dev bench — probe HTTPS, fall back to HTTP.
-  const httpsUrl = `https://${trimmed}`;
-  const config: LoggableConfig = attachStartTime({ method: 'HEAD', url: httpsUrl });
+/** Does `base` answer as a Frappe site? A quick GET of /api/method/ping. */
+async function answers(base: string): Promise<boolean> {
+  const config: LoggableConfig = attachStartTime({ method: 'GET', url: `${base}/api/method/ping` });
   logRequest(config);
   try {
-    const res = await axios.head(httpsUrl, { timeout: 5000 });
+    const res = await axios.get(`${base}/api/method/ping`, { timeout: 8000, validateStatus: () => true });
     logResponse({ ...res, config: { ...res.config, ...config } } as never, elapsed(config));
-    return httpsUrl;
+    // Any HTTP answer means the server is there (a site in maintenance answers 503).
+    return res.status > 0;
   } catch (err) {
     if (isAxiosError(err)) logError(err, elapsed(config));
-    else console.log('[API] ✗ probe error:', err);
-    return `http://${trimmed}`;
+    return false;
   }
+}
+
+/**
+ * The site's base URL for whatever was typed. An explicit scheme is a
+ * deliberate choice (a local dev server that only ever speaks http, say) and
+ * is honoured exactly as typed -- no auto-upgrade to https, no probing.
+ * Nobody has to know or type http/https either, though: with no scheme at
+ * all, https is tried first, then http, the first that answers is used, and
+ * https when neither does (the sign-in then reports the network error).
+ */
+export async function probeBaseUrl(rawUrl: string): Promise<string> {
+  const trimmed = rawUrl.trim().replace(/\/+$/, '');
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const https = `https://${trimmed}`;
+  const http = `http://${trimmed}`;
+  if (await answers(https)) return https;
+  if (await answers(http)) return http;
+  return https;
 }
 
 export async function loginRequest(

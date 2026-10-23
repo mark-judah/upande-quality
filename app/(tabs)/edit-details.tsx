@@ -1,4 +1,5 @@
 import { Text } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { EditDetailsScreen } from '@/src/core/features/edit-details/EditDetailsScreen';
@@ -8,6 +9,7 @@ import { useTenant } from '@/src/core/tenant/tenant-context';
 
 export default function EditDetailsRoute() {
   const { tenant } = useTenant();
+  const { bucket, t } = useLocalSearchParams<{ bucket?: string; t?: string }>();
   const replacementRepo = getReplacementRepository(tenant);
   const traceabilityRepo = getTraceabilityRepository(tenant);
 
@@ -24,6 +26,8 @@ export default function EditDetailsRoute() {
     <EditDetailsScreen
       replacementRepo={replacementRepo}
       traceabilityRepo={traceabilityRepo}
+      initialBucketId={bucket}
+      requestKey={t}
     />
   );
 }

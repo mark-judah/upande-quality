@@ -70,7 +70,21 @@ export type RawTraceabilitySnapshot = {
   stages?: RawJourneyStage[];
   warnings?: string[];
   allocation?: RawAllocation | null;
+  /** Remote transfers the bucket was trucked in (farm → packhouse), newest first. */
+  remote_transfers?: RawRemoteTransfer[];
   error?: string;
+};
+
+export type RawRemoteTransfer = {
+  opl?: string;
+  order_name?: string;
+  from_farm?: string;
+  to_farm?: string;
+  variety?: string;
+  stems?: number;
+  /** at_farm | on_trolley | in_transit | arrived | not_found */
+  state?: string;
+  events?: { stage?: string; datetime?: string; user?: string; detail?: string; trip?: string }[];
 };
 
 export type RawTraceabilityResponse = {

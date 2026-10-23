@@ -44,3 +44,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Built by scripts/publish-ota.mjs; published to the Pages branch, not committed here.
+ota/
+.ota-export/

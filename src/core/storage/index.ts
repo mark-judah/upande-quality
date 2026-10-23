@@ -30,6 +30,15 @@ export const StorageKeys = {
   // '1' once picklists were downloaded with the Bucket Requests download
   // button; shows the clear icon. Reset when that data is cleared.
   bucketRequestsDownloaded: 'bucket_requests_downloaded',
+  /** The remote-transfer hub (sales farm), as last reported by the server. */
+  transferHub: 'transfer_hub',
+  /** Issue Offline: the OPL last picked, with its delivery date ({ opl, date }). */
+  issueOfflineOpl: 'issue_offline_opl',
+  // The instance key switched to, for the relaunch that follows a server
+  // change: signed in to that instance, the biometric lock is skipped once.
+  instanceSwitched: 'instance_switched',
+  // Which instance each on-device database file belongs to (see instance-db).
+  instanceDbOwners: 'instance_db_owners',
 } as const;
 
 export const storage = {

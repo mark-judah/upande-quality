@@ -138,7 +138,7 @@ export function KarenFlowerAuditScreen({ audit }: { audit: AuditDef }) {
         <View style={s.headerRow}>
           <Text style={[s.rowNo, s.headerText]}>#</Text>
           {audit.columns.map((c) => (
-            <Text key={c.field} style={[s.cell, s.headerText]} numberOfLines={1}>
+            <Text key={c.field} style={[s.cell, s.headerText]} numberOfLines={2}>
               {c.unit ? `${c.header} (${c.unit})` : c.header}
             </Text>
           ))}
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
     fontSize: fontSize.sm,
     color: COLORS.textMuted,
   },
-  cell: { flex: 1 },
+  cell: { flex: 1, minWidth: 0 },
   cellInput: {
     backgroundColor: COLORS.bg,
     borderWidth: 1,

@@ -15,6 +15,7 @@ import {
 } from '../repository/karen-packhouse-qc-repository';
 import { mapAxiosError } from '@/src/core/api/client';
 import { karenReplacementRepository } from '../repository/karen-replacement-repository';
+import { fetchSprayRoseGroups } from '../api/rose-varieties';
 import { karenTraceabilityRepository } from '../repository/karen-traceability-repository';
 import type { ReplacementCandidate } from '@/src/core/features/replacement/types';
 
@@ -293,6 +294,8 @@ type State = {
   /** item_code → item_group cache, so replacement can be gated to Spray Roses
    *  (Standard Roses is "coming soon" — its bunches have no scannable sticker). */
   varietyItemGroups: Record<string, string>;
+  /** Item Groups in the Spray Roses tree (root + sub-groups); null until loaded. */
+  sprayRoseGroups: string[] | null;
   /** Airport Returns only — the scanned box's return context plus the
    *  operator's reason / inspected / reuse / reject entry. */
   airportReturn: AirportReturnState;
@@ -663,6 +666,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   gradingReplace: emptyGradingReplace(),
   replacedBunches: {},
   varietyItemGroups: {},
+  sprayRoseGroups: null,
   airportReturn: emptyAirportReturn(),
   boxesChecked: '',
   finalDecisionOverride: null,
@@ -1117,6 +1121,15 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
 
   loadVarietyItemGroups: async () => {
     const s = get();
+    // Varieties sit in Spray Roses sub-groups: load that tree once to classify them.
+    if (!s.sprayRoseGroups) {
+      try {
+        const groups = await fetchSprayRoseGroups();
+        set({ sprayRoseGroups: [...groups] });
+      } catch {
+        // Non-fatal — replacement stays gated (hidden) until the tree is known.
+      }
+    }
     // Only fetch groups we don't already have cached.
     const missing = s.varieties.filter((v) => v && !(v in s.varietyItemGroups));
     if (!missing.length) return;
@@ -1131,8 +1144,10 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   isReplaceSupported: (variety) => {
     if (!variety) return undefined;
     const group = get().varietyItemGroups[variety];
-    if (group === undefined) return undefined;
-    return group === 'Spray Roses';
+    const spray = get().sprayRoseGroups;
+    if (group === undefined || !spray) return undefined;
+    // Leaf groups like "Spray Roses - Garden" count, not only the root group.
+    return group === 'Spray Roses' || spray.includes(group);
   },
 
   setBoxesChecked: (v) => set({ boxesChecked: v }),

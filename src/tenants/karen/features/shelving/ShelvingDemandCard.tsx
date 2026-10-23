@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Card } from '@/src/core/ui/Card';
+import { Skeleton } from '@/src/core/ui/Skeleton';
 import { api } from '@/src/core/api/client';
-import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 type DemandRow = {
   variety: string;
@@ -104,8 +105,11 @@ export function ShelvingDemandCard({ farm }: { farm?: string }) {
       {error ? <Text style={s.err}>{error}</Text> : null}
 
       {loading && rows.length === 0 ? (
-        <View style={s.center}>
-          <ActivityIndicator color={COLORS.text} />
+        <View style={{ gap: 10 }}>
+          <Skeleton width={'70%'} height={14} />
+          <Skeleton width={'55%'} height={14} />
+          <Skeleton width={'80%'} height={14} />
+          <Skeleton width={'45%'} height={14} />
         </View>
       ) : null}
 
@@ -124,11 +128,15 @@ export function ShelvingDemandCard({ farm }: { farm?: string }) {
                 <Text style={s.cVar} numberOfLines={1}>
                   {r.variety}
                 </Text>
-                <Text style={[s.cNum, short ? s.needShort : s.needOk]}>
+                <Text style={[s.cNum, short ? s.needShort : s.needOk]} numberOfLines={1}>
                   {short ? Math.round(r.target_to_shelve).toLocaleString() : '✓'}
                 </Text>
-                <Text style={s.cNumMuted}>{Math.round(r.demand).toLocaleString()}</Text>
-                <Text style={s.cNumMuted}>{Math.round(r.coverage).toLocaleString()}</Text>
+                <Text style={s.cNumMuted} numberOfLines={1}>
+                  {Math.round(r.demand).toLocaleString()}
+                </Text>
+                <Text style={s.cNumMuted} numberOfLines={1}>
+                  {Math.round(r.coverage).toLocaleString()}
+                </Text>
               </View>
             );
           })}
@@ -146,7 +154,7 @@ export function ShelvingDemandCard({ farm }: { farm?: string }) {
 }
 
 const s = StyleSheet.create({
-  hd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
   sub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, flex: 1 },
   refresh: { padding: 4 },
   err: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.danger, marginTop: spacing.xs },
@@ -159,10 +167,10 @@ const s = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   headRow: { borderBottomColor: COLORS.textMuted, marginTop: spacing.sm },
-  hCell: { fontFamily: fontFamily.semiBold, fontSize: 11, color: COLORS.textMuted, textTransform: 'uppercase' },
-  cVar: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
-  cNum: { width: 66, textAlign: 'right', fontFamily: fontFamily.bold, fontSize: fontSize.sm },
-  cNumMuted: { width: 66, textAlign: 'right', fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
+  hCell: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(11), color: COLORS.textMuted, textTransform: 'uppercase' },
+  cVar: { flex: 1, minWidth: 0, fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  cNum: { width: '22%', maxWidth: 66, textAlign: 'right', fontFamily: fontFamily.bold, fontSize: fontSize.sm },
+  cNumMuted: { width: '22%', maxWidth: 66, textAlign: 'right', fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
   needShort: { color: COLORS.danger },
   needOk: { color: COLORS.success },
   allMet: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.success, paddingVertical: spacing.sm },

@@ -11,7 +11,7 @@ export default function ShelfOperationsRoute() {
   }
 
   return (
-    <RequireStation next="/shelf-operations">
+    <RequireStation next="/shelf-operations" title="Shelf Operations">
       {(station) => <KarenShelfOperationsScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

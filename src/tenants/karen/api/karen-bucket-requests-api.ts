@@ -30,6 +30,14 @@ export type RawAllocationItem = {
   allocated_date?: string;
   /** Sales Order delivery date (YYYY-MM-DD). */
   delivery_date?: string;
+  /** 'ASAP': a quality-issue replacement the packhouse needs on the next truck. */
+  priority?: string | null;
+  /** 1 once the bucket is on a trolley (scanned on any phone). */
+  loaded_in_trolley?: number;
+  /** The variety's colour (hex) from the Variety Tree. */
+  variety_color?: string | null;
+  /** 0: allocated at this farm but on no truck trip yet (not loadable); older servers omit it. */
+  scheduled?: number;
 };
 
 export type RawAllocationResponse = {
@@ -68,6 +76,28 @@ export type RawSavedTrolleysResponse = {
   message?: { status?: string; data?: RawSavedTrolley[]; message?: string };
 };
 
+/** closeTripStop's reply. `reason` names a refusal: `incomplete` (sent as complete but
+ *  not every planned bucket is on), `below_minimum` (truck under its minimum load;
+ *  resending with a non-empty `reason` overrides it and the server records the reason). */
+export type RawCloseTripStopMessage = {
+  status?: 'success' | 'error' | string;
+  message?: string;
+  reason?: 'incomplete' | 'below_minimum' | string;
+  trip_status?: string;
+  heading_to?: string;
+  left_behind?: number;
+  /** below_minimum: buckets on the truck now. */
+  loaded?: number;
+  /** below_minimum: the truck's capacity in buckets. */
+  capacity?: number;
+  /** below_minimum: the bucket count it leaves at without a reason. */
+  needed?: number;
+  /** below_minimum: the minimum load as a percent of capacity (100 unless partial loads are allowed). */
+  pct?: number;
+};
+
+export type RawCloseTripStopResponse = { message?: RawCloseTripStopMessage };
+
 export type RawTrolleyActionResponse = {
   message?: {
     status?: 'success' | 'error' | string;
@@ -79,6 +109,21 @@ export type RawTrolleyActionResponse = {
     updated?: number;
     missing?: number;
     errors?: { bucket_id?: string; error?: string }[];
+    /** setOfflineTrolleyFlags: the pick rows it flagged (newer servers). */
+    accepted?: string[];
+    /** setOfflineTrolleyFlags: buckets of orders on no truck trip, left unflagged. */
+    not_scheduled?: string[];
+    /** setOfflineTrolleyFlags: buckets refused — already on another truck, or
+     *  already arrived / issued at the packhouse. */
+    conflicts?: {
+      /** The refused pick row (newer servers). */
+      pli?: string;
+      bucket?: string;
+      reason?: 'on_truck' | 'already_arrived' | 'trip_left' | 'other_trip' | 'not_loaded' | string;
+      truck?: string | null;
+      /** other_trip: an earlier run of the order fills first (`truck` is that run). */
+      earlier?: 0 | 1;
+    }[];
   };
 };
 
@@ -92,6 +137,17 @@ export type RawPlannedTripOrder = {
   varieties?: string;
   buckets?: number;
   stems?: number;
+  /** This order's own progress at the farm (transfer buckets / on trolley / in transit / shelved). */
+  total?: number;
+  /** On a trolley at the farm, not on a truck yet. */
+  trolley?: number;
+  loaded?: number;
+  transit?: number;
+  shelved?: number;
+  /** Shared buckets travelling with another order on this trip. */
+  riding?: number;
+  /** Its buckets on this trip as every surface counts them: total, else planned. */
+  on_trip?: number;
 };
 
 /** One stop (farm) on a trip's collection route, with its live loading status. */
@@ -100,12 +156,18 @@ export type RawPlannedTripStop = {
   stop?: number;
   is_you?: number;
   planned?: number;
+  /** The stop's buckets on this trip as every surface counts them: total, else planned. */
+  buckets?: number;
   total?: number;
   awaiting?: number;
+  /** Only on a trolley at the farm (staging), not on the truck yet. */
+  trolley?: number;
   loaded?: number;
   transit?: number;
   shelved?: number;
   done_count?: number;
+  /** Every bucket planned at this stop is on the truck (the server's send rule). */
+  ready?: number;
   /** waiting | loading | ready | transit | done */
   status?: string;
   /** 1 = first stop still holding up the run (bottleneck). */
@@ -131,6 +193,26 @@ export type RawPlannedTrip = {
   stops?: RawPlannedTripStop[];
   /** THIS farm's order lines on the trip (used to tag the Requests tab). */
   orders?: RawPlannedTripOrder[];
+  /** Which run of the truck's route this trip drives (packhouse → farms → packhouse);
+   *  0 = a trip from before runs existed. */
+  run?: number;
+  runs?: number;
+  /** "Kapkolia → Chepsito → Kapkolia". */
+  run_chain?: string;
+  /** Route time window, "06:00–18:00". */
+  window?: string;
+  /** When the trip was planned / scheduled (full and released), "YYYY-MM-DD HH:MM:SS". */
+  created_at?: string;
+  scheduled_at?: string;
+  /** current = the run the truck is loading now; later = waits for an earlier run. */
+  run_state?: string;
+  /** The run it waits for (run_state later). */
+  after_run?: number;
+  /** 1 = this farm's stop is closed (the truck left it). */
+  your_stop_closed?: number;
+  loaded_buckets?: number;
+  departed_stops?: string[];
+  heading_to?: string;
 };
 
 export type RawPlannedTripsResponse = {
@@ -143,6 +225,10 @@ export type RawPlannedTripsResponse = {
     schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number }>;
     /** Live state of this farm's buckets per OPL the app sent in `opls`. */
     opl_states?: Record<string, 'waiting' | 'loaded' | 'transit' | 'arrived' | string>;
+    /** 1: orders waiting here but on no trip yet are sent too (scheduled 0). */
+    show_unscheduled?: number;
+    /** 1: a trip's buckets are listed per order (varieties grouped under it). */
+    group_by_order?: number;
   };
 };
 
@@ -164,6 +250,8 @@ export type RawBucketReplacementResponse = {
     variety?: string;
     /** Every matching bucket, best first (newer servers only). */
     candidates?: RawReplacementCandidate[];
+    /** status "info": where the bucket went -- issued / shelved / in_transit / loaded_in_trolley. */
+    moved?: string | null;
   };
 };
 
@@ -182,11 +270,84 @@ export type RawDispatchTrucksResponse = {
   message?: { status?: string; trucks?: RawDispatchTruck[]; message?: string };
 };
 
+export type RawCompletedTrip = {
+  trip?: string;
+  vehicle?: string;
+  trip_date?: string;
+  status?: string;
+  run?: number;
+  runs?: number;
+  run_chain?: string;
+  left_at?: string;
+  dispatched_at?: string;
+  arrived_at?: string;
+  arrived?: number;
+  planned?: number;
+  loaded?: number;
+  left_behind?: number;
+  carried_to?: string[];
+  stop_reopenable?: boolean;
+  orders?: { opl?: string; delivery_date?: string; order_name?: string; customer?: string; varieties?: string; buckets?: number; loaded?: number }[];
+};
+export type RawCompletedTripsMessage = { status?: string; message?: string; trips?: RawCompletedTrip[] };
+export type RawReopenMessage = {
+  status?: string;
+  message?: string;
+  mode?: 'stop' | 'next_trip';
+  left_behind?: number;
+  trips?: string[];
+};
+
+export type RawShelvedTrip = {
+  trip?: string;
+  vehicle?: string;
+  status?: string;
+  trip_date?: string;
+  dispatched_at?: string;
+  arrived_at?: string;
+  received_at?: string;
+  total?: number;
+  shelved?: number;
+  buckets?: {
+    bucket?: string;
+    opl?: string;
+    /** What the bucket holds for its order (newer servers). */
+    variety?: string;
+    stem_length?: string;
+    stems?: number;
+    variety_color?: string;
+    order_name?: string;
+    customer?: string;
+    shelved?: boolean;
+    shelf?: string;
+    shelved_at?: string;
+  }[];
+};
+
+export type RawTripArrival = {
+  status?: string;
+  message?: string;
+  reason?: string;
+  unshelved?: string[];
+  name?: string;
+  hub?: string;
+  trip_status?: string;
+  arrived_at?: string;
+  received_at?: string;
+  total?: number;
+  shelved?: number;
+  waiting?: string[];
+  farm_total?: number;
+  farm_shelved?: number;
+  /** Every bucket on the trip with its order's delivery date. */
+  buckets?: { bucket?: string; opl?: string; farm?: string; shelved?: boolean; off_truck?: boolean; delivery_date?: string }[];
+};
+
 export const karenBucketRequestsApi = {
   /** Pull every bucket currently awaiting transfer for `farm`, plus the
    *  vehicle list the operator can later load each trolley into. */
   /** `fromDate`/`toDate` (YYYY-MM-DD) pick the delivery window; the server defaults to
-   *  today .. day after tomorrow. */
+   *  today .. tomorrow. */
   fetchAllocatedBuckets(farm: string, fromDate?: string, toDate?: string): Promise<RawAllocationResponse> {
     return api<RawAllocationResponse>({
       method: 'POST',
@@ -255,6 +416,108 @@ export const karenBucketRequestsApi = {
     });
   },
 
+  /** The requested bucket isn't in the cold room and nothing can replace it: leave it
+   *  out of the transfer so the order can load with the buckets that are there. */
+  markRequestedBucketNotFound(payload: { pick_list_item: string; notes?: string }): Promise<RawTrolleyActionResponse> {
+    return api<RawTrolleyActionResponse>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.markRequestedBucketNotFound',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** "Issued offline": which line (team) a requested bucket was issued to. */
+  requestedBucketIssueInfo(pickListItem: string): Promise<{
+    message?: {
+      status?: string;
+      message?: string;
+      bucket?: string;
+      line?: string;
+      this_issued?: boolean;
+      same_line?: boolean;
+      issued_to?: { opl: string; order_name?: string; team?: string; same_line?: boolean }[];
+    };
+  }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.requestedBucketIssueInfo',
+      data: { data: { pick_list_item: pickListItem } },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Issued offline to this order's own line: mark it issued (no replacement). */
+  markRequestedBucketIssued(pickListItem: string): Promise<{ message?: { status?: string; message?: string } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.markRequestedBucketIssued',
+      data: { data: { pick_list_item: pickListItem } },
+      // Issuing posts stock entries; allow it time.
+      timeout: 120000,
+      validateStatus: () => true,
+    });
+  },
+
+  /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
+   *  stop, or to the packhouse from the last one. */
+  /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */
+  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number }): Promise<RawCloseTripStopResponse> {
+    return api<RawCloseTripStopResponse>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** This farm's finished trips (stop closed / dispatched / received), newest first. */
+  getFarmCompletedTrips(farm: string): Promise<{ message?: RawCompletedTripsMessage }> {
+    return api<{ message?: RawCompletedTripsMessage }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.getFarmCompletedTrips',
+      data: { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Reopen this farm's stop on a trip that left before every planned bucket loaded:
+   *  the stop opens again (truck still on its run) or the rest moves to the next run. */
+  reopenTripStop(payload: { name: string; farm: string }): Promise<{ message?: RawReopenMessage }> {
+    return api<{ message?: RawReopenMessage }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.reopenTripStop',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
+  /** This farm's dispatched buckets for orders delivering on `deliveryDate` and whether
+   *  each is shelved at the hub. */
+  getFarmShelvedBuckets(farm: string, deliveryDate?: string): Promise<{ message?: { status?: string; message?: string; hub?: string; trips?: RawShelvedTrip[] } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.getFarmShelvedBuckets',
+      data: deliveryDate ? { farm, delivery_date: deliveryDate } : { farm },
+      validateStatus: () => true,
+    });
+  },
+
+  /** Truck at the transfer hub: `status`, confirm `arrive`, or `complete` the trip once
+   *  every bucket it carried is shelved there. */
+  tripArrival(payload: {
+    name: string;
+    farm: string;
+    action: 'status' | 'arrive' | 'complete';
+  }): Promise<{ message?: RawTripArrival }> {
+    return api<{ message?: RawTripArrival }>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.transfer_control.tripArrival',
+      data: payload,
+      validateStatus: () => true,
+    });
+  },
+
   /** Put a planned trip on another truck before loading ("Change truck"). */
   changeTripVehicle(payload: { name: string; vehicle: string }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
@@ -285,8 +548,14 @@ export const karenBucketRequestsApi = {
   setOfflineTrolleyFlags(payload: {
     pli_ids: string[];
     flag: 'loaded' | 'transit';
-    /** Vehicle name to stamp onto each row's custom_transit_truck (loaded only). */
+    /** Vehicle name to stamp onto each row's transit_truck; on transit, rows on another truck are refused. */
     truck?: string;
+    /** A trolley scan flagged as it happens: the bucket stays on its farm shelf
+     *  (Load to truck takes it off). */
+    keep_shelf?: 1;
+    /** The trip the attendant has open: a bucket of an order on another trip is
+     *  refused (conflict reason other_trip, truck = the trip it is on). */
+    trip?: string;
   }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
@@ -297,11 +566,12 @@ export const karenBucketRequestsApi = {
   },
 
   /** The matching shelved bucket that would replace a requested one. */
-  findRequestedBucketReplacement(pickListItem: string): Promise<RawBucketReplacementResponse> {
+  findRequestedBucketReplacement(pickListItem: string, farm?: string): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.findRequestedBucketReplacement',
-      data: { data: { pick_list_item: pickListItem } },
+      // farm: this station -- replacements only come from here.
+      data: { data: { pick_list_item: pickListItem, farm: farm || undefined } },
       validateStatus: () => true,
     });
   },
@@ -312,11 +582,24 @@ export const karenBucketRequestsApi = {
     newBucketId: string,
     reason?: string,
     notes?: string,
+    /** Wrong variety: what the old bucket really holds, to correct its record. */
+    correction?: { variety?: string; stemLength?: string },
+    farm?: string,
   ): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.replaceRequestedBucket',
-      data: { data: { pick_list_item: pickListItem, new_bucket_id: newBucketId, reason, notes } },
+      data: {
+        data: {
+          pick_list_item: pickListItem,
+          new_bucket_id: newBucketId,
+          reason,
+          notes,
+          variety: correction?.variety || undefined,
+          stem_length: correction?.stemLength || undefined,
+          farm: farm || undefined,
+        },
+      },
       // The swap posts several stock entries in one transaction; allow it time.
       timeout: 120000,
       validateStatus: () => true,

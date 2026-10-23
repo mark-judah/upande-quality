@@ -22,6 +22,10 @@ export type AuditDef = {
   /** Bud Count and Head Size are taken in the greenhouse, so they record one.
    *  Stem Weight and Spray Diameter are graded post-harvest — no greenhouse. */
   needsGreenhouse: boolean;
+  /** Each column is a separate stem length, so a sample may cover just the
+   *  lengths actually audited (e.g. only 42 cm) — the rest stay blank rather
+   *  than being forced to a false 0. */
+  partialColumns?: boolean;
 };
 
 /** Mirrors toggle_grid_columns() in flower_quality_audit.js — each audit type
@@ -50,7 +54,8 @@ export const AUDITS: AuditDef[] = [
     type: 'Stem Weight',
     slug: 'stem-weight',
     needsGreenhouse: false,
-    hint: 'Weight per stem at 42, 52 & 62 cm',
+    partialColumns: true,
+    hint: 'Weight per stem at 42, 52 and/or 62 cm',
     icon: 'barbell-outline',
     columns: [
       { field: 'val_42', header: '42 cm', unit: 'g' },
@@ -62,7 +67,8 @@ export const AUDITS: AuditDef[] = [
     type: 'Spray Diameter',
     slug: 'spray-diameter',
     needsGreenhouse: false,
-    hint: 'Spray head diameter at 52, 62 & 72 cm',
+    partialColumns: true,
+    hint: 'Spray head diameter at 52, 62 and/or 72 cm',
     icon: 'radio-button-on-outline',
     columns: [
       { field: 'val_52', header: '52 cm', unit: 'cm' },

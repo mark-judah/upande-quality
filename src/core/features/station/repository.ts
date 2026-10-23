@@ -3,9 +3,20 @@ import { stationApi } from './api';
 
 export type Farm = { name: string; farmName: string };
 
+/** The company whose farms a tenant's stations belong to; the site also holds other
+ *  companies' farms (e.g. Kaitet Ltd.), which must not be offered. */
+const TENANT_COMPANY: Partial<Record<Tenant, string>> = {
+  Karen: 'Karen Roses',
+};
+
+/** The company a tenant's stations belong to, if it is pinned to one. */
+export function tenantCompany(tenant: Tenant | null | undefined): string | undefined {
+  return tenant ? TENANT_COMPANY[tenant] : undefined;
+}
+
 export const stationRepository = {
-  async fetchFarms(): Promise<Farm[]> {
-    const raw = await stationApi.fetchFarms();
+  async fetchFarms(tenant?: Tenant | null): Promise<Farm[]> {
+    const raw = await stationApi.fetchFarms(tenantCompany(tenant));
     return (raw.data ?? []).map((f) => ({
       name: f.name,
       farmName: f.farm_name ?? f.name,

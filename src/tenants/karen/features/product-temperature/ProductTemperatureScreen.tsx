@@ -11,7 +11,7 @@ import { Segmented } from '@/src/core/ui/Segmented';
 import { Spinner } from '@/src/core/ui/Spinner';
 import { useToast } from '@/src/core/ui/Toast';
 import { setCaptureResultCallback } from '@/src/core/scanning/CameraCaptureScreen';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenProductTemperatureStore,
   type BoxState,
@@ -34,43 +34,50 @@ const BoxRow = memo(function BoxRow({
 }) {
   const hasPhoto = !!box.photoUri;
   return (
-    <View style={s.boxRow}>
-      <Text style={s.boxLabel}>Box {index + 1}</Text>
-      <View style={s.tempField}>
-        <TextInput
-          value={box.temp}
-          onChangeText={(t) => onChangeTemp(controlPoint, index, t)}
-          keyboardType="numbers-and-punctuation"
-          placeholder="—"
-          placeholderTextColor={COLORS.textMuted}
-          style={s.tempInput}
-        />
-        <Text style={s.unit}>°C</Text>
-      </View>
+    <View>
+      <View style={s.boxRow}>
+        <Text style={s.boxLabel} numberOfLines={1}>Box {index + 1}</Text>
+        <View style={s.tempField}>
+          <TextInput
+            value={box.temp}
+            onChangeText={(t) => onChangeTemp(controlPoint, index, t)}
+            keyboardType="numbers-and-punctuation"
+            placeholder="—"
+            placeholderTextColor={COLORS.textMuted}
+            style={s.tempInput}
+          />
+          <Text style={s.unit}>°C</Text>
+        </View>
 
-      <Pressable
-        onPress={() => onCapture(controlPoint, index)}
-        style={[s.photoBtn, hasPhoto && s.photoBtnFilled]}
-        accessibilityLabel={hasPhoto ? `Retake box ${index + 1} photo` : `Capture box ${index + 1} photo`}
-      >
-        {hasPhoto ? (
-          <>
-            <Image source={{ uri: box.photoUri as string }} style={s.thumb} />
-            {box.uploading ? (
-              <View style={s.thumbOverlay}>
-                <Spinner inline />
-              </View>
-            ) : null}
-            {box.uploadError ? (
-              <View style={[s.thumbOverlay, s.thumbOverlayError]}>
-                <Ionicons name="alert" size={16} color="#FFFFFF" />
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <Ionicons name="camera-outline" size={20} color={COLORS.textMuted} />
-        )}
-      </Pressable>
+        <Pressable
+          onPress={() => onCapture(controlPoint, index)}
+          style={[s.photoBtn, hasPhoto && s.photoBtnFilled]}
+          accessibilityLabel={hasPhoto ? `Retake box ${index + 1} photo` : `Capture box ${index + 1} photo`}
+        >
+          {hasPhoto ? (
+            <>
+              <Image source={{ uri: box.photoUri as string }} style={s.thumb} />
+              {box.uploading ? (
+                <View style={s.thumbOverlay}>
+                  <Spinner inline />
+                </View>
+              ) : null}
+              {box.uploadError ? (
+                <View style={[s.thumbOverlay, s.thumbOverlayError]}>
+                  <Ionicons name="alert" size={16} color="#FFFFFF" />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Ionicons name="camera-outline" size={20} color={COLORS.textMuted} />
+          )}
+        </Pressable>
+      </View>
+      {box.uploadError ? (
+        <Text style={s.uploadError} numberOfLines={3}>
+          Photo not saved: {box.uploadError} Tap the photo to retake it.
+        </Text>
+      ) : null}
     </View>
   );
 });
@@ -184,7 +191,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   boxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -192,7 +199,7 @@ const s = StyleSheet.create({
     marginTop: spacing.sm,
   },
   boxLabel: {
-    width: 52,
+    minWidth: 52,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
     color: COLORS.textSecondary,
@@ -218,6 +225,7 @@ const s = StyleSheet.create({
   },
   unit: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textMuted },
   photoBtn: {
+    flexShrink: 0,
     width: 44,
     height: 44,
     borderRadius: borderRadius.sm,
@@ -231,10 +239,16 @@ const s = StyleSheet.create({
   photoBtnFilled: { borderColor: COLORS.primary },
   thumb: { width: 44, height: 44 },
   thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   thumbOverlayError: { backgroundColor: 'rgba(220,38,38,0.85)' },
+  uploadError: {
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
+    color: COLORS.danger,
+    marginTop: 4,
+  },
 });

@@ -43,7 +43,7 @@ export const karenColdroomQcApi = {
   fetchParameters(): Promise<Envelope<RawColdroomParametersData>> {
     return api<Envelope<RawColdroomParametersData>>({
       method: 'GET',
-      url: '/api/method/upande_quality.mobile.api.fetchColdroomQCFormData',
+      url: '/api/method/upande_quality.mobile.api.fetchColdroomParameters',
       validateStatus: () => true,
     });
   },
@@ -51,7 +51,7 @@ export const karenColdroomQcApi = {
   getBucket(bucketId: string): Promise<Envelope<RawColdroomBucket>> {
     return api<Envelope<RawColdroomBucket>>({
       method: 'POST',
-      url: '/api/method/upande_quality.mobile.api.getColdroomBucket',
+      url: '/api/method/upande_quality.mobile.api.fetchColdroomBucket',
       data: { bucket_id: bucketId },
       validateStatus: () => true,
     });
@@ -63,8 +63,8 @@ export const karenColdroomQcApi = {
   ): Promise<Envelope<RawColdroomSave>> {
     return api<Envelope<RawColdroomSave>>({
       method: 'POST',
-      url: '/api/method/upande_quality.mobile.api.saveColdroomQC',
-      data: { data: payload },
+      url: '/api/method/upande_quality.mobile.api.saveColdroomReject',
+      data: { bucket_id: bucketId, failures: JSON.stringify(failures) },
       validateStatus: () => true,
       timeout: 120000,
     });

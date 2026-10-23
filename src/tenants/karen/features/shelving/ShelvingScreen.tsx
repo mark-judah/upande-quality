@@ -8,7 +8,7 @@ import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenShelvingStore } from '@/src/tenants/karen/state/karen-shelving-store';
 import { ShelvingDemandCard } from '@/src/tenants/karen/features/shelving/ShelvingDemandCard';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 
 export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
   const shelfRef = useRef<ScanFieldHandle>(null);
@@ -79,7 +79,9 @@ export function KarenShelvingScreen({ userFarm }: { userFarm: string }) {
     <Screen title="Shelving">
       <View style={s.farmBanner}>
         <Text style={s.farmBannerLabel}>Farm</Text>
-        <Text style={s.farmBannerValue}>{userFarm || 'All farms'}</Text>
+        <Text style={s.farmBannerValue} numberOfLines={1}>
+          {userFarm || 'All farms'}
+        </Text>
       </View>
 
       <Card title="Shelf">
@@ -190,6 +192,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 12,
     backgroundColor: COLORS.surfaceAlt,
     borderRadius: 8,
     paddingHorizontal: 12,
@@ -197,33 +200,38 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   farmBannerLabel: {
-    fontSize: 12,
+    fontFamily: fontFamily.semiBold,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
-    fontWeight: '600',
+    
   },
-  farmBannerValue: { fontSize: 15, color: COLORS.text, fontWeight: '700' },
+  farmBannerValue: { fontFamily: fontFamily.bold, fontSize: scaleFont(15), color: COLORS.text, flexShrink: 1 },
   shelfStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginTop: 8,
   },
   shelfStatusLabel: {
-    fontSize: 12,
+    flexShrink: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  changeLink: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
-  muted: { fontSize: 12, color: COLORS.textMuted, marginTop: 8 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  changeLink: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
+  muted: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 8 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
   detailLabel: {
-    fontSize: 12,
+    fontFamily: fontFamily.regular,
+    fontSize: scaleFont(12),
     color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  detailValue: { fontSize: 14, color: COLORS.text, flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text, flexShrink: 1, textAlign: 'right' },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/src/core/theme';
@@ -13,7 +13,7 @@ interface Props {
 /** Tab icon that springs up to ~1.2× on focus with an ease-in-out curve, plus
  *  a subtle vertical lift. Runs on the native driver for smoothness. */
 export function AnimatedTabIcon({ outline, filled, focused, size }: Props) {
-  const scale = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const scale = useState(() => new Animated.Value(focused ? 1 : 0))[0];
 
   useEffect(() => {
     Animated.timing(scale, {

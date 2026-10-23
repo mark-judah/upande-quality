@@ -6,7 +6,7 @@ import { Button } from '@/src/core/ui/Button';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { useToast } from '@/src/core/ui/Toast';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import { useAuthStore } from '@/src/core/auth/store';
 import type { ComponentSpec } from './constants';
 import type { InspectionPayload } from '@/src/tenants/karen/api/karen-packhouse-cleaning-api';
@@ -168,7 +168,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  help: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  help: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   itemRow: { paddingVertical: spacing.sm },
   itemDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
   itemLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text, marginBottom: 8 },
@@ -182,6 +182,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontFamily: fontFamily.medium, fontSize: 13, color: COLORS.textSecondary },
+  chipText: { fontFamily: fontFamily.medium, fontSize: scaleFont(13), color: COLORS.textSecondary },
   chipTextActive: { color: COLORS.textOnPrimary },
 });

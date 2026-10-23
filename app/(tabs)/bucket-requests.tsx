@@ -11,7 +11,7 @@ export default function BucketRequestsRoute() {
   }
 
   return (
-    <RequireStation next="/bucket-requests">
+    <RequireStation next="/bucket-requests" title="Bucket Requests">
       {(station) => <KarenBucketRequestsScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

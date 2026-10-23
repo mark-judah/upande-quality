@@ -9,7 +9,7 @@ export default function TemperatureLogRoute() {
     return <PendingScreen feature="Cold Store Temperature" tenant={tenant} />;
   }
   return (
-    <RequireStation next="/temperature-log">
+    <RequireStation next="/temperature-log" title="Cold Store Temperature">
       {(station) => <KarenTemperatureLogScreen userFarm={station.userFarm} />}
     </RequireStation>
   );

@@ -12,13 +12,14 @@ import {
 import Slider from '@react-native-community/slider';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/src/core/ui/Card';
+import { ModalHeader } from '@/src/core/ui/Dialog';
 import { Button } from '@/src/core/ui/Button';
 import { DecisionChip } from '@/src/core/ui/DecisionChip';
 import { Dropdown } from '@/src/core/ui/Dropdown';
 import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { useToast } from '@/src/core/ui/Toast';
-import { COLORS } from '@/src/core/theme';
+import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 import {
   snakeCaseParam,
   uniqueVarieties,
@@ -369,7 +370,7 @@ function ConcernRow({
   return (
     <View style={s.concernCard}>
       <View style={s.concernHead}>
-        <Text style={s.concernTitle}>{displayName}</Text>
+        <Text style={s.concernTitle} numberOfLines={2}>{displayName}</Text>
         <Pressable onPress={onRemove} hitSlop={8}>
           <MaterialCommunityIcons name="close" size={18} color={COLORS.textMuted} />
         </Pressable>
@@ -483,14 +484,9 @@ function AddConcernModal({
     : options;
 
   return (
-    <Modal visible={open} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={open} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={s.modalRoot}>
-        <View style={s.modalHeader}>
-          <Text style={s.modalTitle}>Add Quality Concern</Text>
-          <Pressable onPress={onClose} hitSlop={10}>
-            <Text style={s.modalClose}>Cancel</Text>
-          </Pressable>
-        </View>
+        <ModalHeader title="Add Quality Concern" onClose={onClose} />
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -518,15 +514,18 @@ function AddConcernModal({
 
 const s = StyleSheet.create({
   section: {
-    fontWeight: '700',
+    
+    fontFamily: fontFamily.bold,
+    
     color: COLORS.textMuted,
-    fontSize: 12,
+    fontSize: scaleFont(12),
     letterSpacing: 0.4,
   },
-  hint: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  hint: { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
   pillRow: { flexDirection: 'row', gap: 8, paddingRight: 8 },
   varietyPill: {
     minWidth: 140,
+    maxWidth: 240,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 14,
@@ -538,16 +537,17 @@ const s = StyleSheet.create({
     borderColor: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  varietyPillLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textMuted },
+  varietyPillLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.textMuted },
   varietyPillLabelActive: { color: COLORS.text },
-  varietyPillMeta: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  varietyPillMeta: { fontFamily: fontFamily.regular, fontSize: scaleFont(11), color: COLORS.textMuted, marginTop: 2 },
   varietyPillMetaActive: { color: COLORS.text },
-  sliderLabel: { fontSize: 13, color: COLORS.text, fontWeight: '600' },
+  sliderLabel: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(13), color: COLORS.text },
   empty: {
+    fontFamily: fontFamily.regular,
     color: COLORS.textMuted,
     textAlign: 'center',
     paddingVertical: 16,
-    fontSize: 13,
+    fontSize: scaleFont(13),
   },
   addRow: {
     flexDirection: 'row',
@@ -560,7 +560,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  addLabel: { color: COLORS.text, fontWeight: '600' },
+  addLabel: { flexShrink: 1, fontFamily: fontFamily.semiBold, color: COLORS.text },
   concernCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -569,23 +569,24 @@ const s = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: COLORS.bg,
   },
-  concernHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  concernTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  concernHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  concernTitle: { flexShrink: 1, fontFamily: fontFamily.semiBold, fontSize: scaleFont(14), color: COLORS.text },
   affectedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  affectedLabel: { color: COLORS.textMuted, fontSize: 13 },
+  affectedLabel: { fontFamily: fontFamily.regular, color: COLORS.textMuted, fontSize: scaleFont(13) },
   affectedInput: {
+    fontFamily: fontFamily.regular,
     width: 80,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingVertical: 6,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     color: COLORS.text,
     backgroundColor: COLORS.bg,
   },
-  tolRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  tolLabel: { fontSize: 12, color: COLORS.textMuted },
-  tolValue: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  tolRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  tolLabel: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted },
+  tolValue: { fontFamily: fontFamily.semiBold, fontSize: scaleFont(12), color: COLORS.text },
   tolExceeded: { color: COLORS.danger },
   actionRow: { flexDirection: 'row', gap: 12 },
   scopeRow: { flexDirection: 'row', gap: 12 },
@@ -599,13 +600,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   scopePillSelected: { borderColor: COLORS.text, backgroundColor: COLORS.bg },
-  scopePillLabel: { fontWeight: '600', color: COLORS.textMuted },
+  scopePillLabel: { fontFamily: fontFamily.semiBold, color: COLORS.textMuted },
   scopePillLabelSelected: { color: COLORS.text },
-  scopeHelper: { color: COLORS.text, fontSize: 13, marginBottom: 8, fontWeight: '600' },
+  scopeHelper: { fontFamily: fontFamily.semiBold, color: COLORS.text, fontSize: scaleFont(13), marginBottom: 8 },
   groupHeader: {
-    fontWeight: '600',
+    
+    fontFamily: fontFamily.semiBold,
+    
     color: COLORS.text,
-    fontSize: 13,
+    fontSize: scaleFont(13),
     marginTop: 12,
     marginBottom: 4,
   },
@@ -616,31 +619,21 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  checkLabel: { fontSize: 14, color: COLORS.text },
+  checkLabel: { flexShrink: 1, fontFamily: fontFamily.regular, fontSize: scaleFont(14), color: COLORS.text },
   modalRoot: { flex: 1, backgroundColor: COLORS.bg },
-  modalHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.text,
-  },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  modalClose: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
   modalSearch: {
+    fontFamily: fontFamily.regular,
     margin: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: COLORS.text,
   },
   modalRow: { paddingHorizontal: 16, paddingVertical: 14 },
   modalSep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border },
-  modalRowText: { fontSize: 15, color: COLORS.text },
+  modalRowText: { fontFamily: fontFamily.regular, fontSize: scaleFont(15), color: COLORS.text },
   modalEmpty: { padding: 16, color: COLORS.textMuted },
 });

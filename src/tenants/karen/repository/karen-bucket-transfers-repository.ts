@@ -31,6 +31,11 @@ export type TransferGroup = {
   issuedCount: number;
   status: TransferStatus;
   buckets: TransferBucket[];
+  /** Its team's place on the Packhouse Schedule (0 = not scheduled) and the team. */
+  schedule: number;
+  team: string;
+  /** The first order with a bucket still to shelve: shelve it next. */
+  shelveNext: boolean;
 };
 
 export type FetchTransfersOutcome =
@@ -84,6 +89,9 @@ function mapGroup(r: RawInTransitGroup): TransferGroup {
     issuedCount,
     status: statusOf(buckets, shelvedCount, issuedCount, total),
     buckets,
+    schedule: Number(r.schedule ?? 0) || 0,
+    team: r.team ?? '',
+    shelveNext: !!r.shelve_next,
   };
 }
 

@@ -11,7 +11,7 @@ export default function SolutionMixingRoute() {
   }
 
   return (
-    <RequireStation next="/solution-mixing">
+    <RequireStation next="/solution-mixing" title="Solution Mixing">
       {(station) => <KarenSolutionMixingScreen userFarm={station.userFarm} />}
     </RequireStation>
   );
