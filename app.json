@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.1.23",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -42,7 +42,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
-      "versionCode": 105123
+      "versionCode": 105200
     },
     "web": {
       "output": "static",
@@ -101,9 +101,9 @@
         "projectId": "df6f9c7d-18cd-4233-901e-a89544cabcbf"
       },
       "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota",
-      "runtimeSdk": 57
+      "runtimeSdk": 58
     },
-    "runtimeVersion": "101.1",
+    "runtimeVersion": "101.2",
     "updates": {
       "enabled": true,
       "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
