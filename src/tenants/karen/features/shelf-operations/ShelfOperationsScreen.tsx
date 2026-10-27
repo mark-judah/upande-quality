@@ -442,7 +442,7 @@ export function KarenShelfOperationsScreen({
                 <Text style={s.logHeader}>
                   Scanned ({stockTakeScans.length}) · {stockTakeStems(stockTakeScans)} stems
                 </Text>
-              ) : null
+              ) : undefined
             }
           />
         </View>

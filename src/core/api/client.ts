@@ -52,7 +52,8 @@ type RetryableConfig = AxiosRequestConfig & { _reauthRetry?: boolean };
 function buildClient(): AxiosInstance {
   const instance = axios.create({ timeout: 30000 });
   instance.interceptors.request.use(async (config) => {
-    const baseUrl = await storage.get(StorageKeys.instanceUrl);
+    const baseUrl =
+      (await storage.get(StorageKeys.instanceUrl)) || (await storage.get(StorageKeys.instanceUrlBackup));
     const cookie = await storage.get(StorageKeys.cookie);
     if (baseUrl) config.baseURL = baseUrl;
     config.headers = config.headers ?? {};

@@ -143,7 +143,7 @@ export function KarenBucketCountScreen({ userFarm }: { userFarm: string }) {
           removeClippedSubviews
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
-            scans.length ? <Text style={s.logHeader}>Counted ({scans.length})</Text> : null
+            scans.length ? <Text style={s.logHeader}>Counted ({scans.length})</Text> : undefined
           }
         />
       </View>

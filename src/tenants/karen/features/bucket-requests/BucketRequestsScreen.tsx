@@ -335,8 +335,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     done: list.reduce((n, t) => n + t.shelved, 0),
     total: list.reduce((n, t) => n + t.total, 0),
   });
-  // Every trip (the Trips page summary), and the open trip's (its tabs).
-  const shelvedAll = useMemo(() => shelvedOf(shelvedTrips), [shelvedTrips]);
+  // The open trip's shelved buckets (its tabs).
   const shelvedCount = useMemo(() => shelvedOf(tShelvedTrips), [tShelvedTrips]);
   // The open trip's bucket counts (zero until its first count comes back).
   const k = useMemo(
@@ -715,9 +714,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const [sendingTrip, setSendingTrip] = useState<string | null>(null);
   const onSendTrip = useCallback((t: PlannedTrip) => setSendTrip(t), []);
   // The truck is below its minimum load: "Send anyway" resends the same stop with a reason.
-  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum; reason: string; complete: boolean } | null>(
-    null,
-  );
+  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum } | null>(null);
   const onConfirmSend = useCallback(
     async (t: PlannedTrip, reason?: string) => {
       if (!userFarm) return;
@@ -729,32 +726,13 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         setSendTrip(null);
         showSuccess(r.message);
       } else if (r.belowMinimum) {
-        // Under the truck's minimum load: ask why before it goes (or it stays here).
         setSendTrip(null);
-        setMinLoad({ trip: t, info: r.belowMinimum, reason: reason ?? '', complete });
+        setMinLoad({ trip: t, info: r.belowMinimum });
       } else showError(r.message);
     },
     [userFarm, closeStop, showSuccess, showError],
   );
-  const onSendAnyway = useCallback(
-    async (reason: string) => {
-      if (!userFarm || !minLoad) return;
-      const { trip, complete } = minLoad;
-      setSendingTrip(trip.tripId);
-      const r = await closeStop(trip.tripId, userFarm, reason, complete);
-      setSendingTrip(null);
-      if (r.ok) {
-        setMinLoad(null);
-        showSuccess(r.message);
-      } else if (r.belowMinimum) {
-        setMinLoad({ trip, info: r.belowMinimum, reason, complete });
-        showError(r.message);
-      } else showError(r.message);
-    },
-    [userFarm, minLoad, closeStop, showSuccess, showError],
-  );
-
-  const onMarkIssued = (line: string) => {
+const onMarkIssued = (line: string) => {
     const pick = replacePick;
     if (!pick) return;
     confirm(
@@ -844,15 +822,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const oneTrip = useMemo(() => (selectedTrip ? [selectedTrip] : []), [selectedTrip]);
   const waitingSorted = useMemo(() => sortWaiting(notScheduled), [notScheduled]);
   const waitingN = useMemo(() => waitingBuckets(notScheduled), [notScheduled]);
-  const tripsTotals = useMemo(
-    () => ({
-      requested: Math.max(allBuckets, shelvedAll.done),
-      trolley: addedBuckets,
-      transit: transitBuckets,
-      shelved: shelvedAll.done,
-    }),
-    [allBuckets, addedBuckets, transitBuckets, shelvedAll.done],
-  );
   const phoneTrolley = useMemo(
     () => tTrolley.reduce((n, o) => n + o.buckets.filter((b) => b.scanned && !b.notFound).length, 0),
     [tTrolley],
@@ -1093,7 +1062,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
           loading={firstLoad}
           settling={settling}
           notice={tripStatus}
-          totals={tripsTotals}
           onOpen={openTrip}
           onOpenWaiting={openWaiting}
           onSendTrip={onSendTrip}
@@ -1111,9 +1079,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
         <MinimumLoadDialog
           key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
           prompt={minLoad}
-          sending={!!sendingTrip}
           onClose={() => setMinLoad(null)}
-          onSend={onSendAnyway}
         />
       </Screen>
     );
@@ -1308,9 +1274,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       <MinimumLoadDialog
         key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
         prompt={minLoad}
-        sending={!!sendingTrip}
         onClose={() => setMinLoad(null)}
-        onSend={onSendAnyway}
       />
     </Screen>
   );
@@ -2082,7 +2046,7 @@ function tripState(t: PlannedTrip, hub?: string, phoneTrolley = 0): TripStateUi 
   } else if (phoneTrolley > 0) {
     return { label: 'On trolley (Staging)', tone: 'now', color: '#7c3aed' };
   }
-  if (t.status === 'Dispatched') return { label: 'In transit', tone: 'done', color: '#1d4ed8' };
+  if (t.status === 'Dispatched') return { label: 'In transit', tone: 'now', color: '#1d4ed8' };
   if (t.status === 'Received') return { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' };
   if (t.yourStopClosed) return { label: 'Stop closed', tone: 'done' };
   // Nothing on a trolley yet: its buckets wait on the shelves for this run.
@@ -2160,7 +2124,6 @@ const TripsPage = memo(function TripsPage({
   loading,
   settling,
   notice,
-  totals,
   onOpen,
   onOpenWaiting,
   onOpenHistory,
@@ -2185,7 +2148,6 @@ const TripsPage = memo(function TripsPage({
   settling?: boolean;
   /** Why the app came back here by itself (the open trip left the plan / closed). */
   notice: string | null;
-  totals: { requested: number; trolley: number; transit: number; shelved: number };
   onOpen: (tripId: string) => void;
   onOpenWaiting: () => void;
   onOpenHistory: (tripId: string) => void;
@@ -2257,21 +2219,6 @@ const TripsPage = memo(function TripsPage({
               {closed.length ? ` · ${closed.length} closed` : ''}
             </Text>
           </View>
-          <View style={s.statRow}>
-            {[
-              { label: 'Requested', value: totals.requested },
-              { label: 'On trolley', value: totals.trolley },
-              { label: 'On truck', value: totals.transit },
-              { label: 'Shelved', value: totals.shelved },
-            ].map((x) => (
-              <View key={x.label} style={s.statTile}>
-                <Text style={s.statValue}>{x.value}</Text>
-                <Text style={s.statLabel} numberOfLines={1}>
-                  {x.label}
-                </Text>
-              </View>
-            ))}
-          </View>
         </Card>
       ),
     });
@@ -2330,7 +2277,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, totals, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
+  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2423,7 +2370,7 @@ const TripRow = memo(function TripRow({
   );
 });
 
-/** A trip already dispatched from here (History): read only, its buckets on tap. */
+/** A trip already dispatched from here (History): read only, its buckets on tap; greyed once arrived. */
 const PastTripRow = memo(function PastTripRow({
   trip: t,
   farm,
@@ -2440,15 +2387,15 @@ const PastTripRow = memo(function PastTripRow({
   const arrived = t.status === 'Received' || t.arrived;
   const st: TripStateUi = arrived
     ? { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' }
-    : { label: 'In transit', tone: 'done', color: '#1d4ed8' };
+    : { label: 'In transit', tone: 'now', color: '#1d4ed8' };
   const n = c ? c.buckets.length : 0;
   const sh = c ? c.buckets.filter((b) => b.shelved).length : 0;
   return (
-    <View style={s.tripRowDone}>
+    <View style={arrived ? s.tripRowDone : undefined}>
       <Card>
         <View style={s.tripHead}>
           <View style={s.tripTruck}>
-            <Ionicons name="car" size={16} color={COLORS.textMuted} />
+            <Ionicons name="car" size={16} color={arrived ? COLORS.textMuted : COLORS.text} />
             <Text style={s.tripTruckText} numberOfLines={1}>
               {`${t.vehicle || 'Truck'}${t.run ? ` · Trip ${t.run}` : ''}`}
             </Text>
@@ -3824,59 +3771,29 @@ function SendTripDialog({
   );
 }
 
-/** The truck is below its minimum load: send anyway with a reason, or keep it here. */
+/** The truck is below its minimum load: inform the driver, no override. */
 function MinimumLoadDialog({
   prompt,
-  sending,
   onClose,
-  onSend,
 }: {
-  prompt: { trip: PlannedTrip; info: BelowMinimum; reason: string } | null;
-  sending: boolean;
+  prompt: { trip: PlannedTrip; info: BelowMinimum } | null;
   onClose: () => void;
-  onSend: (reason: string) => void;
 }) {
-  const [reason, setReason] = useState(prompt?.reason ?? '');
   if (!prompt) return null;
   const { trip, info } = prompt;
   const numbers =
     info.capacity > 0 && info.needed > 0
       ? `${info.loaded} of ${info.capacity} on the truck — it leaves at ${info.needed}`
       : info.message;
-  const ready = !!reason.trim();
   return (
     <Dialog
       visible
       onClose={onClose}
-      busy={sending}
       icon={{ name: 'car-outline', tone: 'warn' }}
-      title={`Send ${trip.vehicle} anyway?`}
+      title={`${trip.vehicle} is not ready`}
       subtitle={numbers}
-      actions={
-        <>
-          <Button label="Cancel" variant="outline" onPress={onClose} disabled={sending} style={{ flex: 1 }} />
-          <Button
-            label="Send anyway"
-            iconLeft="car-outline"
-            loading={sending}
-            disabled={!ready}
-            onPress={() => onSend(reason.trim())}
-            style={{ flex: 1 }}
-          />
-        </>
-      }
-    >
-      <TextInput
-        value={reason}
-        onChangeText={setReason}
-        placeholder="Reason (required)"
-        placeholderTextColor={COLORS.textMuted}
-        editable={!sending}
-        multiline
-        maxLength={300}
-        style={s.leaveInput}
-      />
-    </Dialog>
+      actions={<Button label="OK" onPress={onClose} />}
+    />
   );
 }
 
@@ -3987,17 +3904,6 @@ const s = StyleSheet.create({
   tripRowPressed: { opacity: 0.7 },
   tripRoute: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   tripFoot: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  statRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm },
-  statTile: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  statValue: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
-  statLabel: { fontFamily: fontFamily.medium, fontSize: scaleFont(10), color: COLORS.textMuted },
   // Room above and left of each trip card for its floating number.
   step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.md },
   stepDot: {

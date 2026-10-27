@@ -57,6 +57,13 @@ type AuthState = {
   hasRole: (role: string) => boolean;
 };
 
+/** The server address from its backup copy, put back as the live one. */
+async function restoreInstanceUrl(): Promise<string | null> {
+  const backup = await storage.get(StorageKeys.instanceUrlBackup);
+  if (backup) await storage.set(StorageKeys.instanceUrl, backup);
+  return backup;
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'idle',
   error: null,
@@ -70,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   biometricLocked: false,
 
   hydrate: async () => {
-    const [hasSession, roles, email, fullName, instanceUrl, bioFlag, justSwitched] = await Promise.all([
+    const [hasCookie, roles, email, fullName, storedUrl, bioFlag, justSwitched] = await Promise.all([
       authRepository.hasSession(),
       authRepository.loadRoles(),
       storage.get(StorageKeys.emailBackup),
@@ -79,6 +86,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       storage.get(StorageKeys.biometricEnabled),
       consumeInstanceSwitched(),
     ]);
+    const instanceUrl = storedUrl || (await restoreInstanceUrl());
+    // A session cookie with no server to send it to is no session: sign in again.
+    const hasSession = hasCookie && !!instanceUrl;
     const biometricEnabled = bioFlag === '1';
     // The start right after a sign-in to this very server was signed in a moment ago.
     const switchedHere = hasSession && !!justSwitched && justSwitched === instanceKey(instanceUrl);
