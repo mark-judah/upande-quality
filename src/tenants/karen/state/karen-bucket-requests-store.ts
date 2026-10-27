@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as Network from 'expo-network';
+import { checkConnectivity } from '@/src/core/network/store';
 import { isNoResponseError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { setTransferHub } from '@/src/core/tenant/transfer-hub';
@@ -935,12 +935,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   refreshOnline: async () => {
-    try {
-      const s = await Network.getNetworkStateAsync();
-      patch({ online: !!s.isConnected && s.isInternetReachable !== false });
-    } catch {
-      patch({ online: false });
-    }
+    patch({ online: await checkConnectivity() });
   },
 
   download: async (farm) => {

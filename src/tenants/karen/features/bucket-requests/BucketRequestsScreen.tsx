@@ -335,8 +335,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     done: list.reduce((n, t) => n + t.shelved, 0),
     total: list.reduce((n, t) => n + t.total, 0),
   });
-  // Every trip (the Trips page summary), and the open trip's (its tabs).
-  const shelvedAll = useMemo(() => shelvedOf(shelvedTrips), [shelvedTrips]);
+  // The open trip's shelved buckets (its tabs).
   const shelvedCount = useMemo(() => shelvedOf(tShelvedTrips), [tShelvedTrips]);
   // The open trip's bucket counts (zero until its first count comes back).
   const k = useMemo(
@@ -823,15 +822,6 @@ const onMarkIssued = (line: string) => {
   const oneTrip = useMemo(() => (selectedTrip ? [selectedTrip] : []), [selectedTrip]);
   const waitingSorted = useMemo(() => sortWaiting(notScheduled), [notScheduled]);
   const waitingN = useMemo(() => waitingBuckets(notScheduled), [notScheduled]);
-  const tripsTotals = useMemo(
-    () => ({
-      requested: Math.max(allBuckets, shelvedAll.done),
-      trolley: addedBuckets,
-      transit: transitBuckets,
-      shelved: shelvedAll.done,
-    }),
-    [allBuckets, addedBuckets, transitBuckets, shelvedAll.done],
-  );
   const phoneTrolley = useMemo(
     () => tTrolley.reduce((n, o) => n + o.buckets.filter((b) => b.scanned && !b.notFound).length, 0),
     [tTrolley],
@@ -1072,7 +1062,6 @@ const onMarkIssued = (line: string) => {
           loading={firstLoad}
           settling={settling}
           notice={tripStatus}
-          totals={tripsTotals}
           onOpen={openTrip}
           onOpenWaiting={openWaiting}
           onSendTrip={onSendTrip}
@@ -2057,7 +2046,7 @@ function tripState(t: PlannedTrip, hub?: string, phoneTrolley = 0): TripStateUi 
   } else if (phoneTrolley > 0) {
     return { label: 'On trolley (Staging)', tone: 'now', color: '#7c3aed' };
   }
-  if (t.status === 'Dispatched') return { label: 'In transit', tone: 'done', color: '#1d4ed8' };
+  if (t.status === 'Dispatched') return { label: 'In transit', tone: 'now', color: '#1d4ed8' };
   if (t.status === 'Received') return { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' };
   if (t.yourStopClosed) return { label: 'Stop closed', tone: 'done' };
   // Nothing on a trolley yet: its buckets wait on the shelves for this run.
@@ -2135,7 +2124,6 @@ const TripsPage = memo(function TripsPage({
   loading,
   settling,
   notice,
-  totals,
   onOpen,
   onOpenWaiting,
   onOpenHistory,
@@ -2160,7 +2148,6 @@ const TripsPage = memo(function TripsPage({
   settling?: boolean;
   /** Why the app came back here by itself (the open trip left the plan / closed). */
   notice: string | null;
-  totals: { requested: number; trolley: number; transit: number; shelved: number };
   onOpen: (tripId: string) => void;
   onOpenWaiting: () => void;
   onOpenHistory: (tripId: string) => void;
@@ -2232,21 +2219,6 @@ const TripsPage = memo(function TripsPage({
               {closed.length ? ` · ${closed.length} closed` : ''}
             </Text>
           </View>
-          <View style={s.statRow}>
-            {[
-              { label: 'Requested', value: totals.requested },
-              { label: 'On trolley', value: totals.trolley },
-              { label: 'On truck', value: totals.transit },
-              { label: 'Shelved', value: totals.shelved },
-            ].map((x) => (
-              <View key={x.label} style={s.statTile}>
-                <Text style={s.statValue}>{x.value}</Text>
-                <Text style={s.statLabel} numberOfLines={1}>
-                  {x.label}
-                </Text>
-              </View>
-            ))}
-          </View>
         </Card>
       ),
     });
@@ -2305,7 +2277,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, totals, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
+  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2398,7 +2370,7 @@ const TripRow = memo(function TripRow({
   );
 });
 
-/** A trip already dispatched from here (History): read only, its buckets on tap. */
+/** A trip already dispatched from here (History): read only, its buckets on tap; greyed once arrived. */
 const PastTripRow = memo(function PastTripRow({
   trip: t,
   farm,
@@ -2415,15 +2387,15 @@ const PastTripRow = memo(function PastTripRow({
   const arrived = t.status === 'Received' || t.arrived;
   const st: TripStateUi = arrived
     ? { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' }
-    : { label: 'In transit', tone: 'done', color: '#1d4ed8' };
+    : { label: 'In transit', tone: 'now', color: '#1d4ed8' };
   const n = c ? c.buckets.length : 0;
   const sh = c ? c.buckets.filter((b) => b.shelved).length : 0;
   return (
-    <View style={s.tripRowDone}>
+    <View style={arrived ? s.tripRowDone : undefined}>
       <Card>
         <View style={s.tripHead}>
           <View style={s.tripTruck}>
-            <Ionicons name="car" size={16} color={COLORS.textMuted} />
+            <Ionicons name="car" size={16} color={arrived ? COLORS.textMuted : COLORS.text} />
             <Text style={s.tripTruckText} numberOfLines={1}>
               {`${t.vehicle || 'Truck'}${t.run ? ` · Trip ${t.run}` : ''}`}
             </Text>
@@ -3932,17 +3904,6 @@ const s = StyleSheet.create({
   tripRowPressed: { opacity: 0.7 },
   tripRoute: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.textSecondary, marginTop: spacing.xs },
   tripFoot: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  statRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm },
-  statTile: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: COLORS.surfaceAlt,
-  },
-  statValue: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text },
-  statLabel: { fontFamily: fontFamily.medium, fontSize: scaleFont(10), color: COLORS.textMuted },
   // Room above and left of each trip card for its floating number.
   step: { position: 'relative', marginTop: spacing.md, marginLeft: spacing.md },
   stepDot: {
