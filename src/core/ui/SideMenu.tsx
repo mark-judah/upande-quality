@@ -33,6 +33,7 @@ const ROUTE_ICONS: Record<DrawerItem['route'], IconName> = {
   receiving: 'download-outline',
   shelving: 'albums-outline',
   'shelf-operations': 'repeat-outline',
+  'free-shelves': 'file-tray-outline',
   'issue-offline': 'exit-outline',
   'bucket-count': 'cube-outline',
   'bucket-requests': 'cart-outline',

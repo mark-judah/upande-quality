@@ -31,6 +31,7 @@ const ICONS: Record<string, TabIconPair> = {
   'inspection-log':     { outline: 'checkbox-outline',           filled: 'checkbox' },
   discards:             { outline: 'trash-outline',             filled: 'trash' },
   'shelf-operations':   { outline: 'repeat-outline',            filled: 'repeat' },
+  'free-shelves':       { outline: 'file-tray-outline',         filled: 'file-tray' },
   'issue-offline':      { outline: 'exit-outline',              filled: 'exit' },
   'intake-qc':          { outline: 'checkmark-done-outline',    filled: 'checkmark-done' },
   'coldroom-qc':        { outline: 'snow-outline',              filled: 'snow' },
@@ -95,31 +96,32 @@ export default function TabLayout() {
       <Tabs.Screen name="discards" options={{ title: 'Discards' }} />
 
       {/* Drawer-only — hide from bottom bar */}
-      <Tabs.Screen name="edit-details" options={{ title: 'Edit Details', ...OFF_BAR }} />
-      <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', ...OFF_BAR }} />
-      <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', ...OFF_BAR }} />
-      <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', ...OFF_BAR }} />
-      <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', ...OFF_BAR }} />
-      <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', ...OFF_BAR }} />
-      <Tabs.Screen name="bucket-count" options={{ title: 'Bucket Count', ...OFF_BAR }} />
-      <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', ...OFF_BAR }} />
-      <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', ...OFF_BAR }} />
-      <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', ...OFF_BAR }} />
-      <Tabs.Screen name="freight-dispatch" options={{ title: 'Freight Dispatch', ...OFF_BAR }} />
-      <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', ...OFF_BAR }} />
-      <Tabs.Screen name="inspection-log"  options={{ title: 'Inspection Log',  ...OFF_BAR }} />
-      <Tabs.Screen name="coldroom-qc" options={{ title: 'Coldroom QC', ...OFF_BAR }} />
-      <Tabs.Screen name="packhouse-qc" options={{ title: 'Packhouse QC', ...OFF_BAR }} />
-      <Tabs.Screen name="packhouse-checks" options={{ title: 'Packhouse Cleaning', ...OFF_BAR }} />
-      <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', ...OFF_BAR }} />
-      <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', ...OFF_BAR }} />
-      <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', ...OFF_BAR }} />
-      <Tabs.Screen name="vehicle-hygiene" options={{ title: 'Vehicle Hygiene', ...OFF_BAR }} />
-      <Tabs.Screen name="bucket-cleaning" options={{ title: 'Bucket Cleaning', ...OFF_BAR }} />
-      <Tabs.Screen name="vaselife" options={{ title: 'Vaselife', ...OFF_BAR }} />
-      <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', ...OFF_BAR }} />
-      <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', ...OFF_BAR }} />
-      <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', ...OFF_BAR }} />
+      <Tabs.Screen name="edit-details" options={{ title: 'Edit Details', href: null }} />
+      <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', href: null }} />
+      <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', href: null }} />
+      <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
+      <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
+      <Tabs.Screen name="free-shelves" options={{ title: 'Free Shelves', href: null }} />
+      <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', href: null }} />
+      <Tabs.Screen name="bucket-count" options={{ title: 'Bucket Count', href: null }} />
+      <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
+      <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
+      <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', href: null }} />
+      <Tabs.Screen name="freight-dispatch" options={{ title: 'Freight Dispatch', href: null }} />
+      <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', href: null }} />
+      <Tabs.Screen name="inspection-log"  options={{ title: 'Inspection Log',  href: null }} />
+      <Tabs.Screen name="coldroom-qc" options={{ title: 'Coldroom QC', href: null }} />
+      <Tabs.Screen name="packhouse-qc" options={{ title: 'Packhouse QC', href: null }} />
+      <Tabs.Screen name="packhouse-checks" options={{ title: 'Packhouse Cleaning', href: null }} />
+      <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', href: null }} />
+      <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', href: null }} />
+      <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', href: null }} />
+      <Tabs.Screen name="vehicle-hygiene" options={{ title: 'Vehicle Hygiene', href: null }} />
+      <Tabs.Screen name="bucket-cleaning" options={{ title: 'Bucket Cleaning', href: null }} />
+      <Tabs.Screen name="vaselife" options={{ title: 'Vaselife', href: null }} />
+      <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', href: null }} />
+      <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', href: null }} />
+      <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
       {/* Settings is reached from the menu and has no use for the tab bar. */}
       <Tabs.Screen name="settings" options={{ title: 'Settings', ...OFF_BAR, tabBarStyle: { display: 'none' } }} />
     </Tabs>
