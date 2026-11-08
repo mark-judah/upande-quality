@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import {
@@ -20,6 +20,7 @@ import { compareVersions } from '@/src/core/updates/releases';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { showDialog } from '@/src/core/ui/DialogHost';
 import { displayName, needsRealName } from '@/src/core/auth/roles-api';
+import { ServerDialog } from '@/src/core/auth/ServerSection';
 
 export default function SettingsScreen() {
   const fullName = useAuthStore((s) => s.fullName);
@@ -31,7 +32,9 @@ export default function SettingsScreen() {
   const setBiometricEnabled = useAuthStore((s) => s.setBiometricEnabled);
   const logout = useAuthStore((s) => s.logout);
   const forgetDevice = useAuthStore((s) => s.forgetDevice);
+  const isSystemManager = useAuthStore((s) => s.roles.includes('System Manager'));
   const { showSuccess, showError } = useToast();
+  const [serverDialog, setServerDialog] = useState(false);
 
   const [moduleReady] = useState(() => Biometric.isModuleAvailable());
   const [hardwareReady, setHardwareReady] = useState(false);
@@ -126,11 +129,11 @@ export default function SettingsScreen() {
     <Screen title="Settings">
       <Card>
         <View style={s.avatarRow}>
-          <View style={s.avatar}>
+          <Pressable style={s.avatar} onLongPress={() => setServerDialog(true)} delayLongPress={2000}>
             <Text style={s.avatarInitials}>
               {(name || '?').slice(0, 1).toUpperCase()}
             </Text>
-          </View>
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={s.userName}>{name || 'Signed in'}</Text>
             {email ? <Text style={s.userEmail}>{email}</Text> : null}
@@ -172,6 +175,17 @@ export default function SettingsScreen() {
         <ApkUpdateSection />
       </Card>
 
+      {isSystemManager ? (
+        <Card title="Devices">
+          <Button
+            label="Devices"
+            variant="outline"
+            iconLeft="phone-portrait-outline"
+            onPress={() => router.push('/devices' as never)}
+          />
+        </Card>
+      ) : null}
+
       <Card title="Session">
         <Button label="Sign out" variant="outline" onPress={onSignOut} />
         <View style={{ height: spacing.sm }} />
@@ -183,6 +197,7 @@ export default function SettingsScreen() {
           iconLeft="trash-outline"
         />
       </Card>
+      <ServerDialog visible={serverDialog} onClose={() => setServerDialog(false)} />
     </Screen>
   );
 }

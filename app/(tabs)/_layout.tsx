@@ -31,6 +31,7 @@ const ICONS: Record<string, TabIconPair> = {
   'inspection-log':     { outline: 'checkbox-outline',           filled: 'checkbox' },
   discards:             { outline: 'trash-outline',             filled: 'trash' },
   'shelf-operations':   { outline: 'repeat-outline',            filled: 'repeat' },
+  'free-shelves':       { outline: 'file-tray-outline',         filled: 'file-tray' },
   'issue-offline':      { outline: 'exit-outline',              filled: 'exit' },
   'intake-qc':          { outline: 'checkmark-done-outline',    filled: 'checkmark-done' },
   'coldroom-qc':        { outline: 'snow-outline',              filled: 'snow' },
@@ -45,6 +46,10 @@ const ICONS: Record<string, TabIconPair> = {
   'flower-audit':       { outline: 'leaf-outline',              filled: 'leaf' },
   'flower-audit-entry': { outline: 'leaf-outline',              filled: 'leaf' },
 };
+
+// Off the tab bar but still a route: `href: null` now hides the route itself, and a
+// hidden route redirects to Home.
+const OFF_BAR = { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const } };
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -73,7 +78,7 @@ export default function TabLayout() {
         tabBarIcon: ({ focused, size }) => {
           const pair = ICONS[route.name];
           // No fallback icon — every visible tab is expected to have an entry
-          // in ICONS above. Drawer-only routes use `href: null` and won't hit
+          // in ICONS above. Drawer-only routes have no tab button and won't hit
           // this path.
           if (!pair) return null;
           return (
@@ -96,7 +101,9 @@ export default function TabLayout() {
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', href: null }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', href: null }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', href: null }} />
+      <Tabs.Screen name="free-shelves" options={{ title: 'Free Shelves', href: null }} />
       <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', href: null }} />
+      <Tabs.Screen name="bucket-count" options={{ title: 'Bucket Count', href: null }} />
       <Tabs.Screen name="solution-mixing" options={{ title: 'Solution Mixing', href: null }} />
       <Tabs.Screen name="temperature-log" options={{ title: 'Temperature Log', href: null }} />
       <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', href: null }} />
@@ -116,7 +123,7 @@ export default function TabLayout() {
       <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', href: null }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', href: null }} />
       {/* Settings is reached from the menu and has no use for the tab bar. */}
-      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null, tabBarStyle: { display: 'none' } }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings', ...OFF_BAR, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

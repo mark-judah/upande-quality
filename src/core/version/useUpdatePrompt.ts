@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { checkLatestVersion, UPDATE_DOWNLOAD_URL } from '@/src/core/version';
 import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
+import { canInstallInApp } from '@/src/core/updates/install-apk';
 import { showDialog } from '@/src/core/ui/DialogHost';
 
 /** Once per app session (when `active` becomes true), check GitHub for a newer
@@ -10,8 +11,9 @@ import { showDialog } from '@/src/core/ui/DialogHost';
  *  prompt is suppressed for a version the user already dismissed with "Later",
  *  so it won't nag every launch — only when a NEWER release appears.
  *
- *  "Update" downloads the APK in-app and opens Android's installer when the
- *  release has one attached; otherwise it opens the releases page as before.
+ *  "Update" downloads the APK in-app, then offers "Install" to open Android's
+ *  installer, when the release has one attached; otherwise it opens the
+ *  releases page as before.
  *  Must be used inside <UpdateProvider>.
  *
  *  Fully best-effort: any failure (offline, no releases yet) is a no-op. */
@@ -45,7 +47,21 @@ export function useUpdatePrompt(active: boolean): void {
             text: 'Update',
             onPress: async () => {
               const apk = await refresh();
-              if (apk?.available && (await install(apk))) return;
+              if (apk?.available && (await install(apk))) {
+                // The browser fallback handles the rest itself.
+                if (!canInstallInApp()) return;
+                // Downloaded; the installer opens on the next tap.
+                showDialog(
+                  'Update downloaded',
+                  `v${apk.apk?.version ?? check.latest} is ready to install.`,
+                  [
+                    { text: 'Later', style: 'cancel' },
+                    { text: 'Install', onPress: () => void install(apk) },
+                  ],
+                  { name: 'checkmark-circle-outline', tone: 'success' },
+                );
+                return;
+              }
               Linking.openURL(UPDATE_DOWNLOAD_URL).catch(() => {});
             },
           },

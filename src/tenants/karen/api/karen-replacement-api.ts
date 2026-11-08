@@ -106,9 +106,23 @@ export type RawCorrectDetailsResponse = {
     updates?: string[];
     new_variety?: string | null;
     new_stem_length?: string | null;
+    new_greenhouse?: string | null;
+    new_cut_stage?: string | null;
     error?: string;
   };
   message?: { error?: string };
+};
+
+export type RawBucketOriginResponse = {
+  data?: {
+    bucket_id?: string;
+    farm?: string;
+    greenhouse?: string;
+    cut_stage?: string;
+    greenhouses?: string[];
+    cut_stages?: string[];
+    error?: string;
+  };
 };
 
 export type RawMoveBunchResponse = {
@@ -242,12 +256,22 @@ export const karenReplacementApi = {
     bucket_id?: string;
     variety?: string;
     stem_length?: string;
+    greenhouse?: string;
+    cut_stage?: string;
   }): Promise<RawCorrectDetailsResponse> {
     return api<RawCorrectDetailsResponse>({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.correctDetails',
       data: payload,
       validateStatus: () => true,
+    });
+  },
+
+  async getBucketOriginOptions(payload: { bucket_id: string }): Promise<RawBucketOriginResponse> {
+    return api<RawBucketOriginResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.getBucketOriginOptions',
+      data: payload,
     });
   },
 

@@ -20,6 +20,8 @@ import { COLORS, borderRadius, fontFamily, fontSize, spacing, scaleFont } from '
 import { APP_VERSION } from '@/src/core/version';
 import { showDialog } from '@/src/core/ui/DialogHost';
 import { requestPasswordReset } from '@/src/core/auth/password-api';
+import { countUnsent } from '@/src/core/offline/unsent';
+import { UnsentScansConfirm } from '@/src/core/auth/ServerSection';
 
 const APP_NAME = 'Upande Quality';
 const HOME_ROUTE = '/';
@@ -46,6 +48,10 @@ export default function Login() {
   const [url, setUrl] = useState('');
   const [instanceOpen, setInstanceOpen] = useState(false);
   const [draftUrl, setDraftUrl] = useState('');
+  // A change to another server waiting on the "N scans not sent yet" confirm.
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const [unsent, setUnsent] = useState(0);
+  const checking = useRef(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -135,14 +141,44 @@ export default function Login() {
   };
 
   // Changes the server: the old one is forgotten, not kept beside the new one.
-  const continueWithDraft = async () => {
-    const typed = draftUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-    if (!typed) return;
+  // Its queued scans stay in its own database files for its next sign-in.
+  const switchTo = async (typed: string) => {
     const known = instances.find((i) => instanceKey(i.url) === instanceKey(typed));
     if (url && instanceKey(url) !== instanceKey(typed)) {
       setInstances(await knownInstances.forget(url));
     }
     selectInstance(known ?? { url: typed });
+  };
+
+  const continueWithDraft = async () => {
+    const typed = draftUrl.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    if (!typed || checking.current) return;
+    checking.current = true;
+    try {
+      // Scans still queued for the current server: ask first, as the long press does.
+      if (url && instanceKey(url) !== instanceKey(typed)) {
+        const waiting = await countUnsent();
+        if (waiting > 0) {
+          setPendingUrl(typed);
+          setUnsent(waiting);
+          return;
+        }
+      }
+      await switchTo(typed);
+    } finally {
+      checking.current = false;
+    }
+  };
+
+  const dismissUnsent = () => {
+    setUnsent(0);
+    setPendingUrl(null);
+  };
+
+  const confirmUnsent = async () => {
+    const typed = pendingUrl;
+    dismissUnsent();
+    if (typed) await switchTo(typed);
   };
 
   // Forgot password: the server emails a link to set a new one, for the email
@@ -364,6 +400,7 @@ export default function Login() {
 
         <Text style={s.version}>v{APP_VERSION}</Text>
       </KeyboardAwareScrollView>
+      <UnsentScansConfirm count={unsent} onCancel={dismissUnsent} onConfirm={confirmUnsent} />
     </SafeAreaView>
   );
 }

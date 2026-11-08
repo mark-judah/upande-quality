@@ -1,5 +1,6 @@
 import type {
   BucketOplAllocation,
+  BucketOrigin,
   BucketReplaceOutcome,
   BunchMoveOutcome,
   BunchMovePayload,
@@ -251,6 +252,8 @@ export const karenReplacementRepository: KarenReplacementRepository = {
       bucket_id: payload.bucketId,
       variety: payload.variety,
       stem_length: payload.stemLength,
+      greenhouse: payload.greenhouse,
+      cut_stage: payload.cutStage,
     });
     const body = res.data ?? {};
     if (body.error) return { ok: false, error: body.error };
@@ -326,5 +329,18 @@ export const karenReplacementRepository: KarenReplacementRepository = {
 
   listStemLengths() {
     return karenReplacementApi.listStemLengths();
+  },
+
+  async getBucketOrigin(bucketId: string): Promise<BucketOrigin> {
+    const res = await karenReplacementApi.getBucketOriginOptions({ bucket_id: bucketId });
+    const body = res.data ?? {};
+    if (body.error) throw new Error(body.error);
+    return {
+      farm: body.farm ?? '',
+      greenhouse: body.greenhouse ?? '',
+      cutStage: body.cut_stage ?? '',
+      greenhouses: body.greenhouses ?? [],
+      cutStages: body.cut_stages ?? [],
+    };
   },
 };

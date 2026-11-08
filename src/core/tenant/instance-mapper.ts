@@ -1,6 +1,7 @@
 export type Tenant = 'Karen' | 'Kikwetu' | 'Xflora' | 'Mona' | 'Tambuzi' | 'Demo';
 
 const URL_TO_TENANT: Record<string, Tenant> = {
+  'http://192.168.100.48:8000': 'Karen',
   'https://kikwetu.upande.com': 'Kikwetu',
   'https://kikwetu-production.jh.frappe.cloud': 'Kikwetu',
   'https://kaitet-group.upande.com': 'Karen',
@@ -34,6 +35,10 @@ const URL_TO_TENANT: Record<string, Tenant> = {
   "http://192.168.100.27:8000": 'Karen',
   'http://192.168.1.69:8000': 'Karen',
   'http://192.168.1.71:8000': 'Karen',
+  'http://172.16.32.240:8000': 'Karen',
+  'http://192.168.1.150:8000': 'Karen',
+  'https://misc-partnership-leader-pendant.trycloudflare.com ': 'Karen',
+  'http://10.118.65.204:8000': 'Karen',
 };
 
 /** Host (and port) only: the app works out http or https itself, so the

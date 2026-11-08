@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 
 /** A locally-queued bucket scan, plus whatever the server resolved for it
  *  once synced. Scanning writes here instantly (no network) so walking a
@@ -40,9 +41,16 @@ let _db: SQLite.SQLiteDatabase | null = null;
 
 async function db(): Promise<SQLite.SQLiteDatabase> {
   if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync('karen_stock_take.db');
+  _db = await SQLite.openDatabaseAsync(await instanceDbName('karen_stock_take.db'));
   return _db;
 }
+
+// The live server changed without a restart: the next open resolves its own file.
+onInstanceDbReset(async () => {
+  const d = _db;
+  _db = null;
+  await d?.closeAsync();
+});
 
 const DDL = `
 PRAGMA journal_mode = WAL;
@@ -198,4 +206,12 @@ export async function applySyncResults(
 export async function clearColdstore(coldstore: string): Promise<void> {
   const d = await db();
   await d.runAsync('DELETE FROM stock_take_scan WHERE coldstore = ?', [coldstore]);
+}
+
+/** Scans of every coldstore not sent yet. */
+export async function countAllPending(): Promise<number> {
+  const d = await db();
+  await d.execAsync(DDL);
+  const row = await d.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM stock_take_scan WHERE synced = 0');
+  return row?.c ?? 0;
 }

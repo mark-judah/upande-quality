@@ -10,7 +10,11 @@ import { Dropdown } from '@/src/core/ui/Dropdown';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useReplacementStore } from '@/src/core/features/replacement/store';
-import type { ReplacementRepository } from '@/src/core/features/replacement/types';
+import type {
+  BucketOrigin,
+  DetailsCorrectionOutcome,
+  ReplacementRepository,
+} from '@/src/core/features/replacement/types';
 import type {
   SessionBunch,
   TraceabilityRepository,
@@ -21,6 +25,17 @@ import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
 type Props = {
   replacementRepo: ReplacementRepository;
   traceabilityRepo: TraceabilityRepository;
+  /** Opened from another screen (e.g. Receiving) with a bucket: load it, no scan. */
+  initialBucketId?: string;
+  /** Changes on every such navigation, so the same bucket reloads. */
+  requestKey?: string;
+};
+
+type Corrections = {
+  variety?: string;
+  stemLength?: string;
+  greenhouse?: string;
+  cutStage?: string;
 };
 
 type ScanResult = { kind: 'bucket'; id: string } | { kind: 'bunch'; id: string };
@@ -48,30 +63,50 @@ function parseScan(raw: string): ScanResult {
   return { kind: 'bucket', id: trimmed };
 }
 
-export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) {
+export function EditDetailsScreen({
+  replacementRepo,
+  traceabilityRepo,
+  initialBucketId,
+  requestKey,
+}: Props) {
   const scanRef = useRef<ScanFieldHandle>(null);
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [snapshot, setSnapshot] = useState<TraceabilitySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Only the latest lookup may land: a slow earlier one never overwrites it. */
+  const lookupSeq = useRef(0);
 
-  const onScan = async (raw: string) => {
-    const result = parseScan(raw);
+  const load = async (result: ScanResult) => {
+    const seq = ++lookupSeq.current;
     setScan(result);
     setSnapshot(null);
     setLoadError(null);
     setLoading(true);
     try {
       const snap = await traceabilityRepo.lookup({ kind: result.kind, id: result.id });
-      setSnapshot(snap);
+      if (seq === lookupSeq.current) setSnapshot(snap);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
+      if (seq === lookupSeq.current) setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (seq === lookupSeq.current) setLoading(false);
     }
   };
 
+  const onScan = (raw: string) => load(parseScan(raw));
+
+  useEffect(() => {
+    const id = (initialBucketId ?? '').trim();
+    if (!id) return;
+    const timer = setTimeout(() => void load({ kind: 'bucket', id }), 0);
+    return () => clearTimeout(timer);
+    // Re-run per navigation only; `load` is recreated every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialBucketId, requestKey]);
+
   const reset = () => {
+    lookupSeq.current += 1;
+    setLoading(false);
     setScan(null);
     setSnapshot(null);
     setLoadError(null);
@@ -80,11 +115,12 @@ export function EditDetailsScreen({ replacementRepo, traceabilityRepo }: Props) 
   return (
     <Screen title="Edit Details">
       <Card title="Scan a bucket or bunch">
-        <Text style={s.helper}>
-          Correct the variety or stem length that was entered wrong at harvesting or grading.
-        </Text>
-        <View style={{ height: 12 }} />
-        <ScanField ref={scanRef} onScan={onScan} autoFocus placeholder="Bucket / Bunch ID" />
+        <ScanField
+          ref={scanRef}
+          onScan={onScan}
+          autoFocus={!initialBucketId}
+          placeholder="Bucket / Bunch ID"
+        />
       </Card>
 
       {/* Stamped the moment it is scanned, before its details load. */}
@@ -136,13 +172,9 @@ function BucketEditor({
       currentVariety={snapshot.variety}
       currentStemLength={snapshot.stemLength}
       subtitle={`${snapshot.variety} · ${snapshot.stemLength} · ${snapshot.farm} · ${snapshot.status}`}
-      onSubmit={async (variety, stemLength) =>
-        repository.correctDetails({
-          kind: 'bucket',
-          id: snapshot.bucketId,
-          variety,
-          stemLength,
-        })
+      originBucketId={snapshot.bucketId}
+      onSubmit={async (changes) =>
+        repository.correctDetails({ kind: 'bucket', id: snapshot.bucketId, ...changes })
       }
       repository={repository}
       onDone={onDone}
@@ -208,13 +240,9 @@ function SprayBunchListEditor({
               currentVariety={snapshot.variety}
               currentStemLength={snapshot.stemLength}
               subtitle=""
-              onSubmit={(variety, stemLength) =>
-                repository.correctDetails({
-                  kind: 'bucket',
-                  id: snapshot.bucketId,
-                  variety,
-                  stemLength,
-                })
+              originBucketId={snapshot.bucketId}
+              onSubmit={(changes) =>
+                repository.correctDetails({ kind: 'bucket', id: snapshot.bucketId, ...changes })
               }
               repository={repository}
               onDone={onDone}
@@ -286,7 +314,7 @@ function SprayBunchListEditor({
                     currentVariety={bunch.variety}
                     currentStemLength={bunch.stemLength}
                     subtitle=""
-                    onSubmit={(variety, stemLength) =>
+                    onSubmit={({ variety, stemLength }) =>
                       repository.correctDetails({
                         kind: 'bunch',
                         id: bunch.bunchId,
@@ -347,7 +375,7 @@ function BunchEditor({
       currentVariety={bunch.variety}
       currentStemLength={bunch.stemLength}
       subtitle={`In bucket ${snapshot.bucketId.toUpperCase()} · ${snapshot.farm}`}
-      onSubmit={async (variety, stemLength) =>
+      onSubmit={async ({ variety, stemLength }) =>
         repository.correctDetails({
           kind: 'bunch',
           id: bunch.bunchId,
@@ -370,6 +398,7 @@ function EditPanel({
   currentVariety,
   currentStemLength,
   subtitle,
+  originBucketId,
   onSubmit,
   repository,
   onDone,
@@ -380,21 +409,50 @@ function EditPanel({
   currentVariety: string;
   currentStemLength: string;
   subtitle: string;
-  onSubmit: (
-    variety?: string,
-    stemLength?: string,
-  ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+  /** Bucket edits: also greenhouse + cut stage of this bucket. */
+  originBucketId?: string;
+  onSubmit: (changes: Corrections) => Promise<DetailsCorrectionOutcome>;
   repository: ReplacementRepository;
   onDone: () => void;
   /** When true, skip the outer header card + standalone wrapping cards. */
   embedded?: boolean;
 }) {
   const { showSuccess, showError } = useToast();
-  const acting = useReplacementStore((st) => st.acting);
+  const storeActing = useReplacementStore((st) => st.acting);
+  const [saving, setSaving] = useState(false);
+  const acting = storeActing || saving;
   const [variety, setVariety] = useState(currentVariety || '');
   const [stemLength, setStemLength] = useState(currentStemLength || '');
   const [varieties, setVarieties] = useState<string[]>([]);
   const [stemLengths, setStemLengths] = useState<string[]>([]);
+  const withOrigin = !!originBucketId && !!repository.getBucketOrigin;
+  // Keyed by bucket so a stale answer for another bucket never shows.
+  const [originState, setOriginState] = useState<{
+    bucketId: string;
+    origin: BucketOrigin | null;
+  } | null>(null);
+  const originCurrent = originState && originState.bucketId === originBucketId ? originState : null;
+  const origin = originCurrent?.origin ?? null;
+  const originFailed = !!originCurrent && !originCurrent.origin;
+  const [greenhouse, setGreenhouse] = useState('');
+  const [cutStage, setCutStage] = useState('');
+
+  useEffect(() => {
+    if (!originBucketId || !repository.getBucketOrigin) return;
+    let cancelled = false;
+    repository
+      .getBucketOrigin(originBucketId)
+      .then((o) => {
+        if (cancelled) return;
+        setOriginState({ bucketId: originBucketId, origin: o });
+        setGreenhouse(o.greenhouse);
+        setCutStage(o.cutStage);
+      })
+      .catch(() => !cancelled && setOriginState({ bucketId: originBucketId, origin: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [repository, originBucketId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -419,7 +477,9 @@ function EditPanel({
 
   const varietyChanged = variety.trim() !== (currentVariety || '').trim();
   const lengthChanged = stemLength.trim() !== (currentStemLength || '').trim();
-  const dirty = varietyChanged || lengthChanged;
+  const greenhouseChanged = !!origin && greenhouse.trim() !== '' && greenhouse.trim() !== origin.greenhouse;
+  const cutStageChanged = !!origin && cutStage.trim() !== '' && cutStage.trim() !== origin.cutStage;
+  const dirty = varietyChanged || lengthChanged || greenhouseChanged || cutStageChanged;
 
   const onApply = async () => {
     if (!varietyValid) {
@@ -430,10 +490,21 @@ function EditPanel({
       showError('Pick a stem length from the list.');
       return;
     }
-    const outcome = await onSubmit(
-      varietyChanged ? variety.trim() : undefined,
-      lengthChanged ? stemLength.trim() : undefined,
-    );
+    if (acting) return;
+    setSaving(true);
+    let outcome: DetailsCorrectionOutcome;
+    try {
+      outcome = await onSubmit({
+        variety: varietyChanged ? variety.trim() : undefined,
+        stemLength: lengthChanged ? stemLength.trim() : undefined,
+        greenhouse: greenhouseChanged ? greenhouse.trim() : undefined,
+        cutStage: cutStageChanged ? cutStage.trim() : undefined,
+      });
+    } catch (err) {
+      outcome = { ok: false, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+      setSaving(false);
+    }
     if (outcome.ok) {
       showSuccess(outcome.message || 'Details updated.');
       onDone();
@@ -463,6 +534,28 @@ function EditPanel({
         placeholder={stemLengths.length ? 'Pick the stem length' : 'Loading…'}
         onChange={setStemLength}
       />
+      {withOrigin && !originFailed ? (
+        <>
+          <View style={{ height: 12 }} />
+          <Dropdown
+            label="Greenhouse"
+            iconName="greenhouse"
+            value={greenhouse}
+            options={(origin?.greenhouses ?? []).map((g) => ({ label: g, value: g }))}
+            placeholder={origin ? 'Pick the greenhouse' : 'Loading…'}
+            onChange={setGreenhouse}
+          />
+          <View style={{ height: 12 }} />
+          <Dropdown
+            label="Cut stage"
+            iconName="scissors-cutting"
+            value={cutStage}
+            options={(origin?.cutStages ?? []).map((c) => ({ label: c, value: c }))}
+            placeholder={origin ? 'Pick the cut stage' : 'Loading…'}
+            onChange={setCutStage}
+          />
+        </>
+      ) : null}
       <View style={{ height: 12 }} />
       <Button
         label={acting ? 'Saving…' : 'Apply correction'}
@@ -486,8 +579,6 @@ function EditPanel({
       </Card>
 
       <Card title="Correct values">
-        <Text style={s.helper}>Pick from the list.</Text>
-        <View style={{ height: 12 }} />
         {form}
       </Card>
     </>

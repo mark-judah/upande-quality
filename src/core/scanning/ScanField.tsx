@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, fontFamily, scaleFont } from '@/src/core/theme';
@@ -52,7 +52,7 @@ export const ScanField = forwardRef<ScanFieldHandle, Props>(function ScanField(
   },
   ref,
 ) {
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [internal, setInternal] = useState('');
   const lastScanAt = useRef(0);
   // True while we're applying a programmatic value change (clear after fire,

@@ -34,6 +34,11 @@ export const StorageKeys = {
   transferHub: 'transfer_hub',
   /** Issue Offline: the OPL last picked, with its delivery date ({ opl, date }). */
   issueOfflineOpl: 'issue_offline_opl',
+  // The instance key switched to, for the relaunch that follows a server
+  // change: signed in to that instance, the biometric lock is skipped once.
+  instanceSwitched: 'instance_switched',
+  // Which instance each on-device database file belongs to (see instance-db).
+  instanceDbOwners: 'instance_db_owners',
 } as const;
 
 export const storage = {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { AppState } from 'react-native';
 import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,9 +23,12 @@ import { useUserStation } from '@/src/core/tenant/user-station';
 import { useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
-import { startTelemetry } from '@/src/core/telemetry/service';
+import { startTelemetry, stopTelemetry } from '@/src/core/telemetry/service';
+import { reportInstall } from '@/src/core/version/install-register';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
+import { setUnsentCounter } from '@/src/core/offline/unsent';
+import { countUnsentWork } from '@/src/composition/unsent-work';
 import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
 import { COLORS } from '@/src/core/theme';
 
@@ -73,6 +77,10 @@ const NAV_THEME = {
 // that the app draws edge to edge) is the app's light grey, not black.
 SystemUI.setBackgroundColorAsync(COLORS.bgMuted).catch(() => {});
 
+// A server change (long press, or the login screen) asks first while scans for
+// this server are still queued.
+setUnsentCounter(countUnsentWork);
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Poppins_400Regular,
@@ -85,6 +93,7 @@ export default function RootLayout() {
   const hasSession = useAuthStore((s) => s.hasSession);
   const hydrated = useAuthStore((s) => s.hydrated);
   const biometricLocked = useAuthStore((s) => s.biometricLocked);
+  const email = useAuthStore((s) => s.email);
   const initNetwork = useNetworkStore((s) => s.init);
 
   const segments = useSegments();
@@ -104,8 +113,21 @@ export default function RootLayout() {
       // Device telemetry (hourly, offline-queued) reports app version + OTA per
       // device, superseding the legacy per-user reportAppVersion call.
       startTelemetry();
+    } else if (hydrated && !hasSession) {
+      // Signed out: nothing is sent until the next sign-in.
+      stopTelemetry();
     }
   }, [hydrated, hasSession, biometricLocked]);
+
+  // Device register: once per launch, then (throttled) each return to the foreground.
+  useEffect(() => {
+    if (!hydrated || !hasSession || biometricLocked) return;
+    reportInstall({ reason: 'launch', user: email });
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') reportInstall({ reason: 'foreground', user: email });
+    });
+    return () => sub.remove();
+  }, [hydrated, hasSession, biometricLocked, email]);
 
   // Biometric / auth gate. Routes to login → biometric-lock → tabs based on state.
   useEffect(() => {

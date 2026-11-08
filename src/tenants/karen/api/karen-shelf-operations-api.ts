@@ -36,6 +36,27 @@ export type RawStockTakeSyncResponse = {
 
 export type RawColdStore = { name: string };
 
+export type RawShelfClearItem = {
+  name?: string;
+  bucket_id?: string;
+  variety?: string;
+  stem_qty?: number;
+  stem_length?: string;
+  farm?: string;
+  greenhouse?: string;
+  warehouse?: string;
+  harvest_date?: string;
+  cut_stage?: string;
+};
+
+export type RawShelfClearResponse = {
+  status?: 'success' | 'not_found' | 'error' | string;
+  message?: string;
+  shelf?: string;
+  items?: RawShelfClearItem[];
+  cleared?: string;
+};
+
 export type TransferReason =
   | 'bucket_id_not_null'
   | 'to_shelf_id_not_null'
@@ -134,6 +155,14 @@ export type RawReplacementOptions = {
   history?: RawOfflineHistory[];
 };
 
+/** createOfflineIssuingEntry: a bucket issued out with no OPL. */
+export type RawIssueWithoutOplResponse = {
+  status?: 'success' | 'failed' | 'error' | string;
+  reason?: string;
+  message?: string;
+  payload?: { bucket_id?: string; stems?: number; stock_entry?: string; sales_orders?: string[] };
+};
+
 export type RawIssueOfflineResponse = {
   success?: boolean;
   message?: string;
@@ -222,6 +251,20 @@ export const karenShelfOperationsApi = {
     return res.message ?? {};
   },
 
+  /** Issue a bucket out with no OPL: posts Offline Issuing from its shelf stock
+   *  and clears the shelf. The server refuses a bucket allocated to an order. */
+  async issueWithoutOpl(args: { bucketId: string; reason: string }): Promise<RawIssueWithoutOplResponse> {
+    const res = await api<{ data?: RawIssueWithoutOplResponse } | RawIssueWithoutOplResponse>({
+      method: 'POST',
+      url: '/api/method/upande_quality.mobile.api.createOfflineIssuingEntry',
+      data: { bucket_id: args.bucketId, reason: args.reason },
+      validateStatus: () => true,
+      timeout: 120000,
+    });
+    const unwrapped = res as { data?: RawIssueWithoutOplResponse } & RawIssueWithoutOplResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
   /** Rose varieties, for correcting a wrong-variety bucket. Same lookup as the
    * Replacement screen's (karen-replacement-api.ts), inlined per this file's
    * convention. */
@@ -304,6 +347,32 @@ export const karenShelfOperationsApi = {
       validateStatus: () => true,
     });
     const unwrapped = res as { data?: RawStockTakeSyncResponse } & RawStockTakeSyncResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
+  /** Clear Shelf (Shelf Clearer role only) — scan a shelf, remove one bucket
+   *  row at a time. Both endpoints are "emergency" Server Scripts on the
+   *  Frappe side (no `upande_quality.mobile.api.` module path), role-gated
+   *  server-side too since the mobile gate alone is never enough. */
+  async getShelfItemsForClearing(shelf: string): Promise<RawShelfClearResponse> {
+    const res = await api<{ data?: RawShelfClearResponse } | RawShelfClearResponse>({
+      method: 'POST',
+      url: '/api/method/getShelfItemsForClearing',
+      data: { shelf },
+      validateStatus: () => true,
+    });
+    const unwrapped = res as { data?: RawShelfClearResponse } & RawShelfClearResponse;
+    return unwrapped.data ?? unwrapped;
+  },
+
+  async clearShelfItem(shelfItemName: string): Promise<RawShelfClearResponse> {
+    const res = await api<{ data?: RawShelfClearResponse } | RawShelfClearResponse>({
+      method: 'POST',
+      url: '/api/method/clearShelfItem',
+      data: { shelf_item: shelfItemName },
+      validateStatus: () => true,
+    });
+    const unwrapped = res as { data?: RawShelfClearResponse } & RawShelfClearResponse;
     return unwrapped.data ?? unwrapped;
   },
 };

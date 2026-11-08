@@ -85,6 +85,19 @@ export type DetailsCorrectionPayload = {
   bucketId?: string;
   variety?: string;
   stemLength?: string;
+  /** Bucket corrections only. */
+  greenhouse?: string;
+  /** Bucket corrections only. */
+  cutStage?: string;
+};
+
+/** A bucket's current greenhouse + cut stage and the picker options for them. */
+export type BucketOrigin = {
+  farm: string;
+  greenhouse: string;
+  cutStage: string;
+  greenhouses: string[];
+  cutStages: string[];
 };
 
 export type DetailsCorrectionOutcome =
@@ -168,4 +181,6 @@ export interface ReplacementRepository {
   /** Pickers for the correction form. */
   listVarieties?(): Promise<string[]>;
   listStemLengths?(): Promise<string[]>;
+  /** Greenhouse + cut stage of a bucket, with their options (Edit Details). */
+  getBucketOrigin?(bucketId: string): Promise<BucketOrigin>;
 }

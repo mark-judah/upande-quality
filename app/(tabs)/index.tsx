@@ -1,7 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text } from 'react-native';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { useAuthStore } from '@/src/core/auth/store';
@@ -20,6 +18,7 @@ const ROUTE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   receiving: 'download-outline',
   shelving: 'albums-outline',
   'bucket-requests': 'cart-outline',
+  'free-shelves': 'file-tray-outline',
   'solution-mixing': 'flask-outline',
   'temperature-log': 'thermometer-outline',
   'product-temperature': 'snow-outline',
@@ -43,6 +42,7 @@ const ROUTE_HINTS: Record<string, string> = {
   receiving: 'Daily receiving entry',
   shelving: 'Scan shelf then buckets',
   'bucket-requests': 'Build trolleys from the daily pick list',
+  'free-shelves': 'Shelves with room, and how many buckets each can take',
   'solution-mixing': 'Log post-harvest chemical mixes',
   'temperature-log': 'Cold store temperatures throughout the day',
   'product-temperature': 'Box temperatures with photos at each control point',
@@ -59,111 +59,25 @@ const ROUTE_HINTS: Record<string, string> = {
 };
 
 export default function HomeScreen() {
+  const { tenant } = useTenant();
   const fullName = useAuthStore((s) => s.fullName);
   const email = useAuthStore((s) => s.email);
-  const items = useDrawerItems();
+
+  // The KPI home reads upande_quality's getQualityDashboardData, which only
+  // the Karen sites serve.
+  if (tenant === 'Karen' || tenant === 'Demo') return <KarenHomeScreen />;
 
   return (
     <Screen title="Upande Quality">
-      <ScrollView
-        contentContainerStyle={s.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Card>
-          <Text style={s.greeting}>Welcome,</Text>
-          <Text style={s.name}>{fullName || email || 'Quality user'}</Text>
-        </Card>
-
-        <View style={s.grid}>
-          {items.map((it: DrawerItem) => (
-            <Pressable
-              key={it.route}
-              // Start building the page as the finger lands, so it is (mostly) ready
-              // when the tap completes.
-              onPressIn={() => {
-                if (it.comingSoon) return;
-                try {
-                  router.prefetch(`/${it.route}` as never);
-                } catch {
-                  // prefetch is only a head start
-                }
-              }}
-              onPress={() => {
-                if (it.comingSoon) return;
-                router.push(`/${it.route}` as never);
-              }}
-              style={({ pressed }) => [
-                s.tile,
-                it.comingSoon && s.tileMuted,
-                pressed && !it.comingSoon && { opacity: 0.7 },
-              ]}
-            >
-              <View style={s.tileIcon}>
-                <Ionicons
-                  name={ROUTE_ICONS[it.route] ?? 'apps-outline'}
-                  size={22}
-                  color={it.comingSoon ? COLORS.textMuted : COLORS.text}
-                />
-              </View>
-              <Text style={[s.tileLabel, it.comingSoon && s.tileLabelMuted]}>
-                {it.label}
-              </Text>
-              {it.comingSoon ? (
-                <Text style={s.tileComingSoon}>Coming soon</Text>
-              ) : (
-                <Text style={s.tileHint} numberOfLines={2}>
-                  {ROUTE_HINTS[it.route] ?? ''}
-                </Text>
-              )}
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+      <Card>
+        <Text style={s.greeting}>Welcome,</Text>
+        <Text style={s.name}>{fullName || email || 'Quality user'}</Text>
+      </Card>
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  scroll: { paddingBottom: spacing.xxl },
   greeting: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
   name: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: COLORS.text, marginTop: 2 },
-  // space-between, not a column gap: 2 × 48% + a fixed gap overflows narrow
-  // screens and dropped the grid to one tile per row.
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: spacing.md,
-    marginTop: spacing.xs,
-  },
-  tile: {
-    flexBasis: '48%',
-    flexGrow: 0,
-    backgroundColor: COLORS.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    gap: spacing.xs,
-  },
-  tileIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  tileLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  tileLabelMuted: { color: COLORS.textMuted },
-  tileMuted: { opacity: 0.65 },
-  tileHint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, lineHeight: scaleFont(16) },
-  tileComingSoon: {
-    fontFamily: fontFamily.medium,
-    fontSize: scaleFont(10),
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
 });
