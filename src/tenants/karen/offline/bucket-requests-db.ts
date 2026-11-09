@@ -121,20 +121,24 @@ let _deliveryDate = '';
 export function setActiveDeliveryDate(date: string): void {
   _deliveryDate = (date || '').trim();
 }
-/** SQL condition on opl alias `o` for the active delivery date, plus its two arguments.
+/** SQL condition on opl alias `o` for the active date -- the transfer day: the day before delivery,
+ *  when the buckets travel to the packhouse (the Packhouse Schedule's day) -- plus its two arguments.
  *  An order without a delivery date shows under every date, so it never goes missing. */
 function dateCond(): [string, string[]] {
-  return ["(? = '' OR COALESCE(o.delivery_date, '') IN (?, ''))", [_deliveryDate, _deliveryDate]];
+  return [
+    "(? = '' OR COALESCE(o.delivery_date, '') = '' OR DATE(o.delivery_date, '-1 day') = ?)",
+    [_deliveryDate, _deliveryDate],
+  ];
 }
-/** Delivery dates of this farm's orders on the device, soonest first. */
+/** The transfer days of this farm's orders on the device, latest first. */
 export async function listDeliveryDates(): Promise<string[]> {
   const d = await db();
   const [fc, fa] = farmCond();
   const rows = await d.getAllAsync<{ dd: string }>(
-    `SELECT DISTINCT o.delivery_date AS dd FROM opl o
+    `SELECT DISTINCT DATE(o.delivery_date, '-1 day') AS dd FROM opl o
      WHERE COALESCE(o.delivery_date, '') != ''
        AND EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc})
-     ORDER BY o.delivery_date`,
+     ORDER BY dd DESC`,
     fa,
   );
   return rows.map((r) => r.dd);
@@ -505,8 +509,8 @@ export async function downloadOpls(
       await d.runAsync(
         `UPDATE opl SET order_name = COALESCE(NULLIF(?, ''), order_name), customer = COALESCE(NULLIF(?, ''), customer),
            sales_order = COALESCE(NULLIF(?, ''), sales_order), delivery_date = COALESCE(NULLIF(?, ''), delivery_date),
-           downloaded_at = ? WHERE opl_name = ?`,
-        [head.orderName || '', head.customer || '', head.salesOrder || '', head.deliveryDate || '', now, oplName],
+           created_on = COALESCE(NULLIF(?, ''), created_on), downloaded_at = ? WHERE opl_name = ?`,
+        [head.orderName || '', head.customer || '', head.salesOrder || '', head.deliveryDate || '', head.allocatedDate || '', now, oplName],
       );
       // The order may also collect from another farm: add this farm's buckets of it,
       // and correct stems / contents saved from a single box row before.

@@ -42,6 +42,7 @@ import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '
 import {
   useKarenBucketRequestsStore,
   AWAITING_TRUCK,
+  AWAITING_TRUCK_LABEL,
   AWAITING_TRUCK_NOTE,
   onTrip as oplOnTrip,
   heldOnTrip,
@@ -161,6 +162,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     markIssued,
     closeStop,
     deliveryDate,
+    deliveryDates,
     setDeliveryDate,
     completedTrips,
     loadCompletedTrips,
@@ -215,6 +217,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       markIssued: st.markIssued,
       closeStop: st.closeStop,
       deliveryDate: st.deliveryDate,
+      deliveryDates: st.deliveryDates,
       setDeliveryDate: st.setDeliveryDate,
       completedTrips: st.completedTrips,
       loadCompletedTrips: st.loadCompletedTrips,
@@ -467,11 +470,12 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const hubFarm = shelvedHub || savedHub || '';
   const atHub = !!userFarm && !!hubFarm && userFarm === hubFarm;
 
-  // Every delivery date: an order shows once it is on a planned trip, and trips are
-  // topped up with later days' orders. A date left over from an older build snaps back.
+  // One request date at a time, today to start with.
   useEffect(() => {
-    if (deliveryDate) setDeliveryDate('', userFarm);
+    if (!deliveryDate) setDeliveryDate(todayIso(), userFarm);
   }, [deliveryDate, userFarm, setDeliveryDate]);
+
+
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
@@ -999,6 +1003,7 @@ const onMarkIssued = (line: string) => {
   ) : null;
 
   // A History trip: the buckets it carried, each with where it is now (read only).
+  // Request date (the day the buckets were asked of the farm): every day, or one day's orders and trips.
   if (history) {
     const { h, rows, title, shelvedN } = history;
     return (
@@ -1051,6 +1056,8 @@ const onMarkIssued = (line: string) => {
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
         <TripsPage
+          date={deliveryDate || todayIso()}
+          onDate={(d) => setDeliveryDate(d, userFarm)}
           farm={userFarm}
           hub={shelvedHub}
           trips={plannedTrips}
@@ -1071,7 +1078,7 @@ const onMarkIssued = (line: string) => {
           refreshControl={refreshControl}
         />
         <SendTripDialog
-          key={sendTrip?.tripId ?? 'none'}
+          key={`send-${sendTrip?.tripId ?? 'closed'}`}
           trip={sendTrip}
           hub={hubFarm}
           sending={!!sendingTrip}
@@ -1079,7 +1086,7 @@ const onMarkIssued = (line: string) => {
           onSend={onConfirmSend}
         />
         <MinimumLoadDialog
-          key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
+          key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
           prompt={minLoad}
           onClose={() => setMinLoad(null)}
         />
@@ -1266,7 +1273,7 @@ const onMarkIssued = (line: string) => {
         onMarkIssued={onMarkIssued}
       />
       <SendTripDialog
-        key={sendTrip?.tripId ?? 'none'}
+        key={`send-${sendTrip?.tripId ?? 'closed'}`}
         trip={sendTrip}
         hub={hubFarm}
         sending={!!sendingTrip}
@@ -1274,7 +1281,7 @@ const onMarkIssued = (line: string) => {
         onSend={onConfirmSend}
       />
       <MinimumLoadDialog
-        key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
+        key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
         prompt={minLoad}
         onClose={() => setMinLoad(null)}
       />
@@ -2027,6 +2034,7 @@ function sortWaiting(groups: OrderGroup[]): OrderGroup[] {
 
 /** "KCA 123X · Trip 2 of 3". */
 function tripName(t: PlannedTrip): string {
+  if (t.tripId === AWAITING_TRUCK) return AWAITING_TRUCK_LABEL;
   return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}`;
 }
 
@@ -2114,6 +2122,8 @@ function PageBar({
  *  load it. Open trips in collection order (by day, the run loading now first, then
  *  later runs); closed ones below, muted; Not Scheduled orders last, read-only. */
 const TripsPage = memo(function TripsPage({
+  date,
+  onDate,
   farm,
   hub,
   trips,
@@ -2133,6 +2143,9 @@ const TripsPage = memo(function TripsPage({
   sendingTrip,
   refreshControl,
 }: {
+  /** The request date shown (YYYY-MM-DD) and how to move it. */
+  date: string;
+  onDate: (date: string) => void;
   farm: string;
   hub: string;
   trips: PlannedTrip[];
@@ -2216,6 +2229,7 @@ const TripsPage = memo(function TripsPage({
         <Card>
           <View style={s.tripHead}>
             <Text style={s.routeLabel}>{farm}</Text>
+            <DateStepper date={date} onChange={onDate} />
             <Text style={s.summaryCount}>
               {open.length} open
               {closed.length ? ` · ${closed.length} closed` : ''}
@@ -2279,7 +2293,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
+  }, [date, onDate, farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2554,6 +2568,93 @@ function dateTimeLabel(ts: string): string {
   if (!y || !m || !day) return ts;
   const mon = new Date(y, m - 1, day).toLocaleDateString('en-GB', { month: 'short' });
   return `${day} ${mon}${t ? `, ${t.slice(0, 5)}` : ''}`;
+}
+
+const ymd = (dt: Date) =>
+  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+/** One date, shown as it is ("Tue 10 Nov 2026"); tapping it opens a calendar to pick another. */
+function DateStepper({ date, onChange }: { date: string; onChange: (date: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [y, m, d] = date.split('-').map(Number);
+  const picked = y ? new Date(y, (m || 1) - 1, d || 1) : new Date();
+  const [month, setMonth] = useState(new Date(picked.getFullYear(), picked.getMonth(), 1));
+  const label = picked.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  // The month's days, Monday first, blanks before the 1st.
+  const first = (month.getDay() + 6) % 7;
+  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  while (cells.length % 7) cells.push(null);
+  const today = ymd(new Date());
+  return (
+    <>
+      <Pressable
+        onPress={() => {
+          setMonth(new Date(picked.getFullYear(), picked.getMonth(), 1));
+          setOpen(true);
+        }}
+        style={s.dateStep}
+        accessibilityRole="button"
+        accessibilityLabel={`Date ${label}`}
+      >
+        <Ionicons name="calendar-outline" size={14} color={COLORS.text} />
+        <Text style={s.dateStepText} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+      <Dialog visible={open} onClose={() => setOpen(false)} title="Pick a date" closeButton>
+        <View style={s.calHead}>
+          <Pressable
+            hitSlop={10}
+            onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            accessibilityLabel="Month before"
+          >
+            <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+          </Pressable>
+          <Text style={s.calMonth}>{month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Text>
+          <Pressable
+            hitSlop={10}
+            onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            accessibilityLabel="Month after"
+          >
+            <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+          </Pressable>
+        </View>
+        <View style={s.calGrid}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w, i) => (
+            <Text key={`w${i}`} style={s.calWeek}>
+              {w}
+            </Text>
+          ))}
+          {cells.map((n, i) => {
+            if (!n) return <View key={`b${i}`} style={s.calCell} />;
+            const iso = ymd(new Date(month.getFullYear(), month.getMonth(), n));
+            const on = iso === date;
+            return (
+              <Pressable
+                key={iso}
+                style={s.calCell}
+                onPress={() => {
+                  setOpen(false);
+                  onChange(iso);
+                }}
+              >
+                <View style={[s.calDot, iso === today && s.calCellToday, on && s.calCellOn]}>
+                  <Text style={[s.calDay, iso === today && s.calDayToday, on && s.calDayOn]}>{n}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Dialog>
+    </>
+  );
+}
+
+/** Today as YYYY-MM-DD (local). */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function dateLabel(iso: string): string {
@@ -3628,7 +3729,7 @@ function TripCard({
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText}>
-            {trip.vehicle || 'No truck yet'}
+            {trip.tripId === AWAITING_TRUCK ? AWAITING_TRUCK_LABEL : trip.vehicle || 'No truck yet'}
             {trip.run ? `  ·  Trip ${trip.run}` : ''}
           </Text>
         </View>
@@ -4109,6 +4210,44 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
+  dateStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dateStepText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  // 7 columns of 40: the month centred in the dialog, whatever its width
+  calHead: {
+    width: 280,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  calMonth: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, textAlign: 'center' },
+  calGrid: { width: 280, alignSelf: 'center', flexDirection: 'row', flexWrap: 'wrap' },
+  calWeek: {
+    width: 40,
+    textAlign: 'center',
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    paddingVertical: 4,
+  },
+  calCell: { width: 40, height: 34, alignItems: 'center', justifyContent: 'center' },
+  // the highlight: a small circle round the number, not the whole cell
+  calDot: { width: 30, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  calCellToday: { backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#15803D' },
+  calCellOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
+  calDay: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text, textAlign: 'center' },
+  calDayToday: { fontFamily: fontFamily.bold, color: '#15803D' },
+  calDayOn: { color: COLORS.textOnPrimary },
   awaitTruck: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.sm,

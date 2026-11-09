@@ -185,6 +185,7 @@ const hasOrder = (t: PlannedTrip, orderName: string) => (t.orders ?? []).some((o
 /** Scheduled for packing, no truck assigned yet: the farm prepares these buckets on a trolley; a truck
  *  is assigned to pick them up later. Listed as a trip of its own so they scan like any trip's. */
 export const AWAITING_TRUCK = 'NO-TRUCK-YET';
+export const AWAITING_TRUCK_LABEL = 'Scheduling In Progress';
 export const AWAITING_TRUCK_NOTE =
   'Prepare these buckets and add them to a trolley. A truck will be assigned to pick them up.';
 
@@ -254,7 +255,7 @@ function awaitingTruckTrip(requests: OrderGroup[], trips: PlannedTrip[]): Planne
 }
 
 export function tripTitle(t: PlannedTrip): string {
-  if (t.tripId === AWAITING_TRUCK) return 'No truck yet';
+  if (t.tripId === AWAITING_TRUCK) return AWAITING_TRUCK_LABEL;
   const truck = t.vehicle || 'No truck yet';
   return t.run ? `${truck} Trip ${t.run}` : `${truck} · ${t.tripId}`;
 }
@@ -855,25 +856,13 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  setDeliveryDate: async (date, farm) => {
+  // The day the buckets were requested ('' = every day). Only the device's own lists are filtered, so
+  // nothing is fetched.
+  setDeliveryDate: async (date) => {
     db.setActiveDeliveryDate(date);
     // Shelved belongs to the old date: clear it until the new date's list loads.
     set({ deliveryDate: date, shelvedTrips: [] });
     await get().refresh();
-    // A date outside the usual download window (today .. tomorrow): fetch
-    // that date's orders now so choosing it shows them.
-    if (!date || !farm) return;
-    await get().refreshOnline();
-    if (!get().online) return;
-    try {
-      const alloc = await karenBucketRequestsRepository.fetchAllocations(farm, date, date);
-      if (alloc.kind === 'ok' && alloc.items.length) {
-        await db.downloadOpls(alloc.items, farm);
-        await get().refresh();
-      }
-    } catch {
-      /* keep what is on screen */
-    }
   },
 
   refresh: async () => {
@@ -908,8 +897,13 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     // Trips are shown whole, as the server counts them (the screen lists every delivery
     // date: a truck carries several days' orders).
     // Scheduled orders with no truck yet: one more "trip" the farm prepares on trolleys.
-    const waitingTruck = awaitingTruckTrip(requests, allTrips);
-    const plannedTrips = waitingTruck ? [...allTrips, waitingTruck] : allTrips;
+    // A request date picked: only the trips carrying an order requested that day (the lists are
+    // already that day's: the local database filters them).
+    const day = get().deliveryDate;
+    const dayOpls = new Set([...allRequests.flatMap((g) => g.opls), ...trolley, ...inTransit].map((o) => o.oplName));
+    const dayTrips = day ? allTrips.filter((t) => (t.orders ?? []).some((o) => dayOpls.has(o.opl))) : allTrips;
+    const waitingTruck = awaitingTruckTrip(requests, dayTrips);
+    const plannedTrips = waitingTruck ? [...dayTrips, waitingTruck] : dayTrips;
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
@@ -941,13 +935,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     );
     // A trip opened or closed while this refresh ran: its own refresh sets the trip view.
     const sameTrip = get().selectedTripId === sel;
-    // Dates to filter by: the orders on the device, plus the ones on planned trips.
-    const dates = [
-      ...new Set([
-        ...deliveryDates,
-        ...allTrips.flatMap((t) => (t.orders ?? []).map((o) => o.deliveryDate).filter(Boolean)),
-      ]),
-    ].sort();
+    // Dates to filter by: the days this farm's buckets were requested, latest first.
+    const dates = [...new Set(deliveryDates)].sort().reverse();
     patch({
       hydrated: true,
       ...(get().savedData === null ? { savedData: allTrips.length > 0 || listedAny(allRequests, trolley, inTransit) } : {}),
@@ -1023,10 +1012,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       // Only the delivery date on screen: choosing tomorrow downloads tomorrow's
       // picklists and nothing of today's (the server's default window would mix
       // today .. tomorrow). No date chosen = that default window.
-      const date = get().deliveryDate;
-      const outcome = date
-        ? await karenBucketRequestsRepository.fetchAllocations(farm, date, date)
-        : await karenBucketRequestsRepository.fetchAllocations(farm);
+      // The date chips filter by request day on the device: the download is always the full window.
+      const outcome = await karenBucketRequestsRepository.fetchAllocations(farm);
       if (outcome.kind === 'error') {
         set({ downloading: false, synced: true });
         return { ok: false, message: outcome.message };
@@ -1108,10 +1095,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       await get().refreshOnline();
       if (!get().online || get().downloading || get().syncingOpl) return;
       // Same date as the screen (see download); switching date fetches the new one.
-      const date = get().deliveryDate;
-      const alloc = date
-        ? await karenBucketRequestsRepository.fetchAllocations(farm, date, date)
-        : await karenBucketRequestsRepository.fetchAllocations(farm);
+      const alloc = await karenBucketRequestsRepository.fetchAllocations(farm);
       await matchServer();
       if (alloc.kind === 'ok') await db.downloadOpls(alloc.items, farm);
       // Trucks too, so "Load to truck" has a current list without a manual download.
@@ -1582,12 +1566,13 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   loadShelvedBuckets: async (farm) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to see shelved buckets.' };
-    // The delivery date on screen, like Requests: only that day's orders' buckets.
+    // The request date on screen is the device's own filter; the server's list is by delivery date,
+    // so Shelved asks for every date (and is redrawn when the chosen day changes).
     const date = get().deliveryDate;
     // The list on screen stays as it is while it re-pulls: loading only shows an empty one.
     if (!get().shelvedTrips.length) set({ loadingShelved: true });
     try {
-      const res = await karenBucketRequestsRepository.fetchShelvedBuckets(farm, date || undefined);
+      const res = await karenBucketRequestsRepository.fetchShelvedBuckets(farm, undefined);
       // A slow answer for a date the operator has since moved off is dropped.
       if (get().deliveryDate !== date) return { ok: true };
       if (res.kind !== 'ok') {
