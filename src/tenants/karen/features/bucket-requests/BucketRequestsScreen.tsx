@@ -41,6 +41,9 @@ import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenBucketRequestsStore,
+  AWAITING_TRUCK,
+  AWAITING_TRUCK_LABEL,
+  AWAITING_TRUCK_NOTE,
   onTrip as oplOnTrip,
   heldOnTrip,
   ridingOnlyOpls,
@@ -159,6 +162,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     markIssued,
     closeStop,
     deliveryDate,
+    deliveryDates,
     setDeliveryDate,
     completedTrips,
     loadCompletedTrips,
@@ -213,6 +217,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       markIssued: st.markIssued,
       closeStop: st.closeStop,
       deliveryDate: st.deliveryDate,
+      deliveryDates: st.deliveryDates,
       setDeliveryDate: st.setDeliveryDate,
       completedTrips: st.completedTrips,
       loadCompletedTrips: st.loadCompletedTrips,
@@ -415,7 +420,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     const add = (b: ReqBucket, order: string, customer: string) => {
       if (!b.scanned || b.notFound) return;
       out.push({
-        key: `${order}-${b.id}`,
+        key: `${order}-${b.id}-${out.length}`,
         label: `${b.bucketId.toUpperCase()} · ${bucketStems(b.qty, b.uom)} stems`,
         meta: [
           bucketMeta(b.variety, b.stemLength),
@@ -437,8 +442,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       tShelvedTrips.flatMap((t) =>
         t.buckets
           .filter((b) => b.shelved)
-          .map((b) => ({
-            key: `${t.tripId}-${b.opl}-${b.bucketId}`,
+          .map((b, i) => ({
+            key: `${t.tripId}-${b.opl}-${b.bucketId}-${i}`,
             label: b.bucketId.toUpperCase(),
             meta: [
               b.shelf ? `shelf ${b.shelf.toUpperCase()}` : '',
@@ -465,11 +470,12 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const hubFarm = shelvedHub || savedHub || '';
   const atHub = !!userFarm && !!hubFarm && userFarm === hubFarm;
 
-  // Every delivery date: an order shows once it is on a planned trip, and trips are
-  // topped up with later days' orders. A date left over from an older build snaps back.
+  // One request date at a time, today to start with.
   useEffect(() => {
-    if (deliveryDate) setDeliveryDate('', userFarm);
+    if (!deliveryDate) setDeliveryDate(todayIso(), userFarm);
   }, [deliveryDate, userFarm, setDeliveryDate]);
+
+
 
   // OPL name -> the planned trip it sits on (for greying the Requests tab).
   const oplTrip = useMemo(() => {
@@ -997,6 +1003,7 @@ const onMarkIssued = (line: string) => {
   ) : null;
 
   // A History trip: the buckets it carried, each with where it is now (read only).
+  // Request date (the day the buckets were asked of the farm): every day, or one day's orders and trips.
   if (history) {
     const { h, rows, title, shelvedN } = history;
     return (
@@ -1049,6 +1056,8 @@ const onMarkIssued = (line: string) => {
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
         <TripsPage
+          date={deliveryDate || todayIso()}
+          onDate={(d) => setDeliveryDate(d, userFarm)}
           farm={userFarm}
           hub={shelvedHub}
           trips={plannedTrips}
@@ -1069,7 +1078,7 @@ const onMarkIssued = (line: string) => {
           refreshControl={refreshControl}
         />
         <SendTripDialog
-          key={sendTrip?.tripId ?? 'none'}
+          key={`send-${sendTrip?.tripId ?? 'closed'}`}
           trip={sendTrip}
           hub={hubFarm}
           sending={!!sendingTrip}
@@ -1077,7 +1086,7 @@ const onMarkIssued = (line: string) => {
           onSend={onConfirmSend}
         />
         <MinimumLoadDialog
-          key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
+          key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
           prompt={minLoad}
           onClose={() => setMinLoad(null)}
         />
@@ -1264,7 +1273,7 @@ const onMarkIssued = (line: string) => {
         onMarkIssued={onMarkIssued}
       />
       <SendTripDialog
-        key={sendTrip?.tripId ?? 'none'}
+        key={`send-${sendTrip?.tripId ?? 'closed'}`}
         trip={sendTrip}
         hub={hubFarm}
         sending={!!sendingTrip}
@@ -1272,7 +1281,7 @@ const onMarkIssued = (line: string) => {
         onSend={onConfirmSend}
       />
       <MinimumLoadDialog
-        key={minLoad ? `${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'none'}
+        key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
         prompt={minLoad}
         onClose={() => setMinLoad(null)}
       />
@@ -1936,7 +1945,7 @@ const RequestsTab = memo(function RequestsTab({
       // Just the pick number and the order name: customer, day and team stay on the
       // picklist data (scans still flag the right picklist) but are not shown.
       return (
-        <View key={g.orderName} style={s.groupInTrip}>
+        <View key={`${g.orderName}-${g.opls[0]?.oplName ?? ''}`} style={s.groupInTrip}>
           <View>
             <View style={s.groupLine}>
               {pos ? (
@@ -2025,6 +2034,7 @@ function sortWaiting(groups: OrderGroup[]): OrderGroup[] {
 
 /** "KCA 123X · Trip 2 of 3". */
 function tripName(t: PlannedTrip): string {
+  if (t.tripId === AWAITING_TRUCK) return AWAITING_TRUCK_LABEL;
   return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}`;
 }
 
@@ -2112,6 +2122,8 @@ function PageBar({
  *  load it. Open trips in collection order (by day, the run loading now first, then
  *  later runs); closed ones below, muted; Not Scheduled orders last, read-only. */
 const TripsPage = memo(function TripsPage({
+  date,
+  onDate,
   farm,
   hub,
   trips,
@@ -2131,6 +2143,9 @@ const TripsPage = memo(function TripsPage({
   sendingTrip,
   refreshControl,
 }: {
+  /** The request date shown (YYYY-MM-DD) and how to move it. */
+  date: string;
+  onDate: (date: string) => void;
   farm: string;
   hub: string;
   trips: PlannedTrip[];
@@ -2214,6 +2229,7 @@ const TripsPage = memo(function TripsPage({
         <Card>
           <View style={s.tripHead}>
             <Text style={s.routeLabel}>{farm}</Text>
+            <DateStepper date={date} onChange={onDate} />
             <Text style={s.summaryCount}>
               {open.length} open
               {closed.length ? ` · ${closed.length} closed` : ''}
@@ -2277,7 +2293,7 @@ const TripsPage = memo(function TripsPage({
     );
     out.push(...closedOnly.map(row));
     return out;
-  }, [farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
+  }, [date, onDate, farm, hub, trips, requests, trolley, notScheduled, waitingN, history, historyBuckets, loading, settling, notice, onOpen, onOpenWaiting, onOpenHistory, onSendTrip, sendingTrip]);
 
   return <CardList items={items} refreshControl={refreshControl} />;
 });
@@ -2332,6 +2348,7 @@ const TripRow = memo(function TripRow({
           <Text style={s.tripRoute} numberOfLines={1}>
             {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
           </Text>
+          {t.tripId === AWAITING_TRUCK ? <Text style={s.awaitTruck}>{AWAITING_TRUCK_NOTE}</Text> : null}
           {t.createdAt ? (
             <Text style={s.oplMeta} numberOfLines={1}>
               Created {dateTimeLabel(t.createdAt)}
@@ -2354,7 +2371,7 @@ const TripRow = memo(function TripRow({
             {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
           </View>
         </Pressable>
-        {onSend && you ? (
+        {onSend && you && t.tripId !== AWAITING_TRUCK ? (
           <Button
             label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${hub || 'Kapkolia'}`}
             iconLeft="car-outline"
@@ -2486,7 +2503,7 @@ const NotScheduledCard = memo(function NotScheduledCard({ section: sec, byOrder 
           const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
           const color = r.b.varietyColor || sec.color;
           return (
-            <View key={r.b.id}>
+            <View key={`${r.b.id}-${i}`}>
               {newVariety ? <VarietySubHead row={r} dim /> : null}
               <View
                 style={[
@@ -2551,6 +2568,93 @@ function dateTimeLabel(ts: string): string {
   if (!y || !m || !day) return ts;
   const mon = new Date(y, m - 1, day).toLocaleDateString('en-GB', { month: 'short' });
   return `${day} ${mon}${t ? `, ${t.slice(0, 5)}` : ''}`;
+}
+
+const ymd = (dt: Date) =>
+  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+
+/** One date, shown as it is ("Tue 10 Nov 2026"); tapping it opens a calendar to pick another. */
+function DateStepper({ date, onChange }: { date: string; onChange: (date: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [y, m, d] = date.split('-').map(Number);
+  const picked = y ? new Date(y, (m || 1) - 1, d || 1) : new Date();
+  const [month, setMonth] = useState(new Date(picked.getFullYear(), picked.getMonth(), 1));
+  const label = picked.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  // The month's days, Monday first, blanks before the 1st.
+  const first = (month.getDay() + 6) % 7;
+  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  while (cells.length % 7) cells.push(null);
+  const today = ymd(new Date());
+  return (
+    <>
+      <Pressable
+        onPress={() => {
+          setMonth(new Date(picked.getFullYear(), picked.getMonth(), 1));
+          setOpen(true);
+        }}
+        style={s.dateStep}
+        accessibilityRole="button"
+        accessibilityLabel={`Date ${label}`}
+      >
+        <Ionicons name="calendar-outline" size={14} color={COLORS.text} />
+        <Text style={s.dateStepText} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+      <Dialog visible={open} onClose={() => setOpen(false)} title="Pick a date" closeButton>
+        <View style={s.calHead}>
+          <Pressable
+            hitSlop={10}
+            onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+            accessibilityLabel="Month before"
+          >
+            <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+          </Pressable>
+          <Text style={s.calMonth}>{month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Text>
+          <Pressable
+            hitSlop={10}
+            onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+            accessibilityLabel="Month after"
+          >
+            <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+          </Pressable>
+        </View>
+        <View style={s.calGrid}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((w, i) => (
+            <Text key={`w${i}`} style={s.calWeek}>
+              {w}
+            </Text>
+          ))}
+          {cells.map((n, i) => {
+            if (!n) return <View key={`b${i}`} style={s.calCell} />;
+            const iso = ymd(new Date(month.getFullYear(), month.getMonth(), n));
+            const on = iso === date;
+            return (
+              <Pressable
+                key={iso}
+                style={s.calCell}
+                onPress={() => {
+                  setOpen(false);
+                  onChange(iso);
+                }}
+              >
+                <View style={[s.calDot, iso === today && s.calCellToday, on && s.calCellOn]}>
+                  <Text style={[s.calDay, iso === today && s.calDayToday, on && s.calDayOn]}>{n}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Dialog>
+    </>
+  );
+}
+
+/** Today as YYYY-MM-DD (local). */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function dateLabel(iso: string): string {
@@ -2752,7 +2856,7 @@ const VarietyCard = memo(function VarietyCard({
   const toScan = rows.filter((r) => !r.b.scanned);
   const done = rows.filter((r) => r.b.scanned);
   const row = (r: ListRow, i: number, list: ListRow[]) => (
-    <View key={r.b.id}>
+    <View key={`${r.b.id}-${r.orderName ?? ''}-${i}`}>
       {byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety) ? <VarietySubHead row={r} /> : null}
       <BucketRow
         b={r.b}
@@ -2927,7 +3031,7 @@ const TrolleyCard = memo(
           const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
           const color = r.b.varietyColor || sec.color;
           return (
-            <View key={r.b.id}>
+            <View key={`${r.b.id}-${i}`}>
               {newVariety ? <VarietySubHead row={r} /> : null}
               <View
                 style={[s.bRow, i > 0 && !newVariety && s.bRowSep, color ? [s.varStripe, { borderLeftColor: color }] : null]}
@@ -3106,7 +3210,7 @@ const TransitOrder = memo(function TransitOrder({ opl: o }: { opl: TrolleyOpl })
       {o.buckets
         .filter((b) => !b.notFound)
         .map((b, i) => (
-          <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
+          <View key={`${b.id}-${i}`} style={[s.bRow, i > 0 && s.bRowSep]}>
             <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.bShelfLead} numberOfLines={1}>
@@ -3268,13 +3372,13 @@ const ShelvedTripCard = memo(function ShelvedTripCard({ trip: t, rows }: { trip:
           .join(' · ')}
       </Text>
       {/* Per order (customer under it), then that order's buckets. */}
-      {shelvedByOrder(rows).map((g) => (
-        <View key={`${t.tripId}-${g.orderName}`} style={s.groupInTrip}>
+      {shelvedByOrder(rows).map((g, gi) => (
+        <View key={`${t.tripId}-${g.orderName}-${gi}`} style={s.groupInTrip}>
           <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
             {g.orderName}
           </Text>
-          {g.buckets.map((b) => (
-            <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
+          {g.buckets.map((b, bi) => (
+            <View key={`${t.tripId}-${b.opl}-${b.bucketId}-${bi}`} style={s.shelvedRow}>
               <Ionicons
                 name={b.shelved ? 'checkmark-circle' : 'time-outline'}
                 size={18}
@@ -3410,9 +3514,9 @@ const ShelvedTab = memo(function ShelvedTab({
         ),
       });
     }
-    for (const { t, rows } of perTrip) {
-      out.push({ key: `${tab}-${t.tripId}`, render: () => <ShelvedTripCard trip={t} rows={rows} /> });
-    }
+    perTrip.forEach(({ t, rows }, i) => {
+      out.push({ key: `${tab}-${t.tripId}-${i}`, render: () => <ShelvedTripCard trip={t} rows={rows} /> });
+    });
     return out;
   }, [trips, loading, online, day, tab, where, shelved, total, waiting]);
   return <CardList items={items} header={header} refreshControl={refreshControl} />;
@@ -3521,8 +3625,8 @@ const TripArrivalCard = memo(function TripArrivalCard({
                 Still on the truck — shelve {waiting.length === 1 ? 'it' : 'them'} at {hub}:
               </Text>
               <View style={s.reasonRow}>
-                {waiting.slice(0, 24).map((b) => (
-                  <View key={b} style={s.reasonChip}>
+                {waiting.slice(0, 24).map((b, bi) => (
+                  <View key={`${b}-${bi}`} style={s.reasonChip}>
                     <Text style={s.reasonText}>{b}</Text>
                   </View>
                 ))}
@@ -3625,7 +3729,7 @@ function TripCard({
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText}>
-            {trip.vehicle || 'No truck yet'}
+            {trip.tripId === AWAITING_TRUCK ? AWAITING_TRUCK_LABEL : trip.vehicle || 'No truck yet'}
             {trip.run ? `  ·  Trip ${trip.run}` : ''}
           </Text>
         </View>
@@ -4106,6 +4210,51 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
+  dateStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dateStepText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  // 7 columns of 40: the month centred in the dialog, whatever its width
+  calHead: {
+    width: 280,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  calMonth: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, textAlign: 'center' },
+  calGrid: { width: 280, alignSelf: 'center', flexDirection: 'row', flexWrap: 'wrap' },
+  calWeek: {
+    width: 40,
+    textAlign: 'center',
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    paddingVertical: 4,
+  },
+  calCell: { width: 40, height: 34, alignItems: 'center', justifyContent: 'center' },
+  // the highlight: a small circle round the number, not the whole cell
+  calDot: { width: 30, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  calCellToday: { backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#15803D' },
+  calCellOn: { backgroundColor: COLORS.text, borderColor: COLORS.text },
+  calDay: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.text, textAlign: 'center' },
+  calDayToday: { fontFamily: fontFamily.bold, color: '#15803D' },
+  calDayOn: { color: COLORS.textOnPrimary },
+  awaitTruck: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.sm,
+    color: COLORS.warn,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   // Not Scheduled orders: faded, grey text, no accents.
   notSched: {},
   notSchedHdr: { marginTop: 0, marginLeft: 0 },

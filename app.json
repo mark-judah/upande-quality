@@ -106,7 +106,7 @@
     "runtimeVersion": "101.2",
     "updates": {
       "enabled": true,
-      "url": "https://u.expo.dev/df6f9c7d-18cd-4233-901e-a89544cabcbf",
+      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.2/manifest.json",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },

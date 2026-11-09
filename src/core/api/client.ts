@@ -36,8 +36,11 @@ export function reauthOnce(): Promise<boolean> {
 export function isSessionExpiredResponse(status: number, body: unknown): boolean {
   if (status === 401) return true;
   if (status === 403) {
-    const b = body as { session_expired?: unknown; exc_type?: string } | null;
-    return !!(b && (b.session_expired || b.exc_type === 'AuthenticationError'));
+    const b = body as { session_expired?: unknown; exc_type?: string; _server_messages?: unknown } | null;
+    if (!b) return false;
+    if (b.session_expired || b.exc_type === 'AuthenticationError') return true;
+    // Ran as Guest ("Login to access"): the stored session is not a signed-in one any more.
+    return typeof b._server_messages === 'string' && b._server_messages.includes('Login to access');
   }
   return false;
 }

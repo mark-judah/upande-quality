@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { Linking } from 'react-native';
 import { storage, StorageKeys } from '@/src/core/storage';
-import { checkLatestVersion, UPDATE_DOWNLOAD_URL } from '@/src/core/version';
+import { checkLatestVersion } from '@/src/core/version';
 import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 import { canInstallInApp } from '@/src/core/updates/install-apk';
 import { showDialog } from '@/src/core/ui/DialogHost';
@@ -62,7 +61,12 @@ export function useUpdatePrompt(active: boolean): void {
                 );
                 return;
               }
-              Linking.openURL(UPDATE_DOWNLOAD_URL).catch(() => {});
+              showDialog(
+                'Update',
+                "Couldn't download the update right now. Try again later.",
+                [{ text: 'OK', style: 'cancel' }],
+                { name: 'alert-circle-outline', tone: 'warn' },
+              );
             },
           },
         ],

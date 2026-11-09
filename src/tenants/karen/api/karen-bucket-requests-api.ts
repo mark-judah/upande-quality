@@ -17,6 +17,8 @@ export type RawAllocationItem = {
   qty?: number;
   uom?: string;
   stem_length?: string;
+  /** The stems the whole bucket holds on the farm's shelves: a remote bucket is requested whole. */
+  bucket_stems?: number | null;
   // Location
   shelf_location?: string;
   warehouse?: string;

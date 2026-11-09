@@ -50,7 +50,27 @@ const HOST_TO_TENANT: Record<string, Tenant> = Object.fromEntries(
   Object.entries(URL_TO_TENANT).map(([url, tenant]) => [hostOf(url), tenant]),
 );
 
+/** A development server on a local network (a laptop's bench: 192.168.x, 10.x, 172.16-31.x,
+ *  a Tailscale 100.64-127.x address, localhost) or a temporary tunnel. Its address changes with
+ *  every network, so it is never in the list above; these are Kaitet test benches. */
+function isDevHost(host: string): boolean {
+  const name = host.split(':')[0];
+  if (name === 'localhost' || name.endsWith('.trycloudflare.com')) return true;
+  const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(name);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return (
+    a === 10 ||
+    a === 127 ||
+    (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
 export function getTenantByUrl(url: string | null | undefined): Tenant | null {
   if (!url) return null;
-  return HOST_TO_TENANT[hostOf(url)] ?? null;
+  const host = hostOf(url);
+  // a bench not in the list would otherwise get no tenant, so no screens at all
+  return HOST_TO_TENANT[host] ?? (isDevHost(host) ? 'Karen' : null);
 }

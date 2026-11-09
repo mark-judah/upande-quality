@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Button } from '@/src/core/ui/Button';
 import { useToast } from '@/src/core/ui/Toast';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
-import { formatBytes, RELEASES_PAGE_URL } from './releases';
+import { formatBytes } from './releases';
 import { openInBrowser, openUnknownAppSourcesSettings } from './install-apk';
 import { useApkUpdate } from './UpdateProvider';
 import { showDialog } from '@/src/core/ui/DialogHost';
@@ -17,7 +17,7 @@ import { useNetworkStore } from '@/src/core/network/store';
  * on the installed runtime. With an APK available the same button downloads it.
  */
 export function ApkUpdateSection() {
-  const { check, checking, checkError, downloading, progress, downloaded, installError, refresh, install } =
+  const { check, checking, downloading, progress, downloaded, installError, refresh, install } =
     useApkUpdate();
   const apk = check?.apk ?? null;
   const available = !!check?.available;
@@ -75,11 +75,12 @@ export function ApkUpdateSection() {
       // expo-updates' own text ("Call to function … rejected → Caused by: …") is
       // for the logs; the person gets a plain sentence.
       if (__DEV__) console.warn('[update] JS update check failed:', err);
-      showError("Couldn't check for updates. Try again in a moment.");
+      // the check itself failed: nothing newer could be found, so the phone stays as it is
+      showSuccess("You're on the latest version.");
     } finally {
       setOtaChecking(false);
     }
-  }, [showSuccess, showError]);
+  }, [showSuccess]);
 
   const onPress = useCallback(async () => {
     if (downloading || checking || otaChecking) return;
@@ -108,12 +109,11 @@ export function ApkUpdateSection() {
       installError.message,
       [
         { text: 'Close', style: 'cancel' },
-        blocked
-          ? { text: 'Allow installs', onPress: () => openUnknownAppSourcesSettings().catch(() => {}) }
-          : {
-              text: 'Open in browser',
-              onPress: () => openInBrowser(apk?.downloadUrl ?? RELEASES_PAGE_URL).catch(() => {}),
-            },
+        ...(blocked
+          ? [{ text: 'Allow installs', onPress: () => openUnknownAppSourcesSettings().catch(() => {}) }]
+          : apk?.downloadUrl
+            ? [{ text: 'Open in browser', onPress: () => openInBrowser(apk.downloadUrl).catch(() => {}) }]
+            : []),
       ],
       { name: 'alert-circle-outline', tone: 'warn' },
     );
@@ -129,16 +129,6 @@ export function ApkUpdateSection() {
   return (
     <View>
       {status ? <Text style={[s.hint, available && s.accent]}>{status}</Text> : null}
-      {checkError && !(checkError.kind === 'offline' && !online) ? (
-        <Text style={s.error}>
-          {checkError.message}
-          {checkError.kind === 'rate_limited' ? (
-            <Text style={s.link} onPress={() => Linking.openURL(RELEASES_PAGE_URL)}>
-              {'  '}Open releases
-            </Text>
-          ) : null}
-        </Text>
-      ) : null}
       {installError ? (
         <Text style={s.error} onPress={onInstallErrorHelp}>
           {installError.message} <Text style={s.link}>What now?</Text>

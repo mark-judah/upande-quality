@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { APP_VERSION, GITHUB_OWNER, GITHUB_REPO as REPO_NAME } from '@/src/core/version';
 
@@ -123,10 +124,7 @@ async function fetchReleases(): Promise<GithubRelease[]> {
 
   // GitHub answers an exhausted quota with 403/429 and a zeroed remaining header.
   if (res.status === 429 || (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')) {
-    throw new UpdateCheckError(
-      'rate_limited',
-      'GitHub is rate limiting this network. Try again later, or open the releases page.',
-    );
+    throw new UpdateCheckError('rate_limited', "Couldn't check for updates right now. Try again later.");
   }
   if (res.status === 404) throw new UpdateCheckError('no_releases', 'No release has been published yet.');
   if (!res.ok) {
@@ -158,8 +156,62 @@ function toApkRelease(r: GithubRelease): ApkRelease | null {
   };
 }
 
-/** Ask GitHub now. Throws UpdateCheckError; caches a successful result. */
+type PagesApk = {
+  version?: string;
+  downloadUrl?: string;
+  assetName?: string;
+  sizeBytes?: number | null;
+  notes?: string;
+  pageUrl?: string;
+};
+
+/** The newest APK as the release workflow writes it to GitHub Pages (ota/apk.json): a static file,
+ *  so no API quota. Null when it is not there (yet) or cannot be read; the API is asked then. */
+async function fetchPagesApk(): Promise<ApkRelease | null> {
+  const base = String((Constants.expoConfig?.extra as { otaBaseUrl?: string } | undefined)?.otaBaseUrl || '')
+    .replace(/\/+$/, '');
+  if (!base) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}/apk.json?t=${Date.now()}`, { signal: controller.signal });
+    if (!res.ok) return null;
+    const j = (await res.json()) as PagesApk;
+    const version = String(j.version ?? '').replace(/^v/i, '');
+    if (!version || !j.downloadUrl) return null;
+    return {
+      version,
+      notes: typeof j.notes === 'string' ? j.notes.trim() : '',
+      pageUrl: j.pageUrl || j.downloadUrl,
+      downloadUrl: j.downloadUrl,
+      assetName: j.assetName || `upande_quality_v${version}.apk`,
+      sizeBytes: typeof j.sizeBytes === 'number' ? j.sizeBytes : null,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function remember(result: ApkCheck): Promise<ApkCheck> {
+  await storage
+    .set(StorageKeys.apkUpdateCheck, JSON.stringify({ at: Date.now(), result }))
+    .catch(() => {});
+  return result;
+}
+
+/** Ask now: the APK file on Pages, else GitHub. Throws UpdateCheckError; caches a successful result. */
 export async function checkForApk(current: string = APP_VERSION): Promise<ApkCheck> {
+  const pages = await fetchPagesApk();
+  if (pages) {
+    return remember({
+      current,
+      latestVersion: pages.version,
+      apk: pages,
+      available: compareVersions(pages.version, current) > 0,
+    });
+  }
   const releases = (await fetchReleases()).filter((r) => !r.draft && !r.prerelease && r.tag_name);
   if (releases.length === 0) {
     throw new UpdateCheckError('no_releases', 'No release has been published yet.');
@@ -170,16 +222,12 @@ export async function checkForApk(current: string = APP_VERSION): Promise<ApkChe
   const latestVersion = String(releases[0].tag_name).replace(/^v/i, '');
   const apk = releases.map(toApkRelease).find((r): r is ApkRelease => r !== null) ?? null;
 
-  const result: ApkCheck = {
+  return remember({
     current,
     latestVersion,
     apk,
     available: !!apk && compareVersions(apk.version, current) > 0,
-  };
-  await storage
-    .set(StorageKeys.apkUpdateCheck, JSON.stringify({ at: Date.now(), result }))
-    .catch(() => {});
-  return result;
+  });
 }
 
 /**

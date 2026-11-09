@@ -56,7 +56,6 @@ export const RELEASES_PAGE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_RE
 // instead — it's what the "Update" button opens.
 export const UPDATE_DOWNLOAD_URL = RELEASES_PAGE_URL;
 
-const LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 
 const ENDPOINT = '/api/method/upande_packhouse.mobile.api.reportAppVersion';
 
@@ -82,18 +81,20 @@ export function isNewerVersion(latest: string, current: string): boolean {
   return false;
 }
 
-/** Fetch the newest published GitHub Release and compare to the installed
- *  version. Uses plain fetch (NOT the Frappe api client) so no auth headers
- *  leak to GitHub. Never throws — returns updateAvailable=false on any failure
- *  (offline, rate-limited, or no releases published yet -> 404). */
+/** The newest APK, from the file the release workflow writes to GitHub Pages
+ *  (ota/apk.json, a static file with no API quota -- the GitHub API allows 60
+ *  calls an hour per network, which a packhouse of phones uses up), compared to
+ *  the installed version. Only an APK counts: an OTA reaches the phone by itself.
+ *  Plain fetch, no auth headers. Never throws — updateAvailable=false on any failure. */
 export async function checkLatestVersion(): Promise<VersionCheck> {
   try {
-    const res = await fetch(LATEST_RELEASE_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    });
+    const base = String((Constants.expoConfig?.extra as { otaBaseUrl?: string } | undefined)?.otaBaseUrl || '')
+      .replace(/\/+$/, '');
+    if (!base) return { current: APP_VERSION, latest: null, updateAvailable: false };
+    const res = await fetch(`${base}/apk.json?t=${Date.now()}`);
     if (!res.ok) return { current: APP_VERSION, latest: null, updateAvailable: false };
-    const json = (await res.json()) as { tag_name?: string };
-    const tag = json?.tag_name ? String(json.tag_name).replace(/^v/i, '') : '';
+    const json = (await res.json()) as { version?: string };
+    const tag = json?.version ? String(json.version).replace(/^v/i, '') : '';
     const latest = tag || null;
     return {
       current: APP_VERSION,
