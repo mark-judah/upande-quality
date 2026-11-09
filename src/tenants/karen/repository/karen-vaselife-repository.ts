@@ -8,7 +8,7 @@ export type VaselifeCommercialStatus = { name: string };
 export type VaselifeCutStage = { name: string };
 export type VaselifeFailureReason = { name: string; category: string };
 export type VaselifeSampleRef = { code: string; variety: string; samplingDate: string; duDate: string };
-export type VaselifeOrderPickList = { name: string; customer: string; orderName: string; team: string };
+export type VaselifeSpecification = { name: string; customer: string };
 
 export type VaselifeFormData = {
   breeders: VaselifeBreeder[];
@@ -19,7 +19,7 @@ export type VaselifeFormData = {
   failureReasons: VaselifeFailureReason[];
   failureCategories: string[];
   samples: VaselifeSampleRef[];
-  orderPickLists: VaselifeOrderPickList[];
+  specifications: VaselifeSpecification[];
 };
 
 export type VaselifeBucket = {
@@ -29,7 +29,6 @@ export type VaselifeBucket = {
   farm: string;
   gh: string;
   length: string;
-  orderPickList: string;
 };
 
 export type FormDataOutcome = ({ kind: 'ok' } & VaselifeFormData) | { kind: 'error'; message: string };
@@ -49,7 +48,6 @@ function toBucket(raw: RawVaselifeBucket): VaselifeBucket {
     farm: String(raw.farm ?? ''),
     gh: String(raw.greenhouse ?? ''),
     length: String(raw.length ?? ''),
-    orderPickList: String(raw.order_pick_list ?? ''),
   };
 }
 
@@ -96,13 +94,8 @@ export const karenVaselifeRepository = {
             duDate: String(sm.du_date ?? ''),
           }))
           .filter((sm) => sm.code),
-        orderPickLists: (m.order_pick_lists ?? [])
-          .map((o) => ({
-            name: String(o.name ?? ''),
-            customer: String(o.customer ?? ''),
-            orderName: String(o.order_name ?? ''),
-            team: String(o.team ?? ''),
-          }))
+        specifications: (m.specifications ?? [])
+          .map((o) => ({ name: String(o.name ?? ''), customer: String(o.customer ?? '') }))
           .filter((o) => o.name),
       };
     } catch (err) {
