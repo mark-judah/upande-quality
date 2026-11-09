@@ -322,14 +322,16 @@ export type DeleteTrolleysOutcome =
   | { kind: 'error'; message: string };
 
 function mapItem(r: RawAllocationItem): AllocationItem {
+  // A remote bucket is requested whole: the whole bucket's stems, not the order's share of it.
+  const whole = typeof r.bucket_stems === 'number' && r.bucket_stems > 0 ? r.bucket_stems : null;
   return {
     bucketId: r.bucket_id ?? '',
     variety: r.item_code ?? '',
     varietyLabel: r.item_name || r.item_code || '',
     shelfLocation: r.shelf_location ?? '',
     stemLength: r.stem_length ?? '',
-    qty: typeof r.qty === 'number' ? r.qty : Number(r.qty ?? 0) || 0,
-    uom: r.uom ?? '',
+    qty: whole ?? (typeof r.qty === 'number' ? r.qty : Number(r.qty ?? 0) || 0),
+    uom: whole != null ? 'Stems' : r.uom ?? '',
     oplName: r.opl_name ?? '',
     customer: r.customer ?? '',
     consignee: r.consignee ?? '',

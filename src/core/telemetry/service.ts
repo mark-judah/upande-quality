@@ -1,5 +1,5 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { api } from '@/src/core/api/client';
+import { apiClient, isSessionExpiredResponse, reauthOnce } from '@/src/core/api/client';
 import { collectTelemetry } from './collect';
 import {
   initTelemetryDb,
@@ -22,15 +22,26 @@ let retry10: ReturnType<typeof setTimeout> | null = null;
 let appStateSub: { remove: () => void } | null = null;
 let started = false;
 
-async function sendRow(r: OutboxRow): Promise<boolean> {
+/** Sent as Guest: the stored session is gone (Frappe answers 403 "Login to access" with no
+ *  session_expired flag when the cookie is no longer valid). */
+function sentAsGuest(status: number, body: unknown): boolean {
+  if (isSessionExpiredResponse(status, body)) return true;
+  if (status !== 403) return false;
+  const msgs = (body as { _server_messages?: unknown } | null)?._server_messages;
+  return typeof msgs === 'string' && msgs.includes('Login to access');
+}
+
+async function sendRow(r: OutboxRow, again = true): Promise<boolean> {
   try {
-    const res = await api<{ message?: { status?: string }; exc?: string }>({
+    const res = await apiClient().request<{ message?: { status?: string }; exc?: string }>({
       method: 'POST',
       url: '/api/method/upande_agriculture.mobile.api.reportDeviceTelemetry',
       data: { data: r.payload },
       validateStatus: () => true,
     });
-    return res?.message?.status === 'success';
+    // a lapsed session: sign in again with the stored credentials and send it once more
+    if (again && sentAsGuest(res.status, res.data) && (await reauthOnce())) return sendRow(r, false);
+    return res.data?.message?.status === 'success';
   } catch {
     return false;
   }

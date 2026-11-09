@@ -41,6 +41,8 @@ import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenBucketRequestsStore,
+  AWAITING_TRUCK,
+  AWAITING_TRUCK_NOTE,
   onTrip as oplOnTrip,
   heldOnTrip,
   ridingOnlyOpls,
@@ -415,7 +417,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     const add = (b: ReqBucket, order: string, customer: string) => {
       if (!b.scanned || b.notFound) return;
       out.push({
-        key: `${order}-${b.id}`,
+        key: `${order}-${b.id}-${out.length}`,
         label: `${b.bucketId.toUpperCase()} · ${bucketStems(b.qty, b.uom)} stems`,
         meta: [
           bucketMeta(b.variety, b.stemLength),
@@ -437,8 +439,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       tShelvedTrips.flatMap((t) =>
         t.buckets
           .filter((b) => b.shelved)
-          .map((b) => ({
-            key: `${t.tripId}-${b.opl}-${b.bucketId}`,
+          .map((b, i) => ({
+            key: `${t.tripId}-${b.opl}-${b.bucketId}-${i}`,
             label: b.bucketId.toUpperCase(),
             meta: [
               b.shelf ? `shelf ${b.shelf.toUpperCase()}` : '',
@@ -1936,7 +1938,7 @@ const RequestsTab = memo(function RequestsTab({
       // Just the pick number and the order name: customer, day and team stay on the
       // picklist data (scans still flag the right picklist) but are not shown.
       return (
-        <View key={g.orderName} style={s.groupInTrip}>
+        <View key={`${g.orderName}-${g.opls[0]?.oplName ?? ''}`} style={s.groupInTrip}>
           <View>
             <View style={s.groupLine}>
               {pos ? (
@@ -2332,6 +2334,7 @@ const TripRow = memo(function TripRow({
           <Text style={s.tripRoute} numberOfLines={1}>
             {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
           </Text>
+          {t.tripId === AWAITING_TRUCK ? <Text style={s.awaitTruck}>{AWAITING_TRUCK_NOTE}</Text> : null}
           {t.createdAt ? (
             <Text style={s.oplMeta} numberOfLines={1}>
               Created {dateTimeLabel(t.createdAt)}
@@ -2354,7 +2357,7 @@ const TripRow = memo(function TripRow({
             {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
           </View>
         </Pressable>
-        {onSend && you ? (
+        {onSend && you && t.tripId !== AWAITING_TRUCK ? (
           <Button
             label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${hub || 'Kapkolia'}`}
             iconLeft="car-outline"
@@ -2486,7 +2489,7 @@ const NotScheduledCard = memo(function NotScheduledCard({ section: sec, byOrder 
           const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
           const color = r.b.varietyColor || sec.color;
           return (
-            <View key={r.b.id}>
+            <View key={`${r.b.id}-${i}`}>
               {newVariety ? <VarietySubHead row={r} dim /> : null}
               <View
                 style={[
@@ -2752,7 +2755,7 @@ const VarietyCard = memo(function VarietyCard({
   const toScan = rows.filter((r) => !r.b.scanned);
   const done = rows.filter((r) => r.b.scanned);
   const row = (r: ListRow, i: number, list: ListRow[]) => (
-    <View key={r.b.id}>
+    <View key={`${r.b.id}-${r.orderName ?? ''}-${i}`}>
       {byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety) ? <VarietySubHead row={r} /> : null}
       <BucketRow
         b={r.b}
@@ -2927,7 +2930,7 @@ const TrolleyCard = memo(
           const newVariety = byOrder && (i === 0 || list[i - 1].b.variety !== r.b.variety);
           const color = r.b.varietyColor || sec.color;
           return (
-            <View key={r.b.id}>
+            <View key={`${r.b.id}-${i}`}>
               {newVariety ? <VarietySubHead row={r} /> : null}
               <View
                 style={[s.bRow, i > 0 && !newVariety && s.bRowSep, color ? [s.varStripe, { borderLeftColor: color }] : null]}
@@ -3106,7 +3109,7 @@ const TransitOrder = memo(function TransitOrder({ opl: o }: { opl: TrolleyOpl })
       {o.buckets
         .filter((b) => !b.notFound)
         .map((b, i) => (
-          <View key={b.id} style={[s.bRow, i > 0 && s.bRowSep]}>
+          <View key={`${b.id}-${i}`} style={[s.bRow, i > 0 && s.bRowSep]}>
             <Ionicons name="car-outline" size={16} color={COLORS.textMuted} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.bShelfLead} numberOfLines={1}>
@@ -3268,13 +3271,13 @@ const ShelvedTripCard = memo(function ShelvedTripCard({ trip: t, rows }: { trip:
           .join(' · ')}
       </Text>
       {/* Per order (customer under it), then that order's buckets. */}
-      {shelvedByOrder(rows).map((g) => (
-        <View key={`${t.tripId}-${g.orderName}`} style={s.groupInTrip}>
+      {shelvedByOrder(rows).map((g, gi) => (
+        <View key={`${t.tripId}-${g.orderName}-${gi}`} style={s.groupInTrip}>
           <Text style={[s.groupHdr, s.groupNames]} numberOfLines={1}>
             {g.orderName}
           </Text>
-          {g.buckets.map((b) => (
-            <View key={`${t.tripId}-${b.opl}-${b.bucketId}`} style={s.shelvedRow}>
+          {g.buckets.map((b, bi) => (
+            <View key={`${t.tripId}-${b.opl}-${b.bucketId}-${bi}`} style={s.shelvedRow}>
               <Ionicons
                 name={b.shelved ? 'checkmark-circle' : 'time-outline'}
                 size={18}
@@ -3410,9 +3413,9 @@ const ShelvedTab = memo(function ShelvedTab({
         ),
       });
     }
-    for (const { t, rows } of perTrip) {
-      out.push({ key: `${tab}-${t.tripId}`, render: () => <ShelvedTripCard trip={t} rows={rows} /> });
-    }
+    perTrip.forEach(({ t, rows }, i) => {
+      out.push({ key: `${tab}-${t.tripId}-${i}`, render: () => <ShelvedTripCard trip={t} rows={rows} /> });
+    });
     return out;
   }, [trips, loading, online, day, tab, where, shelved, total, waiting]);
   return <CardList items={items} header={header} refreshControl={refreshControl} />;
@@ -3521,8 +3524,8 @@ const TripArrivalCard = memo(function TripArrivalCard({
                 Still on the truck — shelve {waiting.length === 1 ? 'it' : 'them'} at {hub}:
               </Text>
               <View style={s.reasonRow}>
-                {waiting.slice(0, 24).map((b) => (
-                  <View key={b} style={s.reasonChip}>
+                {waiting.slice(0, 24).map((b, bi) => (
+                  <View key={`${b}-${bi}`} style={s.reasonChip}>
                     <Text style={s.reasonText}>{b}</Text>
                   </View>
                 ))}
@@ -4106,6 +4109,13 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   dimmed: { opacity: 0.5 },
+  awaitTruck: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.sm,
+    color: COLORS.warn,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   // Not Scheduled orders: faded, grey text, no accents.
   notSched: {},
   notSchedHdr: { marginTop: 0, marginLeft: 0 },

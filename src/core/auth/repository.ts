@@ -30,10 +30,11 @@ export type LoginOutcome =
 
 function extractSidCookie(setCookie: string | null): string | null {
   if (!setCookie) return null;
-  // Frappe sends multiple cookies in one Set-Cookie line concatenated.
-  // We forward the entire header string back to the server on subsequent calls.
-  if (setCookie.includes('sid=')) return setCookie;
-  return null;
+  // Frappe sends several cookies in one Set-Cookie line, a guest sid among them at times. Only the
+  // signed-in session is sent back: a header that starts with sid=Guest makes every call a Guest's.
+  const sids = [...setCookie.matchAll(/(?:^|[;,]\s*)sid=([^;,\s]+)/g)].map((m) => m[1]);
+  const sid = sids.filter((v) => v && v !== 'Guest').pop();
+  return sid ? `sid=${sid}` : null;
 }
 
 export const authRepository = {

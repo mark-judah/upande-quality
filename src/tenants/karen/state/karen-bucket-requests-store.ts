@@ -182,7 +182,79 @@ const hasOpl = (t: PlannedTrip, opl: string) => (t.orders ?? []).some((o) => o.o
 const hasOrder = (t: PlannedTrip, orderName: string) => (t.orders ?? []).some((o) => o.orderName === orderName);
 
 /** "KCA 123X Trip 2" — how a trip is named to the attendant. */
+/** Scheduled for packing, no truck assigned yet: the farm prepares these buckets on a trolley; a truck
+ *  is assigned to pick them up later. Listed as a trip of its own so they scan like any trip's. */
+export const AWAITING_TRUCK = 'NO-TRUCK-YET';
+export const AWAITING_TRUCK_NOTE =
+  'Prepare these buckets and add them to a trolley. A truck will be assigned to pick them up.';
+
+function awaitingTruckTrip(requests: OrderGroup[], trips: PlannedTrip[]): PlannedTrip | null {
+  const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
+  const opls = requests.flatMap((g) => g.opls).filter((o) => !onTrip.has(o.oplName) && o.asap === 0);
+  if (!opls.length) return null;
+  const farm = opls.flatMap((o) => o.buckets).find((b) => b.farm)?.farm ?? '';
+  const total = opls.reduce((n, o) => n + o.total, 0);
+  const scanned = opls.reduce((n, o) => n + o.scanned, 0);
+  return {
+    tripId: AWAITING_TRUCK,
+    vehicle: '',
+    tripDate: '',
+    status: 'Draft',
+    confirmed: false,
+    inTransit: false,
+    yourStop: 1,
+    totalStops: 1,
+    farmBuckets: total,
+    tripBuckets: total,
+    capacity: 0,
+    stops: [
+      {
+        farm,
+        stop: 1,
+        isYou: true,
+        planned: total,
+        buckets: total,
+        total,
+        awaiting: total - scanned,
+        trolley: scanned,
+        loaded: 0,
+        transit: 0,
+        shelved: 0,
+        doneCount: 0,
+        status: 'waiting',
+        delaying: false,
+      },
+    ],
+    orders: opls.map((o) => ({
+      deliveryDate: o.deliveryDate,
+      opl: o.oplName,
+      orderName: o.orderName,
+      customer: o.customer,
+      farm,
+      varieties: '',
+      buckets: o.total,
+      stems: 0,
+      total: o.total,
+      trolley: o.scanned,
+      loaded: 0,
+      transit: 0,
+      shelved: 0,
+    })),
+    run: 0,
+    runs: 0,
+    runChain: '',
+    window: '',
+    createdAt: '',
+    scheduledAt: '',
+    current: true,
+    afterRun: 0,
+    yourStopClosed: false,
+    loadedBuckets: 0,
+  };
+}
+
 export function tripTitle(t: PlannedTrip): string {
+  if (t.tripId === AWAITING_TRUCK) return 'No truck yet';
   const truck = t.vehicle || 'No truck yet';
   return t.run ? `${truck} Trip ${t.run}` : `${truck} · ${t.tripId}`;
 }
@@ -835,7 +907,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     const notScheduled = get().showUnscheduled ? waitingGroups(allRequests, trolley) : [];
     // Trips are shown whole, as the server counts them (the screen lists every delivery
     // date: a truck carries several days' orders).
-    const plannedTrips = allTrips;
+    // Scheduled orders with no truck yet: one more "trip" the farm prepares on trolleys.
+    const waitingTruck = awaitingTruckTrip(requests, allTrips);
+    const plannedTrips = waitingTruck ? [...allTrips, waitingTruck] : allTrips;
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
@@ -1285,6 +1359,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   loadToTruck: async (oplName, pliIds, truck) => {
+    if (get().selectedTripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
     set({ syncingOpl: oplName });
@@ -1335,6 +1410,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   loadAllToTruck: async (opls, truck) => {
+    if (get().selectedTripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
     // Only this phone's trolleys: another phone's trolley may not be at this truck.
@@ -1481,6 +1557,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   closeStop: async (tripId, farm, reason, complete) => {
+    if (tripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {

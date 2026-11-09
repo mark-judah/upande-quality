@@ -382,17 +382,35 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
  *  Moonwalk 62cm") and the length column is left empty. Shelf, farm, uom and the pick row
  *  id come from the bucket's first row. */
 function mergeBucketRows(rows: AllocationItem[]): AllocationItem[] {
-  const byBucket = new Map<string, { head: AllocationItem; qty: number; parts: string[] }>();
+  const byBucket = new Map<
+    string,
+    { head: AllocationItem; qty: number; parts: string[]; whole: Map<string, number> }
+  >();
   for (const r of rows) {
     const key = r.bucketId.toUpperCase();
     const label = r.varietyLabel || r.variety || '';
     const part = [label, r.stemLength || ''].filter(Boolean).join(' ');
+    // a whole bucket's stems (uom Stems) are the same on every order's row: counted once per variety
+    const isWhole = r.uom === 'Stems';
     const m = byBucket.get(key);
     if (!m) {
-      byBucket.set(key, { head: { ...r }, qty: r.qty || 0, parts: [part] });
+      byBucket.set(key, {
+        head: { ...r },
+        qty: r.qty || 0,
+        parts: [part],
+        whole: new Map(isWhole ? [[part, r.qty || 0]] : []),
+      });
       continue;
     }
-    m.qty += r.qty || 0;
+    if (isWhole && m.whole.has(part)) {
+      const before = m.whole.get(part) || 0;
+      const now = Math.max(before, r.qty || 0);
+      m.qty += now - before;
+      m.whole.set(part, now);
+    } else {
+      m.qty += r.qty || 0;
+      if (isWhole) m.whole.set(part, r.qty || 0);
+    }
     if (r.asap) m.head.asap = true;
     if (r.scheduled) m.head.scheduled = true;
     if (r.onTrolley) m.head.onTrolley = true;
