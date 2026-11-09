@@ -37,11 +37,15 @@ export const useKarenDiscardStore = create<State>((set, get) => ({
 
   loadList: async (farm) => {
     set({ listLoading: true, listError: null });
-    const outcome = await karenDiscardRepository.fetchDiscardList(farm);
-    if (outcome.kind === 'ok') {
-      set({ buckets: outcome.buckets, listLoading: false });
-    } else {
-      set({ listLoading: false, listError: outcome.message });
+    try {
+      const outcome = await karenDiscardRepository.fetchDiscardList(farm);
+      if (outcome.kind === 'ok') {
+        set({ buckets: outcome.buckets, listLoading: false });
+      } else {
+        set({ listLoading: false, listError: outcome.message });
+      }
+    } catch (err) {
+      set({ listLoading: false, listError: mapAxiosError(err).message });
     }
   },
 
