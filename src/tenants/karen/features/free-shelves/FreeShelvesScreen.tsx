@@ -115,7 +115,7 @@ export function KarenFreeShelvesScreen() {
             initialNumToRender={20}
             windowSize={9}
             ListEmptyComponent={
-              error ? null : <Alert tone="info">No free shelves match.</Alert>
+              error ? undefined : <Alert tone="info">No free shelves match.</Alert>
             }
           />
         )}

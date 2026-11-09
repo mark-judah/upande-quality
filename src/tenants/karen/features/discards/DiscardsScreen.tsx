@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
@@ -8,7 +8,7 @@ import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { useToast } from '@/src/core/ui/Toast';
 import { useKarenDiscardStore } from '@/src/tenants/karen/state/karen-discard-store';
 import type { DiscardListBucket } from '@/src/tenants/karen/repository/karen-discard-repository';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 
 const norm = (id: string): string => id.trim().toLowerCase();
 
@@ -21,7 +21,6 @@ export function KarenDiscardsScreen({ userFarm }: { userFarm: string }) {
     discardedIds,
     discardingId,
     loadList,
-    discard,
     submitScan,
     reset,
   } = useKarenDiscardStore();
@@ -38,12 +37,6 @@ export function KarenDiscardsScreen({ userFarm }: { userFarm: string }) {
     else showError(outcome.message);
     scanRef.current?.clear();
     scanRef.current?.focus();
-  };
-
-  const onDiscard = async (b: DiscardListBucket) => {
-    const outcome = await discard(b.bucketId, userFarm);
-    if (outcome.kind === 'success') showSuccess(outcome.message);
-    else showError(outcome.message);
   };
 
   // Group the work-list by shelf for display.
@@ -103,8 +96,6 @@ export function KarenDiscardsScreen({ userFarm }: { userFarm: string }) {
                 b={b}
                 first={i === 0}
                 discarded={discardedIds.includes(norm(b.bucketId))}
-                busy={discardingId === norm(b.bucketId)}
-                onDiscard={() => onDiscard(b)}
               />
             ))}
           </Card>
@@ -118,14 +109,10 @@ function BucketRow({
   b,
   first,
   discarded,
-  busy,
-  onDiscard,
 }: {
   b: DiscardListBucket;
   first: boolean;
   discarded: boolean;
-  busy: boolean;
-  onDiscard: () => void;
 }) {
   const meta = [
     b.variety,
@@ -151,23 +138,7 @@ function BucketRow({
           <Ionicons name="checkmark-circle" size={16} color={COLORS.success ?? '#12B76A'} />
           <Text style={s.doneText}>Discarded</Text>
         </View>
-      ) : (
-        <Pressable
-          onPress={onDiscard}
-          disabled={busy}
-          hitSlop={6}
-          style={[s.discardBtn, busy && s.discardBtnBusy]}
-        >
-          {busy ? (
-            <ActivityIndicator size="small" color={COLORS.danger ?? '#B42318'} />
-          ) : (
-            <>
-              <Ionicons name="trash-outline" size={15} color={COLORS.danger ?? '#B42318'} />
-              <Text style={s.discardText}>Discard</Text>
-            </>
-          )}
-        </Pressable>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -187,20 +158,6 @@ const s = StyleSheet.create({
   bId: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   bIdDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   bMeta: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textSecondary, marginTop: 2 },
-  discardBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.danger ?? '#B42318',
-    minWidth: 92,
-    justifyContent: 'center',
-  },
-  discardBtnBusy: { opacity: 0.6 },
-  discardText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.danger ?? '#B42318' },
   doneTag: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 92, justifyContent: 'center' },
   doneText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.xs, color: COLORS.success ?? '#12B76A' },
   empty: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },

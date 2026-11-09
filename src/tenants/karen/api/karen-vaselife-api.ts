@@ -9,6 +9,7 @@ export type RawVaselifeCutStage = { name?: string };
 export type RawVaselifeFailureReason = { name?: string; category?: string };
 export type RawVaselifeFailureCategory = { name?: string };
 export type RawVaselifeSampleRef = { name?: string; variety?: string; sampling_date?: string; du_date?: string };
+export type RawVaselifeOrderPickList = { name?: string; customer?: string; order_name?: string; team?: string };
 
 export type RawVaselifeFormData = {
   success?: boolean;
@@ -21,6 +22,8 @@ export type RawVaselifeFormData = {
   failure_reasons?: RawVaselifeFailureReason[];
   failure_categories?: RawVaselifeFailureCategory[];
   samples?: RawVaselifeSampleRef[];
+  /** Today's Order Pick Lists — the Line Code options. */
+  order_pick_lists?: RawVaselifeOrderPickList[];
 };
 
 // ── getVaselifeBucket ────────────────────────────────────────────────────────

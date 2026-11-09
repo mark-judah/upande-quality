@@ -8,6 +8,7 @@ export type VaselifeCommercialStatus = { name: string };
 export type VaselifeCutStage = { name: string };
 export type VaselifeFailureReason = { name: string; category: string };
 export type VaselifeSampleRef = { code: string; variety: string; samplingDate: string; duDate: string };
+export type VaselifeOrderPickList = { name: string; customer: string; orderName: string; team: string };
 
 export type VaselifeFormData = {
   breeders: VaselifeBreeder[];
@@ -18,6 +19,7 @@ export type VaselifeFormData = {
   failureReasons: VaselifeFailureReason[];
   failureCategories: string[];
   samples: VaselifeSampleRef[];
+  orderPickLists: VaselifeOrderPickList[];
 };
 
 export type VaselifeBucket = {
@@ -94,6 +96,14 @@ export const karenVaselifeRepository = {
             duDate: String(sm.du_date ?? ''),
           }))
           .filter((sm) => sm.code),
+        orderPickLists: (m.order_pick_lists ?? [])
+          .map((o) => ({
+            name: String(o.name ?? ''),
+            customer: String(o.customer ?? ''),
+            orderName: String(o.order_name ?? ''),
+            team: String(o.team ?? ''),
+          }))
+          .filter((o) => o.name),
       };
     } catch (err) {
       return { kind: 'error', message: mapAxiosError(err).message };
