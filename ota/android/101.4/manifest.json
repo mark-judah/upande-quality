@@ -1,9 +1,9 @@
 {
-  "id": "fbfbd038-c5af-4a5e-9c9a-ce547d5e3ecd",
-  "createdAt": "2026-11-10T11:08:51.352Z",
+  "id": "7695007d-541a-4a3a-b09c-333f4d9d4ee6",
+  "createdAt": "2026-11-10T21:12:46.001Z",
   "runtimeVersion": "101.4",
   "launchAsset": {
-    "hash": "PrLG8rCu4GEBhJU9L5XMSOPidu_D1sP_07Ky70kbkhQ",
+    "hash": "Qb8yRPT0thPMd5zWZDKXBwtYFVkTBhDlsmA0XLVs2uQ",
     "key": "entry-f5bc643ce242439b0c4f0fae6c34c53e",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
@@ -526,7 +526,7 @@
           "android.permission.FOREGROUND_SERVICE",
           "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
         ],
-        "versionCode": 105400
+        "versionCode": 105401
       },
       "web": {
         "output": "static",
@@ -606,6 +606,6 @@
       "sdkVersion": "58.0.0"
     },
     "appVersion": "1.4.1",
-    "publishedAt": "2026-11-10T11:08:51.391Z"
+    "publishedAt": "2026-11-10T21:12:46.021Z"
   }
 }
