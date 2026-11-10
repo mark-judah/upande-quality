@@ -42,6 +42,8 @@ export type ApkRelease = {
   downloadUrl: string;
   assetName: string;
   sizeBytes: number | null;
+  /** MD5 of the APK, checked before it is handed to the installer (null: size only). */
+  md5: string | null;
 };
 
 export type ApkCheck = {
@@ -141,18 +143,23 @@ async function fetchReleases(): Promise<GithubRelease[]> {
 }
 
 function toApkRelease(r: GithubRelease): ApkRelease | null {
-  const asset = (r.assets ?? []).find(
+  const version = String(r.tag_name ?? '').replace(/^v/i, '');
+  const apks = (r.assets ?? []).filter(
     (a) => typeof a?.name === 'string' && a.name.toLowerCase().endsWith('.apk') && a.browser_download_url,
   );
-  const version = String(r.tag_name ?? '').replace(/^v/i, '');
+  // The versioned asset first: every release also carries a plain upande_quality.apk.
+  const asset = apks.find((a) => (a.name as string).includes(`v${version}`)) ?? apks[0];
   if (!asset || !version) return null;
   return {
     version,
     notes: typeof r.body === 'string' ? r.body.trim() : '',
     pageUrl: r.html_url || RELEASES_PAGE_URL,
     downloadUrl: asset.browser_download_url as string,
-    assetName: asset.name as string,
+    // The local file is resumed by name: a name shared by two releases makes an older
+    // release's APK look like a partial download of this one.
+    assetName: `upande_quality_v${version}.apk`,
     sizeBytes: asset.size ?? null,
+    md5: null,
   };
 }
 
@@ -161,6 +168,7 @@ type PagesApk = {
   downloadUrl?: string;
   assetName?: string;
   sizeBytes?: number | null;
+  md5?: string;
   notes?: string;
   pageUrl?: string;
 };
@@ -184,8 +192,9 @@ async function fetchPagesApk(): Promise<ApkRelease | null> {
       notes: typeof j.notes === 'string' ? j.notes.trim() : '',
       pageUrl: j.pageUrl || j.downloadUrl,
       downloadUrl: j.downloadUrl,
-      assetName: j.assetName || `upande_quality_v${version}.apk`,
+      assetName: `upande_quality_v${version}.apk`,
       sizeBytes: typeof j.sizeBytes === 'number' ? j.sizeBytes : null,
+      md5: typeof j.md5 === 'string' && /^[0-9a-f]{32}$/i.test(j.md5) ? j.md5 : null,
     };
   } catch {
     return null;

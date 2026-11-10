@@ -344,6 +344,7 @@ jobs:
               version, tag, assetName: file,
               downloadUrl: `https://github.com/${repo}/releases/download/${tag}/${file}`,
               sizeBytes: fs.statSync(file).size,
+              md5: require("crypto").createHash("md5").update(fs.readFileSync(file)).digest("hex"),
               notes: fs.existsSync("RELEASE_NOTES.md") ? fs.readFileSync("RELEASE_NOTES.md", "utf8") : "",
             }, null, 1));
           ' "${{ steps.version.outputs.version }}" "${{ steps.version.outputs.tag }}" "${{ steps.apk.outputs.path }}" "${{ github.repository }}"
