@@ -1,72 +1,80 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { checkLatestVersion } from '@/src/core/version';
 import { useApkUpdate } from '@/src/core/updates/UpdateProvider';
 import { canInstallInApp } from '@/src/core/updates/install-apk';
 import { showDialog } from '@/src/core/ui/DialogHost';
 
-/** Once per app session (when `active` becomes true), check GitHub for a newer
- *  release and, if one exists, show a one-tap "Update available" prompt. The
- *  prompt is suppressed for a version the user already dismissed with "Later",
- *  so it won't nag every launch — only when a NEWER release appears.
+/** Once the user is past the gate, offer a newer APK -- only once it is fully
+ *  downloaded and verified in the background (UpdateProvider), so "Install"
+ *  always opens the installer on a complete file. "Later" silences that
+ *  version; a newer release is offered again.
  *
- *  "Update" downloads the APK in-app, then offers "Install" to open Android's
- *  installer, when the release has one attached; otherwise it opens the
- *  releases page as before.
- *  Must be used inside <UpdateProvider>.
- *
- *  Fully best-effort: any failure (offline, no releases yet) is a no-op. */
+ *  An APK too old to open the installer itself keeps the browser prompt.
+ *  Must be used inside <UpdateProvider>. Fully best-effort. */
 export function useUpdatePrompt(active: boolean): void {
-  const { refresh, install } = useApkUpdate();
+  const { check, downloaded, install, refresh } = useApkUpdate();
+  const offered = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !canInstallInApp()) return;
+    const apk = check?.available ? check.apk : null;
+    if (!apk || downloaded !== apk.version || offered.current === apk.version) return;
     let cancelled = false;
 
     (async () => {
-      const check = await checkLatestVersion();
-      if (cancelled || !check.updateAvailable || !check.latest) return;
-
       const dismissed = await storage.get(StorageKeys.updateDismissedVersion);
-      if (dismissed === check.latest) return; // already told them about this one
-
+      if (cancelled || dismissed === apk.version || offered.current === apk.version) return;
+      offered.current = apk.version;
       showDialog(
-        'Update available',
-        `A newer version (v${check.latest}) of Upande Quality is available. ` +
-          `You're on v${check.current}. Update to get the latest fixes.`,
+        'Update ready',
+        `Version ${apk.version} of Upande Quality is downloaded. You're on v${check?.current}.`,
         [
           {
             text: 'Later',
             style: 'cancel',
             onPress: () => {
-              storage.set(StorageKeys.updateDismissedVersion, check.latest as string).catch(() => {});
+              storage.set(StorageKeys.updateDismissedVersion, apk.version).catch(() => {});
+            },
+          },
+          { text: 'Install', onPress: () => void install(check) },
+        ],
+        { name: 'cloud-download-outline', tone: 'success' },
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, check, downloaded, install]);
+
+  useEffect(() => {
+    if (!active || canInstallInApp()) return;
+    let cancelled = false;
+
+    (async () => {
+      const latest = await checkLatestVersion();
+      if (cancelled || !latest.updateAvailable || !latest.latest) return;
+      const dismissed = await storage.get(StorageKeys.updateDismissedVersion);
+      if (cancelled || dismissed === latest.latest) return;
+
+      showDialog(
+        'Update available',
+        `A newer version (v${latest.latest}) of Upande Quality is available. ` +
+          `You're on v${latest.current}. Update to get the latest fixes.`,
+        [
+          {
+            text: 'Later',
+            style: 'cancel',
+            onPress: () => {
+              storage.set(StorageKeys.updateDismissedVersion, latest.latest as string).catch(() => {});
             },
           },
           {
             text: 'Update',
             onPress: async () => {
-              const apk = await refresh();
-              if (apk?.available && (await install(apk))) {
-                // The browser fallback handles the rest itself.
-                if (!canInstallInApp()) return;
-                // Downloaded; the installer opens on the next tap.
-                showDialog(
-                  'Update downloaded',
-                  `v${apk.apk?.version ?? check.latest} is ready to install.`,
-                  [
-                    { text: 'Later', style: 'cancel' },
-                    { text: 'Install', onPress: () => void install(apk) },
-                  ],
-                  { name: 'checkmark-circle-outline', tone: 'success' },
-                );
-                return;
-              }
-              showDialog(
-                'Update',
-                "Couldn't download the update right now. Try again later.",
-                [{ text: 'OK', style: 'cancel' }],
-                { name: 'alert-circle-outline', tone: 'warn' },
-              );
+              const found = await refresh();
+              if (found?.apk) await install(found);
             },
           },
         ],
@@ -77,8 +85,7 @@ export function useUpdatePrompt(active: boolean): void {
     return () => {
       cancelled = true;
     };
-    // refresh/install are stable callbacks; re-running on `install` identity
-    // changes would re-prompt every time a check lands.
+    // refresh/install are only read when tapped; re-running on them would re-prompt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 }

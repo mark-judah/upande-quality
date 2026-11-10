@@ -36,6 +36,7 @@ concurrency:
 
 permissions:
   contents: write
+  pages: write
 
 jobs:
   release:
@@ -119,15 +120,14 @@ jobs:
         run: npm run ota:build
 
       - name: Publish the JS update to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./ota
-          destination_dir: ota
-          # Other runtimes' bundles must survive: devices still on 1.0 keep
-          # asking for /ota/android/1.0/ long after 1.1 exists.
-          keep_files: true
-          commit_message: 'ota: ${{ steps.version.outputs.version }} (runtime ${{ steps.version.outputs.runtime }})'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Only this runtime's folder is replaced: devices still on an older APK
+        # keep asking for their own runtime's folder.
+        run: >-
+          scripts/publish-pages.sh
+          "ota: ${{ steps.version.outputs.version }} (runtime ${{ steps.version.outputs.runtime }})"
+          "ota/android/${{ steps.version.outputs.runtime }}=ota/android/${{ steps.version.outputs.runtime }}"
 
       # ── 1.x.0: native build ─────────────────────────────────────────────────
 
@@ -351,12 +351,12 @@ jobs:
 
       - name: Push the APK's details to GitHub Pages
         if: steps.version.outputs.release == 'apk'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./apkinfo
-          destination_dir: ota
-          keep_files: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          scripts/publish-pages.sh
+          "ota: apk.json for ${{ steps.version.outputs.version }}"
+          "ota/apk.json=apkinfo/apk.json"
 
       - name: Publish GitHub Release (OTA)
         if: steps.version.outputs.release == 'ota'
