@@ -145,7 +145,11 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     const apk = check?.available ? check.apk : null;
     if (!apk || ready.current?.version === apk.version) return;
     let cancelled = false;
-    findDownloadedApk(apk.downloadUrl, { fileName: apk.assetName, expectedBytes: apk.sizeBytes }).then((uri) => {
+    findDownloadedApk(apk.downloadUrl, {
+      fileName: apk.assetName,
+      expectedBytes: apk.sizeBytes,
+      expectedMd5: apk.md5,
+    }).then((uri) => {
       if (cancelled || !uri) return;
       ready.current = { version: apk.version, uri };
       setDownloaded(apk.version);
@@ -206,7 +210,11 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
       if (ready.current?.version === apk.version) {
         // Still complete on disk? Otherwise fall through and fetch the rest.
         const uri = apk.sizeBytes
-          ? await findDownloadedApk(apk.downloadUrl, { fileName: apk.assetName, expectedBytes: apk.sizeBytes })
+          ? await findDownloadedApk(apk.downloadUrl, {
+              fileName: apk.assetName,
+              expectedBytes: apk.sizeBytes,
+              expectedMd5: apk.md5,
+            })
           : ready.current.uri;
         if (uri) {
           await launchInstaller(uri);
@@ -222,6 +230,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
         const uri = await downloadApk(apk.downloadUrl, {
           fileName: apk.assetName,
           expectedBytes: apk.sizeBytes,
+          expectedMd5: apk.md5,
           onProgress: setProgress,
         });
         ready.current = { version: apk.version, uri };
