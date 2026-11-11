@@ -36,13 +36,31 @@ export type RawDiscardListBucket = {
   greenhouse?: string;
   stem_length?: string;
   discard_request?: string;
+  discarded?: number;
+  discarded_at?: string;
+  discarded_by?: string;
+  discarded_by_name?: string;
+};
+
+/** A Discard Request with its buckets, both to discard and already discarded. */
+export type RawDiscardRequestGroup = {
+  name?: string;
+  requested_date?: string;
+  requested_by?: string;
+  requested_by_name?: string;
+  approved_by?: string;
+  approved_by_name?: string;
+  buckets?: RawDiscardListBucket[];
 };
 
 export type RawDiscardListResponse = {
   message?: {
     status?: string;
     farm?: string;
+    /** Buckets still to discard (flat). */
     buckets?: RawDiscardListBucket[];
+    /** Same list grouped by request, plus discarded buckets. Absent on older servers. */
+    requests?: RawDiscardRequestGroup[];
     message?: string;
   };
 };

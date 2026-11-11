@@ -3,12 +3,15 @@ import {
   karenDiscardRepository,
   type DiscardListBucket,
   type DiscardOutcome,
+  type DiscardRequestGroup,
 } from '../repository/karen-discard-repository';
 import { mapAxiosError } from '@/src/core/api/client';
 
 type State = {
   /** The farm's discard work-list (buckets on Approved Discard Requests). */
   buckets: DiscardListBucket[];
+  /** The work-list grouped by Discard Request, including already-discarded buckets. */
+  requests: DiscardRequestGroup[];
   listLoading: boolean;
   listError: string | null;
   /** bucket_ids discarded this session (lower-cased), so the UI can mark them. */
@@ -29,6 +32,7 @@ const norm = (id: string): string => id.trim().toLowerCase();
 
 export const useKarenDiscardStore = create<State>((set, get) => ({
   buckets: [],
+  requests: [],
   listLoading: false,
   listError: null,
   discardedIds: [],
@@ -40,7 +44,7 @@ export const useKarenDiscardStore = create<State>((set, get) => ({
     try {
       const outcome = await karenDiscardRepository.fetchDiscardList(farm);
       if (outcome.kind === 'ok') {
-        set({ buckets: outcome.buckets, listLoading: false });
+        set({ buckets: outcome.buckets, requests: outcome.requests, listLoading: false });
       } else {
         set({ listLoading: false, listError: outcome.message });
       }
@@ -53,16 +57,19 @@ export const useKarenDiscardStore = create<State>((set, get) => ({
     const id = norm(bucketId);
     // Enforce "can't discard what isn't on the list" (server re-checks too).
     const onList = get().buckets.some((b) => norm(b.bucketId) === id);
+    const discardedOnServer = get().requests.some((g) =>
+      g.buckets.some((b) => b.discarded && norm(b.bucketId) === id),
+    );
+    if (get().discardedIds.includes(id) || (!onList && discardedOnServer)) {
+      const out: DiscardOutcome = { kind: 'error', message: `${bucketId} is already discarded.` };
+      set({ lastOutcome: out });
+      return out;
+    }
     if (!onList) {
       const out: DiscardOutcome = {
         kind: 'error',
         message: `${bucketId} is not on the discard list.`,
       };
-      set({ lastOutcome: out });
-      return out;
-    }
-    if (get().discardedIds.includes(id)) {
-      const out: DiscardOutcome = { kind: 'error', message: `${bucketId} is already discarded.` };
       set({ lastOutcome: out });
       return out;
     }
@@ -99,6 +106,7 @@ export const useKarenDiscardStore = create<State>((set, get) => ({
   reset: () =>
     set({
       buckets: [],
+      requests: [],
       listLoading: false,
       listError: null,
       discardedIds: [],

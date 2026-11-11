@@ -5,7 +5,7 @@ import {
   type VaselifeCrop,
   type VaselifeCutStage,
   type VaselifeFailureReason,
-  type VaselifeOrderPickList,
+  type VaselifeSpecification,
   type VaselifeSampleRef,
   type VaselifeVariety,
 } from '@/src/tenants/karen/repository/karen-vaselife-repository';
@@ -78,8 +78,8 @@ type State = {
   failureReasons: VaselifeFailureReason[];
   failureCategories: string[];
   samples: VaselifeSampleRef[];
-  /** Today's Order Pick Lists — the Line Code options. */
-  orderPickLists: VaselifeOrderPickList[];
+  /** Active Specifications — the options saved to the sample's line_code. */
+  specifications: VaselifeSpecification[];
 
   // ── Sample form ────────────────────────────────────────────────────────────
   scanning: boolean;
@@ -166,7 +166,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
   failureReasons: [],
   failureCategories: [],
   samples: [],
-  orderPickLists: [],
+  specifications: [],
 
   scanning: false,
   scanError: null,
@@ -218,7 +218,7 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       failureReasons: outcome.failureReasons,
       failureCategories: outcome.failureCategories,
       samples: outcome.samples,
-      orderPickLists: outcome.orderPickLists,
+      specifications: outcome.specifications,
     });
   },
 
@@ -241,8 +241,6 @@ export const useKarenVaselifeStore = create<State>((set, get) => ({
       gh: bucket.gh,
       // Length arrives as e.g. "52cm"; keep only the numeric part for the Float field.
       length: (bucket.length || '').replace(/[^0-9.]/g, ''),
-      // The Line Code field holds the Order Pick List this bucket is allocated to.
-      lineCode: bucket.orderPickList || get().lineCode,
     });
     return { ok: true };
   },

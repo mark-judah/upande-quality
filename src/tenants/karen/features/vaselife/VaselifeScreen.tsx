@@ -55,7 +55,7 @@ export function VaselifeScreen() {
   const failureReasons = useKarenVaselifeStore((s) => s.failureReasons);
   const failureCategories = useKarenVaselifeStore((s) => s.failureCategories);
   const samples = useKarenVaselifeStore((s) => s.samples);
-  const orderPickLists = useKarenVaselifeStore((s) => s.orderPickLists);
+  const specifications = useKarenVaselifeStore((s) => s.specifications);
   // Commercial status is a fixed three-option list, not a backend lookup.
 
   const scanning = useKarenVaselifeStore((s) => s.scanning);
@@ -167,16 +167,11 @@ export function VaselifeScreen() {
   const breederOpts = breeders.map((b) => ({ label: b.name, value: b.name }));
   const varietyOpts = varieties.map((v) => ({ label: v.variety, value: v.name }));
   const cropOpts = crops.map((c) => ({ label: c.name, value: c.name }));
-  // Line Code = one of today's Order Pick Lists. A scanned bucket's OPL that
-  // isn't in the list (e.g. created after the form loaded) is still shown.
-  const lineCodeOpts = orderPickLists.map((o) => ({
+  const specificationOpts = specifications.map((o) => ({
     label: o.name,
     value: o.name,
-    sublabel: [o.orderName || o.customer, o.team].filter(Boolean).join(' · ') || undefined,
+    sublabel: o.customer || undefined,
   }));
-  if (lineCode && !lineCodeOpts.some((o) => o.value === lineCode)) {
-    lineCodeOpts.unshift({ label: lineCode, value: lineCode, sublabel: undefined });
-  }
   const cutStageOpts = cutStages.map((s) => ({ label: s.name, value: s.name }));
   const selectedReasonSet = new Set(obsFailures.map((f) => f.reason));
   const availableReasons = failureReasons.filter((r) => !selectedReasonSet.has(r.name));
@@ -380,12 +375,12 @@ export function VaselifeScreen() {
                 placeholder="Greenhouse code"
               />
               <Dropdown
-                label="Line Code"
-                iconName="barcode"
+                label="Specification"
+                iconName="clipboard-text-outline"
                 value={lineCode || null}
-                options={lineCodeOpts}
-                placeholder={lineCodeOpts.length === 0 ? 'No line codes today' : 'Select line code'}
-                disabled={lineCodeOpts.length === 0}
+                options={specificationOpts}
+                placeholder={specificationOpts.length === 0 ? 'No specifications available' : 'Select specification'}
+                disabled={specificationOpts.length === 0}
                 onChange={setLineCode}
               />
             </Card>
