@@ -37,9 +37,19 @@ export type OrderPickListOption = {
   varieties: string;
   status: string;
   scheduleNumber: string;
-  /** 0 = Draft, 1 = Submitted. Draft orders are shown but read-only (no QC submit). */
+  /** 0 = Draft, 1 = Submitted. Both can be QC'd. */
   docstatus: number;
+  /** Order lines issued from the cold store / all lines. */
+  issuedLines: number;
+  totalLines: number;
 };
+
+/** "Issued" once every line is issued, "Not issued" when none is, else "Partly issued (x/y)". */
+export function issueStatus(opl: OrderPickListOption): { label: string; issued: boolean | null } {
+  if (opl.totalLines > 0 && opl.issuedLines >= opl.totalLines) return { label: 'Issued', issued: true };
+  if (opl.issuedLines <= 0) return { label: 'Not issued', issued: false };
+  return { label: `Partly issued (${opl.issuedLines}/${opl.totalLines})`, issued: null };
+}
 
 export type ItemLocation = {
   itemCode: string;
@@ -237,6 +247,8 @@ function toOrderPickList(raw: RawOrderPickList): OrderPickListOption {
     status: raw.status ?? '',
     scheduleNumber: raw.schedule_number ?? '',
     docstatus: Number(raw.docstatus ?? 1),
+    issuedLines: Number(raw.issued_lines) || 0,
+    totalLines: Number(raw.total_lines) || 0,
   };
 }
 
