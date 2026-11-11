@@ -1281,9 +1281,6 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     if (!s.qcType) return false;
     if (s.qcType === 'Online QC' && !s.onlineMode) return false;
     if (!s.selectedOrderPickList) return false;
-    // Draft orders are read-only — a QC can inspect but not submit against a
-    // Pick List that hasn't been submitted yet.
-    if (s.selectedOrderPickList.docstatus === 0) return false;
     if (!s.selectedQcIncharge) return false;
     // Airport Returns: needs inspected stems; rejections are captured per bunch
     // (Grading-QC style). Each rejected bunch must carry ≥1 issue with positive
@@ -1356,14 +1353,6 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
     const s = get();
     if (!s.qcType || !s.selectedOrderPickList) {
       const out: SubmitOutcome = { kind: 'error', message: 'Complete the earlier steps first.' };
-      set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
-      return out;
-    }
-    if (s.selectedOrderPickList.docstatus === 0) {
-      const out: SubmitOutcome = {
-        kind: 'error',
-        message: 'This order is still a draft (not submitted) — it is read-only, so a QC report cannot be submitted against it.',
-      };
       set({ lastSubmitMessage: out.message, lastSubmitKind: 'error' });
       return out;
     }

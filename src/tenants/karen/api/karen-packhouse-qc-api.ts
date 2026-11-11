@@ -26,6 +26,9 @@ export type RawOrderPickList = {
   schedule_number?: string;
   /** Order Pick List docstatus: 0 = Draft, 1 = Submitted. */
   docstatus?: number;
+  /** Pick List Item lines issued from the cold store (upande_packhouse `issued` tick) / all lines. */
+  issued_lines?: number;
+  total_lines?: number;
 };
 
 export type RawItemLocation = {

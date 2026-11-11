@@ -11,7 +11,11 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { Screen } from '@/src/core/ui/Screen';
 import { useToast } from '@/src/core/ui/Toast';
 import { categoryForParam, categoryOrder } from '@/src/tenants/karen/features/packhouse-qc/qc-parameter-categories';
-import type { PackhouseOverallResult } from '@/src/tenants/karen/repository/karen-packhouse-qc-repository';
+import {
+  issueStatus,
+  type OrderPickListOption,
+  type PackhouseOverallResult,
+} from '@/src/tenants/karen/repository/karen-packhouse-qc-repository';
 import {
   affectedPercent,
   computeOverallResult,
@@ -584,16 +588,8 @@ export function PackhouseQcScreen() {
 
       {selectedOrderPickList ? (
         <Card title={qcType === 'Final QC' ? 'Order' : 'Order Detail'}>
-          {selectedOrderPickList.docstatus === 0 ? (
-            <>
-              <Alert tone="danger">
-                This order is a DRAFT (not yet submitted) — read-only. You can review it, but a QC
-                report can&apos;t be submitted until the order is submitted/allocated.
-              </Alert>
-              <View style={{ height: 12 }} />
-            </>
-          ) : null}
           <View style={s.chipRow}>
+            <IssueChip opl={selectedOrderPickList} />
             <View style={s.chip}>
               <Text style={s.chipText}>{selectedOrderPickList.customer}</Text>
             </View>
@@ -1457,13 +1453,12 @@ export function PackhouseQcScreen() {
         onClose={() => setOrderPickerOpen(false)}
         options={orderPickLists.map((opl) => ({
           value: opl.name,
-          label: opl.docstatus === 0 ? `${opl.orderName || opl.name}  • DRAFT` : opl.orderName || opl.name,
+          label: `${opl.orderName || opl.name}  • ${issueStatus(opl).label.toUpperCase()}`,
           subtitle: [
             opl.customer,
             opl.varieties || '',
             opl.totalStems ? `${opl.totalStems} stems` : '',
             opl.lengths || '',
-            opl.docstatus === 0 ? 'Draft (read-only)' : '',
           ]
             .filter(Boolean)
             .join(' · '),
@@ -1768,6 +1763,18 @@ function SpecCheckRow({
           ) : null}
         </>
       ) : null}
+    </View>
+  );
+}
+
+/** Whether the order's buckets have been issued from the cold store (upande_packhouse). */
+function IssueChip({ opl }: { opl: OrderPickListOption }) {
+  const { label, issued } = issueStatus(opl);
+  const tone = issued ? { borderColor: COLORS.success } : issued === false ? s.chipDanger : s.chipWarn;
+  const color = issued ? COLORS.success : issued === false ? COLORS.danger : '#B45309';
+  return (
+    <View style={[s.chip, tone]}>
+      <Text style={[s.chipText, { color }]}>{label}</Text>
     </View>
   );
 }

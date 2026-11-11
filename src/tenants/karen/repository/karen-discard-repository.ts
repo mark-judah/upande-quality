@@ -1,6 +1,7 @@
 import {
   karenDiscardApi,
   type RawDiscardListBucket,
+  type RawDiscardRequestGroup,
   type RawDiscardPayload,
   type RawDiscardResponse,
 } from '../api/karen-discard-api';
@@ -15,11 +16,46 @@ export type DiscardListBucket = {
   isShelved: boolean;
   greenhouse: string;
   discardRequest: string;
+  discarded: boolean;
+  discardedAt: string | null;
+  discardedBy: string | null;
+};
+
+/** One Discard Request on the work-list, with who raised and approved it. */
+export type DiscardRequestGroup = {
+  name: string;
+  requestedDate: string;
+  requestedBy: string;
+  approvedBy: string;
+  buckets: DiscardListBucket[];
 };
 
 export type DiscardListOutcome =
-  | { kind: 'ok'; buckets: DiscardListBucket[] }
+  | { kind: 'ok'; buckets: DiscardListBucket[]; requests: DiscardRequestGroup[] }
   | { kind: 'error'; message: string };
+
+function mapGroup(g: RawDiscardRequestGroup): DiscardRequestGroup {
+  return {
+    name: g.name ?? '',
+    requestedDate: g.requested_date ?? '',
+    requestedBy: g.requested_by_name || g.requested_by || '',
+    approvedBy: g.approved_by_name || g.approved_by || '',
+    buckets: (g.buckets ?? []).filter((b) => !!b.bucket_id).map(mapListBucket),
+  };
+}
+
+/** Older servers send only the flat list: group it by request, without the request details. */
+function groupByRequest(buckets: DiscardListBucket[]): DiscardRequestGroup[] {
+  const m = new Map<string, DiscardListBucket[]>();
+  for (const b of buckets) m.set(b.discardRequest, [...(m.get(b.discardRequest) ?? []), b]);
+  return Array.from(m, ([name, rows]) => ({
+    name,
+    requestedDate: '',
+    requestedBy: '',
+    approvedBy: '',
+    buckets: rows,
+  }));
+}
 
 function mapListBucket(r: RawDiscardListBucket): DiscardListBucket {
   return {
@@ -31,6 +67,9 @@ function mapListBucket(r: RawDiscardListBucket): DiscardListBucket {
     isShelved: !!r.is_shelved,
     greenhouse: r.greenhouse ?? '',
     discardRequest: r.discard_request ?? '',
+    discarded: !!r.discarded,
+    discardedAt: r.discarded_at ?? null,
+    discardedBy: r.discarded_by_name || r.discarded_by || null,
   };
 }
 
@@ -87,9 +126,11 @@ export const karenDiscardRepository = {
     const raw = await karenDiscardApi.getDiscardRequestBuckets(farm);
     const m = raw.message ?? {};
     if (m.status === 'success') {
+      const buckets = (m.buckets ?? []).filter((b) => !!b.bucket_id).map(mapListBucket);
       return {
         kind: 'ok',
-        buckets: (m.buckets ?? []).filter((b) => !!b.bucket_id).map(mapListBucket),
+        buckets,
+        requests: m.requests ? m.requests.map(mapGroup) : groupByRequest(buckets),
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load discard list.' };
