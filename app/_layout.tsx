@@ -24,6 +24,7 @@ import { useFarmSendsBuckets } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
+import { refreshTransferFarms } from '@/src/tenants/karen/state/karen-transfer-farms';
 import { setUnsentCounter } from '@/src/core/offline/unsent';
 import { countUnsentWork } from '@/src/composition/unsent-work';
 import { COLORS } from '@/src/core/theme';
@@ -37,6 +38,17 @@ function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const roles = useAuthStore((s) => s.roles);
   const { station } = useUserStation();
   const sends = useFarmSendsBuckets(station?.userFarm);
+  const hasSession = useAuthStore((s) => s.hasSession);
+  const online = useNetworkStore((s) => s.online);
+  const farm = station?.userFarm ?? '';
+  const hasBucketRequests = useMemo(
+    () => getDrawerFor(tenant).some((it) => it.route === 'bucket-requests'),
+    [tenant],
+  );
+  // Signed in, online, at a station: whether it sends buckets now, so a hidden Bucket Requests comes back.
+  useEffect(() => {
+    if (hasSession && online && farm && hasBucketRequests) void refreshTransferFarms(farm);
+  }, [hasSession, online, farm, hasBucketRequests]);
 
   // Role-gated entries stay out of the drawer AND the home grid, since both
   // render from this same list. Recomputes when roles arrive after login.

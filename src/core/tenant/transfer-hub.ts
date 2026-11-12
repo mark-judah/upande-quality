@@ -16,9 +16,12 @@ type HubState = {
   sends: Record<string, boolean>;
   loaded: boolean;
   setHub: (hub: string) => void;
-  setFarms: (farm: string, sends: boolean | null, salesFarms: string[]) => void;
+  setFarms: (farm: string, sends: boolean | null, salesFarms: string[]) => Promise<void>;
   hydrate: () => Promise<void>;
 };
+
+/** The one hydrate in flight: a write waits for it, so the saved farms are merged, not overwritten. */
+let hydrating: Promise<void> | null = null;
 
 const useHubStore = create<HubState>((set, get) => ({
   hub: null,
@@ -30,28 +33,34 @@ const useHubStore = create<HubState>((set, get) => ({
     set({ hub });
     storage.set(StorageKeys.transferHub, hub).catch(() => {});
   },
-  setFarms: (farm, sends, salesFarms) => {
+  setFarms: async (farm, sends, salesFarms) => {
+    if (!get().loaded) await get().hydrate();
     const next = { ...get().sends };
     if (farm && sends != null) next[farm] = sends;
     const farms = salesFarms.length ? salesFarms : get().salesFarms;
     set({ sends: next, salesFarms: farms });
     storage.set(StorageKeys.transferFarms, JSON.stringify({ sends: next, salesFarms: farms })).catch(() => {});
   },
-  hydrate: async () => {
-    const hub = await storage.get(StorageKeys.transferHub).catch(() => null);
-    const raw = await storage.get(StorageKeys.transferFarms).catch(() => null);
-    let saved: { sends?: Record<string, boolean>; salesFarms?: string[] } = {};
-    try {
-      saved = raw ? JSON.parse(raw) : {};
-    } catch {
-      saved = {};
-    }
-    set({
-      hub: get().hub ?? hub,
-      sends: { ...(saved.sends ?? {}), ...get().sends },
-      salesFarms: get().salesFarms.length ? get().salesFarms : saved.salesFarms ?? [],
-      loaded: true,
+  hydrate: () => {
+    hydrating ??= (async () => {
+      const hub = await storage.get(StorageKeys.transferHub).catch(() => null);
+      const raw = await storage.get(StorageKeys.transferFarms).catch(() => null);
+      let saved: { sends?: Record<string, boolean>; salesFarms?: string[] } = {};
+      try {
+        saved = raw ? JSON.parse(raw) : {};
+      } catch {
+        saved = {};
+      }
+      set({
+        hub: get().hub ?? hub,
+        sends: { ...(saved.sends ?? {}), ...get().sends },
+        salesFarms: get().salesFarms.length ? get().salesFarms : saved.salesFarms ?? [],
+        loaded: true,
+      });
+    })().finally(() => {
+      hydrating = null;
     });
+    return hydrating;
   },
 }));
 
@@ -84,6 +93,15 @@ export const setTransferHub = (hub: string) => useHubStore.getState().setHub(hub
 export const setTransferFarms = (farm: string, sends: boolean | null, salesFarms: string[]) =>
   useHubStore.getState().setFarms(farm, sends, salesFarms);
 
-/** " → Chepsito": where a trip delivers, shown only once there is more than one sales farm. */
-export const toSalesFarm = (farm: string | null | undefined): string =>
-  farm && useHubStore.getState().salesFarms.length > 1 ? ` → ${farm}` : '';
+/** The sales farm an order without one goes to: the only one there is, else the hub. */
+export const knownSalesFarm = (): string => {
+  const { hub, salesFarms } = useHubStore.getState();
+  return salesFarms.length === 1 ? salesFarms[0] : hub || salesFarms[0] || '';
+};
+
+/** " → Chepsito": where a trip delivers, shown only once there is more than one sales farm.
+ *  `several` is the caller's reactive `useSalesFarms().length > 1`, where it renders. */
+export const toSalesFarm = (
+  farm: string | null | undefined,
+  several: boolean = useHubStore.getState().salesFarms.length > 1,
+): string => (farm && several ? ` → ${farm}` : '');
