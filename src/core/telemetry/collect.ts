@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Battery from 'expo-battery';
-import * as Application from 'expo-application';
+import { Application } from '@/src/core/native/application';
 import * as Network from 'expo-network';
 import * as Cellular from 'expo-cellular';
 import * as Updates from 'expo-updates';

@@ -1,4 +1,5 @@
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
+import { openDatabaseAsync } from '@/src/core/native/sqlite';
 import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 
 /** A locally-queued bucket scan, plus whatever the server resolved for it
@@ -41,7 +42,7 @@ let _db: SQLite.SQLiteDatabase | null = null;
 
 async function db(): Promise<SQLite.SQLiteDatabase> {
   if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync(await instanceDbName('karen_stock_take.db'));
+  _db = await openDatabaseAsync(await instanceDbName('karen_stock_take.db'));
   return _db;
 }
 

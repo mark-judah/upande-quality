@@ -91,8 +91,11 @@ export default function Login() {
   }, []);
 
   const finish = useCallback(async () => {
-    const stored = useAuthStore.getState().instanceUrl;
-    await setInstanceUrl(stored ?? null);
+    // The server the sign-in saved: while a sign-in to another server restarts
+    // the app, the auth store can still hold the previous one, and writing that
+    // back would undo the switch.
+    const saved = await storage.get(StorageKeys.instanceUrl).catch(() => null);
+    await setInstanceUrl(saved ?? useAuthStore.getState().instanceUrl ?? null);
     router.replace(HOME_ROUTE);
   }, [setInstanceUrl]);
 

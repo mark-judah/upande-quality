@@ -138,6 +138,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // Signed in to a different instance than the one live before: start the
         // app over before anything (Bucket Requests, telemetry) opens or syncs
         // the previous instance's files. The register hears of it first.
+        set({ instanceUrl: result.instanceUrl });
         await Promise.race([reportInstall({ reason: 'login', user: result.email }), delay(LOGIN_REPORT_WAIT_MS)]);
         if (await restartForInstance(instanceKey(result.instanceUrl))) return true;
         // No restart: the databases were closed and re-resolve for this server.

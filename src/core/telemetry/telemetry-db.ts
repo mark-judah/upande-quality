@@ -1,4 +1,5 @@
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
+import { openDatabaseAsync } from '@/src/core/native/sqlite';
 import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 import type { TelemetryPayload } from './collect';
 
@@ -7,7 +8,7 @@ export type OutboxRow = { id: number; payload: TelemetryPayload; attempts: numbe
 let _db: SQLite.SQLiteDatabase | null = null;
 async function db(): Promise<SQLite.SQLiteDatabase> {
   if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync(await instanceDbName('telemetry.db'));
+  _db = await openDatabaseAsync(await instanceDbName('telemetry.db'));
   return _db;
 }
 
