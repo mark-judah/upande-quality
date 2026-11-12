@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
+import { format, parseISO } from 'date-fns';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
@@ -10,6 +11,7 @@ import { getTenantByUrl } from '@/src/core/tenant/instance-mapper';
 import { readUserStation } from '@/src/core/tenant/user-station';
 import { tenantCompany } from '@/src/core/features/station/repository';
 import { useKarenDashboardStore } from '@/src/tenants/karen/state/karen-dashboard-store';
+import { DayStepper } from '@/src/tenants/karen/features/dashboard/DayStepper';
 import { karenNotReceivedApi } from '@/src/tenants/karen/api/karen-not-received-api';
 
 type Bucket = {
@@ -24,12 +26,21 @@ type Bucket = {
 const DARK_A = '#171717';
 const DARK_B = '#1C1917';
 
-/** HH:MM of a "YYYY-MM-DD HH:MM:SS" server time. */
-const timeOf = (ts: string) => (ts.length >= 16 ? ts.slice(11, 16) : '');
+/** "12 Nov 2026, 23:37" for a "YYYY-MM-DD HH:MM:SS[.ffffff]" server time. */
+function harvestedAt(ts: string): string {
+  if (ts.length < 16) return '';
+  try {
+    return format(parseISO(ts.slice(0, 19).replace(' ', 'T')), 'd MMM yyyy, HH:mm');
+  } catch {
+    return ts.slice(0, 16);
+  }
+}
 
 /** Every bucket the home's Not Received tile counts, for the home's day and farm. */
 export function NotReceivedScreen() {
-  const date = useKarenDashboardStore((st) => st.selectedDate);
+  const homeDate = useKarenDashboardStore((st) => st.selectedDate);
+  // Opens on the home's day; the stepper moves this page only.
+  const [date, setDate] = useState(homeDate);
   const farm = useKarenDashboardStore((st) => st.selectedFarm ?? st.data?.farm ?? null);
   const [buckets, setBuckets] = useState<Bucket[] | null>(null);
   /** The farm the server listed; '' = every farm. */
@@ -113,9 +124,8 @@ export function NotReceivedScreen() {
         </Pressable>
       }
     >
-      <Text style={s.summaryText}>
-        {date} · {shownFarm || 'All farms'}
-      </Text>
+      <DayStepper value={date} onChange={setDate} />
+      <Text style={s.summaryText}>{shownFarm || 'All farms'}</Text>
 
       <View style={s.tiles}>
         <View style={[s.tile, { backgroundColor: DARK_A }]}>
@@ -154,7 +164,7 @@ export function NotReceivedScreen() {
                   {b.varieties.join(', ') || '—'}
                 </Text>
                 <Text style={s.meta} numberOfLines={1}>
-                  {[b.greenhouse, timeOf(b.lastHarvest)].filter(Boolean).join(' · ')}
+                  {[b.greenhouse, harvestedAt(b.lastHarvest)].filter(Boolean).join(' · ')}
                 </Text>
               </View>
               <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
