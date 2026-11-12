@@ -7,7 +7,7 @@
  *
  * ── Why ──────────────────────────────────────────────────────────────────────
  *
- * Adding `expo-updates` brought six more native modules with it (expo-eas-client,
+ * The native module count grew (expo-eas-client,
  * expo-json-utils, expo-manifests, expo-structured-headers,
  * expo-updates-interface and expo-updates itself). Each is another Kotlin
  * compilation and another set of classes to dex, and the build tipped past the

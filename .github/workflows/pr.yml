@@ -65,10 +65,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Compute next version
         id: next
-        run: node scripts/version.mjs --json | tee version.json
+        run: npx upande-mobile-kit version --json | tee version.json
 
       - name: Summarise the release this PR would produce
         run: |
@@ -82,13 +86,9 @@ jobs:
             echo "| Next | \`$(jq -r .version version.json)\` |"
             echo "| versionCode | \`$(jq -r .versionCode version.json)\` |"
             echo "| Runtime | \`$(jq -r .runtimeVersion version.json)\` |"
+            echo "| Release | **$(jq -r .release version.json | tr a-z A-Z)** |"
             echo
-            if [ "$(jq -r .release version.json)" = "ota" ]; then
-              echo "Merging this PR into \`${{ github.base_ref }}\` publishes a **JS update** to GitHub Pages (no APK)."
-            else
-              echo "Merging this PR into \`${{ github.base_ref }}\` builds and publishes a signed **APK** (new runtime)."
-            fi
-            echo "Version advances one odometer step per merge (patch rolls over at 100, minor at 50)."
+            echo "$(jq -r .reason version.json)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   build:

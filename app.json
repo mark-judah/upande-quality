@@ -32,13 +32,11 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
@@ -89,7 +87,9 @@
           "style": "light"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@upande/mobile-kit",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -101,15 +101,39 @@
         "projectId": "df6f9c7d-18cd-4233-901e-a89544cabcbf"
       },
       "otaBaseUrl": "https://mark-judah.github.io/upande-quality/ota",
-      "runtimeSdk": 58
+      "mobileKit": {
+        "_help": "All of the kit's settings for this app live here. Edit the lists under \"release\"; the kit manages nativeBaseline and apkTag itself.",
+        "sites": {
+          "production": "https://kaitet-group.upande.com",
+          "development": "http://192.168.8.4"
+        },
+        "versionCodeBase": 0,
+        "runtimeMajorBase": 0,
+        "release": {
+          "_help": "Decides APK or OTA for you. \"apk\": folders/files (globs) that need a new APK when they change, e.g. \"modules/**\". \"ota\": folders/files that are safe over the air, e.g. \"assets/fonts/**\". Built in: app/**, src/**, tests, docs, *.md are OTA; android/**, ios/**, patches/**, plugins/** are APK. A changed file in neither list builds an APK to be safe, and the release says which file to list.",
+          "_apk_builtin": "Always an APK, no need to list: android/**, ios/**, patches/**, plugins/**, eas.json, metro.config.js, babel.config.js. Also any new or upgraded native dependency, config plugin or native app.json field (found automatically from package.json and node_modules). Below: our own folders. assets/images/** holds the app icon, adaptive icon, splash and favicon, which are baked into the native build.",
+          "apk": [
+            "assets/images/**"
+          ],
+          "_ota_builtin": "Always OTA, no need to list: app/**, src/**, __tests__/**, *.test.*, *.spec.*, docs/**, backend/**, scripts/**, .github/**, **/*.md, .gitignore, .gitattributes, .editorconfig, .prettierrc*, .eslintrc*, LICENSE. package.json, lock files and app.json are judged by what changed in them, not by name. Below: our own folders. assets/** covers the sounds; kaitet-web/** is server-side Frappe code; the rest is root tooling. 'apk' wins over 'ota', so assets/images/** stays native. A folder in neither list builds an APK to be safe.",
+          "ota": [
+            "assets/**",
+            "kaitet-web/**",
+            ".vscode/**",
+            "*.config.js",
+            "tsconfig.json",
+            "expo-env.d.ts"
+          ]
+        }
+      }
     },
-    "runtimeVersion": "101.4",
+    "backgroundColor": "#F5F5F5",
     "updates": {
       "enabled": true,
-      "url": "https://mark-judah.github.io/upande-quality/ota/android/101.4/manifest.json",
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://kaitet-group.upande.com/api/method/upande_mobile.api.ota.manifest?app=Upande%20Quality"
     },
-    "backgroundColor": "#F5F5F5"
+    "runtimeVersion": "1.4"
   }
 }

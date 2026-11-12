@@ -1,7 +1,7 @@
 /**
  * Safe wrapper around expo-local-authentication.
  *
- * The native module is compiled into the APK. If an OTA JS bundle loads the
+ * The native module is compiled into the APK. If a JS bundle loads the
  * shim on a binary that doesn't ship the native side, calling it crashes at
  * the native layer (JS can't catch it). We probe three ways before importing
  * the module and degrade silently when it's missing.

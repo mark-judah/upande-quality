@@ -6,8 +6,6 @@ import { KarenHomeScreen } from '@/src/tenants/karen/features/dashboard/HomeScre
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { useAuthStore } from '@/src/core/auth/store';
-import { useTenant } from '@/src/core/tenant/tenant-context';
-import { KarenHomeScreen } from '@/src/tenants/karen/features/dashboard/HomeScreen';
 import { useDrawerItems } from '@/src/core/ui/drawer-items-context';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import type { DrawerItem } from '@/src/core/tenant/types';

@@ -1,0 +1,47 @@
+name: Release
+
+# Calls the shared release workflow of @upande/mobile-kit (pinned to the kit version that wrote this file).
+# Every push to the branch below is a release. The kit decides APK or OTA itself (native dependencies, the kit's
+# native modules and plugins, patches, and the folders listed under expo.extra.mobileKit.release in app.json),
+# so a marker is only needed to force something. A commit message can ask for more:
+#   [apk]     also build and attach an APK (same runtime, OTA keeps working)
+#   [native]  native code changed: new runtime and an APK
+#   [major]   major version and an APK
+#   [ota]     in the newest commit: no APK
+# By hand: Actions > Release > Run workflow (tick build_apk, or set bump to minor).
+on:
+  push:
+    branches: [origin]
+    paths-ignore: ['**/*.md', 'docs/**']
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: auto | patch | minor | major
+        type: string
+        default: auto
+      set_version:
+        description: Exact version (starts a new release line)
+        type: string
+        default: ''
+      build_apk:
+        description: Also build and attach an APK (same runtime, OTA keeps working)
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: mark-judah/upande-mobile-kit/.github/workflows/release.yml@v0.18.0
+    with:
+      app-name: "Upande Quality"
+      apk-name: upande_quality
+      bump: ${{ inputs.bump || 'auto' }}
+      set_version: ${{ inputs.set_version || '' }}
+      build_apk: ${{ inputs.build_apk || false }}
+    secrets: inherit

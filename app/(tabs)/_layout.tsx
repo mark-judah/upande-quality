@@ -124,8 +124,6 @@ export default function TabLayout() {
       <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', ...OFF_BAR }} />
-      {/* Settings is reached from the menu and has no use for the tab bar. */}
-      <Tabs.Screen name="settings" options={{ title: 'Settings', ...OFF_BAR, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

@@ -3,14 +3,11 @@ import { authRepository } from './repository';
 import { displayName, fetchCurrentUser, needsRealName } from './roles-api';
 import { storage, StorageKeys } from '@/src/core/storage';
 import * as Biometric from '@/src/core/biometric';
-import { reportInstall } from '@/src/core/version/install-register';
 import { setLoginServer } from './server-change';
 import { instanceKey, knownInstances } from './known-instances';
 import { consumeInstanceSwitched, restartForInstance } from './restart';
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-/** How long a switching sign-in waits for the device register before restarting. */
-const LOGIN_REPORT_WAIT_MS = 3000;
 /** How long the start after a switch waits for roles before showing the app. */
 const FINISH_LOGIN_WAIT_MS = 8000;
 
@@ -77,21 +74,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   biometricLocked: false,
 
   hydrate: async () => {
-    const [hasCookie, roles, email, fullName, storedUrl, bioFlag, justSwitched] = await Promise.all([
+    const [hasCookie, roles, email, fullName, storedUrl, bioFlag] = await Promise.all([
       authRepository.hasSession(),
       authRepository.loadRoles(),
       storage.get(StorageKeys.emailBackup),
       storage.get(StorageKeys.fullName),
       storage.get(StorageKeys.instanceUrl),
       storage.get(StorageKeys.biometricEnabled),
-      consumeInstanceSwitched(),
     ]);
     const instanceUrl = storedUrl || (await restoreInstanceUrl());
+    const justSwitched = await consumeInstanceSwitched(instanceUrl);
     // A session cookie with no server to send it to is no session: sign in again.
     const hasSession = hasCookie && !!instanceUrl;
     const biometricEnabled = bioFlag === '1';
     // The start right after a sign-in to this very server was signed in a moment ago.
-    const switchedHere = hasSession && !!justSwitched && justSwitched === instanceKey(instanceUrl);
+    const switchedHere = hasSession && justSwitched;
     const biometricLocked =
       hasSession && biometricEnabled && !switchedHere && Biometric.isModuleAvailable();
 
@@ -137,10 +134,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (result.switched) {
         // Signed in to a different instance than the one live before: start the
         // app over before anything (Bucket Requests, telemetry) opens or syncs
-        // the previous instance's files. The register hears of it first.
+        // the previous instance's files.
         set({ instanceUrl: result.instanceUrl });
-        await Promise.race([reportInstall({ reason: 'login', user: result.email }), delay(LOGIN_REPORT_WAIT_MS)]);
-        if (await restartForInstance(instanceKey(result.instanceUrl))) return true;
+        if (await restartForInstance(result.instanceUrl)) return true;
         // No restart: the databases were closed and re-resolve for this server.
         Object.assign(result, await authRepository.completeLogin(result.email, result.fullName, result.instanceUrl));
       }
@@ -155,7 +151,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // A fresh password login never lands on the biometric lock screen.
         biometricLocked: false,
       });
-      if (!result.switched) reportInstall({ reason: 'login', user: result.email });
       return true;
     }
     set({ status: 'error', error: result.error, hasSession: false });
@@ -220,7 +215,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       biometricLocked: false,
     });
     // Every store, open database and request belonged to the old server: start over, at login.
-    await restartForInstance(instanceKey(known?.url ?? url));
+    await restartForInstance(known?.url ?? url);
   },
 
   forgetDevice: async () => {
