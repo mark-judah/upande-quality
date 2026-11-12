@@ -1,7 +1,7 @@
 {
   "name": "upande-quality",
   "main": "expo-router/entry",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "scripts": {
     "ota:build": "upande-mobile-kit publish-ota",
     "kit:doctor": "upande-mobile-kit doctor",

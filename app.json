@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.4.4",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -40,7 +40,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
-      "versionCode": 105404
+      "versionCode": 5500
     },
     "web": {
       "output": "static",
@@ -111,11 +111,9 @@
         "runtimeMajorBase": 0,
         "release": {
           "_help": "Decides APK or OTA for you. \"apk\": folders/files (globs) that need a new APK when they change, e.g. \"modules/**\". \"ota\": folders/files that are safe over the air, e.g. \"assets/fonts/**\". Built in: app/**, src/**, tests, docs, *.md are OTA; android/**, ios/**, patches/**, plugins/** are APK. A changed file in neither list builds an APK to be safe, and the release says which file to list.",
-          "_apk_builtin": "Always an APK, no need to list: android/**, ios/**, patches/**, plugins/**, eas.json, metro.config.js, babel.config.js. Also any new or upgraded native dependency, config plugin or native app.json field (found automatically from package.json and node_modules). Below: our own folders. assets/images/** holds the app icon, adaptive icon, splash and favicon, which are baked into the native build.",
           "apk": [
             "assets/images/**"
           ],
-          "_ota_builtin": "Always OTA, no need to list: app/**, src/**, __tests__/**, *.test.*, *.spec.*, docs/**, backend/**, scripts/**, .github/**, **/*.md, .gitignore, .gitattributes, .editorconfig, .prettierrc*, .eslintrc*, LICENSE. package.json, lock files and app.json are judged by what changed in them, not by name. Below: our own folders. assets/** covers the sounds; kaitet-web/** is server-side Frappe code; the rest is root tooling. 'apk' wins over 'ota', so assets/images/** stays native. A folder in neither list builds an APK to be safe.",
           "ota": [
             "assets/**",
             "kaitet-web/**",
@@ -124,8 +122,54 @@
             "tsconfig.json",
             "expo-env.d.ts"
           ]
-        }
-      }
+        },
+        "nativeBaseline": {
+          "hash": "9f858a36280b",
+          "parts": {
+            "@react-native-async-storage/async-storage": "2.2.0",
+            "@react-native-community/slider": "5.2.1",
+            "@upande/mobile-kit (native modules and plugins)": "d0124cdf2975",
+            "expo": "58.0.20",
+            "expo-application": "58.1.2",
+            "expo-asset": "58.0.18",
+            "expo-audio": "58.0.10",
+            "expo-battery": "58.0.4",
+            "expo-build-properties": "58.0.11",
+            "expo-camera": "58.0.13",
+            "expo-cellular": "58.0.3",
+            "expo-constants": "58.0.13",
+            "expo-device": "58.0.5",
+            "expo-file-system": "58.0.12",
+            "expo-font": "58.0.10",
+            "expo-haptics": "58.0.7",
+            "expo-image": "58.0.17",
+            "expo-intent-launcher": "58.0.3",
+            "expo-linking": "58.0.14",
+            "expo-local-authentication": "58.0.2",
+            "expo-localization": "58.0.5",
+            "expo-navigation-bar": "58.0.4",
+            "expo-network": "58.0.4",
+            "expo-router": "58.0.27",
+            "expo-secure-store": "58.0.2",
+            "expo-splash-screen": "58.0.11",
+            "expo-sqlite": "58.0.14",
+            "expo-status-bar": "58.0.4",
+            "expo-symbols": "58.0.4",
+            "expo-system-ui": "58.0.6",
+            "expo-updates": "58.0.22",
+            "expo-web-browser": "58.0.7",
+            "react-native": "0.88.0",
+            "react-native-gesture-handler": "3.3.0",
+            "react-native-reanimated": "4.7.1",
+            "react-native-safe-area-context": "5.10.1",
+            "react-native-screens": "4.30.0",
+            "react-native-worklets": "0.13.0",
+            "app.json (native fields)": "fbf2d0bee14f"
+          }
+        },
+        "apkTag": "v1.5.0"
+      },
+      "runtimeSdk": 58
     },
     "backgroundColor": "#F5F5F5",
     "updates": {
@@ -134,6 +178,6 @@
       "fallbackToCacheTimeout": 0,
       "url": "https://kaitet-group.upande.com/api/method/upande_mobile.api.ota.manifest?app=Upande%20Quality"
     },
-    "runtimeVersion": "1.4"
+    "runtimeVersion": "1.5"
   }
 }
