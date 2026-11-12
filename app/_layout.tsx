@@ -20,7 +20,7 @@ import { DialogHost } from '@/src/core/ui/DialogHost';
 import { OfflineBanner } from '@/src/core/ui/OfflineBanner';
 import { DrawerItemsProvider } from '@/src/core/ui/drawer-items-context';
 import { useUserStation } from '@/src/core/tenant/user-station';
-import { useTransferHub } from '@/src/core/tenant/transfer-hub';
+import { useFarmSendsBuckets } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
@@ -36,13 +36,14 @@ function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
   const roles = useAuthStore((s) => s.roles);
   const { station } = useUserStation();
-  const hub = useTransferHub();
+  const sends = useFarmSendsBuckets(station?.userFarm);
 
   // Role-gated entries stay out of the drawer AND the home grid, since both
   // render from this same list. Recomputes when roles arrive after login.
-  // A station at the sales farm (the transfer hub) doesn't get Bucket Requests:
-  // that page is for the remote farms sending buckets there.
-  const atHub = !!hub && station?.userFarm === hub;
+  // A station at a farm that never sends buckets (a sales farm packing only its own
+  // orders) doesn't get Bucket Requests. A sales farm whose buckets go to another sales
+  // farm's orders keeps it.
+  const atHub = sends === false;
   const items = useMemo(
     () =>
       getDrawerFor(tenant).filter(

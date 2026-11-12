@@ -24,6 +24,8 @@ export type RawAllocationItem = {
   warehouse?: string;
   /** Remote farm the bucket is transferred from. */
   farm?: string;
+  /** Sales farm the order's buckets go to. */
+  sales_farm?: string;
   // Bucket
   bucket_id?: string;
   harvest_date?: string;
@@ -180,6 +182,8 @@ export type RawPlannedTripStop = {
 export type RawPlannedTrip = {
   trip?: string;
   vehicle?: string;
+  /** Sales farm the trip delivers to. */
+  sales_farm?: string;
   trip_date?: string;
   status?: string;
   capacity?: number;
@@ -275,6 +279,7 @@ export type RawDispatchTrucksResponse = {
 export type RawCompletedTrip = {
   trip?: string;
   vehicle?: string;
+  sales_farm?: string;
   trip_date?: string;
   status?: string;
   run?: number;
@@ -303,6 +308,7 @@ export type RawReopenMessage = {
 export type RawShelvedTrip = {
   trip?: string;
   vehicle?: string;
+  sales_farm?: string;
   status?: string;
   trip_date?: string;
   dispatched_at?: string;
@@ -464,7 +470,7 @@ export const karenBucketRequestsApi = {
   /** "Truck leaving": this farm is done loading the trip; the truck goes on to its next
    *  stop, or to the packhouse from the last one. */
   /** `reason`: why fewer buckets than planned go (stop not 100% loaded). */
-  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number }): Promise<RawCloseTripStopResponse> {
+  closeTripStop(payload: { name: string; farm: string; reason?: string; complete?: number; send_short?: number }): Promise<RawCloseTripStopResponse> {
     return api<RawCloseTripStopResponse>({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.closeTripStop',
@@ -496,7 +502,18 @@ export const karenBucketRequestsApi = {
 
   /** This farm's dispatched buckets for orders delivering on `deliveryDate` and whether
    *  each is shelved at the hub. */
-  getFarmShelvedBuckets(farm: string, deliveryDate?: string): Promise<{ message?: { status?: string; message?: string; hub?: string; trips?: RawShelvedTrip[] } }> {
+  getFarmShelvedBuckets(farm: string, deliveryDate?: string): Promise<{
+    message?: {
+      status?: string;
+      message?: string;
+      hub?: string;
+      /** 0 = this farm never sends buckets (a sales farm packing only its own orders). */
+      sends_buckets?: number;
+      /** The sales farms remote buckets are trucked to. */
+      sales_farms?: string[];
+      trips?: RawShelvedTrip[];
+    };
+  }> {
     return api({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.getFarmShelvedBuckets',

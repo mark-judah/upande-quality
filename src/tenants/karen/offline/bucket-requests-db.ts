@@ -47,6 +47,8 @@ export type ReqOpl = {
   customer: string;
   /** Sales Order delivery date (YYYY-MM-DD), '' when unknown. */
   deliveryDate: string;
+  /** The sales farm the order's buckets go to, '' when unknown. */
+  salesFarm: string;
   total: number;
   scanned: number;
   /** Unscanned ASAP buckets: the order goes to the top of the list. */
@@ -63,6 +65,8 @@ export type OrderGroup = { orderName: string; opls: ReqOpl[] };
 export type TrolleyOpl = {
   oplName: string;
   orderName: string;
+  /** The sales farm the order's buckets go to, '' when unknown. */
+  salesFarm: string;
   createdOn: string;
   customer: string;
   trolleys: string[];
@@ -122,21 +126,21 @@ let _deliveryDate = '';
 export function setActiveDeliveryDate(date: string): void {
   _deliveryDate = (date || '').trim();
 }
-/** SQL condition on opl alias `o` for the active date -- the transfer day: the day before delivery,
- *  when the buckets travel to the packhouse (the Packhouse Schedule's day) -- plus its two arguments.
- *  An order without a delivery date shows under every date, so it never goes missing. */
+/** SQL condition on opl alias `o` for the active date -- the orders' Sales Order delivery date --
+ *  plus its two arguments. An order without a delivery date shows under every date, so it never
+ *  goes missing. */
 function dateCond(): [string, string[]] {
   return [
-    "(? = '' OR COALESCE(o.delivery_date, '') = '' OR DATE(o.delivery_date, '-1 day') = ?)",
+    "(? = '' OR COALESCE(o.delivery_date, '') = '' OR DATE(o.delivery_date) = ?)",
     [_deliveryDate, _deliveryDate],
   ];
 }
-/** The transfer days of this farm's orders on the device, latest first. */
+/** The delivery dates of this farm's orders on the device, latest first. */
 export async function listDeliveryDates(): Promise<string[]> {
   const d = await db();
   const [fc, fa] = farmCond();
   const rows = await d.getAllAsync<{ dd: string }>(
-    `SELECT DISTINCT DATE(o.delivery_date, '-1 day') AS dd FROM opl o
+    `SELECT DISTINCT DATE(o.delivery_date) AS dd FROM opl o
      WHERE COALESCE(o.delivery_date, '') != ''
        AND EXISTS (SELECT 1 FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc})
      ORDER BY dd DESC`,
@@ -310,6 +314,9 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   }
   if (!have.has('delivery_date')) {
     await addColumn(d, 'ALTER TABLE opl ADD COLUMN delivery_date TEXT');
+  }
+  if (!have.has('sales_farm')) {
+    await addColumn(d, 'ALTER TABLE opl ADD COLUMN sales_farm TEXT');
   }
   const scols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(opl_schedule)');
   if (!scols.some((c) => c.name === 'scheduled')) {
@@ -510,8 +517,18 @@ export async function downloadOpls(
       await d.runAsync(
         `UPDATE opl SET order_name = COALESCE(NULLIF(?, ''), order_name), customer = COALESCE(NULLIF(?, ''), customer),
            sales_order = COALESCE(NULLIF(?, ''), sales_order), delivery_date = COALESCE(NULLIF(?, ''), delivery_date),
+           sales_farm = COALESCE(NULLIF(?, ''), sales_farm),
            created_on = COALESCE(NULLIF(?, ''), created_on), downloaded_at = ? WHERE opl_name = ?`,
-        [head.orderName || '', head.customer || '', head.salesOrder || '', head.deliveryDate || '', head.allocatedDate || '', now, oplName],
+        [
+          head.orderName || '',
+          head.customer || '',
+          head.salesOrder || '',
+          head.deliveryDate || '',
+          head.salesFarm || '',
+          head.allocatedDate || '',
+          now,
+          oplName,
+        ],
       );
       // The order may also collect from another farm: add this farm's buckets of it,
       // and correct stems / contents saved from a single box row before.
@@ -578,7 +595,7 @@ export async function downloadOpls(
     const distinctBuckets = new Set(rows.map((r) => r.bucketId)).size;
     await tx(d, async () => {
       await d.runAsync(
-        'INSERT OR IGNORE INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets, delivery_date) VALUES (?,?,?,?,?,?,?,?,?)',
+        'INSERT OR IGNORE INTO opl (opl_name, order_name, customer, sales_order, farm, created_on, downloaded_at, total_buckets, delivery_date, sales_farm) VALUES (?,?,?,?,?,?,?,?,?,?)',
         [
           oplName,
           head.orderName || oplName,
@@ -589,6 +606,7 @@ export async function downloadOpls(
           now,
           distinctBuckets,
           head.deliveryDate || '',
+          head.salesFarm || '',
         ],
       );
       for (const r of mergeBucketRows(rows)) {
@@ -687,6 +705,7 @@ type OplRow = {
   created_on: string | null;
   customer: string | null;
   delivery_date?: string | null;
+  sales_farm?: string | null;
   total: number;
   scanned: number;
   last_activity?: string | null;
@@ -701,7 +720,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
   const [dc, da] = dateCond();
   const opls = await d.getAllAsync<OplRow>(
     `
-    SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.delivery_date,
+    SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.delivery_date, o.sales_farm,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total,
            o.last_activity AS last_activity,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND b.scanned = 1 AND ${fc}) AS scanned,
@@ -726,6 +745,7 @@ export async function listRequests(): Promise<OrderGroup[]> {
       createdOn: o.created_on || '',
       customer: o.customer || '',
       deliveryDate: o.delivery_date || '',
+      salesFarm: o.sales_farm || '',
       total: o.total,
       scanned: o.scanned,
       asap: o.asap ?? 0,
@@ -762,7 +782,7 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
   const [dc, da] = dateCond();
   const opls = await d.getAllAsync<CompletedRow>(
     `
-    SELECT o.opl_name, o.order_name, o.created_on, o.customer,
+    SELECT o.opl_name, o.order_name, o.created_on, o.customer, o.sales_farm,
            (SELECT COUNT(*) FROM bucket b WHERE b.opl_name = o.opl_name AND ${fc}) AS total,
            ${truckState(fc)},
            o.arrived,
@@ -797,6 +817,7 @@ async function listCompleted(inTransitValue: 0 | 1): Promise<TrolleyOpl[]> {
     out.push({
       oplName: o.opl_name,
       orderName: o.order_name || o.opl_name,
+      salesFarm: o.sales_farm || '',
       createdOn: o.created_on || '',
       customer: o.customer || '',
       trolleys,

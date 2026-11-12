@@ -21,6 +21,7 @@ export const SERVER_SCOPED_KEYS: readonly string[] = [
   StorageKeys.versionLastReportedOn,
   StorageKeys.bucketRequestsDownloaded,
   StorageKeys.transferHub,
+  StorageKeys.transferFarms,
   StorageKeys.issueOfflineOpl,
 ];
 

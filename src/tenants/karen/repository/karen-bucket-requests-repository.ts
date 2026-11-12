@@ -20,6 +20,8 @@ export type AllocationItem = {
   shelfLocation: string;
   /** Remote farm the bucket is transferred from. */
   farm: string;
+  /** Sales farm the order's buckets go to. */
+  salesFarm: string;
   stemLength: string;
   qty: number;
   uom: string;
@@ -135,6 +137,8 @@ export const REPLACE_REASONS: ReplaceReason[] = ['Missing', 'Damaged', 'Wrong va
 export type PlannedTrip = {
   tripId: string;
   vehicle: string;
+  /** Sales farm the trip delivers to. */
+  salesFarm: string;
   tripDate: string;
   status: string;
   /** true once confirmed (Scheduled) — the plan is locked and actionable. */
@@ -168,6 +172,7 @@ export type PlannedTrip = {
 export type CompletedTrip = {
   tripId: string;
   vehicle: string;
+  salesFarm: string;
   tripDate: string;
   status: string;
   run: number;
@@ -208,6 +213,7 @@ export type TripArrival = {
 export type ShelvedTrip = {
   tripId: string;
   vehicle: string;
+  salesFarm: string;
   status: string;
   tripDate: string;
   dispatchedAt: string;
@@ -279,11 +285,18 @@ export type CloseTripStopOutcome =
 
 /** closeTripStop's body. Resending after `below_minimum` keeps name, farm and complete and
  *  adds the reason. */
-export function closeTripStopPayload(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): {
+export function closeTripStopPayload(args: {
+  tripId: string;
+  farm: string;
+  reason?: string;
+  complete?: boolean;
+  sendShort?: boolean;
+}): {
   name: string;
   farm: string;
   complete?: number;
   reason?: string;
+  send_short?: number;
 } {
   const reason = args.reason?.trim();
   return {
@@ -292,6 +305,8 @@ export function closeTripStopPayload(args: { tripId: string; farm: string; reaso
     // Sent as complete: the server refuses it unless every bucket planned here is on.
     ...(args.complete ? { complete: 1 } : {}),
     ...(reason ? { reason } : {}),
+    // Confirmed: send the truck though it is under its minimum load.
+    ...(args.sendShort ? { send_short: 1 } : {}),
   };
 }
 
@@ -333,6 +348,7 @@ function mapItem(r: RawAllocationItem): AllocationItem {
     qty: whole ?? (typeof r.qty === 'number' ? r.qty : Number(r.qty ?? 0) || 0),
     uom: whole != null ? 'Stems' : r.uom ?? '',
     oplName: r.opl_name ?? '',
+    salesFarm: r.sales_farm ?? '',
     customer: r.customer ?? '',
     consignee: r.consignee ?? '',
     orderName: r.order_name ?? '',
@@ -403,6 +419,7 @@ function mapPlannedTrip(r: RawPlannedTrip): PlannedTrip {
   return {
     tripId: r.trip ?? '',
     vehicle: r.vehicle ?? '',
+    salesFarm: r.sales_farm ?? '',
     tripDate: r.trip_date ?? '',
     status: r.status ?? 'Draft',
     confirmed: r.status === 'Scheduled',
@@ -750,6 +767,7 @@ export const karenBucketRequestsRepository = {
       trips: (m.trips ?? []).map((t) => ({
         tripId: t.trip ?? '',
         vehicle: t.vehicle ?? '',
+        salesFarm: t.sales_farm ?? '',
         tripDate: t.trip_date ?? '',
         status: t.status ?? '',
         run: t.run ?? 0,
@@ -778,16 +796,22 @@ export const karenBucketRequestsRepository = {
   async fetchShelvedBuckets(
     farm: string,
     deliveryDate?: string,
-  ): Promise<{ kind: 'ok'; hub: string; trips: ShelvedTrip[] } | { kind: 'error'; message: string }> {
+  ): Promise<
+    | { kind: 'ok'; hub: string; sendsBuckets: boolean | null; salesFarms: string[]; trips: ShelvedTrip[] }
+    | { kind: 'error'; message: string }
+  > {
     const raw = await karenBucketRequestsApi.getFarmShelvedBuckets(farm, deliveryDate);
     const m = raw.message ?? {};
     if (m.status !== 'success') return { kind: 'error', message: m.message ?? 'Could not load shelved buckets.' };
     return {
       kind: 'ok',
       hub: m.hub || 'the packhouse',
+      sendsBuckets: m.sends_buckets == null ? null : !!m.sends_buckets,
+      salesFarms: m.sales_farms ?? [],
       trips: (m.trips ?? []).map((t) => ({
         tripId: t.trip ?? '',
         vehicle: t.vehicle ?? '',
+        salesFarm: t.sales_farm ?? '',
         status: t.status ?? '',
         tripDate: t.trip_date ?? '',
         dispatchedAt: t.dispatched_at ?? '',
@@ -863,7 +887,13 @@ export const karenBucketRequestsRepository = {
     return { kind: 'error', message: m.message ?? 'Could not reopen the trip.' };
   },
 
-  async closeTripStop(args: { tripId: string; farm: string; reason?: string; complete?: boolean }): Promise<CloseTripStopOutcome> {
+  async closeTripStop(args: {
+    tripId: string;
+    farm: string;
+    reason?: string;
+    complete?: boolean;
+    sendShort?: boolean;
+  }): Promise<CloseTripStopOutcome> {
     const raw = await karenBucketRequestsApi.closeTripStop(closeTripStopPayload(args));
     return closeTripStopOutcome(raw.message);
   },
