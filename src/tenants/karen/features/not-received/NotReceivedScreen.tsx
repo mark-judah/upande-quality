@@ -4,7 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
-import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { mapAxiosError } from '@/src/core/api/client';
 import { useAuthStore } from '@/src/core/auth/store';
 import { getTenantByUrl } from '@/src/core/tenant/instance-mapper';
@@ -152,7 +152,7 @@ export function NotReceivedScreen() {
       {groups.map((g) => {
         const open = !allFarms || (toggled[g.name] ?? g.rows.length <= FOLD_OVER);
         return (
-          <View key={g.name || 'farm'} style={s.group}>
+          <View key={g.name || 'farm'} style={allFarms ? s.farmCard : s.group}>
             {allFarms ? (
               <Pressable
                 style={s.groupHead}
@@ -170,7 +170,7 @@ export function NotReceivedScreen() {
               </Pressable>
             ) : null}
             {open && g.rows.map((b) => (
-              <View key={b.bucket} style={s.row}>
+              <View key={b.bucket} style={[s.row, allFarms && s.cardRow]}>
                 <View style={s.rowMain}>
                   <Text style={s.bucket}>{b.bucket}</Text>
                   <Text style={s.detail} numberOfLines={2}>
@@ -204,15 +204,23 @@ const s = StyleSheet.create({
   },
   tileValue: { fontFamily: fontFamily.bold, fontSize: 32, lineHeight: 38, color: '#FFFFFF' },
   group: { marginBottom: spacing.lg },
+  farmCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: COLORS.border,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
   groupHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.text,
+    paddingVertical: spacing.md,
   },
+  // Inside a farm card the line sits above each bucket, so none trails the last.
+  cardRow: { borderBottomWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
   groupName: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
   groupTotals: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   empty: {
