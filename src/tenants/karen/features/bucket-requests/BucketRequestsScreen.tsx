@@ -33,7 +33,8 @@ import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { showDialog } from '@/src/core/ui/DialogHost';
-import { useTransferHub } from '@/src/core/tenant/transfer-hub';
+import { toSalesFarm, useFarmSendsBuckets, useTransferHub } from '@/src/core/tenant/transfer-hub';
+import { useUserStation } from '@/src/core/tenant/user-station';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { useShallow } from 'zustand/react/shallow';
 import { focusWhenReady } from '@/src/core/scanning/focus';
@@ -41,7 +42,7 @@ import { useToast } from '@/src/core/ui/Toast';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing, scaleFont } from '@/src/core/theme';
 import {
   useKarenBucketRequestsStore,
-  AWAITING_TRUCK,
+  isAwaitingTruck,
   AWAITING_TRUCK_LABEL,
   AWAITING_TRUCK_NOTE,
   onTrip as oplOnTrip,
@@ -464,15 +465,17 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   }, [addedList, tInTransit]);
 
 
-  // Bucket Requests is for the remote farms; at the sales farm (the transfer hub) the
-  // buckets arrive instead, so the page shows a note and nothing else.
+  // Bucket Requests is for the farms that send buckets; a sales farm packing only its own
+  // orders (Karen) sends none, so the page shows a note and nothing else there. A sales
+  // farm whose buckets go to another sales farm's orders uses it like a remote farm.
   const savedHub = useTransferHub();
   const hubFarm = shelvedHub || savedHub || '';
-  const atHub = !!userFarm && !!hubFarm && userFarm === hubFarm;
+  const atHub = useFarmSendsBuckets(userFarm) === false;
 
   // One request date at a time, today to start with.
   useEffect(() => {
-    if (!deliveryDate) setDeliveryDate(todayIso(), userFarm);
+    // opens on tomorrow's deliveries: the buckets travel the day before
+    if (!deliveryDate) setDeliveryDate(tomorrowIso(), userFarm);
   }, [deliveryDate, userFarm, setDeliveryDate]);
 
 
@@ -720,20 +723,21 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   const [sendingTrip, setSendingTrip] = useState<string | null>(null);
   const onSendTrip = useCallback((t: PlannedTrip) => setSendTrip(t), []);
   // The truck is below its minimum load: "Send anyway" resends the same stop with a reason.
-  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum } | null>(null);
+  const [minLoad, setMinLoad] = useState<{ trip: PlannedTrip; info: BelowMinimum; reason?: string } | null>(null);
   const onConfirmSend = useCallback(
-    async (t: PlannedTrip, reason?: string) => {
+    async (t: PlannedTrip, reason?: string, sendShort?: boolean) => {
       if (!userFarm) return;
       setSendingTrip(t.tripId);
       const complete = !reason;
-      const r = await closeStop(t.tripId, userFarm, reason, complete);
+      const r = await closeStop(t.tripId, userFarm, reason, complete, sendShort);
       setSendingTrip(null);
       if (r.ok) {
         setSendTrip(null);
+        setMinLoad(null);
         showSuccess(r.message);
-      } else if (r.belowMinimum) {
+      } else if (r.belowMinimum && !sendShort) {
         setSendTrip(null);
-        setMinLoad({ trip: t, info: r.belowMinimum });
+        setMinLoad({ trip: t, info: r.belowMinimum, reason });
       } else showError(r.message);
     },
     [userFarm, closeStop, showSuccess, showError],
@@ -931,7 +935,9 @@ const onMarkIssued = (line: string) => {
         onTruck: !x.shelved,
       };
     });
-    const title = h ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}` : sh?.vehicle || 'Trip';
+    const title = h
+      ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}${toSalesFarm(h.salesFarm)}`
+      : `${sh?.vehicle || 'Trip'}${toSalesFarm(sh?.salesFarm)}`;
     const shelvedN = (sh?.buckets ?? []).filter((x) => x.shelved).length;
     return { h, rows, title, shelvedN };
   }, [historyTripId, completedTrips, shelvedTrips, requests, trolley, inTransit, userFarm]);
@@ -987,10 +993,9 @@ const onMarkIssued = (line: string) => {
         <Card>
           <View style={s.empty}>
             <Ionicons name="business-outline" size={26} color={COLORS.textMuted} />
-            <Text style={s.emptyTitle}>Not for {hubFarm}</Text>
+            <Text style={s.emptyTitle}>Not for {userFarm}</Text>
             <Text style={s.emptyHint}>
-              {hubFarm} is the sales farm: remote farms send their buckets here. Bucket Requests is used at the remote
-              farms.
+              {userFarm} packs its own orders and sends no buckets. Bucket Requests is used at the farms that send them.
             </Text>
           </View>
         </Card>
@@ -1056,7 +1061,7 @@ const onMarkIssued = (line: string) => {
       <Screen title="Bucket Requests" scroll={false} headerRight={headerActions}>
         {offlineNote}
         <TripsPage
-          date={deliveryDate || todayIso()}
+          date={deliveryDate || tomorrowIso()}
           onDate={(d) => setDeliveryDate(d, userFarm)}
           farm={userFarm}
           hub={shelvedHub}
@@ -1088,7 +1093,10 @@ const onMarkIssued = (line: string) => {
         <MinimumLoadDialog
           key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
           prompt={minLoad}
+          hub={hubFarm}
+          sending={!!sendingTrip}
           onClose={() => setMinLoad(null)}
+          onSend={(p) => onConfirmSend(p.trip, p.reason, true)}
         />
       </Screen>
     );
@@ -1109,7 +1117,7 @@ const onMarkIssued = (line: string) => {
       <PageBar
         title={tripName(selectedTrip)}
         sub={[
-          selectedTrip.runChain || `${userFarm || 'Farm'} → ${shelvedHub || 'Kapkolia'}`,
+          selectedTrip.runChain || `${userFarm || 'Farm'} → ${selectedTrip.salesFarm || shelvedHub || 'Kapkolia'}`,
           selectedTrip.createdAt ? `Created ${dateTimeLabel(selectedTrip.createdAt)}` : '',
           selectedTrip.scheduledAt ? `Scheduled ${dateTimeLabel(selectedTrip.scheduledAt)}` : '',
         ]
@@ -1283,7 +1291,10 @@ const onMarkIssued = (line: string) => {
       <MinimumLoadDialog
         key={minLoad ? `minload-${minLoad.trip.tripId}:${minLoad.info.loaded}` : 'minload-closed'}
         prompt={minLoad}
+        hub={hubFarm}
+        sending={!!sendingTrip}
         onClose={() => setMinLoad(null)}
+        onSend={(p) => onConfirmSend(p.trip, p.reason, true)}
       />
     </Screen>
   );
@@ -2034,8 +2045,8 @@ function sortWaiting(groups: OrderGroup[]): OrderGroup[] {
 
 /** "KCA 123X · Trip 2 of 3". */
 function tripName(t: PlannedTrip): string {
-  if (t.tripId === AWAITING_TRUCK) return AWAITING_TRUCK_LABEL;
-  return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}`;
+  if (isAwaitingTruck(t.tripId)) return AWAITING_TRUCK_LABEL;
+  return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}${toSalesFarm(t.salesFarm)}`;
 }
 
 type TripStateUi = { label: string; tone: 'now' | 'wait' | 'done'; color?: string };
@@ -2048,7 +2059,7 @@ function tripState(t: PlannedTrip, hub?: string, phoneTrolley = 0): TripStateUi 
   const stop = (t.stops ?? []).find((st) => st.isYou);
   if (stop && stop.total > 0) {
     const moving = stop.transit + stop.shelved;
-    if (stop.shelved === stop.total) return { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' };
+    if (stop.shelved === stop.total) return { label: `Arrived at ${t.salesFarm || hub || 'sales farm'}`, tone: 'done', color: '#0e7490' };
     if (moving > 0 && (moving === stop.total || t.status === 'Dispatched' || t.yourStopClosed))
       return { label: 'In transit', tone: 'now', color: '#1d4ed8' };
     if (stop.loaded > 0 || stop.transit > 0) return { label: 'Loading to truck', tone: 'now', color: '#2563eb' };
@@ -2057,7 +2068,7 @@ function tripState(t: PlannedTrip, hub?: string, phoneTrolley = 0): TripStateUi 
     return { label: 'On trolley (Staging)', tone: 'now', color: '#7c3aed' };
   }
   if (t.status === 'Dispatched') return { label: 'In transit', tone: 'now', color: '#1d4ed8' };
-  if (t.status === 'Received') return { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' };
+  if (t.status === 'Received') return { label: `Arrived at ${t.salesFarm || hub || 'sales farm'}`, tone: 'done', color: '#0e7490' };
   if (t.yourStopClosed) return { label: 'Stop closed', tone: 'done' };
   // Nothing on a trolley yet: its buckets wait on the shelves for this run.
   if (t.current) return { label: 'Awaiting transfer', tone: 'now', color: '#d97706' };
@@ -2143,7 +2154,7 @@ const TripsPage = memo(function TripsPage({
   sendingTrip,
   refreshControl,
 }: {
-  /** The request date shown (YYYY-MM-DD) and how to move it. */
+  /** The delivery date shown (YYYY-MM-DD) and how to move it. */
   date: string;
   onDate: (date: string) => void;
   farm: string;
@@ -2346,9 +2357,9 @@ const TripRow = memo(function TripRow({
             <StatePill state={state} />
           </View>
           <Text style={s.tripRoute} numberOfLines={1}>
-            {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
+            {t.runChain || `${farm || 'Farm'} → ${t.salesFarm || hub || 'Kapkolia'}`}
           </Text>
-          {t.tripId === AWAITING_TRUCK ? <Text style={s.awaitTruck}>{AWAITING_TRUCK_NOTE}</Text> : null}
+          {isAwaitingTruck(t.tripId) ? <Text style={s.awaitTruck}>{AWAITING_TRUCK_NOTE}</Text> : null}
           {t.createdAt ? (
             <Text style={s.oplMeta} numberOfLines={1}>
               Created {dateTimeLabel(t.createdAt)}
@@ -2371,9 +2382,9 @@ const TripRow = memo(function TripRow({
             {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
           </View>
         </Pressable>
-        {onSend && you && t.tripId !== AWAITING_TRUCK ? (
+        {onSend && you && !isAwaitingTruck(t.tripId) ? (
           <Button
-            label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${hub || 'Kapkolia'}`}
+            label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${t.salesFarm || hub || 'sales farm'}`}
             iconLeft="car-outline"
             variant={stopReady(you) ? 'primary' : 'outline'}
             onPress={onSend}
@@ -2403,7 +2414,7 @@ const PastTripRow = memo(function PastTripRow({
 }) {
   const arrived = t.status === 'Received' || t.arrived;
   const st: TripStateUi = arrived
-    ? { label: `Arrived at ${hub || 'Kapkolia'}`, tone: 'done', color: '#0e7490' }
+    ? { label: `Arrived at ${t.salesFarm || hub || 'sales farm'}`, tone: 'done', color: '#0e7490' }
     : { label: 'In transit', tone: 'now', color: '#1d4ed8' };
   const n = c ? c.buckets.length : 0;
   const sh = c ? c.buckets.filter((b) => b.shelved).length : 0;
@@ -2419,8 +2430,9 @@ const PastTripRow = memo(function PastTripRow({
           </View>
           <StatePill state={st} />
         </View>
+        <FromTo to={t.salesFarm} />
         <Text style={s.tripRoute} numberOfLines={1}>
-          {t.runChain || `${farm || 'Farm'} → ${hub || 'Kapkolia'}`}
+          {t.runChain || `${farm || 'Farm'} → ${t.salesFarm || hub || 'Kapkolia'}`}
         </Text>
         {t.leftAt ? (
           <Text style={s.oplMeta} numberOfLines={1}>
@@ -2428,7 +2440,7 @@ const PastTripRow = memo(function PastTripRow({
           </Text>
         ) : null}
         <Text style={s.oplMeta} numberOfLines={1}>
-          {`${n} bucket${n === 1 ? '' : 's'} · ${sh} shelved at ${hub || 'Kapkolia'}`}
+          {`${n} bucket${n === 1 ? '' : 's'} · ${sh} shelved at ${t.salesFarm || hub || 'sales farm'}`}
         </Text>
         <Pressable
           onPress={() => onOpenHistory(t.tripId)}
@@ -2595,11 +2607,11 @@ function DateStepper({ date, onChange }: { date: string; onChange: (date: string
         }}
         style={s.dateStep}
         accessibilityRole="button"
-        accessibilityLabel={`Date ${label}`}
+        accessibilityLabel={`Delivery date ${label}`}
       >
         <Ionicons name="calendar-outline" size={14} color={COLORS.text} />
         <Text style={s.dateStepText} numberOfLines={1}>
-          {label}
+          {`Delivery ${label}`}
         </Text>
       </Pressable>
       <Dialog visible={open} onClose={() => setOpen(false)} title="Pick a date" closeButton>
@@ -2652,8 +2664,10 @@ function DateStepper({ date, onChange }: { date: string; onChange: (date: string
 }
 
 /** Today as YYYY-MM-DD (local). */
-function todayIso(): string {
+/** Tomorrow, YYYY-MM-DD (local). */
+function tomorrowIso(): string {
   const d = new Date();
+  d.setDate(d.getDate() + 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -2927,6 +2941,8 @@ const OplCard = memo(function OplCard({
   const [showScanned, setShowScanned] = useState(false);
   const toScan = opl.buckets.filter((b) => !b.scanned);
   const done = opl.buckets.filter((b) => b.scanned);
+  // the farm its buckets are requested from (this one's) and the sales farm they go to
+  const fromFarms = [...new Set(opl.buckets.map((b) => b.farm).filter(Boolean))].join(', ');
   // A thin line between buckets (not above the first).
   const bucketRow = (b: ReqBucket, i: number) => (
     <BucketRow
@@ -2984,6 +3000,7 @@ const OplCard = memo(function OplCard({
           <View style={s.divider} />
         </>
       ) : null}
+      <FromTo from={fromFarms} to={opl.salesFarm} />
       {toScan.map(bucketRow)}
       {done.length ? (
         <Pressable
@@ -3194,6 +3211,25 @@ const TrolleyTab = memo(function TrolleyTab({
   );
 });
 
+/** "Simotwo → Chepsito": the farm this phone sends from (its station) and the sales farm the truck
+ *  takes the buckets to. */
+const FromTo = memo(function FromTo({ to, from: fromFarm }: { to?: string; from?: string }) {
+  const { station } = useUserStation();
+  const hub = useTransferHub();
+  const from = fromFarm || station?.userFarm || '';
+  const dest = to || hub || '';
+  if (!from && !dest) return null;
+  return (
+    <View style={s.fromTo} accessibilityLabel={`From ${from || 'this farm'} to ${dest || 'the sales farm'}`}>
+      <Text style={s.fromToLbl}>From</Text>
+      <Text style={s.fromToFarm} numberOfLines={1}>{from || 'this farm'}</Text>
+      <Ionicons name="arrow-forward" size={13} color={COLORS.textMuted} />
+      <Text style={s.fromToLbl}>To</Text>
+      <Text style={[s.fromToFarm, s.fromToDest]} numberOfLines={1}>{dest || 'the sales farm'}</Text>
+    </View>
+  );
+});
+
 /** In Transit: one order's buckets on a truck. */
 const TransitOrder = memo(function TransitOrder({ opl: o }: { opl: TrolleyOpl }) {
   return (
@@ -3361,6 +3397,7 @@ const ShelvedTripCard = memo(function ShelvedTripCard({ trip: t, rows }: { trip:
           </Text>
         </View>
       </View>
+      <FromTo to={t.salesFarm} />
       <Text style={s.tripMeta} numberOfLines={1}>
         {[
           t.tripId,
@@ -3548,8 +3585,8 @@ const TripArrivalCard = memo(function TripArrivalCard({
   // Each truck starts folded: tap its header to show (or hide again) its orders.
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  // The hub by name (Kapkolia), never a generic "the packhouse".
-  const hub = arrival?.hub || hubName || 'Kapkolia';
+  // The sales farm this truck delivers to, by name (Kapkolia, Chepsito), never a generic "the packhouse".
+  const hub = trip.salesFarm || arrival?.hub || hubName || 'Kapkolia';
   const arrived = trip.arrived || hasArrived(arrival);
   // The buckets for the delivery date on screen; Complete still needs the whole trip
   // shelved (the server checks every bucket on the truck).
@@ -3582,6 +3619,7 @@ const TripArrivalCard = memo(function TripArrivalCard({
         </View>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
       </View>
+      <FromTo to={trip.salesFarm || hub} />
 
       {/* Where the truck is, as check marks: in transit, then arrived — arrival is
           confirmed by itself once shelving at the hub starts (no button). */}
@@ -3729,7 +3767,7 @@ function TripCard({
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText}>
-            {trip.tripId === AWAITING_TRUCK ? AWAITING_TRUCK_LABEL : trip.vehicle || 'No truck yet'}
+            {isAwaitingTruck(trip.tripId) ? AWAITING_TRUCK_LABEL : trip.vehicle || 'No truck yet'}
             {trip.run ? `  ·  Trip ${trip.run}` : ''}
           </Text>
         </View>
@@ -3739,6 +3777,7 @@ function TripCard({
           </Text>
         </View>
       </View>
+      <FromTo to={trip.salesFarm} />
 
       {children}
 
@@ -3767,7 +3806,7 @@ function TripCard({
         <Text style={s.tripClosed}>Stop closed — the truck has left this farm.</Text>
       ) : yourStop && trip.current && onSend ? (
         <Button
-          label={isLastStop ? `Send to ${hub || 'Kapkolia'}` : 'Truck leaving'}
+          label={isLastStop ? `Send to ${trip.salesFarm || hub || 'sales farm'}` : 'Truck leaving'}
           iconLeft="car-outline"
           variant={yourStop && stopReady(yourStop) ? 'primary' : 'outline'}
           onPress={onSend}
@@ -3816,7 +3855,7 @@ function SendTripDialog({
       onClose={onClose}
       busy={sending}
       icon={{ name: 'car-outline', tone: short ? 'warn' : 'info' }}
-      title={next ? `${trip.vehicle} leaving for ${next.farm}?` : `Send ${trip.vehicle} to ${hub || 'Kapkolia'}?`}
+      title={next ? `${trip.vehicle} leaving for ${next.farm}?` : `Send ${trip.vehicle} to ${trip.salesFarm || hub || 'Kapkolia'}?`}
       subtitle={next ? `${onTruck} bucket${onTruck === 1 ? '' : 's'} loaded here.` : `${onTruck} bucket${onTruck === 1 ? '' : 's'} go in transit.`}
       actions={
         <>
@@ -3875,28 +3914,47 @@ function SendTripDialog({
   );
 }
 
-/** The truck is below its minimum load: inform the driver, no override. */
+/** The truck is below its minimum load: confirm sending it to its sales farm anyway. */
 function MinimumLoadDialog({
   prompt,
+  hub,
+  sending,
   onClose,
+  onSend,
 }: {
-  prompt: { trip: PlannedTrip; info: BelowMinimum } | null;
+  prompt: { trip: PlannedTrip; info: BelowMinimum; reason?: string } | null;
+  hub: string;
+  sending: boolean;
   onClose: () => void;
+  onSend: (p: { trip: PlannedTrip; info: BelowMinimum; reason?: string }) => void;
 }) {
   if (!prompt) return null;
   const { trip, info } = prompt;
+  const to = trip.salesFarm || hub || 'sales farm';
   const numbers =
-    info.capacity > 0 && info.needed > 0
-      ? `${info.loaded} of ${info.capacity} on the truck — it leaves at ${info.needed}`
+    info.capacity > 0
+      ? `${info.loaded} of ${info.capacity} buckets on the truck · ${Math.max(0, info.capacity - info.loaded)} free`
       : info.message;
   return (
     <Dialog
       visible
       onClose={onClose}
+      busy={sending}
       icon={{ name: 'car-outline', tone: 'warn' }}
-      title={`${trip.vehicle} is not ready`}
+      title={`Send ${trip.vehicle} to ${to} not full?`}
       subtitle={numbers}
-      actions={<Button label="OK" onPress={onClose} />}
+      actions={
+        <>
+          <Button label="Cancel" variant="outline" onPress={onClose} disabled={sending} style={{ flex: 1 }} />
+          <Button
+            label={`Send to ${to}`}
+            iconLeft="car-outline"
+            loading={sending}
+            onPress={() => onSend(prompt)}
+            style={{ flex: 1 }}
+          />
+        </>
+      }
     />
   );
 }
@@ -4368,6 +4426,10 @@ const s = StyleSheet.create({
   badgeTxt: { fontFamily: fontFamily.bold, fontSize: scaleFont(11), color: COLORS.textOnPrimary ?? '#fff' },
   // Trips tab
   tripHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  fromTo: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6, flexWrap: 'wrap' },
+  fromToLbl: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  fromToFarm: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
+  fromToDest: { color: COLORS.primary },
   tripTruck: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 },
   tripTruckText: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text, flexShrink: 1 },
   tripPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: borderRadius.full },

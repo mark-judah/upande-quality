@@ -3,6 +3,7 @@ import { api } from '@/src/core/api/client';
 import { loginRequest, probeBaseUrl } from './api';
 import { fetchCurrentUser, needsRealName } from './roles-api';
 import { knownInstances } from './known-instances';
+import { reloadUserStation } from '@/src/core/tenant/user-station';
 import { clearServerData, isOtherServer } from './server-change';
 
 /** The stock /api/method/login response's `full_name` is computed as
@@ -67,6 +68,8 @@ export const authRepository = {
         secureStorage.set(StorageKeys.passwordBackup, password),
         storage.remove(StorageKeys.passwordBackup),
       ]);
+      // this server's configured station, as it was before signing out or switching servers
+      await reloadUserStation();
 
       // Signed in to another server: the app restarts before anything else
       // talks to it, and the restarted start finishes the sign-in (hydrate).
@@ -135,6 +138,7 @@ export const authRepository = {
       StorageKeys.emailBackup,
       StorageKeys.instanceUrlBackup,
       StorageKeys.knownInstances,
+      StorageKeys.stationsByServer,
       // Which on-device database is whose: another server's queued scans stay its own.
       StorageKeys.instanceDbOwners,
     ]);

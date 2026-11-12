@@ -9,6 +9,8 @@ export const StorageKeys = {
   emailBackup: 'email_backup',
   fullName: 'fullname',
   userStation: 'userStation',
+  /** {server: station}: each server's configured station, kept through logout and server changes. */
+  stationsByServer: 'stationsByServer',
   versionLastReportedOn: 'versionLastReportedOn',
   // Latest app version for which the user tapped "Later" on the update prompt —
   // so we don't nag every launch for the same release.
@@ -32,6 +34,8 @@ export const StorageKeys = {
   bucketRequestsDownloaded: 'bucket_requests_downloaded',
   /** The remote-transfer hub (sales farm), as last reported by the server. */
   transferHub: 'transfer_hub',
+  /** { farm: sends buckets } and the sales farms, as last reported by the server. */
+  transferFarms: 'transfer_farms',
   /** Issue Offline: the OPL last picked, with its delivery date ({ opl, date }). */
   issueOfflineOpl: 'issue_offline_opl',
   // The instance key switched to, for the relaunch that follows a server

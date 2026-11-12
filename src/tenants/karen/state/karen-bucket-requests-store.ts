@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { checkConnectivity } from '@/src/core/network/store';
 import { isNoResponseError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
-import { setTransferHub } from '@/src/core/tenant/transfer-hub';
+import { setTransferFarms, setTransferHub } from '@/src/core/tenant/transfer-hub';
 import { instanceKey } from '@/src/core/auth/known-instances';
 import {
   karenBucketRequestsRepository,
@@ -137,12 +137,13 @@ type State = {
   markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
-  /** `belowMinimum`: the truck is under its minimum load; resend with a reason to send anyway. */
+  /** `belowMinimum`: the truck is under its minimum load; resend with `sendShort` to send it anyway. */
   closeStop: (
     tripId: string,
     farm: string,
     reason?: string,
     complete?: boolean,
+    sendShort?: boolean,
   ) => Promise<{ ok: boolean; message: string; belowMinimum?: BelowMinimum }>;
   /** Trips the truck has left this farm on (Completed page). */
   completedTrips: CompletedTrip[];
@@ -189,16 +190,31 @@ export const AWAITING_TRUCK_LABEL = 'Scheduling In Progress';
 export const AWAITING_TRUCK_NOTE =
   'Prepare these buckets and add them to a trolley. A truck will be assigned to pick them up.';
 
-function awaitingTruckTrip(requests: OrderGroup[], trips: PlannedTrip[]): PlannedTrip | null {
+export function isAwaitingTruck(tripId: string | null | undefined): boolean {
+  return !!tripId && (tripId === AWAITING_TRUCK || tripId.startsWith(`${AWAITING_TRUCK}:`));
+}
+
+/** One "trip" per sales farm the waiting orders go to: buckets for different sales farms never share a row. */
+function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[]): PlannedTrip[] {
   const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
   const opls = requests.flatMap((g) => g.opls).filter((o) => !onTrip.has(o.oplName) && o.asap === 0);
-  if (!opls.length) return null;
+  const bySales = new Map<string, typeof opls>();
+  for (const o of opls) {
+    const k = o.salesFarm || '';
+    bySales.set(k, [...(bySales.get(k) ?? []), o]);
+  }
+  const keys = [...bySales.keys()].sort();
+  return keys.map((k) => awaitingTruckTrip(keys.length > 1 ? `${AWAITING_TRUCK}:${k}` : AWAITING_TRUCK, k, bySales.get(k)!));
+}
+
+function awaitingTruckTrip(tripId: string, salesFarm: string, opls: OrderGroup['opls']): PlannedTrip {
   const farm = opls.flatMap((o) => o.buckets).find((b) => b.farm)?.farm ?? '';
   const total = opls.reduce((n, o) => n + o.total, 0);
   const scanned = opls.reduce((n, o) => n + o.scanned, 0);
   return {
-    tripId: AWAITING_TRUCK,
+    tripId,
     vehicle: '',
+    salesFarm,
     tripDate: '',
     status: 'Draft',
     confirmed: false,
@@ -255,7 +271,7 @@ function awaitingTruckTrip(requests: OrderGroup[], trips: PlannedTrip[]): Planne
 }
 
 export function tripTitle(t: PlannedTrip): string {
-  if (t.tripId === AWAITING_TRUCK) return AWAITING_TRUCK_LABEL;
+  if (isAwaitingTruck(t.tripId)) return AWAITING_TRUCK_LABEL;
   const truck = t.vehicle || 'No truck yet';
   return t.run ? `${truck} Trip ${t.run}` : `${truck} · ${t.tripId}`;
 }
@@ -584,6 +600,7 @@ export function waitingGroups(requests: OrderGroup[], trolley: TrolleyOpl[]): Or
       createdOn: o.createdOn,
       customer: o.customer,
       deliveryDate: '',
+      salesFarm: o.salesFarm,
       total: o.buckets.length,
       scanned: o.buckets.filter((b) => b.scanned).length,
       asap: 0,
@@ -856,7 +873,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  // The day the buckets were requested ('' = every day). Only the device's own lists are filtered, so
+  // The orders' delivery date ('' = every day). Only the device's own lists are filtered, so
   // nothing is fetched.
   setDeliveryDate: async (date) => {
     db.setActiveDeliveryDate(date);
@@ -902,8 +919,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     const day = get().deliveryDate;
     const dayOpls = new Set([...allRequests.flatMap((g) => g.opls), ...trolley, ...inTransit].map((o) => o.oplName));
     const dayTrips = day ? allTrips.filter((t) => (t.orders ?? []).some((o) => dayOpls.has(o.opl))) : allTrips;
-    const waitingTruck = awaitingTruckTrip(requests, dayTrips);
-    const plannedTrips = waitingTruck ? [...dayTrips, waitingTruck] : dayTrips;
+    const plannedTrips = [...dayTrips, ...awaitingTruckTrips(requests, dayTrips)];
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
@@ -935,7 +951,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     );
     // A trip opened or closed while this refresh ran: its own refresh sets the trip view.
     const sameTrip = get().selectedTripId === sel;
-    // Dates to filter by: the days this farm's buckets were requested, latest first.
+    // Dates to filter by: the delivery dates of this farm's orders, latest first.
     const dates = [...new Set(deliveryDates)].sort().reverse();
     patch({
       hydrated: true,
@@ -1343,7 +1359,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   loadToTruck: async (oplName, pliIds, truck) => {
-    if (get().selectedTripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
+    if (isAwaitingTruck(get().selectedTripId)) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
     set({ syncingOpl: oplName });
@@ -1394,7 +1410,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   loadAllToTruck: async (opls, truck) => {
-    if (get().selectedTripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
+    if (isAwaitingTruck(get().selectedTripId)) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
     // Only this phone's trolleys: another phone's trolley may not be at this truck.
@@ -1540,12 +1556,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  closeStop: async (tripId, farm, reason, complete) => {
-    if (tripId === AWAITING_TRUCK) return { ok: false, message: AWAITING_TRUCK_NOTE };
+  closeStop: async (tripId, farm, reason, complete, sendShort) => {
+    if (isAwaitingTruck(tripId)) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {
-      const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason, complete });
+      const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason, complete, sendShort });
       if (res.kind === 'below_minimum') return { ok: false, message: res.message, belowMinimum: res.belowMinimum };
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await get().loadPlannedTrips(farm);
@@ -1579,9 +1595,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
         set({ loadingShelved: false });
         return { ok: false, message: res.message };
       }
-      patch({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: res.hub });
-      // Remembered, so Bucket Requests stays off Home and the menu at the hub.
+      // Several sales farms: each trip names its own; the page header doesn't pick one.
+      const hub = res.salesFarms.length > 1 ? 'the sales farm' : res.hub;
+      patch({ loadingShelved: false, shelvedTrips: res.trips, shelvedHub: hub });
+      // Remembered, so Bucket Requests stays off Home and the menu where the farm sends nothing.
       if (res.hub) setTransferHub(res.hub);
+      setTransferFarms(farm, res.sendsBuckets, res.salesFarms);
       return { ok: true };
     } catch (e) {
       set({ loadingShelved: false });
