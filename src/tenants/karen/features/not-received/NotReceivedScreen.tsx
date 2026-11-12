@@ -23,6 +23,9 @@ type Bucket = {
   lastHarvest: string;
 };
 
+/** A farm with more buckets than this starts folded under All farms. */
+const FOLD_OVER = 3;
+
 const DARK_A = '#171717';
 const DARK_B = '#1C1917';
 
@@ -90,6 +93,8 @@ export function NotReceivedScreen() {
 
   const stems = useMemo(() => (buckets ?? []).reduce((t, b) => t + b.stems, 0), [buckets]);
   const allFarms = !shownFarm;
+  // Under All farms a farm with many buckets starts folded; tapping its row opens it.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
   // All farms: one group per farm, by name; one farm: a single group.
   const groups = useMemo(() => {
@@ -144,34 +149,43 @@ export function NotReceivedScreen() {
 
       {buckets && buckets.length === 0 ? <Text style={s.empty}>No buckets</Text> : null}
 
-      {groups.map((g) => (
-        <View key={g.name || 'farm'} style={s.group}>
-          {allFarms ? (
-            <View style={s.groupHead}>
-              <Text style={s.groupName} numberOfLines={1}>
-                {g.name || '—'}
-              </Text>
-              <Text style={s.groupTotals}>
-                {g.rows.length.toLocaleString()} buckets · {g.stems.toLocaleString()} stems
-              </Text>
-            </View>
-          ) : null}
-          {g.rows.map((b) => (
-            <View key={b.bucket} style={s.row}>
-              <View style={s.rowMain}>
-                <Text style={s.bucket}>{b.bucket}</Text>
-                <Text style={s.detail} numberOfLines={2}>
-                  {b.varieties.join(', ') || '—'}
+      {groups.map((g) => {
+        const open = !allFarms || (toggled[g.name] ?? g.rows.length <= FOLD_OVER);
+        return (
+          <View key={g.name || 'farm'} style={s.group}>
+            {allFarms ? (
+              <Pressable
+                style={s.groupHead}
+                onPress={() => setToggled((t) => ({ ...t, [g.name]: !open }))}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open }}
+              >
+                <Text style={s.groupName} numberOfLines={1}>
+                  {g.name || '—'}
                 </Text>
-                <Text style={s.meta} numberOfLines={1}>
-                  {[b.greenhouse, harvestedAt(b.lastHarvest)].filter(Boolean).join(' · ')}
+                <Text style={s.groupTotals}>
+                  {g.rows.length.toLocaleString()} buckets · {g.stems.toLocaleString()} stems
                 </Text>
+                <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} />
+              </Pressable>
+            ) : null}
+            {open && g.rows.map((b) => (
+              <View key={b.bucket} style={s.row}>
+                <View style={s.rowMain}>
+                  <Text style={s.bucket}>{b.bucket}</Text>
+                  <Text style={s.detail} numberOfLines={2}>
+                    {b.varieties.join(', ') || '—'}
+                  </Text>
+                  <Text style={s.meta} numberOfLines={1}>
+                    {[b.greenhouse, harvestedAt(b.lastHarvest)].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
               </View>
-              <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
-            </View>
-          ))}
-        </View>
-      ))}
+            ))}
+          </View>
+        );
+      })}
     </Screen>
   );
 }
@@ -192,10 +206,10 @@ const s = StyleSheet.create({
   group: { marginBottom: spacing.lg },
   groupHead: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.text,
   },
