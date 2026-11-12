@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
 import { COLORS, fontFamily, fontSize } from '@/src/core/theme';
 import { mapAxiosError } from '@/src/core/api/client';
@@ -28,6 +29,8 @@ export function NotReceivedScreen() {
   const date = useKarenDashboardStore((st) => st.selectedDate);
   const farm = useKarenDashboardStore((st) => st.selectedFarm ?? st.data?.farm ?? null);
   const [buckets, setBuckets] = useState<Bucket[] | null>(null);
+  /** The farm the server listed; '' = every farm. */
+  const [shownFarm, setShownFarm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,13 +42,15 @@ export function NotReceivedScreen() {
       const station = await readUserStation().catch(() => null);
       const raw = await karenNotReceivedApi.fetch({
         date,
-        farm: farm ?? undefined,
+        // The home's farm; before the home has loaded, the station's.
+        farm: farm ?? station?.userFarm ?? undefined,
         stationFarm: station?.userFarm,
         company: tenantCompany(getTenantByUrl(instanceUrl)),
       });
       const m = raw?.message;
       if (!m || typeof m !== 'object') throw new Error('Unexpected response from server.');
       if (m.error) throw new Error(m.error);
+      setShownFarm(String(m.farm ?? ''));
       setBuckets(
         (m.buckets ?? []).map((b) => ({
           bucket: String(b.bucket ?? ''),
@@ -70,7 +75,7 @@ export function NotReceivedScreen() {
   );
 
   const stems = useMemo(() => (buckets ?? []).reduce((t, b) => t + b.stems, 0), [buckets]);
-  const showFarm = !farm;
+  const showFarm = !shownFarm;
 
   return (
     <Screen
@@ -79,11 +84,22 @@ export function NotReceivedScreen() {
       error={error}
       onRetry={load}
       onRefresh={load}
+      headerRight={
+        <Pressable
+          style={s.headerBtn}
+          hitSlop={6}
+          onPress={() => router.navigate('/')}
+          accessibilityRole="button"
+          accessibilityLabel="Home"
+        >
+          <Ionicons name="home-outline" size={20} color={COLORS.text} />
+        </Pressable>
+      }
     >
       <View style={s.summary}>
         <Text style={s.summaryText}>
           {date}
-          {farm ? ` · ${farm}` : ''}
+          {` · ${shownFarm || 'All farms'}`}
         </Text>
         <Text style={s.summaryCount}>
           {(buckets?.length ?? 0).toLocaleString()} buckets · {stems.toLocaleString()} stems
@@ -111,6 +127,7 @@ export function NotReceivedScreen() {
 }
 
 const s = StyleSheet.create({
+  headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   summary: { marginBottom: 12 },
   summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
   summaryCount: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },

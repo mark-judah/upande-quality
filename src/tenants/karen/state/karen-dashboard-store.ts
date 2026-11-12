@@ -78,6 +78,10 @@ const farmKey = (email: string | null) => `quality_home_farm:${email ?? ''}`;
 
 // Latest request wins: a reply for an earlier date/refresh is dropped.
 let requestSeq = 0;
+// The Configure Station farm last applied to the home. A station farm that is
+// new (first load, or the station was changed) becomes the home's farm; after
+// that the picker can still move away from it.
+let appliedStationFarm: string | null = null;
 
 export const useKarenDashboardStore = create<DashboardState>((set, get) => ({
   data: null,
@@ -92,13 +96,17 @@ export const useKarenDashboardStore = create<DashboardState>((set, get) => ({
     try {
       const date = get().selectedDate;
       const { email, instanceUrl } = useAuthStore.getState();
+      const station = await readUserStation().catch(() => null);
       let farm = get().selectedFarm;
       let saved = false;
-      if (farm === null) {
+      if (station?.userFarm && station.userFarm !== appliedStationFarm) {
+        appliedStationFarm = station.userFarm;
+        farm = station.userFarm;
+      } else if (farm === null) {
+        // No station: the user's last pick, else the server's default (all farms).
         farm = await storage.get(farmKey(email)).catch(() => null);
         saved = farm !== null;
       }
-      const station = await readUserStation().catch(() => null);
       const raw = await karenDashboardApi.fetch({
         date,
         farm: farm ?? undefined,
@@ -163,6 +171,7 @@ export const useKarenDashboardStore = create<DashboardState>((set, get) => ({
 
   reset: () => {
     requestSeq++;
+    appliedStationFarm = null;
     set({ data: null, loading: false, error: null, selectedDate: todayISO(), selectedFarm: null });
   },
 
