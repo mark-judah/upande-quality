@@ -3,7 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/core/ui/Screen';
-import { COLORS, fontFamily, fontSize } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { mapAxiosError } from '@/src/core/api/client';
 import { useAuthStore } from '@/src/core/auth/store';
 import { getTenantByUrl } from '@/src/core/tenant/instance-mapper';
@@ -20,6 +20,9 @@ type Bucket = {
   stems: number;
   lastHarvest: string;
 };
+
+const DARK_A = '#171717';
+const DARK_B = '#1C1917';
 
 /** HH:MM of a "YYYY-MM-DD HH:MM:SS" server time. */
 const timeOf = (ts: string) => (ts.length >= 16 ? ts.slice(11, 16) : '');
@@ -75,7 +78,21 @@ export function NotReceivedScreen() {
   );
 
   const stems = useMemo(() => (buckets ?? []).reduce((t, b) => t + b.stems, 0), [buckets]);
-  const showFarm = !shownFarm;
+  const allFarms = !shownFarm;
+
+  // All farms: one group per farm, by name; one farm: a single group.
+  const groups = useMemo(() => {
+    const byFarm = new Map<string, Bucket[]>();
+    for (const b of buckets ?? []) {
+      const key = allFarms ? b.farm : '';
+      const list = byFarm.get(key);
+      if (list) list.push(b);
+      else byFarm.set(key, [b]);
+    }
+    return [...byFarm.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, rows]) => ({ name, rows, stems: rows.reduce((t, b) => t + b.stems, 0) }));
+  }, [buckets, allFarms]);
 
   return (
     <Screen
@@ -96,30 +113,53 @@ export function NotReceivedScreen() {
         </Pressable>
       }
     >
-      <View style={s.summary}>
-        <Text style={s.summaryText}>
-          {date}
-          {` · ${shownFarm || 'All farms'}`}
-        </Text>
-        <Text style={s.summaryCount}>
-          {(buckets?.length ?? 0).toLocaleString()} buckets · {stems.toLocaleString()} stems
-        </Text>
+      <Text style={s.summaryText}>
+        {date} · {shownFarm || 'All farms'}
+      </Text>
+
+      <View style={s.tiles}>
+        <View style={[s.tile, { backgroundColor: DARK_A }]}>
+          <Text style={s.tileChip}>BUCKETS</Text>
+          <Text style={s.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+            {(buckets?.length ?? 0).toLocaleString()}
+          </Text>
+        </View>
+        <View style={[s.tile, { backgroundColor: DARK_B }]}>
+          <Text style={s.tileChip}>STEMS</Text>
+          <Text style={s.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+            {stems.toLocaleString()}
+          </Text>
+        </View>
       </View>
 
       {buckets && buckets.length === 0 ? <Text style={s.empty}>No buckets</Text> : null}
 
-      {(buckets ?? []).map((b) => (
-        <View key={b.bucket} style={s.row}>
-          <View style={s.rowMain}>
-            <Text style={s.bucket}>{b.bucket}</Text>
-            <Text style={s.detail} numberOfLines={2}>
-              {b.varieties.join(', ') || '—'}
-            </Text>
-            <Text style={s.meta} numberOfLines={1}>
-              {[showFarm ? b.farm : '', b.greenhouse, timeOf(b.lastHarvest)].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-          <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
+      {groups.map((g) => (
+        <View key={g.name || 'farm'} style={s.group}>
+          {allFarms ? (
+            <View style={s.groupHead}>
+              <Text style={s.groupName} numberOfLines={1}>
+                {g.name || '—'}
+              </Text>
+              <Text style={s.groupTotals}>
+                {g.rows.length.toLocaleString()} buckets · {g.stems.toLocaleString()} stems
+              </Text>
+            </View>
+          ) : null}
+          {g.rows.map((b) => (
+            <View key={b.bucket} style={s.row}>
+              <View style={s.rowMain}>
+                <Text style={s.bucket}>{b.bucket}</Text>
+                <Text style={s.detail} numberOfLines={2}>
+                  {b.varieties.join(', ') || '—'}
+                </Text>
+                <Text style={s.meta} numberOfLines={1}>
+                  {[b.greenhouse, timeOf(b.lastHarvest)].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
+            </View>
+          ))}
         </View>
       ))}
     </Screen>
@@ -128,9 +168,29 @@ export function NotReceivedScreen() {
 
 const s = StyleSheet.create({
   headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  summary: { marginBottom: 12 },
-  summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
-  summaryCount: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },
+  summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginBottom: spacing.sm },
+  tiles: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  tile: { flex: 1, borderRadius: 20, padding: spacing.lg, minHeight: 96, justifyContent: 'flex-end' },
+  tileChip: {
+    fontFamily: fontFamily.medium,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
+  tileValue: { fontFamily: fontFamily.bold, fontSize: 32, lineHeight: 38, color: '#FFFFFF' },
+  group: { marginBottom: spacing.lg },
+  groupHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.text,
+  },
+  groupName: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
+  groupTotals: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   empty: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
