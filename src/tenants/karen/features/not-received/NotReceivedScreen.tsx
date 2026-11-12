@@ -1,17 +1,19 @@
 import { useCallback, useMemo, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
-import { format, parseISO } from 'date-fns';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { StyleSheet, Text } from 'react-native';
 import { Screen } from '@/src/core/ui/Screen';
-import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { mapAxiosError } from '@/src/core/api/client';
-import { useAuthStore } from '@/src/core/auth/store';
-import { getTenantByUrl } from '@/src/core/tenant/instance-mapper';
-import { readUserStation } from '@/src/core/tenant/user-station';
-import { tenantCompany } from '@/src/core/features/station/repository';
 import { useKarenDashboardStore } from '@/src/tenants/karen/state/karen-dashboard-store';
 import { DayStepper } from '@/src/tenants/karen/features/dashboard/DayStepper';
+import {
+  BucketRow,
+  FarmCards,
+  HomeButton,
+  homeScopeParams,
+  serverDateTime,
+  TotalTiles,
+} from '@/src/tenants/karen/features/bucket-list/BucketList';
 import { karenNotReceivedApi } from '@/src/tenants/karen/api/karen-not-received-api';
 
 type Bucket = {
@@ -23,21 +25,8 @@ type Bucket = {
   lastHarvest: string;
 };
 
-/** A farm with more buckets than this starts folded under All farms. */
-const FOLD_OVER = 3;
-
-const DARK_A = '#171717';
-const DARK_B = '#1C1917';
-
-/** "12 Nov 2026, 23:37" for a "YYYY-MM-DD HH:MM:SS[.ffffff]" server time. */
-function harvestedAt(ts: string): string {
-  if (ts.length < 16) return '';
-  try {
-    return format(parseISO(ts.slice(0, 19).replace(' ', 'T')), 'd MMM yyyy, HH:mm');
-  } catch {
-    return ts.slice(0, 16);
-  }
-}
+const farmOf = (b: Bucket) => b.farm;
+const stemsOf = (b: Bucket) => b.stems;
 
 /** Every bucket the home's Not Received tile counts, for the home's day and farm. */
 export function NotReceivedScreen() {
@@ -55,15 +44,7 @@ export function NotReceivedScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { instanceUrl } = useAuthStore.getState();
-      const station = await readUserStation().catch(() => null);
-      const raw = await karenNotReceivedApi.fetch({
-        date,
-        // The home's farm; before the home has loaded, the station's.
-        farm: farm ?? station?.userFarm ?? undefined,
-        stationFarm: station?.userFarm,
-        company: tenantCompany(getTenantByUrl(instanceUrl)),
-      });
+      const raw = await karenNotReceivedApi.fetch({ date, ...(await homeScopeParams(farm)) });
       const m = raw?.message;
       if (!m || typeof m !== 'object') throw new Error('Unexpected response from server.');
       if (m.error) throw new Error(m.error);
@@ -92,23 +73,6 @@ export function NotReceivedScreen() {
   );
 
   const stems = useMemo(() => (buckets ?? []).reduce((t, b) => t + b.stems, 0), [buckets]);
-  const allFarms = !shownFarm;
-  // Under All farms a farm with many buckets starts folded; tapping its row opens it.
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
-
-  // All farms: one group per farm, by name; one farm: a single group.
-  const groups = useMemo(() => {
-    const byFarm = new Map<string, Bucket[]>();
-    for (const b of buckets ?? []) {
-      const key = allFarms ? b.farm : '';
-      const list = byFarm.get(key);
-      if (list) list.push(b);
-      else byFarm.set(key, [b]);
-    }
-    return [...byFarm.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, rows]) => ({ name, rows, stems: rows.reduce((t, b) => t + b.stems, 0) }));
-  }, [buckets, allFarms]);
 
   return (
     <Screen
@@ -117,112 +81,45 @@ export function NotReceivedScreen() {
       error={error}
       onRetry={load}
       onRefresh={load}
-      headerRight={
-        <Pressable
-          style={s.headerBtn}
-          hitSlop={6}
-          onPress={() => router.navigate('/')}
-          accessibilityRole="button"
-          accessibilityLabel="Home"
-        >
-          <Ionicons name="home-outline" size={20} color={COLORS.text} />
-        </Pressable>
-      }
+      headerRight={<HomeButton />}
     >
       <DayStepper value={date} onChange={setDate} />
       <Text style={s.summaryText}>{shownFarm || 'All farms'}</Text>
 
-      <View style={s.tiles}>
-        <View style={[s.tile, { backgroundColor: DARK_A }]}>
-          <Text style={s.tileChip}>BUCKETS</Text>
-          <Text style={s.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-            {(buckets?.length ?? 0).toLocaleString()}
-          </Text>
-        </View>
-        <View style={[s.tile, { backgroundColor: DARK_B }]}>
-          <Text style={s.tileChip}>STEMS</Text>
-          <Text style={s.tileValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-            {stems.toLocaleString()}
-          </Text>
-        </View>
-      </View>
+      <TotalTiles
+        tiles={[
+          { label: 'BUCKETS', value: buckets?.length ?? 0 },
+          { label: 'STEMS', value: stems },
+        ]}
+      />
 
       {buckets && buckets.length === 0 ? <Text style={s.empty}>No buckets</Text> : null}
 
-      {groups.map((g) => {
-        const open = !allFarms || (toggled[g.name] ?? g.rows.length <= FOLD_OVER);
-        return (
-          <View key={g.name || 'farm'} style={allFarms ? s.farmCard : s.group}>
-            {allFarms ? (
-              <Pressable
-                style={s.groupHead}
-                onPress={() => setToggled((t) => ({ ...t, [g.name]: !open }))}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: open }}
-              >
-                <Text style={s.groupName} numberOfLines={1}>
-                  {g.name || '—'}
-                </Text>
-                <Text style={s.groupTotals}>
-                  {g.rows.length.toLocaleString()} buckets · {g.stems.toLocaleString()} stems
-                </Text>
-                <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} />
-              </Pressable>
-            ) : null}
-            {open && g.rows.map((b) => (
-              <View key={b.bucket} style={[s.row, allFarms && s.cardRow]}>
-                <View style={s.rowMain}>
-                  <Text style={s.bucket}>{b.bucket}</Text>
-                  <Text style={s.detail} numberOfLines={2}>
-                    {b.varieties.join(', ') || '—'}
-                  </Text>
-                  <Text style={s.meta} numberOfLines={1}>
-                    {[b.greenhouse, harvestedAt(b.lastHarvest)].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-                <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
-              </View>
-            ))}
-          </View>
-        );
-      })}
+      <FarmCards
+        rows={buckets ?? []}
+        allFarms={!shownFarm}
+        farmOf={farmOf}
+        stemsOf={stemsOf}
+        unit="buckets"
+        renderRow={(b, inCard) => (
+          <BucketRow
+            key={b.bucket}
+            inCard={inCard}
+            title={b.bucket}
+            lines={[
+              b.varieties.join(', ') || '—',
+              [b.greenhouse, serverDateTime(b.lastHarvest)].filter(Boolean).join(' · '),
+            ]}
+            value={b.stems}
+          />
+        )}
+      />
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  headerBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginBottom: spacing.sm },
-  tiles: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  tile: { flex: 1, borderRadius: 20, padding: spacing.lg, minHeight: 96, justifyContent: 'flex-end' },
-  tileChip: {
-    fontFamily: fontFamily.medium,
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 1,
-    marginBottom: spacing.xs,
-  },
-  tileValue: { fontFamily: fontFamily.bold, fontSize: 32, lineHeight: 38, color: '#FFFFFF' },
-  group: { marginBottom: spacing.lg },
-  farmCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  groupHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  // Inside a farm card the line sits above each bucket, so none trails the last.
-  cardRow: { borderBottomWidth: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
-  groupName: { flex: 1, fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  groupTotals: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted },
   empty: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
@@ -230,16 +127,4 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginTop: 24,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  rowMain: { flex: 1, paddingRight: 12 },
-  bucket: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  detail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
-  meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
-  stems: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.danger },
 });

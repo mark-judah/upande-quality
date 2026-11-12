@@ -235,7 +235,10 @@ export function QualityDashboard() {
           </View>
 
           {hasAttention ? (
-            <View style={[s.issueTile, s.issueTileActive]}>
+            <Pressable
+              style={[s.issueTile, s.issueTileActive]}
+              onPress={() => router.push('/needs-attention' as never)}
+            >
               <View style={s.issueTileLeft}>
                 <Text style={[s.tileChip, { color: '#FECACA' }]}>NEEDS ATTENTION</Text>
                 <Text style={[s.issueNumber, { color: '#FCA5A5' }]} numberOfLines={1}>
@@ -252,7 +255,7 @@ export function QualityDashboard() {
                   <Text style={s.issueBreakdownValue}>{(kpi?.openReplacements ?? 0).toLocaleString()}</Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           ) : null}
 
           {(data?.farms.length ?? 0) > 0 ? (
