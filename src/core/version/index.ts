@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { Application } from '@/src/core/native/application';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Platform } from 'react-native';

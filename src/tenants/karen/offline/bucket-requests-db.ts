@@ -1,4 +1,5 @@
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
+import { openDatabaseAsync } from '@/src/core/native/sqlite';
 import { instanceDbName, onInstanceDbReset } from '@/src/core/storage/instance-db';
 import type {
   AllocationItem,
@@ -161,7 +162,7 @@ function open(): Promise<SQLite.SQLiteDatabase> {
   if (!cache.conn) {
     // One file per instance: its queued trolley scans only ever go to that server.
     cache.conn = instanceDbName('karen_bucket_requests.db')
-      .then((name) => SQLite.openDatabaseAsync(name))
+      .then((name) => openDatabaseAsync(name))
       .catch((e) => {
         cache.conn = null;
         throw e;

@@ -199,7 +199,7 @@ export function QualityDashboard() {
 
           <Pressable
             style={[s.issueTile, hasNotReceived && s.issueTileActive]}
-            onPress={() => router.push('/receiving' as never)}
+            onPress={() => router.push('/not-received' as never)}
           >
             <View style={s.issueTileLeft}>
               <Text style={[s.tileChip, hasNotReceived && { color: '#FECACA' }]}>NOT RECEIVED</Text>
