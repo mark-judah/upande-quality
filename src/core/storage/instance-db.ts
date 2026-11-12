@@ -16,7 +16,6 @@ import { createInstanceDbResolver } from './instance-db-resolve';
 
 /** Every on-device database that holds one server's data. */
 export const INSTANCE_DB_BASES = [
-  'telemetry.db',
   'karen_bucket_requests.db',
   'karen_bucket_count.db',
   'karen_stock_take.db',

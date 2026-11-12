@@ -1,5 +1,5 @@
+import '../src/mobile-kit';
 import { useEffect, useMemo } from 'react';
-import { AppState } from 'react-native';
 import { DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,26 +23,15 @@ import { useUserStation } from '@/src/core/tenant/user-station';
 import { useFarmSendsBuckets } from '@/src/core/tenant/transfer-hub';
 import { rolesInclude, useAuthStore } from '@/src/core/auth/store';
 import { useNetworkStore } from '@/src/core/network/store';
-import { startTelemetry, stopTelemetry } from '@/src/core/telemetry/service';
-import { reportInstall } from '@/src/core/version/install-register';
-import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
 import { refreshTransferFarms } from '@/src/tenants/karen/state/karen-transfer-farms';
 import { setUnsentCounter } from '@/src/core/offline/unsent';
 import { countUnsentWork } from '@/src/composition/unsent-work';
-import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
 import { COLORS } from '@/src/core/theme';
+import { MobileKitProvider } from '@upande/mobile-kit';
 
 // Hold the native splash until fonts + auth hydrated.
 SplashScreen.preventAutoHideAsync().catch(() => {});
-
-/** Once the user is past the auth/biometric gate, check GitHub for a newer
- *  release and prompt to update (best-effort, once per session per version).
- *  A component rather than a hook call in RootLayout: it needs UpdateProvider. */
-function UpdatePromptGate({ active }: { active: boolean }) {
-  useUpdatePrompt(active);
-  return null;
-}
 
 function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
@@ -121,27 +110,6 @@ export default function RootLayout() {
     if (fontsLoaded && hydrated) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, hydrated]);
 
-  useEffect(() => {
-    if (hydrated && hasSession && !biometricLocked) {
-      // Device telemetry (hourly, offline-queued) reports app version + OTA per
-      // device, superseding the legacy per-user reportAppVersion call.
-      startTelemetry();
-    } else if (hydrated && !hasSession) {
-      // Signed out: nothing is sent until the next sign-in.
-      stopTelemetry();
-    }
-  }, [hydrated, hasSession, biometricLocked]);
-
-  // Device register: once per launch, then (throttled) each return to the foreground.
-  useEffect(() => {
-    if (!hydrated || !hasSession || biometricLocked) return;
-    reportInstall({ reason: 'launch', user: email });
-    const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') reportInstall({ reason: 'foreground', user: email });
-    });
-    return () => sub.remove();
-  }, [hydrated, hasSession, biometricLocked, email]);
-
   // Biometric / auth gate. Routes to login → biometric-lock → tabs based on state.
   useEffect(() => {
     if (!hydrated) return;
@@ -162,10 +130,9 @@ export default function RootLayout() {
   if (!fontsLoaded || !hydrated) return null;
 
   return (
+    <MobileKitProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <UpdateProvider>
-          <UpdatePromptGate active={hydrated && hasSession && !biometricLocked} />
           <TenantProvider>
             <TenantScopedDrawer>
               <ToastProvider>
@@ -202,8 +169,8 @@ export default function RootLayout() {
               </ToastProvider>
             </TenantScopedDrawer>
           </TenantProvider>
-        </UpdateProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </MobileKitProvider>
   );
 }

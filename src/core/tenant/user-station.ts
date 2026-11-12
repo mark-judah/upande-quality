@@ -101,6 +101,7 @@ const useStationStoreInternal = create<State>((set) => ({
     // the per-server copy first: a read in between must not find it and put the station back
     await rememberStation(null);
     await storage.remove(StorageKeys.userStation);
+    await rememberStation(null);
     set({ station: null });
   },
 }));

@@ -27,8 +27,6 @@ export const StorageKeys = {
   // Instances this device has signed in to, newest first, for the login
   // screen's picker. Survives sign-out and "Forget this device".
   knownInstances: 'known_instances',
-  // Last GitHub Releases check for a newer APK (see src/core/updates).
-  apkUpdateCheck: 'apk_update_check',
   // '1' once picklists were downloaded with the Bucket Requests download
   // button; shows the clear icon. Reset when that data is cleared.
   bucketRequestsDownloaded: 'bucket_requests_downloaded',

@@ -100,8 +100,6 @@ export default function TabLayout() {
       {/* Drawer-only — hide from bottom bar */}
       <Tabs.Screen name="edit-details" options={{ title: 'Edit Details', ...OFF_BAR }} />
       <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', ...OFF_BAR }} />
-      <Tabs.Screen name="not-received" options={{ title: 'Not Received', ...OFF_BAR }} />
-      <Tabs.Screen name="needs-attention" options={{ title: 'Needs Attention', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', ...OFF_BAR }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', ...OFF_BAR }} />
@@ -126,8 +124,6 @@ export default function TabLayout() {
       <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', ...OFF_BAR }} />
-      {/* Settings is reached from the menu and has no use for the tab bar. */}
-      <Tabs.Screen name="settings" options={{ title: 'Settings', ...OFF_BAR, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

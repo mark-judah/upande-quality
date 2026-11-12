@@ -18,7 +18,6 @@ import { useAuthStore } from '@/src/core/auth/store';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { useDrawerItems } from './drawer-items-context';
 import { APP_VERSION } from '@/src/core/version';
-import * as Updates from 'expo-updates';
 import type { DrawerItem } from '@/src/core/tenant/types';
 import { ServerDialog } from '@/src/core/auth/ServerSection';
 import { displayName, needsRealName } from '@/src/core/auth/roles-api';
@@ -112,11 +111,6 @@ export function SideMenu({
   const go = (route: string) => {
     closeWithAnim();
     setTimeout(() => router.replace(`/${route}` as never), 220);
-  };
-
-  const onSettings = () => {
-    closeWithAnim();
-    setTimeout(() => router.push('/settings' as never), 220);
   };
 
   const onConfigure = () => {
@@ -228,12 +222,6 @@ export function SideMenu({
                     </View>
                     <Text style={s.footerText}>Configure station</Text>
                   </Pressable>
-                  <Pressable style={s.footerRow} onPress={onSettings} hitSlop={4}>
-                    <View style={[s.badge, { backgroundColor: '#EEF2FF' }]}>
-                      <Ionicons name="cog-outline" size={15} color="#6366F1" />
-                    </View>
-                    <Text style={s.footerText}>Settings</Text>
-                  </Pressable>
                   <Pressable style={s.footerRow} onPress={onLogout} hitSlop={4}>
                     <View style={[s.badge, { backgroundColor: '#FEF2F2' }]}>
                       <Ionicons name="log-out-outline" size={15} color={COLORS.danger} />
@@ -242,8 +230,6 @@ export function SideMenu({
                   </Pressable>
                   <Text style={s.version}>
                     Upande Quality v{APP_VERSION}
-                    {Updates.channel ? ` · ${Updates.channel}` : ''}
-                    {Updates.updateId ? ` · ${Updates.updateId.slice(0, 8)}` : ''}
                   </Text>
                 </View>
               </ScrollView>

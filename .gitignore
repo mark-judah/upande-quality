@@ -48,3 +48,7 @@ app-example
 # Built by scripts/publish-ota.mjs; published to the Pages branch, not committed here.
 ota/
 .ota-export/
+
+# @upande/mobile-kit: local answers and backups (not for git)
+upande-mobile-kit.json
+.upande-mobile-kit/
