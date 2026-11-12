@@ -33,7 +33,7 @@ import { ProgressBar } from '@/src/core/ui/ProgressBar';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { showDialog } from '@/src/core/ui/DialogHost';
-import { toSalesFarm, useFarmSendsBuckets, useTransferHub } from '@/src/core/tenant/transfer-hub';
+import { toSalesFarm, useFarmSendsBuckets, useSalesFarms, useTransferHub } from '@/src/core/tenant/transfer-hub';
 import { useUserStation } from '@/src/core/tenant/user-station';
 import { SkeletonCards } from '@/src/core/ui/SkeletonCards';
 import { useShallow } from 'zustand/react/shallow';
@@ -163,7 +163,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     markIssued,
     closeStop,
     deliveryDate,
-    deliveryDates,
     setDeliveryDate,
     completedTrips,
     loadCompletedTrips,
@@ -218,7 +217,6 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       markIssued: st.markIssued,
       closeStop: st.closeStop,
       deliveryDate: st.deliveryDate,
-      deliveryDates: st.deliveryDates,
       setDeliveryDate: st.setDeliveryDate,
       completedTrips: st.completedTrips,
       loadCompletedTrips: st.loadCompletedTrips,
@@ -469,6 +467,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
   // orders (Karen) sends none, so the page shows a note and nothing else there. A sales
   // farm whose buckets go to another sales farm's orders uses it like a remote farm.
   const savedHub = useTransferHub();
+  // reactive: a trip's " → sales farm" shows once a second sales farm is known
+  const severalSalesFarms = useSalesFarms().length > 1;
   const hubFarm = shelvedHub || savedHub || '';
   const atHub = useFarmSendsBuckets(userFarm) === false;
 
@@ -936,11 +936,11 @@ const onMarkIssued = (line: string) => {
       };
     });
     const title = h
-      ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}${toSalesFarm(h.salesFarm)}`
-      : `${sh?.vehicle || 'Trip'}${toSalesFarm(sh?.salesFarm)}`;
+      ? `${h.vehicle || 'Truck'}${h.run ? ` · Trip ${h.run}` : ''}${toSalesFarm(h.salesFarm, severalSalesFarms)}`
+      : `${sh?.vehicle || 'Trip'}${toSalesFarm(sh?.salesFarm, severalSalesFarms)}`;
     const shelvedN = (sh?.buckets ?? []).filter((x) => x.shelved).length;
     return { h, rows, title, shelvedN };
-  }, [historyTripId, completedTrips, shelvedTrips, requests, trolley, inTransit, userFarm]);
+  }, [historyTripId, completedTrips, shelvedTrips, requests, trolley, inTransit, userFarm, severalSalesFarms]);
 
   if (!ready && error) {
     return (
@@ -1115,7 +1115,7 @@ const onMarkIssued = (line: string) => {
           stay put while the requests scroll. */}
       {offlineNote}
       <PageBar
-        title={tripName(selectedTrip)}
+        title={tripName(selectedTrip, severalSalesFarms)}
         sub={[
           selectedTrip.runChain || `${userFarm || 'Farm'} → ${selectedTrip.salesFarm || shelvedHub || 'Kapkolia'}`,
           selectedTrip.createdAt ? `Created ${dateTimeLabel(selectedTrip.createdAt)}` : '',
@@ -2044,9 +2044,10 @@ function sortWaiting(groups: OrderGroup[]): OrderGroup[] {
 }
 
 /** "KCA 123X · Trip 2 of 3". */
-function tripName(t: PlannedTrip): string {
-  if (isAwaitingTruck(t.tripId)) return AWAITING_TRUCK_LABEL;
-  return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}${toSalesFarm(t.salesFarm)}`;
+function tripName(t: PlannedTrip, severalSalesFarms: boolean): string {
+  const to = toSalesFarm(t.salesFarm, severalSalesFarms);
+  if (isAwaitingTruck(t.tripId)) return `${AWAITING_TRUCK_LABEL}${to}`;
+  return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}${to}`;
 }
 
 type TripStateUi = { label: string; tone: 'now' | 'wait' | 'done'; color?: string };
@@ -2336,6 +2337,7 @@ const TripRow = memo(function TripRow({
 }) {
   const done = state.tone === 'done';
   const you = (t.stops ?? []).find((x) => x.isYou);
+  const severalSalesFarms = useSalesFarms().length > 1;
   return (
     <View style={done ? s.tripRowDone : undefined}>
       <Card>
@@ -2344,14 +2346,14 @@ const TripRow = memo(function TripRow({
           onPress={() => onOpen(t.tripId)}
           disabled={t.yourStopClosed}
           accessibilityRole="button"
-          accessibilityLabel={`Open ${tripName(t)}`}
+          accessibilityLabel={`Open ${tripName(t, severalSalesFarms)}`}
           style={({ pressed }) => (pressed ? s.tripRowPressed : undefined)}
         >
           <View style={s.tripHead}>
             <View style={s.tripTruck}>
               <Ionicons name="car" size={16} color={done ? COLORS.textMuted : COLORS.text} />
               <Text style={s.tripTruckText} numberOfLines={1}>
-                {tripName(t)}
+                {tripName(t, severalSalesFarms)}
               </Text>
             </View>
             <StatePill state={state} />

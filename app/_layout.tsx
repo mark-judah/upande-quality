@@ -27,6 +27,7 @@ import { startTelemetry, stopTelemetry } from '@/src/core/telemetry/service';
 import { reportInstall } from '@/src/core/version/install-register';
 import { useUpdatePrompt } from '@/src/core/version/useUpdatePrompt';
 import { getDrawerFor } from '@/src/composition/drawer-resolver';
+import { refreshTransferFarms } from '@/src/tenants/karen/state/karen-transfer-farms';
 import { setUnsentCounter } from '@/src/core/offline/unsent';
 import { countUnsentWork } from '@/src/composition/unsent-work';
 import { UpdateProvider } from '@/src/core/updates/UpdateProvider';
@@ -48,6 +49,17 @@ function TenantScopedDrawer({ children }: { children: React.ReactNode }) {
   const roles = useAuthStore((s) => s.roles);
   const { station } = useUserStation();
   const sends = useFarmSendsBuckets(station?.userFarm);
+  const hasSession = useAuthStore((s) => s.hasSession);
+  const online = useNetworkStore((s) => s.online);
+  const farm = station?.userFarm ?? '';
+  const hasBucketRequests = useMemo(
+    () => getDrawerFor(tenant).some((it) => it.route === 'bucket-requests'),
+    [tenant],
+  );
+  // Signed in, online, at a station: whether it sends buckets now, so a hidden Bucket Requests comes back.
+  useEffect(() => {
+    if (hasSession && online && farm && hasBucketRequests) void refreshTransferFarms(farm);
+  }, [hasSession, online, farm, hasBucketRequests]);
 
   // Role-gated entries stay out of the drawer AND the home grid, since both
   // render from this same list. Recomputes when roles arrive after login.

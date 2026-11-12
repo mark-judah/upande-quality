@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { checkConnectivity } from '@/src/core/network/store';
 import { isNoResponseError } from '@/src/core/api/client';
 import { storage, StorageKeys } from '@/src/core/storage';
-import { setTransferFarms, setTransferHub } from '@/src/core/tenant/transfer-hub';
+import { knownSalesFarm, setTransferFarms, setTransferHub, toSalesFarm } from '@/src/core/tenant/transfer-hub';
 import { instanceKey } from '@/src/core/auth/known-instances';
 import {
   karenBucketRequestsRepository,
@@ -199,12 +199,15 @@ function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[]): Plann
   const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
   const opls = requests.flatMap((g) => g.opls).filter((o) => !onTrip.has(o.oplName) && o.asap === 0);
   const bySales = new Map<string, typeof opls>();
+  // downloaded before orders carried their sales farm: the hub's (the only one, mostly)
+  const fallback = knownSalesFarm();
   for (const o of opls) {
-    const k = o.salesFarm || '';
+    const k = o.salesFarm || fallback;
     bySales.set(k, [...(bySales.get(k) ?? []), o]);
   }
   const keys = [...bySales.keys()].sort();
-  return keys.map((k) => awaitingTruckTrip(keys.length > 1 ? `${AWAITING_TRUCK}:${k}` : AWAITING_TRUCK, k, bySales.get(k)!));
+  // one id per sales farm, however many there are: a second sales farm showing up never renames (and closes) the open one
+  return keys.map((k) => awaitingTruckTrip(`${AWAITING_TRUCK}:${k}`, k, bySales.get(k)!));
 }
 
 function awaitingTruckTrip(tripId: string, salesFarm: string, opls: OrderGroup['opls']): PlannedTrip {
@@ -271,7 +274,7 @@ function awaitingTruckTrip(tripId: string, salesFarm: string, opls: OrderGroup['
 }
 
 export function tripTitle(t: PlannedTrip): string {
-  if (isAwaitingTruck(t.tripId)) return AWAITING_TRUCK_LABEL;
+  if (isAwaitingTruck(t.tripId)) return `${AWAITING_TRUCK_LABEL}${toSalesFarm(t.salesFarm)}`;
   const truck = t.vehicle || 'No truck yet';
   return t.run ? `${truck} Trip ${t.run}` : `${truck} · ${t.tripId}`;
 }
