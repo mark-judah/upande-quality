@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
-import type { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { useTenant } from '@/src/core/tenant/tenant-context';
+import { KarenHomeScreen } from '@/src/tenants/karen/features/dashboard/HomeScreen';
 import { Screen } from '@/src/core/ui/Screen';
 import { Card } from '@/src/core/ui/Card';
 import { useAuthStore } from '@/src/core/auth/store';
