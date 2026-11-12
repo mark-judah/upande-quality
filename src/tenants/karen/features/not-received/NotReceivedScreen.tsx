@@ -1,14 +1,19 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { Screen } from '@/src/core/ui/Screen';
-import { COLORS, fontFamily, fontSize } from '@/src/core/theme';
+import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { mapAxiosError } from '@/src/core/api/client';
-import { useAuthStore } from '@/src/core/auth/store';
-import { getTenantByUrl } from '@/src/core/tenant/instance-mapper';
-import { readUserStation } from '@/src/core/tenant/user-station';
-import { tenantCompany } from '@/src/core/features/station/repository';
 import { useKarenDashboardStore } from '@/src/tenants/karen/state/karen-dashboard-store';
+import { DayStepper } from '@/src/tenants/karen/features/dashboard/DayStepper';
+import {
+  BucketRow,
+  FarmCards,
+  HomeButton,
+  homeScopeParams,
+  serverDateTime,
+  TotalTiles,
+} from '@/src/tenants/karen/features/bucket-list/BucketList';
 import { karenNotReceivedApi } from '@/src/tenants/karen/api/karen-not-received-api';
 
 type Bucket = {
@@ -20,14 +25,18 @@ type Bucket = {
   lastHarvest: string;
 };
 
-/** HH:MM of a "YYYY-MM-DD HH:MM:SS" server time. */
-const timeOf = (ts: string) => (ts.length >= 16 ? ts.slice(11, 16) : '');
+const farmOf = (b: Bucket) => b.farm;
+const stemsOf = (b: Bucket) => b.stems;
 
 /** Every bucket the home's Not Received tile counts, for the home's day and farm. */
 export function NotReceivedScreen() {
-  const date = useKarenDashboardStore((st) => st.selectedDate);
+  const homeDate = useKarenDashboardStore((st) => st.selectedDate);
+  // Opens on the home's day; the stepper moves this page only.
+  const [date, setDate] = useState(homeDate);
   const farm = useKarenDashboardStore((st) => st.selectedFarm ?? st.data?.farm ?? null);
   const [buckets, setBuckets] = useState<Bucket[] | null>(null);
+  /** The farm the server listed; '' = every farm. */
+  const [shownFarm, setShownFarm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,17 +44,11 @@ export function NotReceivedScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { instanceUrl } = useAuthStore.getState();
-      const station = await readUserStation().catch(() => null);
-      const raw = await karenNotReceivedApi.fetch({
-        date,
-        farm: farm ?? undefined,
-        stationFarm: station?.userFarm,
-        company: tenantCompany(getTenantByUrl(instanceUrl)),
-      });
+      const raw = await karenNotReceivedApi.fetch({ date, ...(await homeScopeParams(farm)) });
       const m = raw?.message;
       if (!m || typeof m !== 'object') throw new Error('Unexpected response from server.');
       if (m.error) throw new Error(m.error);
+      setShownFarm(String(m.farm ?? ''));
       setBuckets(
         (m.buckets ?? []).map((b) => ({
           bucket: String(b.bucket ?? ''),
@@ -70,7 +73,6 @@ export function NotReceivedScreen() {
   );
 
   const stems = useMemo(() => (buckets ?? []).reduce((t, b) => t + b.stems, 0), [buckets]);
-  const showFarm = !farm;
 
   return (
     <Screen
@@ -79,41 +81,45 @@ export function NotReceivedScreen() {
       error={error}
       onRetry={load}
       onRefresh={load}
+      headerRight={<HomeButton />}
     >
-      <View style={s.summary}>
-        <Text style={s.summaryText}>
-          {date}
-          {farm ? ` · ${farm}` : ''}
-        </Text>
-        <Text style={s.summaryCount}>
-          {(buckets?.length ?? 0).toLocaleString()} buckets · {stems.toLocaleString()} stems
-        </Text>
-      </View>
+      <DayStepper value={date} onChange={setDate} />
+      <Text style={s.summaryText}>{shownFarm || 'All farms'}</Text>
+
+      <TotalTiles
+        tiles={[
+          { label: 'BUCKETS', value: buckets?.length ?? 0 },
+          { label: 'STEMS', value: stems },
+        ]}
+      />
 
       {buckets && buckets.length === 0 ? <Text style={s.empty}>No buckets</Text> : null}
 
-      {(buckets ?? []).map((b) => (
-        <View key={b.bucket} style={s.row}>
-          <View style={s.rowMain}>
-            <Text style={s.bucket}>{b.bucket}</Text>
-            <Text style={s.detail} numberOfLines={2}>
-              {b.varieties.join(', ') || '—'}
-            </Text>
-            <Text style={s.meta} numberOfLines={1}>
-              {[showFarm ? b.farm : '', b.greenhouse, timeOf(b.lastHarvest)].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-          <Text style={s.stems}>{b.stems.toLocaleString()}</Text>
-        </View>
-      ))}
+      <FarmCards
+        rows={buckets ?? []}
+        allFarms={!shownFarm}
+        farmOf={farmOf}
+        stemsOf={stemsOf}
+        unit="buckets"
+        renderRow={(b, inCard) => (
+          <BucketRow
+            key={b.bucket}
+            inCard={inCard}
+            title={b.bucket}
+            lines={[
+              b.varieties.join(', ') || '—',
+              [b.greenhouse, serverDateTime(b.lastHarvest)].filter(Boolean).join(' · '),
+            ]}
+            value={b.stems}
+          />
+        )}
+      />
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  summary: { marginBottom: 12 },
-  summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted },
-  summaryCount: { fontFamily: fontFamily.semiBold, fontSize: fontSize.lg, color: COLORS.text },
+  summaryText: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.textMuted, marginBottom: spacing.sm },
   empty: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
@@ -121,16 +127,4 @@ const s = StyleSheet.create({
     textAlign: 'center',
     marginTop: 24,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  rowMain: { flex: 1, paddingRight: 12 },
-  bucket: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.text },
-  detail: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: COLORS.textSecondary },
-  meta: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: COLORS.textMuted },
-  stems: { fontFamily: fontFamily.semiBold, fontSize: fontSize.md, color: COLORS.danger },
 });

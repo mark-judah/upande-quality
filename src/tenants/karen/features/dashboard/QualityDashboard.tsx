@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { addDays, format, parseISO } from 'date-fns';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import { useNetworkStore } from '@/src/core/network/store';
 import { Dropdown } from '@/src/core/ui/Dropdown';
+import { DayStepper } from '@/src/tenants/karen/features/dashboard/DayStepper';
 import {
-  todayISO,
   useKarenDashboardStore,
   type DashboardBar,
   type DashboardFarm,
@@ -51,25 +50,6 @@ function CollapsibleSection({
         </View>
       </Pressable>
       {open ? children : null}
-    </View>
-  );
-}
-
-function DayStepper({ value, onChange }: { value: string; onChange: (date: string) => void }) {
-  const today = todayISO();
-  const isToday = value >= today;
-  const step = (days: number) => onChange(format(addDays(parseISO(value), days), 'yyyy-MM-dd'));
-  return (
-    <View style={s.stepper}>
-      <Pressable hitSlop={8} style={s.stepperBtn} onPress={() => step(-1)}>
-        <Ionicons name="chevron-back" size={18} color={COLORS.text} />
-      </Pressable>
-      <Pressable hitSlop={8} onPress={() => !isToday && onChange(today)}>
-        <Text style={s.stepperLabel}>{isToday ? 'Today' : format(parseISO(value), 'EEE d MMM yyyy')}</Text>
-      </Pressable>
-      <Pressable hitSlop={8} style={s.stepperBtn} disabled={isToday} onPress={() => step(1)}>
-        <Ionicons name="chevron-forward" size={18} color={isToday ? COLORS.border : COLORS.text} />
-      </Pressable>
     </View>
   );
 }
@@ -255,7 +235,10 @@ export function QualityDashboard() {
           </View>
 
           {hasAttention ? (
-            <View style={[s.issueTile, s.issueTileActive]}>
+            <Pressable
+              style={[s.issueTile, s.issueTileActive]}
+              onPress={() => router.push('/needs-attention' as never)}
+            >
               <View style={s.issueTileLeft}>
                 <Text style={[s.tileChip, { color: '#FECACA' }]}>NEEDS ATTENTION</Text>
                 <Text style={[s.issueNumber, { color: '#FCA5A5' }]} numberOfLines={1}>
@@ -272,7 +255,7 @@ export function QualityDashboard() {
                   <Text style={s.issueBreakdownValue}>{(kpi?.openReplacements ?? 0).toLocaleString()}</Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           ) : null}
 
           {(data?.farms.length ?? 0) > 0 ? (
@@ -374,14 +357,6 @@ const s = StyleSheet.create({
   statusTextLive: { color: '#16A34A' },
   statusTextOffline: { color: '#D97706' },
 
-  stepper: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.surface, borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: COLORS.border,
-    paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, marginBottom: spacing.md,
-  },
-  stepperBtn: { padding: spacing.xs },
-  stepperLabel: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.text },
 
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,

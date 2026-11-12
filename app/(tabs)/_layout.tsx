@@ -21,6 +21,7 @@ const ICONS: Record<string, TabIconPair> = {
   'pending-reshelving': { outline: 'time-outline',              filled: 'time' },
   receiving:            { outline: 'download-outline',          filled: 'download' },
   'not-received':       { outline: 'alert-circle-outline',      filled: 'alert-circle' },
+  'needs-attention':    { outline: 'warning-outline',           filled: 'warning' },
   shelving:             { outline: 'albums-outline',            filled: 'albums' },
   'bucket-requests':    { outline: 'cart-outline',               filled: 'cart' },
   'bucket-transfers':   { outline: 'car-outline',                filled: 'car' },
@@ -100,6 +101,7 @@ export default function TabLayout() {
       <Tabs.Screen name="edit-details" options={{ title: 'Edit Details', ...OFF_BAR }} />
       <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', ...OFF_BAR }} />
       <Tabs.Screen name="not-received" options={{ title: 'Not Received', ...OFF_BAR }} />
+      <Tabs.Screen name="needs-attention" options={{ title: 'Needs Attention', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', ...OFF_BAR }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', ...OFF_BAR }} />
