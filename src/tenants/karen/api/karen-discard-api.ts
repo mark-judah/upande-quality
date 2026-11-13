@@ -82,8 +82,7 @@ export const karenDiscardApi = {
   ): Promise<RawDiscardResponse> {
     const res = await api<{ data?: RawDiscardResponse } | RawDiscardResponse>({
       method: 'POST',
-      // url: '/api/method/upande_quality.mobile.api.createDiscardEntry',
-      url: '/api/method/createDiscardEntry',
+      url: '/api/method/upande_quality.mobile.api.createDiscardEntry',
       data: {
         bucket_id: bucketId,
         // Signals the server to verify the bucket is on an Approved Discard
