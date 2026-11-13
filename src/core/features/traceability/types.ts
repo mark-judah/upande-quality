@@ -152,6 +152,38 @@ export type BoxTraceability = {
   dispatch: BoxDispatch;
 };
 
+/** One step of a bucket journey (Bucket Journey page's events). */
+export type JourneyStep = {
+  t: string;
+  title: string;
+  where: string;
+  who: string;
+  line: string;
+  tone: string;
+};
+
+/** One use of a bucket: harvest -> wherever it is (or ended). */
+export type BucketJourney = {
+  number: number;
+  state: string;
+  stateDetail: string;
+  tone: string;
+  variety: string;
+  stemLength: string;
+  farm: string;
+  stems: number;
+  startDate: string;
+  endDate: string;
+  steps: JourneyStep[];
+};
+
+export type BucketJourneys = {
+  total: number;
+  current: BucketJourney | null;
+  /** Newest first, at most 5. */
+  earlier: BucketJourney[];
+};
+
 export type TraceabilitySnapshot = {
   kind: 'bucket' | 'bunch' | 'box';
   roseType: RoseType;
@@ -173,6 +205,8 @@ export type TraceabilitySnapshot = {
   allocation: BucketAllocationSnapshot | null;
   /** Populated only when kind === 'box'. */
   box?: BoxTraceability | null;
+  /** The bucket's journeys: the current one and up to 5 before it. */
+  journeys?: BucketJourneys | null;
 };
 
 export type TraceabilityQuery =

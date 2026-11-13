@@ -1,6 +1,8 @@
 import { displayName } from '@/src/core/auth/roles-api';
 import type {
   BoxBucketTrace,
+  BucketJourney,
+  BucketJourneys,
   BoxTraceability,
   BucketAllocationSnapshot,
   BunchInfo,
@@ -17,6 +19,7 @@ import type {
 import {
   karenTraceabilityApi,
   type RawAllocation,
+  type RawBucketJourney,
   type RawBoxTraceability,
   type RawBunchInfo,
   type RawJourneyStage,
@@ -261,6 +264,47 @@ function toBoxSnapshot(raw: RawBoxTraceability, query: TraceabilityQuery): Trace
   };
 }
 
+function toJourney(raw: RawBucketJourney): BucketJourney {
+  return {
+    number: Number(raw.number) || 0,
+    state: String(raw.stage?.label ?? raw.state ?? ''),
+    stateDetail: String(raw.stage?.detail ?? ''),
+    tone: String(raw.stage?.tone ?? raw.tone ?? ''),
+    variety: String(raw.variety ?? ''),
+    stemLength: String(raw.stem_length ?? ''),
+    farm: String(raw.farm ?? ''),
+    stems: Number(raw.stems) || 0,
+    startDate: String(raw.start_date ?? ''),
+    endDate: String(raw.end_date ?? ''),
+    steps: (raw.steps ?? []).map((st) => ({
+      t: String(st.t ?? ''),
+      title: String(st.title ?? ''),
+      where: String(st.where ?? ''),
+      who: String(st.who ?? ''),
+      line: String(st.line ?? ''),
+      tone: String(st.tone ?? ''),
+    })),
+  };
+}
+
+/** The current journey and up to 5 before it; null when the server has none (or can't say). */
+async function bucketJourneys(bucketId: string): Promise<BucketJourneys | null> {
+  if (!bucketId) return null;
+  try {
+    const raw = await karenTraceabilityApi.journeys(bucketId, 6);
+    const list = (raw.journeys ?? []).map(toJourney);
+    if (!raw.success || !list.length) return null;
+    const current = list[list.length - 1];
+    return {
+      total: Number(raw.bucket?.journeys) || list.length,
+      current,
+      earlier: list.slice(0, -1).reverse().slice(0, 5),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const karenTraceabilityRepository: TraceabilityRepository = {
   async lookup(query: TraceabilityQuery): Promise<TraceabilitySnapshot> {
     if (query.kind === 'box') {
@@ -271,6 +315,8 @@ export const karenTraceabilityRepository: TraceabilityRepository = {
     const payload = query.kind === 'bucket' ? { bucket_id: query.id } : { bunch_id: query.id };
     const res = await karenTraceabilityApi.lookup(payload);
     const raw = res.data ?? res.message ?? {};
-    return toSnapshot(raw, query);
+    const snapshot = toSnapshot(raw, query);
+    if (!snapshot.bucketId) return snapshot;
+    return { ...snapshot, journeys: await bucketJourneys(snapshot.bucketId) };
   },
 };

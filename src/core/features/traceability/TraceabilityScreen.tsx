@@ -8,9 +8,12 @@ import { ScannedStamp } from '@/src/core/ui/ScannedStamp';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { focusWhenReady } from '@/src/core/scanning/focus';
 import { useTraceabilityStore } from './store';
+import { Ionicons } from '@expo/vector-icons';
 import type {
   BoxBucketTrace,
   BoxTraceability,
+  BucketJourney,
+  BucketJourneys,
   JourneyStage,
   SessionBunch,
   TraceabilityQuery,
@@ -369,7 +372,9 @@ function Snapshot({
         </Card>
       )}
 
-      {data.stages.length > 0 && (
+      {data.journeys?.current ? (
+        <JourneysView journeys={data.journeys} />
+      ) : data.stages.length > 0 && (
         <Card title="Journey">
           {data.stages.map((stage, i) => (
             <StageRow
@@ -382,6 +387,103 @@ function Snapshot({
           ))}
         </Card>
       )}
+    </>
+  );
+}
+
+const TONE_COLOR: Record<string, string> = {
+  bad: COLORS.danger,
+  warn: COLORS.warn,
+  good: COLORS.success,
+  ok: COLORS.success,
+};
+
+function JourneysView({ journeys }: { journeys: BucketJourneys }) {
+  const cur = journeys.current as BucketJourney;
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <>
+      <Card title={`Journey ${cur.number} · current`}>
+        <Text style={[s.jState, { color: TONE_COLOR[cur.tone] ?? COLORS.text }]}>{cur.state || '—'}</Text>
+        {cur.stateDetail ? <Text style={s.stageDetail}>{cur.stateDetail}</Text> : null}
+        <Text style={s.jMeta}>
+          {[cur.variety, cur.stemLength, cur.stems ? `${cur.stems} stems` : '', cur.farm]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+        <View style={{ height: 12 }} />
+        <JourneySteps journey={cur} />
+      </Card>
+
+      {journeys.earlier.length > 0 && (
+        <Card title={`Earlier journeys (${journeys.earlier.length} of ${Math.max(journeys.total - 1, journeys.earlier.length)})`}>
+          {journeys.earlier.map((j, i) => {
+            const expanded = open === j.number;
+            return (
+              <View key={j.number} style={i > 0 ? s.jDivider : null}>
+                <Pressable
+                  onPress={() => setOpen(expanded ? null : j.number)}
+                  style={s.jHead}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.stageName}>Journey {j.number}</Text>
+                    <Text style={s.stageDetail} numberOfLines={2}>
+                      {[
+                        j.variety,
+                        j.startDate
+                          ? j.endDate && j.endDate !== j.startDate
+                            ? `${formatDate(j.startDate)} – ${formatDate(j.endDate)}`
+                            : formatDate(j.startDate)
+                          : '',
+                        j.state,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                  </View>
+                  <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} />
+                </Pressable>
+                {expanded ? (
+                  <View style={{ paddingTop: 8 }}>
+                    <JourneySteps journey={j} />
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </Card>
+      )}
+    </>
+  );
+}
+
+function JourneySteps({ journey }: { journey: BucketJourney }) {
+  if (!journey.steps.length) return <Text style={s.muted}>No steps recorded.</Text>;
+  return (
+    <>
+      {journey.steps.map((st, i) => {
+        const last = i === journey.steps.length - 1;
+        const dot = TONE_COLOR[st.tone];
+        return (
+          <View key={`${st.t}-${i}`} style={s.stageRow}>
+            <View style={s.spineLine}>
+              <View style={[s.spineDot, dot ? { backgroundColor: dot } : null]} />
+              {!last && <View style={s.spineTrack} />}
+            </View>
+            <View style={[s.stageBody, last ? null : s.stageBodyGap]}>
+              <View style={s.stageHeader}>
+                <Text style={s.stageName}>{st.title}</Text>
+                {st.t ? <Text style={s.stageDate}>{formatDateTime(st.t)}</Text> : null}
+              </View>
+              {st.where ? <Text style={s.stageDetail}>{st.where}</Text> : null}
+              {st.line ? <Text style={s.stageDetail}>{st.line}</Text> : null}
+              {st.who ? <Text style={s.stageWho}>{st.who}</Text> : null}
+            </View>
+          </View>
+        );
+      })}
     </>
   );
 }
@@ -590,6 +692,10 @@ const s = StyleSheet.create({
   statusChipText: { fontFamily: fontFamily.bold, fontSize: scaleFont(10), textTransform: 'uppercase', letterSpacing: 0.3 },
 
   stageRow:     { flexDirection: 'row', gap: 12 },
+  jState:       { fontFamily: fontFamily.bold, fontSize: scaleFont(16) },
+  jMeta:        { fontFamily: fontFamily.regular, fontSize: scaleFont(12), color: COLORS.textMuted, marginTop: 4 },
+  jHead:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  jDivider:     { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border },
   spineLine:    { width: DOT, alignItems: 'center', paddingTop: 6 },
   spineDot:     { width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: COLORS.text },
   spineTrack:   { width: TRACK_W, flex: 1, backgroundColor: COLORS.border, marginTop: 4 },
