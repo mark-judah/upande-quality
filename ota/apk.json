@@ -1,9 +1,9 @@
 {
- "version": "1.4.0",
- "tag": "v1.4.0",
- "assetName": "upande_quality_v1.4.0.apk",
- "downloadUrl": "https://github.com/mark-judah/upande-quality/releases/download/v1.4.0/upande_quality_v1.4.0.apk",
- "sizeBytes": 71758730,
- "md5": "164d7077a5cdb7036920166903e79020",
- "notes": "## v1.4.0\n\n_No commits since the previous release._\n\n**Full changelog:** https://github.com/mark-judah/upande-quality/compare/v1.3.1...v1.4.0\n\n---\n\n> **Debug-signed build.** This APK is signed with Android's public debug\n> key, not a private upload key. Sideload it (you may need to allow\n> \"Install unknown apps\"); it cannot be published to Google Play, and\n> it will not install over a build signed with a different key.\n"
+ "version": "1.5.0",
+ "tag": "v1.5.0",
+ "assetName": "upande_quality_v1.5.0.apk",
+ "downloadUrl": "https://github.com/mark-judah/upande-quality/releases/download/v1.5.0/upande_quality_v1.5.0.apk",
+ "sizeBytes": 70728164,
+ "md5": "166b0f47682d7990e0126ea7c83fc193",
+ "notes": "## v1.5.0\n\n### Features\n\n- update TabLayout to use OFF_BAR for hidden screens and enhance index imports (3bd5114)\n\n### Refactoring\n\n- remove APK installation and update checking logic (00b533d)\n\n### Other\n\n- Remove obsolete OTA and versioning scripts, along with APK update handling and device registration logic (763ce98)\n\n**Full changelog:** https://github.com/mark-judah/upande-quality/compare/v1.4.4...v1.5.0\n\n**Release type:** APK (reason: native code changed, so this release starts a new runtime (phones on the old one never get this JS); files that need an APK changed (eas.json, patches/expo-updates+58.0.18.patch, plugins/withBuildTuning.js) - these need a new APK, so one is built; the runtime changes from 1.4 to 1.5)\n\n---\n\n> **Debug-signed build.** This APK is signed with Android's public debug\n> key, not a private upload key. Sideload it (you may need to allow\n> \"Install unknown apps\"); it cannot be published to Google Play, and\n> it will not install over a build signed with a different key.\n\n"
 }
