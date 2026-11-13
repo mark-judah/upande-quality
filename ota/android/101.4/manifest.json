@@ -1,13 +1,13 @@
 {
-  "id": "f31e06c6-70fa-46db-8b03-3a98279ecb96",
-  "createdAt": "2026-11-13T04:59:16.897Z",
+  "id": "e0ebd773-8116-465a-94f3-554c71c16bf3",
+  "createdAt": "2026-11-13T05:24:21.715Z",
   "runtimeVersion": "101.4",
   "launchAsset": {
-    "hash": "jT55L6_9LbCGycp9H4bvJkafSo8eb6iboBtS7GdOf9A",
-    "key": "entry-40eff3161bc64053a8302d8cfe628d38",
+    "hash": "XMey-K9zKRtQtBYMcB_02TcJZEWaYoJQ22d_-9-gT74",
+    "key": "entry-5b553214e82cca1aeb5c9fc2c87510a4",
     "contentType": "application/javascript",
     "fileExtension": ".hbc",
-    "url": "https://mark-judah.github.io/upande-quality/ota/android/101.4/_expo/static/js/android/entry-40eff3161bc64053a8302d8cfe628d38.hbc"
+    "url": "https://mark-judah.github.io/upande-quality/ota/android/101.4/_expo/static/js/android/entry-5b553214e82cca1aeb5c9fc2c87510a4.hbc"
   },
   "assets": [
     {
@@ -492,7 +492,7 @@
     "expoClient": {
       "name": "Upande Quality",
       "slug": "upande-quality",
-      "version": "1.4.5",
+      "version": "1.4.6",
       "orientation": "portrait",
       "icon": "./assets/images/upande_logo.png",
       "scheme": "upandequality",
@@ -605,7 +605,7 @@
       "backgroundColor": "#F5F5F5",
       "sdkVersion": "58.0.0"
     },
-    "appVersion": "1.4.5",
-    "publishedAt": "2026-11-13T04:59:16.926Z"
+    "appVersion": "1.4.6",
+    "publishedAt": "2026-11-13T05:24:21.782Z"
   }
 }
