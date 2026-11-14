@@ -130,7 +130,49 @@ export type RawBoxTraceabilityResponse = {
   message?: RawBoxTraceability;
 };
 
+export type RawJourneyStep = {
+  t?: string;
+  title?: string;
+  where?: string;
+  who?: string;
+  line?: string;
+  tone?: string;
+};
+
+export type RawBucketJourney = {
+  number?: number;
+  state?: string;
+  stage?: { label?: string; detail?: string; tone?: string } | null;
+  tone?: string;
+  variety?: string;
+  stem_length?: string;
+  farm?: string;
+  stems?: number;
+  start_date?: string;
+  end_date?: string;
+  is_latest?: boolean;
+  steps?: RawJourneyStep[];
+};
+
+export type RawBucketJourneys = {
+  success?: boolean;
+  found?: boolean;
+  error?: string;
+  bucket?: { journeys?: number };
+  journeys?: RawBucketJourney[];
+};
+
 export const karenTraceabilityApi = {
+  /** The bucket's latest `limit` journeys (oldest first), as the Bucket Journey page draws them. */
+  async journeys(bucket_id: string, limit = 6): Promise<RawBucketJourneys> {
+    const res = await api<{ message?: RawBucketJourneys }>({
+      method: 'GET',
+      url: '/api/method/upande_packhouse.api.v2.rt_journey.get_bucket_journeys',
+      params: { bucket_id, limit },
+    });
+    return res.message ?? {};
+  },
+
   async lookup(payload: { bucket_id?: string; bunch_id?: string }): Promise<RawTraceabilityResponse> {
     return api<RawTraceabilityResponse>({
       method: 'POST',
