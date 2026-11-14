@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.5.2",
+    "version": "1.6.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -40,7 +40,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
-      "versionCode": 5502
+      "versionCode": 105600
     },
     "web": {
       "output": "static",
@@ -167,7 +167,7 @@
             "app.json (native fields)": "fbf2d0bee14f"
           }
         },
-        "apkTag": "v1.5.0"
+        "apkTag": "v1.6.0"
       },
       "runtimeSdk": 58
     },
@@ -178,6 +178,6 @@
       "fallbackToCacheTimeout": 0,
       "url": "https://kaitet-group.upande.com/api/method/upande_mobile.api.ota.manifest?app=Upande%20Quality"
     },
-    "runtimeVersion": "1.5"
+    "runtimeVersion": "101.6"
   }
 }
