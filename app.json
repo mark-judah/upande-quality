@@ -107,8 +107,8 @@
           "production": "https://kaitet-group.upande.com",
           "development": "http://192.168.8.4"
         },
-        "versionCodeBase": 0,
-        "runtimeMajorBase": 0,
+        "versionCodeBase": 100000,
+        "runtimeMajorBase": 100,
         "release": {
           "_help": "Decides APK or OTA for you. \"apk\": folders/files (globs) that need a new APK when they change, e.g. \"modules/**\". \"ota\": folders/files that are safe over the air, e.g. \"assets/fonts/**\". Built in: app/**, src/**, tests, docs, *.md are OTA; android/**, ios/**, patches/**, plugins/** are APK. A changed file in neither list builds an APK to be safe, and the release says which file to list.",
           "apk": [
