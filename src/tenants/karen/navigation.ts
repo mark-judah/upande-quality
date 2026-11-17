@@ -13,6 +13,8 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Bucket Count',       route: 'bucket-count',       icon: 'cube-outline' },
   { label: 'Bucket Requests',    route: 'bucket-requests',    icon: 'cart-outline' },
   { label: 'Bucket Transfers',   route: 'bucket-transfers',   icon: 'car-outline' },
+  { label: 'Bucket Return Dispatch', route: 'bucket-return-dispatch', icon: 'send-outline' },
+  { label: 'Bucket Return Receipt',  route: 'bucket-return-receipt',  icon: 'checkmark-done-outline' },
   { label: 'Solution Mixing',    route: 'solution-mixing',    icon: 'flask-outline' },
   { label: 'Temperature Log',    route: 'temperature-log',    icon: 'thermometer-outline' },
   { label: 'Product Temperature', route: 'product-temperature', icon: 'snow-outline' },
@@ -27,4 +29,6 @@ export const karenDrawer: DrawerItem[] = [
   { label: 'Packhouse Cleaning', route: 'packhouse-checks',   icon: 'sparkles-outline' },
   { label: 'Vaselife',          route: 'vaselife',           icon: 'flower-outline' },
   { label: 'Flower Audit',       route: 'flower-audit',       icon: 'leaf-outline' },
+  { label: 'GH Integrity',       route: 'greenhouse-integrity', icon: 'leaf-outline' },
+  { label: 'Greenhouse Pest',    route: 'greenhouse-pest',     icon: 'bug-outline' },
 ];

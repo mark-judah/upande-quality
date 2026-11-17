@@ -24,9 +24,9 @@ const TILES: { route: string; label: string; hint: string; icon: keyof typeof Io
     icon: 'scan-outline',
   },
   {
-    route: 'vehicle-hygiene',
-    label: 'Vehicle Hygiene',
-    hint: 'Floors, roof & walls — plus detergent & disinfectant used',
+    route: 'vehicle-inspection',
+    label: 'Vehicle Inspection',
+    hint: 'Front wall, sides, floor, roof, doors & undercarriage — OK or defective',
     icon: 'bus-outline',
   },
   {
