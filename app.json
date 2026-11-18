@@ -2,7 +2,7 @@
   "expo": {
     "name": "Upande Quality",
     "slug": "upande-quality",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/images/upande_logo.png",
     "scheme": "upandequality",
@@ -40,7 +40,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
-      "versionCode": 105700
+      "versionCode": 105800
     },
     "web": {
       "output": "static",
@@ -125,7 +125,7 @@
           ]
         },
         "nativeBaseline": {
-          "hash": "6b12d12d1b77",
+          "hash": "e93e3b0ec784",
           "parts": {
             "@react-native-async-storage/async-storage": "2.2.0",
             "@react-native-community/slider": "5.2.1",
@@ -165,10 +165,10 @@
             "react-native-safe-area-context": "5.10.1",
             "react-native-screens": "4.30.0",
             "react-native-worklets": "0.13.0",
-            "app.json (native fields)": "e1b854c31b42"
+            "app.json (native fields)": "bab3d6a3e62a"
           }
         },
-        "apkTag": "v1.7.0"
+        "apkTag": "v1.8.0"
       },
       "runtimeSdk": 58
     },
@@ -179,6 +179,6 @@
       "fallbackToCacheTimeout": 0,
       "url": "https://kaitet-group.upande.com/api/method/upande_mobile.api.ota.manifest?app=Upande%20Quality"
     },
-    "runtimeVersion": "101.7"
+    "runtimeVersion": "101.8"
   }
 }
