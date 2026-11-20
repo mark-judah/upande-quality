@@ -21,6 +21,8 @@ configureMobileKit({
   // Pin one with `environment: 'production'`. localhost works in the iOS simulator; the Android emulator needs http://10.0.2.2:<port>, a real phone your computer's LAN address.
   biometric: 'host', // your app already locks itself with expo-local-authentication; the kit adds no lock of its own
   // apk: { autoDownload: 'wifi' }, // 'wifi' (default) | 'always' | 'never'
+  // No kit connection banner ("slow Wi-Fi"): the app's own OfflineBanner says when it is offline, as the packhouse app does.
+  connectionBanner: false,
   // fab: true, // the floating Settings button: true (default) | false | 'dev' | { initialSide: 'left', bottom: 96 }
   //
   // Crash & API monitoring is ON by default. The person can turn it off in Settings. Defaults shown:
