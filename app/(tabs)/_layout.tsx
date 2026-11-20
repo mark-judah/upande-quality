@@ -25,6 +25,8 @@ const ICONS: Record<string, TabIconPair> = {
   shelving:             { outline: 'albums-outline',            filled: 'albums' },
   'bucket-requests':    { outline: 'cart-outline',               filled: 'cart' },
   'bucket-transfers':   { outline: 'car-outline',                filled: 'car' },
+  'bucket-return-dispatch': { outline: 'send-outline',           filled: 'send' },
+  'bucket-return-receipt':  { outline: 'checkmark-done-outline', filled: 'checkmark-done' },
   'solution-mixing':    { outline: 'flask-outline',              filled: 'flask' },
   'temperature-log':    { outline: 'thermometer-outline',        filled: 'thermometer' },
   'product-temperature': { outline: 'snow-outline',              filled: 'snow' },
@@ -42,7 +44,9 @@ const ICONS: Record<string, TabIconPair> = {
   'packhouse-inspection': { outline: 'clipboard-outline',       filled: 'clipboard' },
   'packhouse-cleaning': { outline: 'sparkles-outline',          filled: 'sparkles' },
   'packhouse-glass':    { outline: 'scan-outline',              filled: 'scan' },
-  'vehicle-hygiene':    { outline: 'bus-outline',               filled: 'bus' },
+  'vehicle-inspection': { outline: 'bus-outline',               filled: 'bus' },
+  'greenhouse-integrity': { outline: 'leaf-outline',            filled: 'leaf' },
+  'greenhouse-pest':    { outline: 'bug-outline',              filled: 'bug' },
   'bucket-cleaning':    { outline: 'water-outline',             filled: 'water' },
   'vaselife':           { outline: 'flower-outline',            filled: 'flower' },
   'flower-audit':       { outline: 'leaf-outline',              filled: 'leaf' },
@@ -102,6 +106,8 @@ export default function TabLayout() {
       <Tabs.Screen name="pending-reshelving" options={{ title: 'Pending Reshelving', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-requests" options={{ title: 'Bucket Requests', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-transfers" options={{ title: 'Bucket Transfers', ...OFF_BAR }} />
+      <Tabs.Screen name="bucket-return-dispatch" options={{ title: 'Bucket Return Dispatch', ...OFF_BAR }} />
+      <Tabs.Screen name="bucket-return-receipt" options={{ title: 'Bucket Return Receipt', ...OFF_BAR }} />
       <Tabs.Screen name="shelf-operations" options={{ title: 'Shelf Operations', ...OFF_BAR }} />
       <Tabs.Screen name="free-shelves" options={{ title: 'Free Shelves', ...OFF_BAR }} />
       <Tabs.Screen name="issue-offline" options={{ title: 'Issue Offline', ...OFF_BAR }} />
@@ -111,19 +117,23 @@ export default function TabLayout() {
       <Tabs.Screen name="product-temperature" options={{ title: 'Product Temperature', ...OFF_BAR }} />
       <Tabs.Screen name="freight-dispatch" options={{ title: 'Freight Dispatch', ...OFF_BAR }} />
       <Tabs.Screen name="cleaning-record" options={{ title: 'Cleaning Record', ...OFF_BAR }} />
-      <Tabs.Screen name="inspection-log"  options={{ title: 'Inspection Log',  ...OFF_BAR }} />
+      <Tabs.Screen name="inspection-log" options={{ title: 'Inspection Log', ...OFF_BAR }} />
       <Tabs.Screen name="coldroom-qc" options={{ title: 'Coldroom QC', ...OFF_BAR }} />
       <Tabs.Screen name="packhouse-qc" options={{ title: 'Packhouse QC', ...OFF_BAR }} />
       <Tabs.Screen name="packhouse-checks" options={{ title: 'Packhouse Cleaning', ...OFF_BAR }} />
       <Tabs.Screen name="packhouse-inspection" options={{ title: 'Packhouse Inspection', ...OFF_BAR }} />
       <Tabs.Screen name="packhouse-cleaning" options={{ title: 'Packhouse Cleaning', ...OFF_BAR }} />
       <Tabs.Screen name="packhouse-glass" options={{ title: 'Glass Inspection', ...OFF_BAR }} />
-      <Tabs.Screen name="vehicle-hygiene" options={{ title: 'Vehicle Hygiene', ...OFF_BAR }} />
+      <Tabs.Screen name="vehicle-inspection" options={{ title: 'Vehicle Inspection', ...OFF_BAR }} />
+      <Tabs.Screen name="greenhouse-integrity" options={{ title: 'GH Integrity', ...OFF_BAR }} />
+      <Tabs.Screen name="greenhouse-pest" options={{ title: 'Greenhouse Pest', ...OFF_BAR }} />
       <Tabs.Screen name="bucket-cleaning" options={{ title: 'Bucket Cleaning', ...OFF_BAR }} />
       <Tabs.Screen name="vaselife" options={{ title: 'Vaselife', ...OFF_BAR }} />
       <Tabs.Screen name="flower-audit" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="flower-audit-entry" options={{ title: 'Flower Audit', ...OFF_BAR }} />
       <Tabs.Screen name="configure-station" options={{ title: 'Configure Station', ...OFF_BAR }} />
+      {/* Settings is reached from the menu and has no use for the tab bar. */}
+      <Tabs.Screen name="settings" options={{ title: 'Settings', ...OFF_BAR, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }
