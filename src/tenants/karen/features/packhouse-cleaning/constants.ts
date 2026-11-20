@@ -10,6 +10,7 @@ export const INSPECTION_AREAS = [
   'Team B',
   'Team C',
   'Team Eldama',
+  'Team Bravo',
 ];
 
 // Each component's options are the distinct conditions seen in that column of
@@ -31,7 +32,8 @@ export const INSPECTION_COMPONENTS: ComponentSpec[] = [
 ];
 
 // ── Cleaning Checklist ───────────────────────────────────────────────────────
-export const CLEANING_AREAS = INSPECTION_AREAS;
+// Must match the Packhouse Cleaning Record `area` Select on the server (no Team Bravo there).
+export const CLEANING_AREAS = ['Team A', 'Team B', 'Team C', 'Team Eldama'];
 export const CLEANING_MODES = ['Washing', 'Sweeping'];
 export const DETERGENTS = ['MPD', 'Omo', 'Aerial'];
 export const DISINFECTANTS = ['Sporekill', 'Sodium Hypochlorite', 'Physan', 'TOG 6'];
