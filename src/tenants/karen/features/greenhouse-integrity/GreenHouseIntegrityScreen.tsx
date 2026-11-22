@@ -8,7 +8,6 @@ import { LabeledInput } from '@/src/core/ui/LabeledInput';
 import { YesNoToggle } from '@/src/core/ui/YesNoToggle';
 import { useToast } from '@/src/core/ui/Toast';
 import { COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
-import { CHECKS } from '@/src/tenants/karen/repository/karen-greenhouse-integrity-repository';
 import { useKarenGreenhouseIntegrityStore } from '@/src/tenants/karen/state/karen-greenhouse-integrity-store';
 import { SearchSelect } from '@/src/core/ui/SearchSelect';
 
@@ -114,14 +113,17 @@ export function KarenGreenHouseIntegrityScreen() {
 
       <Card>
         <Text style={s.section}>CHECKLIST</Text>
-        <Text style={s.help}>Optional — toggle any that apply. YES on the left, NO on the right.</Text>
+        <Text style={s.help}>YES if the defect is there. Anything left blank is saved as OK.</Text>
         <View style={{ height: 4 }} />
-        {CHECKS.map((c, i) => (
-          <View key={c.key} style={[s.item, i > 0 && s.itemDivider]}>
+        {st.items.length === 0 ? (
+          <Text style={s.hint}>No checklist items are set up yet (Greenhouse Inspection Item Master).</Text>
+        ) : null}
+        {st.items.map((c, i) => (
+          <View key={c.name} style={[s.item, i > 0 && s.itemDivider]}>
             <Text style={s.itemLabel}>{c.label}</Text>
             <YesNoToggle
-              value={st.checks[c.key] ?? null}
-              onChange={(v) => st.setCheck(c.key, v)}
+              value={st.checks[c.name] ?? null}
+              onChange={(v) => st.setCheck(c.name, v)}
             />
           </View>
         ))}
