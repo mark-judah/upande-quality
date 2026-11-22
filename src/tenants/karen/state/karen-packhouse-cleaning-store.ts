@@ -6,6 +6,7 @@ import {
   type InspectionPayload,
 } from '../api/karen-packhouse-cleaning-api';
 import { mapAxiosError } from '@/src/core/api/client';
+import type { ComponentSpec } from '../features/packhouse-cleaning/constants';
 
 export type SubmitOutcome =
   | { kind: 'ok'; name: string; message: string }
@@ -13,6 +14,12 @@ export type SubmitOutcome =
 
 type State = {
   submitting: boolean;
+  inspectionAreas: string[];
+  inspectionComponents: ComponentSpec[];
+  setupLoading: boolean;
+  setupError: string | null;
+  /** Loads the Inspection Log's areas and items from the server (no hard-coded lists). */
+  loadInspectionSetup: () => Promise<void>;
   submitInspection: (payload: InspectionPayload) => Promise<SubmitOutcome>;
   submitGlass: (payload: GlassPayload) => Promise<SubmitOutcome>;
   submitCleaning: (payload: CleaningPayload) => Promise<SubmitOutcome>;
@@ -26,6 +33,24 @@ function toResult(res: { message?: { status?: string; name?: string; message?: s
 
 export const useKarenPackhouseCleaningStore = create<State>((set) => ({
   submitting: false,
+  inspectionAreas: [],
+  inspectionComponents: [],
+  setupLoading: false,
+  setupError: null,
+
+  loadInspectionSetup: async () => {
+    set({ setupLoading: true, setupError: null });
+    try {
+      const m = (await karenPackhouseCleaningApi.getInspectionSetup()).message;
+      if (!m) throw new Error('Could not load the inspection setup.');
+      const components = (m.components ?? [])
+        .filter((c) => c.label)
+        .map((c) => ({ label: c.label as string, options: c.options ?? [] }));
+      set({ inspectionAreas: m.areas ?? [], inspectionComponents: components, setupLoading: false });
+    } catch (err) {
+      set({ setupLoading: false, setupError: mapAxiosError(err).message });
+    }
+  },
 
   submitInspection: async (payload) => {
     set({ submitting: true });
