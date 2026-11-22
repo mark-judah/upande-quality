@@ -937,13 +937,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
     let notice: string | null = null;
     if (sel && (!trip || trip.yourStopClosed)) {
-      const was = trip ?? get().plannedTrips.find((t) => t.tripId === sel);
-      // A trip this phone just loaded leaves the plan (dispatched): back to Trips quietly.
-      notice = loadedTrips.has(sel)
-        ? null
-        : trip
-        ? `${tripTitle(trip)}: stop closed — the truck has left this farm.`
-        : `${was ? tripTitle(was) : `Trip ${sel}`} is no longer planned for this farm.`;
+      // A trip this phone just loaded, or one that left the plan: back to Trips quietly.
+      notice = trip && !loadedTrips.has(sel) ? `${tripTitle(trip)}: stop closed — the truck has left this farm.` : null;
       trip = null;
     }
     const view = trip ? tripView(trip, plannedTrips, requests, trolley, inTransit) : null;
