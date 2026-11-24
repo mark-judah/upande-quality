@@ -7,6 +7,7 @@ import type {
   OplServerState,
   PlannedTrip,
 } from '../repository/karen-bucket-requests-repository';
+import { compareShelf } from './shelf-order';
 
 /** A bucket row as the offline UI consumes it. */
 export type ReqBucket = {
@@ -750,7 +751,10 @@ export async function listRequests(): Promise<OrderGroup[]> {
       scanned: o.scanned,
       asap: o.asap ?? 0,
       scheduled: false,
-      buckets: brows.map(mapBucketRow),
+      // Still to scan first, ASAP ones on top, then in shelf order.
+      buckets: brows
+        .map(mapBucketRow)
+        .sort((a, b) => Number(a.scanned) - Number(b.scanned) || Number(b.asap) - Number(a.asap) || compareShelf(a.shelf, b.shelf)),
     };
     opl.scheduled = !opl.buckets.length || opl.buckets.some((b) => b.scheduled);
     const g = groups.get(opl.orderName);

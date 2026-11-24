@@ -62,6 +62,7 @@ import {
   REPLACE_REASONS,
   type CompletedTrip,
   type OplSchedule,
+  type NotFoundReport,
   type ReplaceReason,
   type ReplaceCorrection,
   type BucketIssueInfo,
@@ -69,7 +70,9 @@ import {
   type ShelvedTrip,
 } from '@/src/tenants/karen/repository/karen-bucket-requests-repository';
 import { setActiveFarm, type ReqOpl, type ReqBucket, type Vehicle } from '@/src/tenants/karen/offline/bucket-requests-db';
+import { compareShelf } from '@/src/tenants/karen/offline/shelf-order';
 import { lineColors, type LineColor } from './line-colors';
+import { NotFoundReportSteps } from './NotFoundReport';
 import { CardList, FadeIn, useStableCallback, type CardItem } from './CardList';
 
 type Tab = 'requests' | 'trolley' | 'transit' | 'shelved';
@@ -693,23 +696,23 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
       tone: 'warn',
     });
 
-  const onNotFound = () => {
+  const onNotFound = (report: NotFoundReport) => {
     const pick = replacePick;
     if (!pick) return;
     confirm(
       'Not found, no replacement?',
       `${pick.bucket.bucketId.toUpperCase()} is left out of the transfer and the order loads with the buckets you have.`,
       'Mark not found',
-      () => void doNotFound(),
+      () => void doNotFound(report),
     );
   };
-  const doNotFound = async () => {
+  const doNotFound = async (report: NotFoundReport) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
     setReplacePick(null);
     setReplacingId(pick.bucket.id);
-    const r = await markNotFound(pick.bucket.bucketId, pick.pliId);
+    const r = await markNotFound(pick.bucket.bucketId, pick.pliId, undefined, report);
     setReplacingId(null);
     replaceBusy.current = false;
     if (r.ok) showSuccess(`${pick.bucket.bucketId} marked not found — load the order with the buckets you have.`);
@@ -742,7 +745,7 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     },
     [userFarm, closeStop, showSuccess, showError],
   );
-const onMarkIssued = (line: string) => {
+const onMarkIssued = (line: string, report: NotFoundReport) => {
     const pick = replacePick;
     if (!pick) return;
     confirm(
@@ -754,7 +757,7 @@ const onMarkIssued = (line: string) => {
         replaceBusy.current = true;
         setReplacePick(null);
         setReplacingId(pick.bucket.id);
-        const r = await markIssued(pick.bucket.id, pick.pliId);
+        const r = await markIssued(pick.bucket.id, pick.pliId, report);
         setReplacingId(null);
         replaceBusy.current = false;
         if (r.ok) showSuccess(r.message);
@@ -768,6 +771,7 @@ const onMarkIssued = (line: string) => {
     reason: ReplaceReason,
     notes?: string,
     correction?: ReplaceCorrection,
+    report?: NotFoundReport,
   ) => {
     const pick = replacePick;
     if (!pick) return;
@@ -778,7 +782,7 @@ const onMarkIssued = (line: string) => {
       `${old} is replaced with ${c.bucketId.toUpperCase()}${c.shelf ? ` (shelf ${c.shelf.toUpperCase()})` : ''} — ${reason.toLowerCase()}.` +
         (real ? ` ${old} stays on its shelf, recorded as ${real}.` : ''),
       'Replace',
-      () => void doReplace(c, reason, notes, correction),
+      () => void doReplace(c, reason, notes, correction, report),
     );
   };
   const doReplace = async (
@@ -786,13 +790,14 @@ const onMarkIssued = (line: string) => {
     reason: ReplaceReason,
     notes?: string,
     correction?: ReplaceCorrection,
+    report?: NotFoundReport,
   ) => {
     const pick = replacePick;
     if (!pick || replaceBusy.current) return;
     replaceBusy.current = true;
     setReplacePick(null);
     setReplacingId(pick.bucket.id);
-    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes, correction);
+    const r = await replaceBucket(pick.bucket.id, pick.pliId, c.bucketId, reason, notes, correction, report);
     setReplacingId(null);
     replaceBusy.current = false;
     if (r.ok) showSuccess(r.message);
@@ -1511,17 +1516,24 @@ function ReplacePicker({
 }: {
   pick: {
     bucket: ReqBucket;
+    pliId: string;
     neededQty: number | null;
     candidates: ReplacementCandidate[];
   } | null;
   onClose: () => void;
-  onPick: (c: ReplacementCandidate, reason: ReplaceReason, notes?: string, correction?: ReplaceCorrection) => void;
+  onPick: (
+    c: ReplacementCandidate,
+    reason: ReplaceReason,
+    notes?: string,
+    correction?: ReplaceCorrection,
+    report?: NotFoundReport,
+  ) => void;
   /** Not in the cold room and nothing to replace it: leave it out of the transfer. */
-  onNotFound: () => void;
+  onNotFound: (report: NotFoundReport) => void;
   /** "Issued offline": where the bucket was issued (which line). */
   issueInfo: () => Promise<BucketIssueInfo | { kind: 'error'; message: string } | null>;
   /** Issued to this order's own line: mark it issued instead of replacing it. */
-  onMarkIssued: (line: string) => void;
+  onMarkIssued: (line: string, report: NotFoundReport) => void;
 }) {
   const candidates = pick?.candidates ?? [];
   // Default to the best match each time the sheet opens for a bucket.
@@ -1535,13 +1547,19 @@ function ReplacePicker({
   const [realLength, setRealLength] = useState('');
   const [varieties, setVarieties] = useState<string[]>([]);
   const [lengths, setLengths] = useState<string[]>([]);
+  // Missing: the shelf the system put it on, scanned, and its photo -- before replacing or marking it not found
+  const [report, setReport] = useState<NotFoundReport | null>(null);
   if (pickFor.pick !== pick || pickFor.firstId !== firstId) {
     setPickFor({ pick, firstId });
     setSelected(firstId);
     setReason('Missing');
     setRealVariety('');
     setRealLength('');
+    setReport(null);
   }
+  const missing = reason === 'Missing';
+  // every reason (missing, damaged, wrong variety, issued offline): the shelf scanned and photographed first
+  const needsReport = !report;
   const wrongVariety = reason === 'Wrong variety';
   useEffect(() => {
     if (!wrongVariety) return;
@@ -1612,6 +1630,15 @@ function ReplacePicker({
               </Pressable>
             ))}
           </View>
+          {pick && b ? (
+            <NotFoundReportSteps
+              key={pick.pliId}
+              pliId={pick.pliId}
+              bucketId={b.bucketId}
+              shelfHint={b.shelf}
+              onReady={setReport}
+            />
+          ) : null}
           {wrongVariety ? (
             <View style={s.correctBox}>
               <Text style={s.correctNote}>
@@ -1654,14 +1681,16 @@ function ReplacePicker({
                       : 'Not issued anywhere yet — replace it or mark it not found.'}
             </Text>
           ) : null}
-          <Text style={s.repCount}>
-            {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
-          </Text>
+          {needsReport ? null : (
+            <Text style={s.repCount}>
+              {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
+            </Text>
+          )}
         </View>
       }
       actions={
         <View style={s.dialogActionsCol}>
-          {!candidates.length ? (
+          {!candidates.length && !needsReport ? (
             <Text style={s.repNone}>
               No bucket matches {b?.bucketId}. If it isn’t in the cold room, mark it not found — the order
               then loads with the buckets you have.
@@ -1676,7 +1705,11 @@ function ReplacePicker({
                   singleLine
                   label="Mark as issued"
                   iconLeft="checkmark-done-outline"
-                  onPress={() => onMarkIssued(issuedOk?.issuedTo.find((r) => r.sameLine)?.team || issuedOk?.line || '')}
+                  onPress={() =>
+                    report &&
+                    onMarkIssued(issuedOk?.issuedTo.find((r) => r.sameLine)?.team || issuedOk?.line || '', report)
+                  }
+                  disabled={!report}
                   style={{ flex: 2 }}
                 />
               ) : (
@@ -1685,8 +1718,10 @@ function ReplacePicker({
                   singleLine
                   label={chosen ? `Replace with ${chosen.bucketId}` : 'Replace'}
                   iconLeft="swap-horizontal"
-                  onPress={() => chosen && onPick(chosen, reason, undefined, correction)}
-                  disabled={!chosen || correctionMissing || (reason === 'Issued offline' && issuedLoading)}
+                  onPress={() => chosen && onPick(chosen, reason, undefined, correction, report ?? undefined)}
+                  disabled={
+                    !chosen || needsReport || correctionMissing || (reason === 'Issued offline' && issuedLoading)
+                  }
                   style={{ flex: 2 }}
                 />
               )}
@@ -1700,14 +1735,15 @@ function ReplacePicker({
               label="Not found — no replacement"
               iconLeft="close-circle-outline"
               variant={candidates.length ? 'outline' : undefined}
-              onPress={onNotFound}
+              onPress={() => report && onNotFound(report)}
+              disabled={!missing || !report}
               style={{ flex: 2 }}
             />
           </View>
         </View>
       }
     >
-      {candidates.map((c, i) => {
+      {(needsReport ? [] : candidates).map((c, i) => {
         const on = c.bucketId === selected;
         return (
           <Pressable
@@ -1806,6 +1842,11 @@ const RequestsTab = memo(function RequestsTab({
 }) {
   const lineColor = useMemo(() => lineColors(schedules), [schedules]);
   const groupByOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
+  const groupByTeam = useKarenBucketRequestsStore((st) => st.groupByTeam);
+  const teams = useMemo(
+    () => (groupByTeam ? teamLookup(lineColor, schedules) : undefined),
+    [groupByTeam, lineColor, schedules],
+  );
 
   // Order and grouping: worked out once per change of the lists, not on every render.
   const plan = useMemo(() => {
@@ -1891,10 +1932,14 @@ const RequestsTab = memo(function RequestsTab({
   const sections = useMemo(() => {
     if (!scope) return [];
     const rows: ListRow[] = plan.steps.flatMap((t) =>
-      (plan.byTrip.get(t.tripId) ?? []).flatMap((g) => g.opls.flatMap((o) => o.buckets.map((b) => ({ b, orderName: g.orderName })))),
+      (plan.byTrip.get(t.tripId) ?? []).flatMap((g) =>
+        g.opls.flatMap((o) =>
+          o.buckets.map((b) => ({ b, orderName: g.orderName, team: teams?.teamOf(o.oplName), seq: teams?.seqOf(o.oplName) })),
+        ),
+      ),
     );
-    return listSections(rows, groupByOrder, (o) => plan.pickPos.get(o) ?? Number.MAX_SAFE_INTEGER);
-  }, [scope, plan, groupByOrder]);
+    return teamSections(rows, groupByOrder, teams, (o) => plan.pickPos.get(o) ?? Number.MAX_SAFE_INTEGER);
+  }, [scope, plan, groupByOrder, teams]);
 
   const waitingSorted = useMemo(() => sortWaiting(notScheduled), [notScheduled]);
   const items = useMemo((): CardItem[] => {
@@ -1905,7 +1950,7 @@ const RequestsTab = memo(function RequestsTab({
             key: 'waiting-hdr',
             render: () => <Text style={s.sectionHdr}>Not Scheduled ({waitingBuckets(notScheduled)}bkts)</Text>,
           },
-          ...notScheduledCards(waitingSorted, groupByOrder),
+          ...notScheduledCards(waitingSorted, groupByOrder, teams),
         ]
       : [];
 
@@ -1930,12 +1975,16 @@ const RequestsTab = memo(function RequestsTab({
     if (scope) {
       return [
         ...(sections.length
-          ? sections.map((sec) => ({
-              key: `v-${sec.key}`,
-              render: () => (
-                <VarietyCard section={sec} byOrder={groupByOrder} replacingId={replacingId} onReplace={onReplace} />
-              ),
-            }))
+          ? sections.map((sec) =>
+              'team' in sec
+                ? teamHeadItem(sec.team, teams, 'v')
+                : {
+                    key: `v-${sec.key}`,
+                    render: () => (
+                      <VarietyCard section={sec} byOrder={groupByOrder} replacingId={replacingId} onReplace={onReplace} />
+                    ),
+                  },
+            )
           : [
               {
                 key: 'all-scanned',
@@ -1964,7 +2013,10 @@ const RequestsTab = memo(function RequestsTab({
                   <Text style={[s.pickBadgeText, pos === 1 ? s.pickBadgeTextFirst : null]}>{pos}</Text>
                 </View>
               ) : null}
-              <Text style={[s.groupHdr, s.groupNames]}>{g.orderName}</Text>
+              <Text style={[s.groupHdr, s.groupNames]}>
+                {teams ? seqLabel(groupSeq(g, teams.seqOf)) : ''}
+                {g.orderName}
+              </Text>
             </View>
           </View>
           {g.opls.map((o) => (
@@ -2001,7 +2053,16 @@ const RequestsTab = memo(function RequestsTab({
                   scanTotal={tripGroups.reduce((n, g) => n + g.opls.reduce((m, o) => m + o.total, 0), 0)}
                 >
                   {tripGroups.length ? (
-                    tripGroups.map(renderGroup)
+                    teams ? (
+                      groupsByTeam(tripGroups, teams.teamOf, teams.seqOf).map((tg) => (
+                        <View key={`team-${tg.team}`}>
+                          <TeamHead team={tg.team} color={teams.colorOf(tg.team)} />
+                          {tg.groups.map(renderGroup)}
+                        </View>
+                      ))
+                    ) : (
+                      tripGroups.map(renderGroup)
+                    )
                   ) : (
                     <Text style={s.tripAllScanned}>Every bucket for this trip is scanned — see Trolley.</Text>
                   )}
@@ -2017,7 +2078,7 @@ const RequestsTab = memo(function RequestsTab({
       })),
       ...waiting,
     ];
-  }, [notScheduled, waitingSorted, groupByOrder, trips, loading, scope, sections, replacingId, onReplace, plan, oplTrip, oplTeam, lineColor, farm, hub, onSendTrip, sendingTrip]);
+  }, [notScheduled, waitingSorted, groupByOrder, teams, trips, loading, scope, sections, replacingId, onReplace, plan, oplTrip, oplTeam, lineColor, farm, hub, onSendTrip, sendingTrip]);
 
   return <CardList items={items} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
 });
@@ -2461,14 +2522,22 @@ const PastTripRow = memo(function PastTripRow({
 
 /** Orders on no truck trip yet, grouped like a trip's requests: one card per variety,
  *  each bucket "43cm(ORDER)" -- listed to see what is coming, nothing to scan. */
-function notScheduledCards(groups: OrderGroup[], byOrder: boolean): CardItem[] {
+function notScheduledCards(groups: OrderGroup[], byOrder: boolean, teams?: TeamLookup): CardItem[] {
   const rows: ListRow[] = groups.flatMap((g) =>
-    g.opls.flatMap((o) => o.buckets.filter(waitingRow).map((b) => ({ b, orderName: g.orderName }))),
+    g.opls.flatMap((o) =>
+      o.buckets
+        .filter(waitingRow)
+        .map((b) => ({ b, orderName: g.orderName, team: teams?.teamOf(o.oplName), seq: teams?.seqOf(o.oplName) })),
+    ),
   );
-  return listSections(rows, byOrder).map((sec) => ({
-    key: `ns-${sec.key}`,
-    render: () => <NotScheduledCard section={sec} byOrder={byOrder} />,
-  }));
+  return teamSections(rows, byOrder, teams).map((sec) =>
+    'team' in sec
+      ? teamHeadItem(sec.team, teams, 'ns')
+      : {
+          key: `ns-${sec.key}`,
+          render: () => <NotScheduledCard section={sec} byOrder={byOrder} />,
+        },
+  );
 }
 
 /** The Not Scheduled page: those orders' buckets, read only. */
@@ -2480,8 +2549,10 @@ const NotScheduledList = memo(function NotScheduledList({
   refreshControl?: ReactElement;
 }) {
   const byOrder = useKarenBucketRequestsStore((st) => st.groupByOrder);
+  const groupByTeam = useKarenBucketRequestsStore((st) => st.groupByTeam);
+  const schedules = useKarenBucketRequestsStore((st) => st.schedules);
   const items = useMemo(() => {
-    const cards = notScheduledCards(groups, byOrder);
+    const cards = notScheduledCards(groups, byOrder, groupByTeam ? teamLookup(lineColors(schedules), schedules) : undefined);
     return cards.length
       ? cards
       : [
@@ -2497,7 +2568,7 @@ const NotScheduledList = memo(function NotScheduledList({
             ),
           },
         ];
-  }, [groups, byOrder]);
+  }, [groups, byOrder, groupByTeam, schedules]);
   return <CardList items={items} refreshControl={refreshControl} />;
 });
 
@@ -2781,7 +2852,7 @@ const BucketRow = memo(function BucketRow({
   (a.replacingId === b.replacingId || (a.replacingId !== a.b.id && b.replacingId !== b.b.id && (a.replacingId === null) === (b.replacingId === null))) &&
   sameBucket(a.b, b.b));
 
-type ListRow = { b: ReqBucket; orderName: string; onTruck?: boolean };
+type ListRow = { b: ReqBucket; orderName: string; onTruck?: boolean; team?: string; seq?: number };
 type ListSection = { key: string; title: string; color?: string; rows: ListRow[] };
 
 /** Same bucket, field by field: a sync rebuilds every row from the database, so a row
@@ -2821,8 +2892,11 @@ function listSections(rows: ListRow[], byOrder: boolean, orderRank?: (order: str
   return keys.map((k) => {
     const rs = map.get(k)!.sort((a, b) =>
       byOrder
-        ? (a.b.variety || '').localeCompare(b.b.variety || '') || stemOf(a) - stemOf(b)
-        : stemOf(a) - stemOf(b) || rank(a.orderName) - rank(b.orderName) || a.orderName.localeCompare(b.orderName),
+        ? (a.b.variety || '').localeCompare(b.b.variety || '') || compareShelf(a.b.shelf, b.b.shelf) || stemOf(a) - stemOf(b)
+        : compareShelf(a.b.shelf, b.b.shelf) ||
+          stemOf(a) - stemOf(b) ||
+          rank(a.orderName) - rank(b.orderName) ||
+          a.orderName.localeCompare(b.orderName),
     );
     return {
       key: k || '-',
@@ -2833,10 +2907,119 @@ function listSections(rows: ListRow[], byOrder: boolean, orderRank?: (order: str
   });
 }
 
+/** Production Settings > Group Bucket Requests by Team: each OPL's packing team and
+ *  that team's line colour. */
+type TeamLookup = {
+  teamOf: (opl: string) => string;
+  colorOf: (team: string) => string | undefined;
+  /** The order's place in its team's packing sequence (0: not sequenced). */
+  seqOf: (opl: string) => number;
+};
+
+function teamLookup(lc: ReturnType<typeof lineColors>, schedules: OplSchedule[]): TeamLookup {
+  const color = new Map(lc.lines.map((l) => [l.team, l.color]));
+  const seq = new Map(schedules.map((sc) => [sc.oplName, Number(sc.sequence) || 0]));
+  return { teamOf: (opl) => lc.byOpl[opl]?.team || '', colorOf: (team) => color.get(team), seqOf: (opl) => seq.get(opl) ?? 0 };
+}
+
+/** Sequence first (unsequenced last), then the order given. */
+const bySeq = (a: number | undefined, b: number | undefined) => (a || Number.MAX_SAFE_INTEGER) - (b || Number.MAX_SAFE_INTEGER);
+
+/** "#3" in front of an order's name when it has a place in its team's sequence. */
+const seqLabel = (seq: number | undefined) => (seq ? `#${seq} ` : '');
+
+/** Teams in name order, no team last. */
+const byTeamName = (a: string, b: string) => Number(!a) - Number(!b) || a.localeCompare(b);
+
+/** An order's picklists under their teams (an order split over two teams under each),
+ *  orders in the order given. */
+function groupsByTeam(
+  groups: OrderGroup[],
+  teamOf: (opl: string) => string,
+  seqs?: (opl: string) => number,
+): { team: string; groups: OrderGroup[] }[] {
+  const map = new Map<string, OrderGroup[]>();
+  for (const g of groups) {
+    for (const o of g.opls) {
+      const team = teamOf(o.oplName);
+      if (!map.has(team)) map.set(team, []);
+      const list = map.get(team)!;
+      const last = list[list.length - 1];
+      if (last && last.orderName === g.orderName) last.opls.push(o);
+      else list.push({ ...g, opls: [o] });
+    }
+  }
+  return [...map.keys()].sort(byTeamName).map((team) => ({
+    team,
+    // in the team's sequence; orders with no sequence keep the given order, last
+    groups: map
+      .get(team)!
+      .map((g, i) => ({ g, i }))
+      .sort((a, b) => (seqs ? bySeq(groupSeq(a.g, seqs), groupSeq(b.g, seqs)) : 0) || a.i - b.i)
+      .map((x) => x.g),
+  }));
+}
+
+/** An order's sequence in its team: the earliest of its picklists' (0: none). */
+function groupSeq(g: OrderGroup, seqOf: (opl: string) => number): number {
+  const seqs = g.opls.map((o) => seqOf(o.oplName)).filter((n) => n > 0);
+  return seqs.length ? Math.min(...seqs) : 0;
+}
+
+/** listSections, with a team heading before each team's sections when grouped by team. */
+function teamSections(
+  rows: ListRow[],
+  byOrder: boolean,
+  teams?: TeamLookup,
+  orderRank?: (order: string) => number,
+): (ListSection | { team: string })[] {
+  if (!teams) return listSections(rows, byOrder, orderRank);
+  const map = new Map<string, ListRow[]>();
+  for (const r of rows) {
+    const team = r.team || '';
+    if (!map.has(team)) map.set(team, []);
+    map.get(team)!.push(r);
+  }
+  return [...map.keys()]
+    .sort(byTeamName)
+    .flatMap((team) => {
+      const rows = map.get(team)!;
+      const seqOf = new Map<string, number>();
+      for (const r of rows) if (r.seq && !seqOf.has(r.orderName)) seqOf.set(r.orderName, r.seq);
+      const rank = (o: string) => {
+        const sq = seqOf.get(o);
+        return sq ? sq : Number.MAX_SAFE_INTEGER / 2 + (orderRank ? Math.min(orderRank(o), Number.MAX_SAFE_INTEGER / 4) : 0);
+      };
+      return [
+        { team },
+        ...listSections(rows, byOrder, rank).map((sec) => ({
+          ...sec,
+          key: `${team}|${sec.key}`,
+          title: byOrder ? `${seqLabel(seqOf.get(sec.key))}${sec.title}` : sec.title,
+        })),
+      ];
+    });
+}
+
+function teamHeadItem(team: string, teams: TeamLookup | undefined, prefix: string): CardItem {
+  return { key: `${prefix}-team-${team}`, render: () => <TeamHead team={team} color={teams?.colorOf(team)} /> };
+}
+
+function TeamHead({ team, color }: { team: string; color?: string }) {
+  return (
+    <View style={s.teamHead}>
+      {color ? <View style={[s.lineDot, { backgroundColor: color }]} /> : null}
+      <Text style={s.teamHeadText} numberOfLines={1}>
+        {team || 'No team'}
+      </Text>
+    </View>
+  );
+}
+
 /** Row meta: "43cm(ORDER)" in a variety card, "43cm" in an order card. */
 function listMeta(r: ListRow, byOrder: boolean): string {
   const stem = bucketMeta('', r.b.stemLength);
-  return byOrder ? stem || '—' : `${stem}${r.orderName ? `(${r.orderName})` : ''}`;
+  return byOrder ? stem || '—' : `${stem}${r.orderName ? `(${seqLabel(r.seq)}${r.orderName})` : ''}`;
 }
 
 /** In an order card: the variety's name (and colour) above its first bucket. */
@@ -4259,6 +4442,23 @@ const s = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   groupHdrDim: { color: COLORS.textMuted },
+  teamHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  teamHeadText: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fontFamily.semiBold,
+    fontSize: fontSize.xs,
+    color: COLORS.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   sectionHdr: {
     fontFamily: fontFamily.semiBold,
     fontSize: fontSize.xs,
