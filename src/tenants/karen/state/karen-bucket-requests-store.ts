@@ -10,6 +10,7 @@ import {
   type TripArrival,
   type ShelvedTrip,
   type OplSchedule,
+  type NotFoundReport,
   type PlannedTrip,
   type PlannedTripStop,
   type ReplacementCandidate,
@@ -63,6 +64,8 @@ type State = {
   showUnscheduled: boolean;
   /** Production Settings: a trip's buckets per order (varieties under it), not per variety. */
   groupByOrder: boolean;
+  /** Production Settings: the orders listed under the packing team they are for. */
+  groupByTeam: boolean;
   reqCount: number;
   trolleyCount: number;
   /** Buckets scanned onto trolleys of all requested (the Trolley tab's x/n). */
@@ -127,14 +130,20 @@ type State = {
     reason?: ReplaceReason,
     notes?: string,
     correction?: ReplaceCorrection,
+    report?: NotFoundReport,
   ) => Promise<{ ok: boolean; message: string; pending?: boolean }>;
   /** Leave a requested bucket out of the transfer — not in the cold room and nothing
    *  to replace it — so its order can load with the buckets that are there. */
-  markNotFound: (bucketId: string, pliId: string, notes?: string) => Promise<{ ok: boolean; message: string }>;
+  markNotFound: (
+    bucketId: string,
+    pliId: string,
+    notes?: string,
+    report?: NotFoundReport,
+  ) => Promise<{ ok: boolean; message: string }>;
   /** "Issued offline": where the requested bucket was issued. */
   bucketIssueInfo: (pliId: string) => Promise<BucketIssueInfo | { kind: 'error'; message: string }>;
   /** Issued offline to its own line: mark it issued (no replacement) and drop it here. */
-  markIssued: (rowId: number, pliId: string) => Promise<{ ok: boolean; message: string }>;
+  markIssued: (rowId: number, pliId: string, report?: NotFoundReport) => Promise<{ ok: boolean; message: string }>;
   /** "Truck leaving": close this farm's stop on a trip. */
   /** `reason`: why the stop leaves short of its planned buckets. */
   /** `belowMinimum`: the truck is under its minimum load; resend with `sendShort` to send it anyway. */
@@ -821,6 +830,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   schedules: [],
   showUnscheduled: true,
   groupByOrder: false,
+  groupByTeam: false,
   reqCount: 0,
   trolleyCount: 0,
   scannedBuckets: 0,
@@ -937,13 +947,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
     let notice: string | null = null;
     if (sel && (!trip || trip.yourStopClosed)) {
-      const was = trip ?? get().plannedTrips.find((t) => t.tripId === sel);
-      // A trip this phone just loaded leaves the plan (dispatched): back to Trips quietly.
-      notice = loadedTrips.has(sel)
-        ? null
-        : trip
-        ? `${tripTitle(trip)}: stop closed — the truck has left this farm.`
-        : `${was ? tripTitle(was) : `Trip ${sel}`} is no longer planned for this farm.`;
+      // A trip this phone just loaded, or one that left the plan: back to Trips quietly.
+      notice = trip && !loadedTrips.has(sel) ? `${tripTitle(trip)}: stop closed — the truck has left this farm.` : null;
       trip = null;
     }
     const view = trip ? tripView(trip, plannedTrips, requests, trolley, inTransit) : null;
@@ -1054,7 +1059,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
         if (trips.kind === 'ok') {
           await db.replacePlannedTrips(trips.trips);
           await db.replaceSchedules(trips.schedules);
-          patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+          patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder, groupByTeam: trips.groupByTeam });
           await db.applyServerStates(trips.oplStates);
           await prune(items, trips.known);
         }
@@ -1091,7 +1096,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       }
       await db.replacePlannedTrips(trips.trips);
       await db.replaceSchedules(trips.schedules);
-      patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+      patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder, groupByTeam: trips.groupByTeam });
       await db.applyServerStates(trips.oplStates);
       await get().refresh();
       set({ loadingTrips: false });
@@ -1161,7 +1166,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
       if (trips.kind === 'ok') {
         await db.replacePlannedTrips(trips.trips);
         await db.replaceSchedules(trips.schedules);
-        patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder });
+        patch({ showUnscheduled: trips.showUnscheduled, groupByOrder: trips.groupByOrder, groupByTeam: trips.groupByTeam });
         await db.applyServerStates(trips.oplStates);
         if (alloc.kind === 'ok') await prune(alloc.items, trips.known);
       }
@@ -1504,11 +1509,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  replaceBucket: async (rowId, pliId, newBucket, reason, notes, correction) => {
+  replaceBucket: async (rowId, pliId, newBucket, reason, notes, correction, report) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
     try {
-      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes, correction);
+      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes, correction, report);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.replaceBucketLocal(rowId, res.newBucket, res.shelf, res.stemLength);
       await get().refresh();
@@ -1529,11 +1534,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  markIssued: async (rowId, pliId) => {
+  markIssued: async (rowId, pliId, report) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to mark it issued.' };
     try {
-      const res = await karenBucketRequestsRepository.markBucketIssued(pliId);
+      const res = await karenBucketRequestsRepository.markBucketIssued(pliId, report);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.removeIssuedLocal(rowId);
       await get().refresh();
@@ -1544,11 +1549,11 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     }
   },
 
-  markNotFound: async (bucketId, pliId, notes) => {
+  markNotFound: async (bucketId, pliId, notes, report) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to mark a bucket not found.' };
     try {
-      const res = await karenBucketRequestsRepository.markBucketNotFound(pliId, notes);
+      const res = await karenBucketRequestsRepository.markBucketNotFound(pliId, notes, report);
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.markNotFoundLocal(bucketId);
       await get().refresh();

@@ -252,6 +252,8 @@ export type FetchPlannedTripsOutcome =
       showUnscheduled: boolean;
       /** Production Settings lists a trip's buckets per order instead of per variety. */
       groupByOrder: boolean;
+      /** Production Settings lists the orders under their packing team. */
+      groupByTeam: boolean;
     }
   | { kind: 'error'; message: string };
 
@@ -268,6 +270,9 @@ export type ReplacementCandidate = {
   availableQty: number | null;
   harvestDate: string;
 };
+
+/** A bucket reported not found: the shelf the system put it on, scanned, and the uploaded photo of it. */
+export type NotFoundReport = { shelf: string; photo: string };
 
 export type OplSchedule = { oplName: string; team: string; sequence: number; scheduled: boolean };
 
@@ -551,6 +556,7 @@ export const karenBucketRequestsRepository = {
         known: m.opl_states ? Object.keys(m.opl_states) : null,
         showUnscheduled: m.show_unscheduled == null ? true : !!m.show_unscheduled,
         groupByOrder: !!m.group_by_order,
+        groupByTeam: !!m.group_by_team,
       };
     }
     return { kind: 'error', message: m.message ?? 'Failed to load planned trips.' };
@@ -742,18 +748,38 @@ export const karenBucketRequestsRepository = {
     };
   },
 
-  async markBucketIssued(pickListItem: string): Promise<SaveTrolleyOutcome> {
-    const raw = await karenBucketRequestsApi.markRequestedBucketIssued(pickListItem);
+  async markBucketIssued(pickListItem: string, report?: NotFoundReport): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketIssued(pickListItem, report);
     const m = raw.message ?? {};
     if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked issued.' };
     return { kind: 'error', message: m.message ?? 'Could not mark it issued.' };
   },
 
-  async markBucketNotFound(pickListItem: string, notes?: string): Promise<SaveTrolleyOutcome> {
-    const raw = await karenBucketRequestsApi.markRequestedBucketNotFound({ pick_list_item: pickListItem, notes });
+  async markBucketNotFound(pickListItem: string, notes?: string, report?: NotFoundReport): Promise<SaveTrolleyOutcome> {
+    const raw = await karenBucketRequestsApi.markRequestedBucketNotFound({
+      pick_list_item: pickListItem,
+      notes,
+      scanned_shelf: report?.shelf,
+      shelf_photo: report?.photo,
+    });
     const m = raw.message ?? {};
     if (m.status === 'success') return { kind: 'ok', message: m.message ?? 'Marked not found.' };
     return { kind: 'error', message: m.message ?? 'Could not mark it not found.' };
+  },
+
+  /** Not-found report: the shelf scanned is the one the system put the bucket on. */
+  async checkNotFoundShelf(
+    pickListItem: string,
+    scan: string,
+  ): Promise<{ ok: boolean; expected: string; shelf: string; message: string }> {
+    const raw = await karenBucketRequestsApi.checkNotFoundShelf(pickListItem, scan);
+    const m = raw.message ?? {};
+    return {
+      ok: !!m.ok,
+      expected: m.expected ?? '',
+      shelf: m.shelf ?? '',
+      message: m.message || (m.ok ? '' : 'Could not check the shelf.'),
+    };
   },
 
   async fetchCompletedTrips(
@@ -904,6 +930,7 @@ export const karenBucketRequestsRepository = {
     reason?: ReplaceReason,
     notes?: string,
     correction?: ReplaceCorrection,
+    report?: NotFoundReport,
   ): Promise<
     | { kind: 'ok'; newBucket: string; shelf: string; stemLength: string; message: string }
     | { kind: 'error'; message: string }
@@ -915,6 +942,7 @@ export const karenBucketRequestsRepository = {
       notes,
       correction,
       activeFarm(),
+      report,
     );
     const m = raw.message ?? {};
     if (m.status === 'success' && m.new_bucket) {

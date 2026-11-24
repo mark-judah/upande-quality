@@ -235,6 +235,8 @@ export type RawPlannedTripsResponse = {
     show_unscheduled?: number;
     /** 1: a trip's buckets are listed per order (varieties grouped under it). */
     group_by_order?: number;
+    /** 1: the orders are listed under the packing team they are for. */
+    group_by_team?: number;
   };
 };
 
@@ -426,7 +428,13 @@ export const karenBucketRequestsApi = {
 
   /** The requested bucket isn't in the cold room and nothing can replace it: leave it
    *  out of the transfer so the order can load with the buckets that are there. */
-  markRequestedBucketNotFound(payload: { pick_list_item: string; notes?: string }): Promise<RawTrolleyActionResponse> {
+  markRequestedBucketNotFound(payload: {
+    pick_list_item: string;
+    notes?: string;
+    /** The shelf the system put it on, scanned, and the photo of it (uploaded). */
+    scanned_shelf?: string;
+    shelf_photo?: string;
+  }): Promise<RawTrolleyActionResponse> {
     return api<RawTrolleyActionResponse>({
       method: 'POST',
       url: '/api/method/upande_packhouse.api.transfer_control.markRequestedBucketNotFound',
@@ -456,11 +464,16 @@ export const karenBucketRequestsApi = {
   },
 
   /** Issued offline to this order's own line: mark it issued (no replacement). */
-  markRequestedBucketIssued(pickListItem: string): Promise<{ message?: { status?: string; message?: string } }> {
+  markRequestedBucketIssued(
+    pickListItem: string,
+    report?: { shelf: string; photo: string },
+  ): Promise<{ message?: { status?: string; message?: string } }> {
     return api({
       method: 'POST',
       url: '/api/method/upande_quality.mobile.api.markRequestedBucketIssued',
-      data: { data: { pick_list_item: pickListItem } },
+      data: {
+        data: { pick_list_item: pickListItem, scanned_shelf: report?.shelf, shelf_photo: report?.photo },
+      },
       // Issuing posts stock entries; allow it time.
       timeout: 120000,
       validateStatus: () => true,
@@ -604,6 +617,8 @@ export const karenBucketRequestsApi = {
     /** Wrong variety: what the old bucket really holds, to correct its record. */
     correction?: { variety?: string; stemLength?: string },
     farm?: string,
+    /** Missing: the shelf scanned and its photo (the not-found report). */
+    report?: { shelf: string; photo: string },
   ): Promise<RawBucketReplacementResponse> {
     return api<RawBucketReplacementResponse>({
       method: 'POST',
@@ -617,10 +632,25 @@ export const karenBucketRequestsApi = {
           variety: correction?.variety || undefined,
           stem_length: correction?.stemLength || undefined,
           farm: farm || undefined,
+          scanned_shelf: report?.shelf || undefined,
+          shelf_photo: report?.photo || undefined,
         },
       },
       // The swap posts several stock entries in one transaction; allow it time.
       timeout: 120000,
+      validateStatus: () => true,
+    });
+  },
+
+  /** Not-found report, step one: is the shelf scanned the one the system put the bucket on? */
+  checkNotFoundShelf(
+    pickListItem: string,
+    scan: string,
+  ): Promise<{ message?: { ok?: boolean; expected?: string; shelf?: string; message?: string } }> {
+    return api({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.not_found_report.checkNotFoundShelf',
+      data: { pick_list_item: pickListItem, scan },
       validateStatus: () => true,
     });
   },
