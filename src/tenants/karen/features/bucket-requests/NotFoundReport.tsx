@@ -18,6 +18,30 @@ const CAMERA_HEIGHT = 280;
 /** A shelf check that has not answered by then is given up: scan again. */
 const CHECK_TIMEOUT_MS = 15000;
 
+/** A shelf QR (`{"shelf": "KPK-G3M"}`) or the shelf typed in, upper case -- as the server reads it. */
+export function parseShelf(scan: string): string {
+  let text = (scan || '').trim();
+  if (text.startsWith('{')) {
+    try {
+      text = String((JSON.parse(text) as { shelf?: string })?.shelf ?? '');
+    } catch {
+      text = '';
+    }
+  }
+  return text.trim().toUpperCase();
+}
+
+/** The shelf scanned against the shelf this bucket shows on the phone: null when it matches, else why not. */
+export function shelfMismatch(bucketId: string, expected: string, scan: string): string | null {
+  const scanned = parseShelf(scan);
+  const want = (expected || '').trim().toUpperCase();
+  if (!scanned) return want ? `That is not a shelf QR: scan shelf ${want}.` : 'That is not a shelf QR: scan the shelf.';
+  if (want && scanned !== want) {
+    return `${bucketId.toUpperCase()} was put on ${want}, not ${scanned}: look on ${want} and scan it.`;
+  }
+  return null;
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(message)), ms);
@@ -48,7 +72,7 @@ export function NotFoundReportSteps({
 }: {
   pliId: string;
   bucketId: string;
-  /** The shelf the phone has for the bucket (the server's is the one checked). */
+  /** The shelf the phone shows for the bucket: the scan is checked against it here, without a connection. */
   shelfHint?: string;
   /** The finished report, or null while a step is missing. */
   onReady: (report: Report | null) => void;
@@ -75,8 +99,22 @@ export function NotFoundReportSteps({
     const code = raw.trim();
     if (!code || busy.current) return;
     busy.current = true;
-    setChecking(true);
     setShelfError('');
+    // the shelf this bucket shows: checked on the phone, so it works without a connection
+    if (expected) {
+      const wrong = shelfMismatch(bucketId, expected, code);
+      busy.current = false;
+      if (wrong) {
+        setShelfError(wrong);
+        focusWhenReady(scanRef);
+        return;
+      }
+      const ok = parseShelf(code);
+      setShelf(ok);
+      onReady(photo ? report(ok, photo) : null);
+      return;
+    }
+    setChecking(true);
     try {
       const r = await withTimeout(
         karenBucketRequestsRepository.checkNotFoundShelf(pliId, code),
@@ -86,12 +124,19 @@ export function NotFoundReportSteps({
       if (r.expected) setExpected(r.expected);
       if (r.ok) {
         setShelf(r.shelf);
-        onReady(photo ? { shelf: r.shelf, photo: photo.url } : null);
+        onReady(photo ? report(r.shelf, photo) : null);
       } else {
         setShelfError(r.message);
       }
-    } catch (e) {
-      setShelfError((e as Error)?.message || 'Could not check the shelf. Scan it again.');
+    } catch {
+      // no shelf on the phone and no connection: the server checks the shelf when the report is sent
+      const scanned = parseShelf(code);
+      if (scanned) {
+        setShelf(scanned);
+        onReady(photo ? report(scanned, photo) : null);
+      } else {
+        setShelfError('That is not a shelf QR: scan the shelf.');
+      }
     } finally {
       busy.current = false;
       setChecking(false);
@@ -99,18 +144,29 @@ export function NotFoundReportSteps({
     }
   };
 
+  const report = (s: string, p: { uri: string; url: string }): Report =>
+    p.url ? { shelf: s, photo: p.url } : { shelf: s, photo: '', photoUri: p.uri };
+
   const onPhoto = async (uri: string) => {
     setCamera(null);
     setUploading(true);
     setPhotoError('');
     try {
       const f = await uploadImage(uri, `shelf-${shelf || expected || 'x'}-${bucketId}.jpg`);
-      setPhoto({ uri, url: f.file_url });
-      onReady(shelf ? { shelf, photo: f.file_url } : null);
+      const p = { uri, url: f.file_url };
+      setPhoto(p);
+      onReady(shelf ? report(shelf, p) : null);
     } catch (e) {
-      setPhoto(null);
-      onReady(null);
-      setPhotoError((e as Error)?.message || 'The photo did not upload. Take it again.');
+      if (/session expired|too large/i.test(String((e as Error)?.message))) {
+        setPhoto(null);
+        onReady(null);
+        setPhotoError((e as Error)?.message || 'The photo did not upload. Take it again.');
+      } else {
+        // no connection: the photo stays on the phone and uploads with the report
+        const p = { uri, url: '' };
+        setPhoto(p);
+        onReady(shelf ? report(shelf, p) : null);
+      }
     } finally {
       setUploading(false);
     }

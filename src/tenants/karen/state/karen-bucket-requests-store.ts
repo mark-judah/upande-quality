@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { checkConnectivity } from '@/src/core/network/store';
 import { isNoResponseError } from '@/src/core/api/client';
+import { uploadImage } from '@/src/core/api/upload';
 import { storage, StorageKeys } from '@/src/core/storage';
 import { knownSalesFarm, setTransferFarms, setTransferHub, toSalesFarm } from '@/src/core/tenant/transfer-hub';
 import { instanceKey } from '@/src/core/auth/known-instances';
@@ -120,7 +121,7 @@ type State = {
     pliId: string,
   ) => Promise<
     | { ok: true; neededQty: number | null; candidates: ReplacementCandidate[] }
-    | { ok: false; message: string; info?: boolean }
+    | { ok: false; message: string; info?: boolean; offline?: boolean }
   >;
   /** `pending`: no reply came back, so the swap may still land server-side. */
   replaceBucket: (
@@ -682,6 +683,46 @@ function refusalText(bucketId: string, c: FlagConflict): string {
             : `${id} was already issued / shelved at the packhouse — taken off the trolley.`;
 }
 
+/** A replacement is chosen from the server's live stock, oldest first (FIFO). */
+export const REPLACE_NEEDS_INTERNET = 'Replacing needs internet: the replacement is picked oldest first from live stock.';
+
+/** The report with its shelf photo uploaded: a photo taken without a connection is only on the phone. */
+async function withUploadedPhoto(report: NotFoundReport | undefined, name: string): Promise<NotFoundReport | undefined> {
+  if (!report || report.photo || !report.photoUri) return report;
+  const f = await uploadImage(report.photoUri, `shelf-${report.shelf || 'x'}-${name}.jpg`);
+  return { shelf: report.shelf, photo: f.file_url };
+}
+
+/** Not-found reports made offline (db.queueNotFound) go to the server: the photo is uploaded, then the report sent.
+ *  One the server refuses (the bucket was loaded, shelved or issued meanwhile, or is on another shelf there) is
+ *  dropped and its bucket is back on the list; one that fails to send stays for the next sync. */
+export async function sendQueuedNotFound(): Promise<{ sent: number; refusal: string | null }> {
+  let sent = 0;
+  let refusal: string | null = null;
+  for (const q of await db.listNotFoundQueue()) {
+    try {
+      let photo = q.photo_url || '';
+      if (!photo && q.photo_uri) {
+        photo = (await uploadImage(q.photo_uri, `shelf-${q.shelf || 'x'}-${q.bucket_id}.jpg`)).file_url;
+        await db.setQueuedNotFoundPhoto(q.pli_id, photo);
+      }
+      const res = await karenBucketRequestsRepository.markBucketNotFound(q.pli_id, q.notes || undefined, {
+        shelf: q.shelf || '',
+        photo,
+      });
+      await db.dropQueuedNotFound(q.pli_id);
+      sent += 1;
+      if (res.kind !== 'ok') {
+        await db.restoreNotFoundLocal(q.bucket_id);
+        refusal ??= `${q.bucket_id.toUpperCase()} was not marked not found: ${res.message} It is back on the list.`;
+      }
+    } catch {
+      /* no connection or no reply: sent on the next sync */
+    }
+  }
+  return { sent, refusal };
+}
+
 /** Offline scans, and scans whose flag failed, reach the server only through this: the
  *  sync sends each bucket on this phone's trolleys the server still has off a trolley
  *  (`onTrolley === false` in the download) as a trolley scan, for the trip it was
@@ -1118,6 +1159,10 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     try {
       await get().refreshOnline();
       if (!get().online || get().downloading || get().syncingOpl) return;
+      // Not-found reports made offline go up first, so the download already leaves those buckets out.
+      const notFound = await sendQueuedNotFound();
+      if (notFound.refusal) set({ scanRefusal: { at: Date.now(), message: notFound.refusal } });
+      if (notFound.sent) await get().refresh();
       // Same date as the screen (see download); switching date fetches the new one.
       const alloc = await karenBucketRequestsRepository.fetchAllocations(farm);
       await matchServer();
@@ -1421,8 +1466,8 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     if (isAwaitingTruck(get().selectedTripId)) return { ok: false, message: AWAITING_TRUCK_NOTE };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to load to truck.' };
-    // Only this phone's trolleys: another phone's trolley may not be at this truck.
-    const pliIds = opls.flatMap((o) => o.ownPliIds ?? o.pliIds);
+    // Every trolley row of the orders, whichever phone scanned it onto a trolley: the truck takes them all.
+    const pliIds = opls.flatMap((o) => o.pliIds);
     if (!pliIds.length) return { ok: false, message: 'Nothing to load.' };
     set({ syncingOpl: opls.length === 1 ? opls[0].oplName : '*' });
     const sel = get().selectedTripId;
@@ -1490,7 +1535,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
 
   findReplacement: async (pliId) => {
     await get().refreshOnline();
-    if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
+    if (!get().online) return { ok: false, offline: true, message: REPLACE_NEEDS_INTERNET };
     try {
       const res = await karenBucketRequestsRepository.findBucketReplacement(pliId);
       if (res.kind === 'info') {
@@ -1513,7 +1558,14 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to replace a bucket.' };
     try {
-      const res = await karenBucketRequestsRepository.replaceBucket(pliId, newBucket, reason, notes, correction, report);
+      const res = await karenBucketRequestsRepository.replaceBucket(
+        pliId,
+        newBucket,
+        reason,
+        notes,
+        correction,
+        await withUploadedPhoto(report, newBucket),
+      );
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.replaceBucketLocal(rowId, res.newBucket, res.shelf, res.stemLength);
       await get().refresh();
@@ -1538,7 +1590,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to mark it issued.' };
     try {
-      const res = await karenBucketRequestsRepository.markBucketIssued(pliId, report);
+      const res = await karenBucketRequestsRepository.markBucketIssued(pliId, await withUploadedPhoto(report, pliId));
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.removeIssuedLocal(rowId);
       await get().refresh();
@@ -1550,16 +1602,36 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
   },
 
   markNotFound: async (bucketId, pliId, notes, report) => {
+    // No connection: kept on the phone and counted as done here; the next sync sends it.
+    const keep = async () => {
+      if (!report?.shelf) return { ok: false, message: 'Scan the shelf first.' };
+      await db.queueNotFound({
+        pliId,
+        bucketId,
+        shelf: report.shelf,
+        photoUri: report.photoUri,
+        photoUrl: report.photo || undefined,
+        notes,
+      });
+      await db.markNotFoundLocal(bucketId);
+      await get().refresh();
+      return { ok: true, message: `${bucketId.toUpperCase()} marked not found — sent when the phone is back online.` };
+    };
     await get().refreshOnline();
-    if (!get().online) return { ok: false, message: 'Connect to the internet to mark a bucket not found.' };
+    if (!get().online) return keep();
     try {
-      const res = await karenBucketRequestsRepository.markBucketNotFound(pliId, notes, report);
+      const res = await karenBucketRequestsRepository.markBucketNotFound(
+        pliId,
+        notes,
+        await withUploadedPhoto(report, bucketId),
+      );
       if (res.kind !== 'ok') return { ok: false, message: res.message };
       await db.markNotFoundLocal(bucketId);
       await get().refresh();
       return { ok: true, message: res.message };
     } catch (e) {
-      if (isNoResponseError(e)) return { ok: false, message: 'No reply from the server. Try again.' };
+      // no reply, or the photo taken offline could not upload yet: kept on the phone
+      if (isNoResponseError(e) || (report?.photoUri && !report.photo)) return keep();
       return { ok: false, message: (e as Error)?.message || 'Could not mark it not found.' };
     }
   },
@@ -1569,6 +1641,9 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {
+      // not-found reports kept on the phone count for the stop once the server has them
+      const notFound = await sendQueuedNotFound();
+      if (notFound.refusal) set({ scanRefusal: { at: Date.now(), message: notFound.refusal } });
       const res = await karenBucketRequestsRepository.closeTripStop({ tripId, farm, reason, complete, sendShort });
       if (res.kind === 'below_minimum') return { ok: false, message: res.message, belowMinimum: res.belowMinimum };
       if (res.kind !== 'ok') return { ok: false, message: res.message };

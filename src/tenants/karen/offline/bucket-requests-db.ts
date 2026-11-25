@@ -276,6 +276,10 @@ CREATE TABLE IF NOT EXISTS planned_trip (
   payload TEXT NOT NULL, fetched_at TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS not_found_queue (
+  pli_id TEXT PRIMARY KEY, bucket_id TEXT NOT NULL, shelf TEXT, photo_uri TEXT, photo_url TEXT,
+  notes TEXT, created_at TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_bucket_opl ON bucket(opl_name);
 CREATE INDEX IF NOT EXISTS idx_bucket_scan ON bucket(bucket_id, scanned);
 CREATE INDEX IF NOT EXISTS idx_bucket_lower ON bucket(LOWER(bucket_id));
@@ -998,6 +1002,59 @@ export async function markNotFoundLocal(bucketId: string): Promise<void> {
   );
 }
 
+/** A not-found report made without a connection: kept here, with the shelf scanned and the photo, until a sync
+ *  sends it (sendQueuedNotFound). */
+export interface QueuedNotFound {
+  pli_id: string;
+  bucket_id: string;
+  shelf: string | null;
+  photo_uri: string | null;
+  photo_url: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export async function queueNotFound(q: {
+  pliId: string;
+  bucketId: string;
+  shelf: string;
+  photoUri?: string;
+  photoUrl?: string;
+  notes?: string;
+}): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    `INSERT OR REPLACE INTO not_found_queue (pli_id, bucket_id, shelf, photo_uri, photo_url, notes, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [q.pliId, q.bucketId, q.shelf, q.photoUri ?? null, q.photoUrl ?? null, q.notes ?? null, new Date().toISOString()],
+  );
+}
+
+export async function listNotFoundQueue(): Promise<QueuedNotFound[]> {
+  const d = await db();
+  return d.getAllAsync<QueuedNotFound>('SELECT * FROM not_found_queue ORDER BY created_at');
+}
+
+export async function setQueuedNotFoundPhoto(pliId: string, url: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('UPDATE not_found_queue SET photo_url = ? WHERE pli_id = ?', [url, pliId]);
+}
+
+export async function dropQueuedNotFound(pliId: string): Promise<void> {
+  const d = await db();
+  await d.runAsync('DELETE FROM not_found_queue WHERE pli_id = ?', [pliId]);
+}
+
+/** The server refused a not-found made offline (the bucket was loaded, shelved or issued meanwhile): it is
+ *  back on the list, to scan. */
+export async function restoreNotFoundLocal(bucketId: string): Promise<void> {
+  const d = await db();
+  await d.runAsync(
+    'UPDATE bucket SET scanned = 0, not_found = 0, trolley_id = NULL, scanned_at = NULL WHERE LOWER(bucket_id) = ? AND not_found = 1',
+    [bucketId.trim().toLowerCase()],
+  );
+}
+
 /** Issued offline to its own line: the request is done, nothing to scan or send. */
 export async function removeIssuedLocal(rowId: number): Promise<void> {
   const d = await db();
@@ -1522,13 +1579,15 @@ export async function loadTiles(): Promise<Record<string, number> | null> {
 export async function clearAll(): Promise<void> {
   const d = await db();
   await d.execAsync(
-    'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip; DELETE FROM opl_schedule;',
+    'DELETE FROM bucket; DELETE FROM opl; DELETE FROM trolley; DELETE FROM vehicle; DELETE FROM planned_trip; DELETE FROM opl_schedule; DELETE FROM not_found_queue;',
   );
 }
 
 /** Trolley scans the server has not taken yet (waiting, or refused and to be sent again). */
 export async function countUnsentScans(): Promise<number> {
   const d = await db();
-  const row = await d.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM bucket WHERE flag_sync != 0');
+  const row = await d.getFirstAsync<{ n: number }>(
+    'SELECT (SELECT COUNT(*) FROM bucket WHERE flag_sync != 0) + (SELECT COUNT(*) FROM not_found_queue) AS n',
+  );
   return row?.n ?? 0;
 }

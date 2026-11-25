@@ -272,7 +272,8 @@ export type ReplacementCandidate = {
 };
 
 /** A bucket reported not found: the shelf the system put it on, scanned, and the uploaded photo of it. */
-export type NotFoundReport = { shelf: string; photo: string };
+/** The shelf scanned and its photo: `photo` once uploaded, `photoUri` while it is only on the phone (taken offline). */
+export type NotFoundReport = { shelf: string; photo: string; photoUri?: string };
 
 export type OplSchedule = { oplName: string; team: string; sequence: number; scheduled: boolean };
 
