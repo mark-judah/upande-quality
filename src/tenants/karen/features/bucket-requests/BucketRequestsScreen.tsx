@@ -56,6 +56,7 @@ import {
   type PlannedTripStop,
   type ReplacementCandidate,
   type BelowMinimum,
+  REPLACE_NEEDS_INTERNET,
 } from '@/src/tenants/karen/state/karen-bucket-requests-store';
 import {
   karenBucketRequestsRepository,
@@ -118,6 +119,8 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     pliId: string;
     neededQty: number | null;
     candidates: ReplacementCandidate[];
+    /** No connection: no replacement is offered, the bucket can still be marked not found. */
+    offline?: boolean;
   } | null>(null);
   // Blocks a second preview/confirm before the disabled state re-renders.
   const replaceBusy = useRef(false);
@@ -681,6 +684,11 @@ export function KarenBucketRequestsScreen({ userFarm }: { userFarm: string }) {
     setReplacingId(null);
     replaceBusy.current = false;
     if (!found.ok) {
+      // No connection: the sheet still opens to mark it not found; a replacement needs the server (FIFO).
+      if (found.offline) {
+        setReplacePick({ bucket: b, pliId, neededQty: null, candidates: [], offline: true });
+        return;
+      }
       if (found.info) showInfo(found.message);
       else showError(found.message);
       return;
@@ -1519,6 +1527,8 @@ function ReplacePicker({
     pliId: string;
     neededQty: number | null;
     candidates: ReplacementCandidate[];
+    /** No connection: no replacement is offered, the bucket can still be marked not found. */
+    offline?: boolean;
   } | null;
   onClose: () => void;
   onPick: (
@@ -1681,7 +1691,7 @@ function ReplacePicker({
                       : 'Not issued anywhere yet — replace it or mark it not found.'}
             </Text>
           ) : null}
-          {needsReport ? null : (
+          {needsReport || pick?.offline ? null : (
             <Text style={s.repCount}>
               {candidates.length} matching bucket{candidates.length === 1 ? '' : 's'}
             </Text>
@@ -1690,7 +1700,9 @@ function ReplacePicker({
       }
       actions={
         <View style={s.dialogActionsCol}>
-          {!candidates.length && !needsReport ? (
+          {pick?.offline ? (
+            <Text style={s.repNone}>{REPLACE_NEEDS_INTERNET}</Text>
+          ) : !candidates.length && !needsReport ? (
             <Text style={s.repNone}>
               No bucket matches {b?.bucketId}. If it isn’t in the cold room, mark it not found — the order
               then loads with the buckets you have.
@@ -3300,12 +3312,12 @@ const VarietyList = memo(function VarietyList({
   return <CardList items={items} header={header} footer={footer} refreshControl={refreshControl} initial={2} />;
 });
 
-/** The buckets "Load to truck" sends: this phone's trolley rows of the orders (as the
- *  store's load does), a bucket shared by several orders counted once. */
+/** The buckets "Load to truck" sends: every trolley row of the orders, whichever phone put it on the trolley
+ *  (as the store's load does), a bucket shared by several orders counted once. */
 function loadBucketCount(opls: TrolleyOpl[]): number {
   const ids = new Set<string>();
   for (const o of opls) {
-    const own = new Set(o.ownPliIds ?? o.pliIds);
+    const own = new Set(o.pliIds);
     for (const b of o.buckets) if (!b.notFound && b.pliId && own.has(b.pliId)) ids.add(b.bucketId.toUpperCase());
   }
   return ids.size;
@@ -3333,8 +3345,9 @@ const TrolleyTab = memo(function TrolleyTab({
 }) {
   // Loaded onto the truck but not dispatched yet: stays here (the dashboard sends it
   // on its way), so only the orders still on trolleys can be loaded.
-  // One button loads every order on the trolley — no button per order.
-  const toLoad = useMemo(() => items.filter((o) => !o.loadedToTruck && o.ownPliIds.length > 0), [items]);
+  // One button loads every order on the trolley — no button per order — including buckets another
+  // phone put on a trolley (the button used to hide when only this phone's trolleys counted).
+  const toLoad = useMemo(() => items.filter((o) => !o.loadedToTruck && o.pliIds.length > 0), [items]);
   const loadN = useMemo(() => loadBucketCount(toLoad), [toLoad]);
   const rows = useMemo(
     () =>
@@ -4004,10 +4017,6 @@ function TripCard({
   );
 }
 
-/** Why a farm's stop leaves with fewer buckets than planned (saved on the trip). */
-const SHORT_REASONS = ['Bucket not found', 'Not ready yet', 'Quality reject', 'Truck full', 'Other'] as const;
-type ShortReason = (typeof SHORT_REASONS)[number];
-
 /** Send the truck on from this farm: to the packhouse from the last stop (its buckets go
  *  in transit), else to the next farm. Short of the plan, it asks why. */
 function SendTripDialog({
@@ -4023,17 +4032,15 @@ function SendTripDialog({
   onClose: () => void;
   onSend: (t: PlannedTrip, reason?: string) => void;
 }) {
-  const [reason, setReason] = useState<ShortReason | null>(null);
-  const [note, setNote] = useState('');
   const stop = trip ? (trip.stops ?? []).find((st) => st.isYou) : undefined;
   if (!trip || !stop) return null;
   const onTruck = stop.loaded + stop.transit + stop.shelved;
   const forStop = stopBuckets(stop);
+  // Every bucket on this stop's list goes on the truck before it leaves: no leaving short. The server checks it
+  // again, with every farm of the trip at the last stop.
   const short = !stopReady(stop);
   const missing = Math.max(0, forStop - onTruck);
   const next = (trip.stops ?? []).filter((st) => st.stop > stop.stop).sort((a, b) => a.stop - b.stop)[0];
-  const reasonText = reason ? [reason === 'Other' ? '' : reason, note.trim()].filter(Boolean).join(' — ') : '';
-  const ready = !short || (!!reason && (reason !== 'Other' || !!note.trim()));
   return (
     <Dialog
       visible
@@ -4049,8 +4056,8 @@ function SendTripDialog({
             label={next ? 'Leave' : 'Send'}
             iconLeft="car-outline"
             loading={sending}
-            disabled={!ready}
-            onPress={() => onSend(trip, short ? reasonText : undefined)}
+            disabled={short}
+            onPress={() => onSend(trip)}
             style={{ flex: 1 }}
           />
         </>
@@ -4059,42 +4066,11 @@ function SendTripDialog({
       <DialogList>
         <DialogRow label="On the truck" value={`${onTruck} bkt`} />
         <DialogRow label="For this stop" value={`${forStop} bkt`} />
+        {short ? <DialogRow label="Not on the truck" value={`${missing} bkt`} /> : null}
         {trip.capacity > 0 ? (
           <DialogRow label="Truck" value={`${trip.loadedBuckets}/${trip.capacity} · ${Math.max(0, trip.capacity - trip.loadedBuckets)} free`} />
         ) : null}
       </DialogList>
-      {short ? (
-        <>
-          <Text style={s.leaveNote}>
-            {missing ? `${missing} bucket${missing === 1 ? '' : 's'} not on the truck go on its next trip. ` : ''}Why is it
-            leaving short?
-          </Text>
-          <View style={s.reasonRow}>
-            {SHORT_REASONS.map((r) => (
-              <Pressable
-                key={r}
-                onPress={() => setReason(r)}
-                disabled={sending}
-                style={[s.reasonChip, reason === r && s.reasonChipOn]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: reason === r }}
-              >
-                <Text style={[s.reasonText, reason === r && s.reasonTextOn]}>{r}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder={reason === 'Other' ? 'Say why (required)' : 'Add a note (optional)'}
-            placeholderTextColor={COLORS.textMuted}
-            editable={!sending}
-            multiline
-            maxLength={300}
-            style={s.leaveInput}
-          />
-        </>
-      ) : null}
     </Dialog>
   );
 }
@@ -4323,27 +4299,6 @@ const s = StyleSheet.create({
   arrivalLabel: { flexShrink: 1, marginBottom: 0 },
   arrivalCount: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text },
   arrivalHint: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
-  leaveNote: {
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.xs,
-    color: COLORS.warn,
-    marginTop: spacing.md,
-    textAlign: 'center',
-  },
-  leaveInput: {
-    marginTop: spacing.sm,
-    minHeight: 56,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceAlt,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-    color: COLORS.text,
-    textAlignVertical: 'top',
-  },
   tripClosed: { fontFamily: fontFamily.medium, fontSize: fontSize.xs, color: COLORS.textMuted, marginTop: spacing.sm },
   repNone: {
     fontFamily: fontFamily.regular,
