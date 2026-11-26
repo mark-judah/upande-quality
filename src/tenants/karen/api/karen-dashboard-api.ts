@@ -30,6 +30,8 @@ export type RawDashboardData = {
     overall_sampled?: number | null;
     not_received_buckets?: number;
     not_received_stems?: number;
+    received_not_shelved_buckets?: number;
+    received_not_shelved_stems?: number;
     pending_reshelving?: number;
     open_replacements?: number;
   };
