@@ -30,6 +30,8 @@ export type RawInTransitGroup = {
   schedule?: number;
   team?: string;
   shelve_next?: boolean;
+  /** 1 = a Quality B pick list: received in one go (no shelving) and issued then. */
+  quality_b?: number;
 };
 
 export type RawInTransitResponse = {
@@ -42,7 +44,23 @@ export type RawInTransitResponse = {
   };
 };
 
+export type RawQualityBReceive = {
+  message?: { received?: number; issued?: number; failed?: { bucket?: string; message?: string }[] };
+  exception?: string;
+  _server_messages?: string;
+};
+
 export const karenBucketTransfersApi = {
+  /** Every bucket of a Quality B pick list on the truck received at the sales farm and issued to its order. */
+  receiveQualityB(oplName: string): Promise<RawQualityBReceive> {
+    return api<RawQualityBReceive>({
+      method: 'POST',
+      url: '/api/method/upande_packhouse.api.quality_b_receive.receive',
+      data: { opl_name: oplName },
+      validateStatus: () => true,
+    });
+  },
+
   /** Transferred buckets (in-transit + shelved) for the delivery-date window,
    *  grouped by order (all farms). */
   getInTransitBuckets(fromDate: string, toDate: string): Promise<RawInTransitResponse> {

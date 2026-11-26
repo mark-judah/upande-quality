@@ -6,6 +6,8 @@ import { Screen } from '@/src/core/ui/Screen';
 import { Card, Alert } from '@/src/core/ui/Card';
 import { Segmented } from '@/src/core/ui/Segmented';
 import { Skeleton } from '@/src/core/ui/Skeleton';
+import { Button } from '@/src/core/ui/Button';
+import { useToast } from '@/src/core/ui/Toast';
 import {
   useKarenBucketTransfersStore,
   type TransferTab,
@@ -154,6 +156,15 @@ function tabTitle(tab: TransferTab): string {
 }
 
 function OrderCard({ g }: { g: TransferGroup }) {
+  const { receiving, receiveQualityB } = useKarenBucketTransfersStore();
+  const { showSuccess, showError } = useToast();
+  // Quality B: the buckets on the truck are received in one go -- no shelving, no scanning
+  const pending = g.qualityB ? Math.max(0, g.total - Math.max(g.shelvedCount, g.issuedCount)) : 0;
+  const onReceive = async () => {
+    const r = await receiveQualityB(g.oplName);
+    if (r.ok) showSuccess(r.message);
+    else showError(r.message);
+  };
   const label = STATUS_LABEL[g.status];
   const labelTone = g.status === 'ready' ? { fg: GREEN, bg: GREEN_BG } : { fg: AMBER, bg: AMBER_BG };
   return (
@@ -165,6 +176,7 @@ function OrderCard({ g }: { g: TransferGroup }) {
             <Text style={[s.seqChip, !g.schedule && s.seqChipNone]}>
               {g.schedule ? `${g.team || 'Team'} #${g.schedule}` : 'Not scheduled'}
             </Text>
+            {g.qualityB ? <Text style={s.qbChip}>Quality B</Text> : null}
             {g.shelveNext ? <Text style={s.nextChip}>Shelve next</Text> : null}
           </View>
           <Text style={s.order} numberOfLines={1}>
@@ -187,9 +199,19 @@ function OrderCard({ g }: { g: TransferGroup }) {
           </Text>
         </View>
         <Text style={s.count}>
-          {g.shelvedCount}/{g.total} shelved
+          {g.qualityB ? `${g.total - pending}/${g.total} received` : `${g.shelvedCount}/${g.total} shelved`}
         </Text>
       </View>
+
+      {pending > 0 ? (
+        <Button
+          label={`Received ${pending} bucket${pending === 1 ? '' : 's'}`}
+          iconLeft="checkmark-done-outline"
+          onPress={onReceive}
+          loading={receiving === g.oplName}
+          disabled={!!receiving}
+        />
+      ) : null}
 
       <View style={s.divider} />
 
@@ -275,6 +297,16 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   seqChipNone: { fontFamily: fontFamily.medium, color: COLORS.textMuted },
+  qbChip: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.xs,
+    color: AMBER,
+    backgroundColor: AMBER_BG,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
   nextChip: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xs,

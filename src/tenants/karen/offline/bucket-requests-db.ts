@@ -327,6 +327,9 @@ async function migrate(d: SQLite.SQLiteDatabase): Promise<void> {
   if (!scols.some((c) => c.name === 'scheduled')) {
     await addColumn(d, 'ALTER TABLE opl_schedule ADD COLUMN scheduled INTEGER NOT NULL DEFAULT 1');
   }
+  if (!scols.some((c) => c.name === 'quality_b')) {
+    await addColumn(d, 'ALTER TABLE opl_schedule ADD COLUMN quality_b INTEGER NOT NULL DEFAULT 0');
+  }
   const bcols = await d.getAllAsync<{ name: string }>('PRAGMA table_info(bucket)');
   if (!bcols.some((c) => c.name === 'farm')) {
     await addColumn(d, 'ALTER TABLE bucket ADD COLUMN farm TEXT');
@@ -1514,8 +1517,8 @@ export async function replaceSchedules(schedules: OplSchedule[]): Promise<void> 
     for (const sc of schedules) {
       if (!sc.oplName) continue;
       await d.runAsync(
-        'INSERT OR REPLACE INTO opl_schedule (opl_name, team, sequence, scheduled) VALUES (?, ?, ?, ?)',
-        [sc.oplName, sc.team, sc.sequence, sc.scheduled ? 1 : 0],
+        'INSERT OR REPLACE INTO opl_schedule (opl_name, team, sequence, scheduled, quality_b) VALUES (?, ?, ?, ?, ?)',
+        [sc.oplName, sc.team, sc.sequence, sc.scheduled ? 1 : 0, sc.qualityB ? 1 : 0],
       );
     }
     await d.runAsync(
@@ -1527,14 +1530,19 @@ export async function replaceSchedules(schedules: OplSchedule[]): Promise<void> 
 
 export async function listSchedules(): Promise<OplSchedule[]> {
   const d = await db();
-  const rows = await d.getAllAsync<{ opl_name: string; team: string | null; sequence: number; scheduled: number }>(
-    'SELECT opl_name, team, sequence, scheduled FROM opl_schedule',
-  );
+  const rows = await d.getAllAsync<{
+    opl_name: string;
+    team: string | null;
+    sequence: number;
+    scheduled: number;
+    quality_b: number | null;
+  }>('SELECT opl_name, team, sequence, scheduled, quality_b FROM opl_schedule');
   return rows.map((r) => ({
     oplName: r.opl_name,
     team: r.team || '',
     sequence: r.sequence || 0,
     scheduled: r.scheduled === 1,
+    qualityB: r.quality_b === 1,
   }));
 }
 

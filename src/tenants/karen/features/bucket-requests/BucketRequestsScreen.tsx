@@ -45,6 +45,8 @@ import {
   isAwaitingTruck,
   AWAITING_TRUCK_LABEL,
   AWAITING_TRUCK_NOTE,
+  QUALITY_B_LABEL,
+  isQualityBTrip,
   onTrip as oplOnTrip,
   heldOnTrip,
   ridingOnlyOpls,
@@ -2120,6 +2122,7 @@ function sortWaiting(groups: OrderGroup[]): OrderGroup[] {
 function tripName(t: PlannedTrip, severalSalesFarms: boolean): string {
   const to = toSalesFarm(t.salesFarm, severalSalesFarms);
   if (isAwaitingTruck(t.tripId)) return `${AWAITING_TRUCK_LABEL}${to}`;
+  if (isQualityBTrip(t.tripId)) return `${QUALITY_B_LABEL}${to}`;
   return `${t.vehicle || 'No truck yet'}${t.run ? ` · Trip ${t.run}` : ''}${to}`;
 }
 
@@ -2457,7 +2460,7 @@ const TripRow = memo(function TripRow({
             {t.yourStopClosed ? null : <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />}
           </View>
         </Pressable>
-        {onSend && you && !isAwaitingTruck(t.tripId) ? (
+        {onSend && you && !isAwaitingTruck(t.tripId) && !isQualityBTrip(t.tripId) ? (
           <Button
             label={(t.stops ?? []).some((st) => st.stop > you.stop) ? 'Truck leaving' : `Send to ${t.salesFarm || hub || 'sales farm'}`}
             iconLeft="car-outline"
@@ -3965,7 +3968,11 @@ function TripCard({
         <View style={s.tripTruck}>
           <Ionicons name="car" size={16} color={COLORS.text} />
           <Text style={s.tripTruckText}>
-            {isAwaitingTruck(trip.tripId) ? AWAITING_TRUCK_LABEL : trip.vehicle || 'No truck yet'}
+            {isAwaitingTruck(trip.tripId)
+              ? AWAITING_TRUCK_LABEL
+              : isQualityBTrip(trip.tripId)
+                ? QUALITY_B_LABEL
+                : trip.vehicle || 'No truck yet'}
             {trip.run ? `  ·  Trip ${trip.run}` : ''}
           </Text>
         </View>

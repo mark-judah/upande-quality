@@ -275,7 +275,8 @@ export type ReplacementCandidate = {
 /** The shelf scanned and its photo: `photo` once uploaded, `photoUri` while it is only on the phone (taken offline). */
 export type NotFoundReport = { shelf: string; photo: string; photoUri?: string };
 
-export type OplSchedule = { oplName: string; team: string; sequence: number; scheduled: boolean };
+/** `qualityB`: a Quality B order -- no truck is planned for it; the farm loads it onto the truck that collects it. */
+export type OplSchedule = { oplName: string; team: string; sequence: number; scheduled: boolean; qualityB?: boolean };
 
 export type SaveTrolleyOutcome =
   | { kind: 'ok'; message: string }
@@ -548,6 +549,7 @@ export const karenBucketRequestsRepository = {
           team: v?.team ?? '',
           sequence: num(v?.schedule),
           scheduled: !!v?.scheduled,
+          qualityB: !!v?.quality_b,
         })),
         oplStates: Object.fromEntries(
           Object.entries(m.opl_states ?? {}).filter(([, v]) =>

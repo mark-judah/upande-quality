@@ -36,7 +36,24 @@ export type TransferGroup = {
   team: string;
   /** The first order with a bucket still to shelve: shelve it next. */
   shelveNext: boolean;
+  /** A Quality B pick list: received in one go, not shelved. */
+  qualityB: boolean;
 };
+
+export type ReceiveOutcome =
+  | { kind: 'ok'; received: number; issued: number; failed: { bucket: string; message: string }[] }
+  | { kind: 'error'; message: string };
+
+function serverMessage(raw: { exception?: string; _server_messages?: string }): string {
+  try {
+    const list = JSON.parse(raw._server_messages ?? '[]') as string[];
+    const first = list.length ? (JSON.parse(list[0]) as { message?: string }).message : '';
+    if (first) return first.replace(/<[^>]*>/g, '');
+  } catch {
+    // not JSON: fall through
+  }
+  return raw.exception?.split(':').slice(1).join(':').trim() || 'Could not receive the buckets.';
+}
 
 export type FetchTransfersOutcome =
   | { kind: 'ok'; groups: TransferGroup[] }
@@ -92,10 +109,25 @@ function mapGroup(r: RawInTransitGroup): TransferGroup {
     schedule: Number(r.schedule ?? 0) || 0,
     team: r.team ?? '',
     shelveNext: !!r.shelve_next,
+    qualityB: !!r.quality_b,
   };
 }
 
 export const karenBucketTransfersRepository = {
+  async receiveQualityB(oplName: string): Promise<ReceiveOutcome> {
+    const raw = await karenBucketTransfersApi.receiveQualityB(oplName);
+    const m = raw.message;
+    if (m && typeof m.received === 'number') {
+      return {
+        kind: 'ok',
+        received: m.received,
+        issued: m.issued ?? 0,
+        failed: (m.failed ?? []).map((f) => ({ bucket: f.bucket ?? '', message: f.message ?? '' })),
+      };
+    }
+    return { kind: 'error', message: serverMessage(raw) };
+  },
+
   async fetchInTransit(fromDate: string, toDate: string): Promise<FetchTransfersOutcome> {
     const raw = await karenBucketTransfersApi.getInTransitBuckets(fromDate, toDate);
     const m = raw.message ?? {};
