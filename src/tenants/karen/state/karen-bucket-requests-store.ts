@@ -204,10 +204,21 @@ export function isAwaitingTruck(tripId: string | null | undefined): boolean {
   return !!tripId && (tripId === AWAITING_TRUCK || tripId.startsWith(`${AWAITING_TRUCK}:`));
 }
 
-/** One "trip" per sales farm the waiting orders go to: buckets for different sales farms never share a row. */
-function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[]): PlannedTrip[] {
+/** Quality B orders: no truck is planned for them; the farm loads them onto whichever truck collects them. */
+export const QUALITY_B_TRIP = 'QUALITY-B';
+export const QUALITY_B_LABEL = 'Quality B';
+
+export function isQualityBTrip(tripId: string | null | undefined): boolean {
+  return !!tripId && (tripId === QUALITY_B_TRIP || tripId.startsWith(`${QUALITY_B_TRIP}:`));
+}
+
+/** One "trip" per sales farm the waiting orders go to: buckets for different sales farms never share a row.
+ *  `qualityB`: the Quality B picklists, listed under their own group (qualityBTrips) instead. */
+function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[], qualityB: Set<string>): PlannedTrip[] {
   const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
-  const opls = requests.flatMap((g) => g.opls).filter((o) => !onTrip.has(o.oplName) && o.asap === 0);
+  const opls = requests
+    .flatMap((g) => g.opls)
+    .filter((o) => !onTrip.has(o.oplName) && o.asap === 0 && !qualityB.has(o.oplName));
   const bySales = new Map<string, typeof opls>();
   // downloaded before orders carried their sales farm: the hub's (the only one, mostly)
   const fallback = knownSalesFarm();
@@ -218,6 +229,20 @@ function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[]): Plann
   const keys = [...bySales.keys()].sort();
   // one id per sales farm, however many there are: a second sales farm showing up never renames (and closes) the open one
   return keys.map((k) => awaitingTruckTrip(`${AWAITING_TRUCK}:${k}`, k, bySales.get(k)!));
+}
+
+/** The Quality B orders still at this farm with no trip, one group per sales farm: loaded onto the truck the farm picks. */
+function qualityBTrips(requests: OrderGroup[], trips: PlannedTrip[], qualityB: Set<string>): PlannedTrip[] {
+  if (!qualityB.size) return [];
+  const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
+  const opls = requests.flatMap((g) => g.opls).filter((o) => qualityB.has(o.oplName) && !onTrip.has(o.oplName));
+  const bySales = new Map<string, typeof opls>();
+  const fallback = knownSalesFarm();
+  for (const o of opls) {
+    const k = o.salesFarm || fallback;
+    bySales.set(k, [...(bySales.get(k) ?? []), o]);
+  }
+  return [...bySales.keys()].sort().map((k) => awaitingTruckTrip(`${QUALITY_B_TRIP}:${k}`, k, bySales.get(k)!));
 }
 
 function awaitingTruckTrip(tripId: string, salesFarm: string, opls: OrderGroup['opls']): PlannedTrip {
@@ -285,6 +310,7 @@ function awaitingTruckTrip(tripId: string, salesFarm: string, opls: OrderGroup['
 
 export function tripTitle(t: PlannedTrip): string {
   if (isAwaitingTruck(t.tripId)) return `${AWAITING_TRUCK_LABEL}${toSalesFarm(t.salesFarm)}`;
+  if (isQualityBTrip(t.tripId)) return `${QUALITY_B_LABEL}${toSalesFarm(t.salesFarm)}`;
   const truck = t.vehicle || 'No truck yet';
   return t.run ? `${truck} Trip ${t.run}` : `${truck} · ${t.tripId}`;
 }
@@ -973,7 +999,12 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
     const day = get().deliveryDate;
     const dayOpls = new Set([...allRequests.flatMap((g) => g.opls), ...trolley, ...inTransit].map((o) => o.oplName));
     const dayTrips = day ? allTrips.filter((t) => (t.orders ?? []).some((o) => dayOpls.has(o.opl))) : allTrips;
-    const plannedTrips = [...dayTrips, ...awaitingTruckTrips(requests, dayTrips)];
+    const qualityB = new Set(schedules.filter((sc) => sc.qualityB).map((sc) => sc.oplName));
+    const plannedTrips = [
+      ...dayTrips,
+      ...awaitingTruckTrips(requests, dayTrips, qualityB),
+      ...qualityBTrips(requests, dayTrips, qualityB),
+    ];
     // The open trip: still planned and its stop here still open, else back to Trips.
     const sel = get().selectedTripId;
     let trip = sel ? (plannedTrips.find((t) => t.tripId === sel) ?? null) : null;
@@ -1638,6 +1669,7 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
 
   closeStop: async (tripId, farm, reason, complete, sendShort) => {
     if (isAwaitingTruck(tripId)) return { ok: false, message: AWAITING_TRUCK_NOTE };
+    if (isQualityBTrip(tripId)) return { ok: false, message: 'Quality B has no stop to close.' };
     await get().refreshOnline();
     if (!get().online) return { ok: false, message: 'Connect to the internet to close the stop.' };
     try {

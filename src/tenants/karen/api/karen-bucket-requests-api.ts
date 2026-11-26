@@ -228,7 +228,7 @@ export type RawPlannedTripsResponse = {
     farm?: string;
     message?: string;
     /** OPL -> its Packhouse Schedule slot, for orders scheduled but not yet on a trip. */
-    schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number }>;
+    schedules?: Record<string, { team?: string; schedule?: number; scheduled?: number; quality_b?: number }>;
     /** Live state of this farm's buckets per OPL the app sent in `opls`. */
     opl_states?: Record<string, 'waiting' | 'loaded' | 'transit' | 'arrived' | string>;
     /** 1: orders waiting here but on no trip yet are sent too (scheduled 0). */
