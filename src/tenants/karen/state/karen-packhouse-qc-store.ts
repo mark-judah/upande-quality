@@ -14,6 +14,7 @@ import {
   type SpecificationMatch,
 } from '../repository/karen-packhouse-qc-repository';
 import { mapAxiosError } from '@/src/core/api/client';
+import { readUserStation } from '@/src/core/tenant/user-station';
 import { karenReplacementRepository } from '../repository/karen-replacement-repository';
 import { fetchSprayRoseGroups } from '../api/rose-varieties';
 import { karenTraceabilityRepository } from '../repository/karen-traceability-repository';
@@ -227,6 +228,8 @@ type State = {
   params: PackhouseQcParameter[];
   reasons: ReasonOption[];
   qcIncharges: QcInchargeOption[];
+  /** Packing Teams (server) for the station's farm — the team filter's options. */
+  packingTeams: string[];
   loadingInitial: boolean;
 
   /** All Active Specifications, for filtering the order list before it's
@@ -328,7 +331,7 @@ type State = {
    *  against this spec — the operator must pick a spec before browsing
    *  orders (scanning a box still bypasses this). */
   selectSpecificationFilter: (spec: SpecificationListItem) => Promise<void>;
-  /** Loads the spec-less orders for a team (Team A/B, Jamafa, Eldama, Bravo). */
+  /** Loads the spec-less orders for a team (from Packing Teams). */
   selectTeamFilter: (team: string) => Promise<void>;
   /** Clears both the spec and team filters and the loaded order list — used
    *  when the operator switches between the two filter paths. */
@@ -427,6 +430,7 @@ type State = {
 };
 
 let issueSeed = 1;
+let initialLoadSeq = 0;
 
 /** Mirrors the server's savePackhouseQC computation so the operator sees the
  *  outcome before submitting. Accepted unless EVERY checked stem was
@@ -515,6 +519,11 @@ function resolveFinalQcSpec(s: State): SpecificationMatch | null {
 /** Stems in one bunch for Grading QC — the spec's rate if set, else the order's
  *  own bunches/stems ratio. Used both to convert bunches to stems and to cap a
  *  rejected bunch's issue stems (a bunch can't have more issue stems than it holds). */
+/** The mode the server uses to pick which orders to list (Grading QC looks ahead by delivery date). */
+function listMode(s: State): string | undefined {
+  return s.qcType === 'Online QC' && s.onlineMode ? s.onlineMode : undefined;
+}
+
 function gradingStemsPerBunch(s: State): number {
   const spec = resolveFinalQcSpec(s);
   return spec?.stemsPerBunch && spec.stemsPerBunch > 0 ? spec.stemsPerBunch : stemsPerBunch(s.itemLocations);
@@ -634,6 +643,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   params: [],
   reasons: [],
   qcIncharges: [],
+  packingTeams: [],
   loadingInitial: false,
 
   specificationsList: [],
@@ -683,9 +693,16 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   lastSubmitKind: null,
 
   loadInitialData: async () => {
+    // The screen loads on open and again when Grading QC is picked; only the latest may land.
+    const my = ++initialLoadSeq;
     set({ loadingInitial: true });
     try {
-      const outcome = await karenPackhouseQcRepository.fetchFormData();
+      const station = await readUserStation();
+      const outcome = await karenPackhouseQcRepository.fetchFormData({
+        inspectionMode: listMode(get()),
+        farm: station?.userFarm,
+      });
+      if (my !== initialLoadSeq) return;
       if (outcome.kind === 'ok') {
         set({
           loadingInitial: false,
@@ -698,6 +715,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
           params: outcome.params,
           reasons: outcome.reasons,
           qcIncharges: outcome.qcIncharges,
+          packingTeams: outcome.packingTeams,
         });
       } else {
         set({ loadingInitial: false });
@@ -708,7 +726,12 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
   },
 
   setQcType: (t) => set({ qcType: t, onlineMode: t === 'Final QC' ? null : get().onlineMode }),
-  setOnlineMode: (m) => set({ onlineMode: m }),
+  setOnlineMode: (m) => {
+    const changed = get().onlineMode !== m;
+    set({ onlineMode: m });
+    // Grading QC counts orders by delivery date, so the spec ticks/counts must be refetched.
+    if (changed) get().loadInitialData();
+  },
 
   selectCustomer: (customer) =>
     set({
@@ -734,7 +757,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       ...freshOrderState(),
     });
     try {
-      const outcome = await karenPackhouseQcRepository.fetchFormData({ specification: spec.name });
+      const outcome = await karenPackhouseQcRepository.fetchFormData({ specification: spec.name, inspectionMode: listMode(get()) });
       if (outcome.kind === 'ok') {
         set({
           orderPickListsLoading: false,
@@ -760,7 +783,7 @@ export const useKarenPackhouseQcStore = create<State>((set, get) => ({
       ...freshOrderState(),
     });
     try {
-      const outcome = await karenPackhouseQcRepository.fetchFormData({ team });
+      const outcome = await karenPackhouseQcRepository.fetchFormData({ team, inspectionMode: listMode(get()) });
       if (outcome.kind === 'ok') {
         set({
           orderPickListsLoading: false,

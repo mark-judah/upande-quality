@@ -4,32 +4,7 @@
 
 export type ComponentSpec = { label: string; options: string[] };
 
-// ── Inspection Log ───────────────────────────────────────────────────────────
-export const INSPECTION_AREAS = [
-  'Team A',
-  'Team B',
-  'Team C',
-  'Team Eldama',
-  'Team Bravo',
-];
-
-// Each component's options are the distinct conditions seen in that column of
-// the template — so the operator only sees choices that make sense for it.
-export const INSPECTION_COMPONENTS: ComponentSpec[] = [
-  { label: 'Bunching Tables', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Needs painting', 'Needs repair', 'In good condition'] },
-  { label: 'Sleeving Tables', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Needs painting', 'Broken', 'In good condition'] },
-  { label: 'QC Table', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Dim light', 'Blown light', 'Needs painting'] },
-  { label: 'Guillotine', options: ['Clean', 'Dirty', 'Blurred', 'Detached', 'In good condition'] },
-  { label: 'Floor', options: ['Clean', 'Dirty', 'Broken tiles', 'Faded marks', 'Slippery'] },
-  { label: 'Walls', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Needs painting'] },
-  { label: 'Windows / Windowpanes', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs'] },
-  { label: 'Trolleys', options: ['Clean', 'Dirty', 'Broken', 'Unmovable', 'Rusty', 'In good condition'] },
-  { label: 'Drainage', options: ['Clean', 'Dirty', 'Blocked'] },
-  { label: 'Sockets', options: ['In good condition', 'Broken', 'Naked wire'] },
-  { label: 'Lights', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Blown', 'Dim light'] },
-  { label: 'Roof', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Needs painting'] },
-  { label: 'Roof Traces', options: ['Clean', 'Dusty', 'Dirty', 'Cobwebs', 'Rusty', 'Broken'] },
-];
+// Inspection Log areas and items come from the server (Post Harvest Team, Packhouse Inspection Item).
 
 // ── Cleaning Checklist ───────────────────────────────────────────────────────
 // Must match the Packhouse Cleaning Record `area` Select on the server (no Team Bravo there).

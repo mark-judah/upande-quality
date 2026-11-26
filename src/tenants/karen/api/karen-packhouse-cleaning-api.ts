@@ -17,6 +17,12 @@ export type InspectionPayload = {
 
 export type GlassPayload = InspectionPayload;
 
+/** The Inspection Log's areas and items, maintained by Quality Managers in the desk
+ *  (Post Harvest Team, Packhouse Inspection Item). */
+export type RawInspectionSetup = {
+  message?: { areas?: string[]; components?: { label?: string; options?: string[] }[] };
+};
+
 export type CleaningPayload = {
   date: string;
   area: string;
@@ -35,6 +41,14 @@ export type CleaningPayload = {
 };
 
 export const karenPackhouseCleaningApi = {
+  getInspectionSetup(): Promise<RawInspectionSetup> {
+    return api({
+      method: 'GET',
+      url: '/api/method/upande_quality.mobile.api.getPackhouseInspectionSetup',
+      validateStatus: () => true,
+    });
+  },
+
   submitInspection(data: InspectionPayload): Promise<RawSubmitResponse> {
     return api({
       method: 'POST',
