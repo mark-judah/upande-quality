@@ -30,6 +30,9 @@ type State = {
   /** Step the delivery date by ±1 day and reload. */
   stepDate: (deltaDays: number) => Promise<void>;
   load: () => Promise<void>;
+  /** The Quality B pick list being received now. */
+  receiving: string | null;
+  receiveQualityB: (oplName: string) => Promise<{ ok: boolean; message: string }>;
   reset: () => void;
 };
 
@@ -42,6 +45,26 @@ export const useKarenBucketTransfersStore = create<State>((set, get) => ({
   loaded: false,
 
   setTab: (t) => set({ tab: t }),
+
+  receiving: null,
+  receiveQualityB: async (oplName) => {
+    if (get().receiving) return { ok: false, message: 'Still receiving the last one.' };
+    set({ receiving: oplName });
+    try {
+      const r = await karenBucketTransfersRepository.receiveQualityB(oplName);
+      await get().load();
+      if (r.kind !== 'ok') return { ok: false, message: r.message };
+      const head = `${r.received} bucket${r.received === 1 ? '' : 's'} received`;
+      if (r.failed.length) {
+        return { ok: false, message: `${head}; not issued: ${r.failed.map((f) => `${f.bucket} (${f.message})`).join(', ')}` };
+      }
+      return { ok: true, message: `${head} and ready to pack.` };
+    } catch (err) {
+      return { ok: false, message: mapAxiosError(err).message };
+    } finally {
+      set({ receiving: null });
+    }
+  },
 
   stepDate: async (deltaDays) => {
     const next = isoDay(addDays(new Date(get().date + 'T00:00:00'), deltaDays));
