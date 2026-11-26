@@ -100,6 +100,8 @@ export function QualityDashboard() {
   const hasAttention = attention > 0;
   const notReceived = kpi?.notReceivedBuckets ?? 0;
   const hasNotReceived = notReceived > 0;
+  const notShelved = kpi?.notShelvedBuckets ?? 0;
+  const hasNotShelved = notShelved > 0;
 
   // All-farm users get "All farms" plus every farm; others only their farms,
   // and no picker when that is a single farm.
@@ -193,6 +195,26 @@ export function QualityDashboard() {
               </Text>
               <Text style={[s.tileUnit, hasNotReceived && { color: '#FCA5A5' }]}>
                 buckets · {(kpi?.notReceivedStems ?? 0).toLocaleString()} stems
+              </Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            style={[s.issueTile, hasNotShelved && s.issueTileActive]}
+            onPress={() => router.push('/not-shelved' as never)}
+          >
+            <View style={s.issueTileLeft}>
+              <Text style={[s.tileChip, hasNotShelved && { color: '#FECACA' }]}>RECEIVED NOT SHELVED</Text>
+              <Text
+                style={[s.issueNumber, hasNotShelved ? { color: '#FCA5A5' } : { color: COLORS.textMuted }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+              >
+                {notShelved.toLocaleString()}
+              </Text>
+              <Text style={[s.tileUnit, hasNotShelved && { color: '#FCA5A5' }]}>
+                buckets · {(kpi?.notShelvedStems ?? 0).toLocaleString()} stems
               </Text>
             </View>
           </Pressable>

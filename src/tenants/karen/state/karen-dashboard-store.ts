@@ -29,6 +29,8 @@ export type DashboardKpi = {
   sampled: number | null;
   notReceivedBuckets: number;
   notReceivedStems: number;
+  notShelvedBuckets: number;
+  notShelvedStems: number;
   pendingReshelving: number;
   openReplacements: number;
 };
@@ -143,6 +145,8 @@ export const useKarenDashboardStore = create<DashboardState>((set, get) => ({
           sampled: pctOrNull(k.overall_sampled),
           notReceivedBuckets: n(k.not_received_buckets),
           notReceivedStems: n(k.not_received_stems),
+          notShelvedBuckets: n(k.received_not_shelved_buckets),
+          notShelvedStems: n(k.received_not_shelved_stems),
           pendingReshelving: n(k.pending_reshelving),
           openReplacements: n(k.open_replacements),
         },
