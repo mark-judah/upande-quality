@@ -1336,6 +1336,17 @@ export const useKarenBucketRequestsStore = create<State>((set, get) => {
           message: `Trolley ${trolley} already holds ${ft ? `${tripTitle(ft)}'s` : `${foreign.orderName}'s`} buckets — scan an empty trolley for ${tripTitle(trip)}.`,
         };
       }
+      // One trolley, one sales farm: a trip carrying several sales farms' orders loads each
+      // sales farm's buckets on trolleys of its own, so each is taken off whole where it goes.
+      const goesTo = new Set(free.map((r) => r.salesFarm || '').filter(Boolean));
+      const onTrolley = held.find((r) => r.salesFarm && goesTo.size && !goesTo.has(r.salesFarm));
+      if (onTrolley && goesTo.size) {
+        const to = [...goesTo][0];
+        return {
+          ok: false,
+          message: `${id.toUpperCase()} goes to ${to} — Trolley ${trolley} holds ${onTrolley.salesFarm} buckets. Scan a ${to} trolley.`,
+        };
+      }
     }
     let res: ScanResult;
     try {
