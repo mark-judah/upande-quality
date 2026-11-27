@@ -1391,32 +1391,37 @@ export async function scanBucket(
 
 /** A picklist row a bucket (or a trolley) is for: its order, and whether it is an ASAP
  *  replacement (that follows its order's trip). */
-export type BucketOrderRef = { oplName: string; orderName: string; asap: boolean; buckets?: string[] };
+export type BucketOrderRef = { oplName: string; orderName: string; asap: boolean; buckets?: string[]; salesFarm?: string };
 
 /** The picklists still waiting for this bucket here (unscanned, on a truck trip). */
 export async function bucketOrders(bucketId: string): Promise<BucketOrderRef[]> {
   const d = await db();
   const [fc, fa] = farmCond();
-  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; priority: string | null }>(
-    `SELECT b.opl_name, o.order_name, b.priority FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
+  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; priority: string | null; sales_farm: string | null }>(
+    `SELECT b.opl_name, o.order_name, b.priority, o.sales_farm FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
      WHERE LOWER(b.bucket_id) = ? AND b.scanned = 0 AND b.scheduled = 1 AND ${fc}
      ORDER BY b.id ASC`,
     [bucketId.trim().toLowerCase(), ...fa],
   );
-  return rows.map((r) => ({ oplName: r.opl_name, orderName: r.order_name || r.opl_name, asap: r.priority === 'ASAP' }));
+  return rows.map((r) => ({
+    oplName: r.opl_name,
+    orderName: r.order_name || r.opl_name,
+    asap: r.priority === 'ASAP',
+    salesFarm: r.sales_farm || '',
+  }));
 }
 
 /** The picklists of the buckets on a trolley right now (scanned here, not on a truck yet). */
 export async function trolleyOrders(trolleyId: string): Promise<BucketOrderRef[]> {
   const d = await db();
   const [fc, fa] = farmCond();
-  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; asap: number; buckets: string | null }>(
-    `SELECT b.opl_name, o.order_name, MAX(CASE WHEN b.priority = 'ASAP' THEN 1 ELSE 0 END) AS asap,
+  const rows = await d.getAllAsync<{ opl_name: string; order_name: string | null; asap: number; buckets: string | null; sales_farm: string | null }>(
+    `SELECT b.opl_name, o.order_name, MAX(CASE WHEN b.priority = 'ASAP' THEN 1 ELSE 0 END) AS asap, o.sales_farm,
             GROUP_CONCAT(DISTINCT LOWER(b.bucket_id)) AS buckets
      FROM bucket b LEFT JOIN opl o ON o.opl_name = b.opl_name
      WHERE b.trolley_id = ? AND b.scanned = 1 AND b.not_found = 0 AND b.truck_loaded = 0 AND b.truck_transit = 0
        AND ${fc}
-     GROUP BY b.opl_name, o.order_name`,
+     GROUP BY b.opl_name, o.order_name, o.sales_farm`,
     [trolleyId, ...fa],
   );
   return rows.map((r) => ({
@@ -1424,6 +1429,7 @@ export async function trolleyOrders(trolleyId: string): Promise<BucketOrderRef[]
     orderName: r.order_name || r.opl_name,
     asap: r.asap === 1,
     buckets: (r.buckets || '').split(',').filter(Boolean),
+    salesFarm: r.sales_farm || '',
   }));
 }
 
