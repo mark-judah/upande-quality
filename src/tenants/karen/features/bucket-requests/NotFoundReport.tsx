@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '@/src/core/ui/Button';
 import { ScanField, type ScanFieldHandle } from '@/src/core/scanning/ScanField';
 import { InlineCamera } from '@/src/core/scanning/InlineCamera';
-import { InlinePhoto } from '@/src/core/scanning/InlinePhoto';
 import { focusWhenReady } from '@/src/core/scanning/focus';
-import { uploadImage } from '@/src/core/api/upload';
 import { borderRadius, COLORS, fontFamily, fontSize, spacing } from '@/src/core/theme';
 import {
   karenBucketRequestsRepository,
@@ -59,9 +56,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 }
 
 /**
- * A bucket being reported (missing, damaged, wrong variety, issued offline): scan the shelf the system put it on,
- * then photograph that shelf. Only then can it be replaced, marked not found or marked issued -- the shelf and photo
- * go on the record. A different shelf is refused. A Honeywell scanner types into the shelf field, which holds the
+ * A bucket being reported (missing, damaged, wrong variety, issued offline): scan the shelf the system put it on.
+ * Only then can it be replaced, marked not found or marked issued -- the shelf scanned is the evidence and goes on
+ * the record. A different shelf is refused. A Honeywell scanner types into the shelf field, which holds the
  * focus (on opening, after every check, when a camera closes); the phone camera opens inside the sheet.
  */
 export function NotFoundReportSteps({
@@ -83,10 +80,7 @@ export function NotFoundReportSteps({
   const [expected, setExpected] = useState((shelfHint || '').toUpperCase());
   const [shelfError, setShelfError] = useState('');
   const [checking, setChecking] = useState(false);
-  const [camera, setCamera] = useState<'scan' | 'photo' | null>(null);
-  const [photo, setPhoto] = useState<{ uri: string; url: string } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [photoError, setPhotoError] = useState('');
+  const [camera, setCamera] = useState<'scan' | null>(null);
 
   // the shelf field takes the Honeywell scan: focused whenever a shelf is still to be scanned
   useEffect(() => {
@@ -111,7 +105,7 @@ export function NotFoundReportSteps({
       }
       const ok = parseShelf(code);
       setShelf(ok);
-      onReady(photo ? report(ok, photo) : null);
+      onReady(report(ok));
       return;
     }
     setChecking(true);
@@ -124,7 +118,7 @@ export function NotFoundReportSteps({
       if (r.expected) setExpected(r.expected);
       if (r.ok) {
         setShelf(r.shelf);
-        onReady(photo ? report(r.shelf, photo) : null);
+        onReady(report(r.shelf));
       } else {
         setShelfError(r.message);
       }
@@ -133,7 +127,7 @@ export function NotFoundReportSteps({
       const scanned = parseShelf(code);
       if (scanned) {
         setShelf(scanned);
-        onReady(photo ? report(scanned, photo) : null);
+        onReady(report(scanned));
       } else {
         setShelfError('That is not a shelf QR: scan the shelf.');
       }
@@ -144,33 +138,7 @@ export function NotFoundReportSteps({
     }
   };
 
-  const report = (s: string, p: { uri: string; url: string }): Report =>
-    p.url ? { shelf: s, photo: p.url } : { shelf: s, photo: '', photoUri: p.uri };
-
-  const onPhoto = async (uri: string) => {
-    setCamera(null);
-    setUploading(true);
-    setPhotoError('');
-    try {
-      const f = await uploadImage(uri, `shelf-${shelf || expected || 'x'}-${bucketId}.jpg`);
-      const p = { uri, url: f.file_url };
-      setPhoto(p);
-      onReady(shelf ? report(shelf, p) : null);
-    } catch (e) {
-      if (/session expired|too large/i.test(String((e as Error)?.message))) {
-        setPhoto(null);
-        onReady(null);
-        setPhotoError((e as Error)?.message || 'The photo did not upload. Take it again.');
-      } else {
-        // no connection: the photo stays on the phone and uploads with the report
-        const p = { uri, url: '' };
-        setPhoto(p);
-        onReady(shelf ? report(shelf, p) : null);
-      }
-    } finally {
-      setUploading(false);
-    }
-  };
+  const report = (shelfName: string): Report => ({ shelf: shelfName, photo: '' });
 
   return (
     <View style={s.box}>
@@ -199,34 +167,6 @@ export function NotFoundReportSteps({
         </View>
       </View>
 
-      <View style={[s.step, !shelf && s.stepOff]}>
-        <StepMark done={!!photo} n={2} />
-        <View style={{ flex: 1, gap: spacing.xs }}>
-          <Text style={s.stepTitle}>Photo of the shelf</Text>
-          {camera === 'photo' ? (
-            <View style={s.camera}>
-              <InlinePhoto onTaken={(uri) => void onPhoto(uri)} onClose={() => setCamera(null)} />
-            </View>
-          ) : photo ? (
-            <Pressable onPress={() => setCamera('photo')} style={s.photoRow} accessibilityLabel="Retake the photo">
-              <Image source={{ uri: photo.uri }} style={s.thumb} />
-              <Text style={s.retake}>Retake</Text>
-            </Pressable>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              singleLine
-              iconLeft="camera-outline"
-              label={uploading ? 'Uploading…' : 'Take photo'}
-              loading={uploading}
-              disabled={!shelf || uploading}
-              onPress={() => setCamera('photo')}
-            />
-          )}
-          {photoError ? <Text style={s.error}>{photoError}</Text> : null}
-        </View>
-      </View>
     </View>
   );
 }
@@ -252,7 +192,6 @@ const s = StyleSheet.create({
     marginTop: spacing.sm,
   },
   step: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  stepOff: { opacity: 0.45 },
   stepTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: COLORS.text, marginTop: 2 },
   camera: { height: CAMERA_HEIGHT },
   num: {
@@ -266,7 +205,4 @@ const s = StyleSheet.create({
   },
   numText: { fontFamily: fontFamily.bold, fontSize: 12, color: COLORS.text },
   error: { fontFamily: fontFamily.medium, fontSize: fontSize.sm, color: COLORS.danger },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  thumb: { width: 64, height: 64, borderRadius: borderRadius.sm, backgroundColor: COLORS.border },
-  retake: { fontFamily: fontFamily.semiBold, fontSize: fontSize.sm, color: COLORS.primary },
 });
