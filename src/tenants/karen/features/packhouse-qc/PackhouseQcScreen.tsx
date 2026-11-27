@@ -42,7 +42,6 @@ import { FlatList, Modal, Pressable, ScrollView, SectionList, StyleSheet, Text, 
 /** Grading / Reject teams — mirrors the Order Pick List `custom_team` options.
  *  The team filter uses these to reach orders that have no specification linked
  *  (which the customer→spec path can never list). */
-const TEAMS = ['Team A', 'Team B', 'Jamafa', 'Eldama', 'Bravo'];
 
 /** Which Frappe Role unlocks which workflow, plus the copy for its landing
  *  tile — the operator never has to pick between things they're not
@@ -141,6 +140,7 @@ export function PackhouseQcScreen() {
   const customerOptionsFn = useKarenPackhouseQcStore((s) => s.customerOptions);
   const specificationsForSelectedCustomer = useKarenPackhouseQcStore((s) => s.specificationsForSelectedCustomer);
   const specOrderCounts = useKarenPackhouseQcStore((s) => s.specOrderCounts);
+  const packingTeams = useKarenPackhouseQcStore((s) => s.packingTeams);
   const bunchSampling = useKarenPackhouseQcStore((s) => s.bunchSampling);
   const boxesChecked = useKarenPackhouseQcStore((s) => s.boxesChecked);
   const finalDecisionOverride = useKarenPackhouseQcStore((s) => s.finalDecisionOverride);
@@ -1440,7 +1440,7 @@ export function PackhouseQcScreen() {
         open={teamPickerOpen}
         title="Select Team"
         onClose={() => setTeamPickerOpen(false)}
-        options={TEAMS.map((t) => ({ value: t, label: t }))}
+        options={packingTeams.map((t) => ({ value: t, label: t }))}
         onPick={(value) => {
           selectTeamFilter(value);
           setTeamPickerOpen(false);

@@ -193,6 +193,8 @@ export type RawPackhouseFormData = {
   scanned_box_variety?: string;
   qc_incharge_options?: RawQcIncharge[];
   pending_quarantine_stems?: number;
+  /** Packing Teams for the station's farm (all teams when the farm has none). */
+  packing_teams?: string[];
   error?: string;
 };
 
@@ -236,6 +238,10 @@ export const karenPackhouseQcApi = {
     specification?: string;
     team?: string;
     airportReturn?: boolean;
+    /** 'Grading QC' lists orders by delivery date (tomorrow to 3 days out) instead of today's. */
+    inspectionMode?: string;
+    /** Station farm: scopes the returned Packing Teams. */
+    farm?: string;
   }): Promise<RawPackhouseFormDataResponse> {
     const base = params?.orderPickList
       ? { order_pick_list: params.orderPickList }
@@ -250,7 +256,12 @@ export const karenPackhouseQcApi = {
       method: 'GET',
       url: '/api/method/upande_quality.mobile.api.fetchPackhouseQCFormData',
       // Airport Returns scans a box AND asks the server for the return context.
-      params: params?.airportReturn ? { ...(base ?? {}), airport_return: 1 } : base,
+      params: {
+        ...(base ?? {}),
+        ...(params?.airportReturn ? { airport_return: 1 } : {}),
+        ...(params?.inspectionMode ? { inspection_mode: params.inspectionMode } : {}),
+        ...(params?.farm ? { farm: params.farm } : {}),
+      },
     });
   },
 

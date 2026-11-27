@@ -207,6 +207,7 @@ export type PackhouseFormDataOutcome =
       scannedBoxVariety: string;
       qcIncharges: QcInchargeOption[];
       pendingQuarantineStems: number;
+      packingTeams: string[];
     }
   | { kind: 'error'; message: string };
 
@@ -422,6 +423,8 @@ export const karenPackhouseQcRepository = {
     specification?: string;
     team?: string;
     airportReturn?: boolean;
+    inspectionMode?: string;
+    farm?: string;
   }): Promise<PackhouseFormDataOutcome> {
     const raw = await karenPackhouseQcApi.fetchFormData(params);
     const m = raw.message ?? {};
@@ -453,6 +456,7 @@ export const karenPackhouseQcRepository = {
       scannedBoxVariety: m.scanned_box_variety ?? '',
       qcIncharges: (m.qc_incharge_options ?? []).map(toQcIncharge),
       pendingQuarantineStems: Number(m.pending_quarantine_stems) || 0,
+      packingTeams: m.packing_teams ?? [],
     };
   },
 
