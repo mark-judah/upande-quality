@@ -212,23 +212,20 @@ export function isQualityBTrip(tripId: string | null | undefined): boolean {
   return !!tripId && (tripId === QUALITY_B_TRIP || tripId.startsWith(`${QUALITY_B_TRIP}:`));
 }
 
-/** One "trip" per sales farm the waiting orders go to: buckets for different sales farms never share a row.
+/** One "trip" for every order still waiting for a truck at this farm, whichever sales farm it goes to: one truck
+ *  collects a farm for every sales farm (each sales farm's buckets on trolleys of their own), so they wait together.
+ *  The sales farm shows only when they all go to the same one.
  *  `qualityB`: the Quality B picklists, listed under their own group (qualityBTrips) instead. */
 function awaitingTruckTrips(requests: OrderGroup[], trips: PlannedTrip[], qualityB: Set<string>): PlannedTrip[] {
   const onTrip = new Set(trips.flatMap((t) => (t.orders ?? []).map((o) => o.opl)));
   const opls = requests
     .flatMap((g) => g.opls)
     .filter((o) => !onTrip.has(o.oplName) && o.asap === 0 && !qualityB.has(o.oplName));
-  const bySales = new Map<string, typeof opls>();
+  if (!opls.length) return [];
   // downloaded before orders carried their sales farm: the hub's (the only one, mostly)
   const fallback = knownSalesFarm();
-  for (const o of opls) {
-    const k = o.salesFarm || fallback;
-    bySales.set(k, [...(bySales.get(k) ?? []), o]);
-  }
-  const keys = [...bySales.keys()].sort();
-  // one id per sales farm, however many there are: a second sales farm showing up never renames (and closes) the open one
-  return keys.map((k) => awaitingTruckTrip(`${AWAITING_TRUCK}:${k}`, k, bySales.get(k)!));
+  const hubs = new Set(opls.map((o) => o.salesFarm || fallback));
+  return [awaitingTruckTrip(AWAITING_TRUCK, hubs.size === 1 ? [...hubs][0] : '', opls)];
 }
 
 /** The Quality B orders still at this farm with no trip, one group per sales farm: loaded onto the truck the farm picks. */
